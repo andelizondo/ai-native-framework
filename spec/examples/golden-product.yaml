@@ -1,0 +1,137 @@
+spec_version: "1.0.0"
+kind: product
+product_id: "golden_demo"
+
+metadata:
+  title: "Golden Demo Product"
+  status: draft
+  owner: "platform@example.com"
+  created_at: "2026-04-09T00:00:00Z"
+  updated_at: "2026-04-09T00:00:00Z"
+  tags:
+    - "demo"
+    - "framework"
+
+ideation:
+  problem: "Teams lose durable context between AI sessions and shipping iterations."
+  user: "Small product teams using AI coding agents."
+  goal: "Ship vertical slices with validated specs, events, and observability hooks."
+  constraints:
+    - "Minimize stack and vendor lock-in at the framework layer."
+    - "Provider-agnostic agent interfaces."
+  success_metrics:
+    - name: "time_to_second_slice"
+      definition: "Calendar days from first slice shipped to second slice shipped."
+      target: "<= 7d"
+  risks:
+    - description: "Spec theater (pretty docs, invalid machine specs)"
+      mitigation: "Schema CI on every change."
+
+design:
+  objective: "Provide a canonical, machine-verified product specification system."
+  requirements:
+    - id: "FR-001"
+      priority: must
+      statement: "All products MUST have a validated spec instance checked into VCS."
+    - id: "FR-002"
+      priority: must
+      statement: "All externally meaningful actions SHOULD emit structured events."
+  system_design: |
+    Client -> API -> Postgres (Supabase) -> workers -> analytics (PostHog) / errors (Sentry).
+    Specs live in-repo; runtime reads feature flags and typed config—not freeform prompts.
+  tooling_decisions:
+    - decision: "JSON Schema for spec validation"
+      reason: "Wide tooling support; agents can generate and validate reliably."
+      alternatives_considered:
+        - "Protobuf"
+        - "Custom DSL"
+  assumptions:
+    - text: "One primary Postgres database is enough for V1."
+      id: "A-001"
+  facts:
+    - text: "Repository exists and validation script runs in CI."
+      id: "F-001"
+
+data_model:
+  entities:
+    - name: "User"
+      description: "End-user account."
+      fields:
+        - name: "id"
+          type: "uuid"
+          pk: true
+        - name: "email"
+          type: "string"
+          pii: high
+      relationships:
+        - target: "Session"
+          cardinality: "1:N"
+
+events:
+  naming_convention: "domain.action_in_past_tense"
+  catalog:
+    - name: "auth.user_signed_up"
+      description: "A new user completed signup."
+      version: "1.0.0"
+      schema_version: "1.0.0"
+      classification:
+        pii: high
+        idempotency: required
+        ordering: at_least_once
+      emitted_by:
+        - "api.auth"
+      payload:
+        type: object
+        additionalProperties: false
+        required:
+          - user_id
+          - occurred_at
+        properties:
+          user_id:
+            type: string
+            format: uuid
+          occurred_at:
+            type: string
+            format: date-time
+          plan:
+            type: string
+            enum:
+              - free
+              - pro
+
+observability:
+  logs:
+    strategy: "Structured JSON logs; include correlation_id and trace ids when available."
+    pii_policy: "No raw emails in info-level logs; use hashed identifiers where needed."
+  errors:
+    tool: "Sentry"
+    policy: "Capture unhandled exceptions; tag with product_id and slice_id."
+  metrics:
+    tool: "PostHog"
+    core_metrics:
+      - key: "activation_completed"
+        description: "User completed primary activation funnel step."
+        type: event
+
+context_recovery:
+  canonical_summary: |
+    This repository defines the agent-native product specification format.
+    Agents should read spec/ first, then code, then tests.
+  key_decisions:
+    - "Specs are validated JSON/YAML; Markdown is optional mirror."
+    - "Events are named with past-tense domain segments."
+  domain_terms:
+    - term: "slice"
+      definition: "Vertical end-to-end feature increment spanning UI, API, DB, and telemetry."
+    - term: "catalog"
+      definition: "The list of event definitions under events.catalog."
+
+decision_log:
+  entries:
+    - id: "DEC-001"
+      date: "2026-04-09"
+      decision: "Use parallel development cycle (framework skeleton + slice in sync)."
+      reason: "Keeps boilerplate honest and reduces spec drift."
+      alternatives:
+        - "Framework-first (rejected)"
+        - "Product-only with backfill (escape hatch)"

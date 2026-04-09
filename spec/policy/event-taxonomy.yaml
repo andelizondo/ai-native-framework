@@ -1,0 +1,49 @@
+# Machine-readable event policy. Agents MUST follow this for new events.
+version: "1.0.0"
+updated_at: "2026-04-09"
+
+naming:
+  pattern: "domain.action_past_tense"
+  examples:
+    - "auth.user_signed_up"
+    - "billing.invoice_paid"
+  rules:
+    - "Use snake_case segments; past-tense verb phrase as the final segment."
+    - "Names are stable forever; never rename—deprecate and add a successor event."
+
+payloads:
+  rules:
+    - "Payloads are JSON-serializable objects; avoid polymorphic one-of blobs when possible."
+    - "Include correlation_id at the envelope level (see transport), not duplicated per field."
+    - "Version the payload shape inside the catalog entry (schema_version)."
+
+classification:
+  pii_levels:
+    - none
+    - low
+    - high
+  idempotency:
+    - none
+    - recommended
+    - required
+  ordering:
+    - at_least_once
+    - effectively_exactly_once
+
+transport:
+  # Where events cross boundaries (product-specific). Agents should emit consistently.
+  required_envelope_fields:
+    - event_name
+    - occurred_at
+    - emitted_by
+    - correlation_id
+    - schema_version
+
+deprecation:
+  rules:
+    - "Mark event as deprecated in catalog with replacement_event and sunset_date."
+    - "Keep old events in analytics with a migration mapping document."
+
+redaction:
+  rules:
+    - "For high PII events, document redaction rules for logs and third-party exports."

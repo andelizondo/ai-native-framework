@@ -1,0 +1,50 @@
+# Template for a vertical slice spec. Copy to spec/examples/<slice_id>.yaml and fill.
+spec_version: "1.0.0"
+kind: slice
+product_id: "CHANGE_ME"
+parent_product_id: "CHANGE_ME"
+slice_id: "CHANGE_ME"
+
+metadata:
+  title: "CHANGE_ME"
+  status: draft
+  owner: "CHANGE_ME"
+  created_at: "CHANGE_ME"
+  updated_at: "CHANGE_ME"
+  tags: []
+
+ideation:
+  problem: ""
+  user: ""
+  goal: ""
+  constraints: []
+  success_metrics: []
+  risks: []
+
+design:
+  objective: ""
+  requirements: []
+  system_design: ""
+  tooling_decisions: []
+  assumptions: []
+  facts: []
+
+data_model:
+  entities: []
+
+events:
+  naming_convention: "domain.action_in_past_tense"
+  catalog: []
+
+observability:
+  logs: {}
+  errors: {}
+  metrics: {}
+
+context_recovery:
+  canonical_summary: ""
+  key_decisions: []
+  domain_terms: []
+
+decision_log:
+  entries: []

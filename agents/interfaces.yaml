@@ -1,0 +1,64 @@
+# Provider-agnostic logical interfaces agents should implement or call via adapters.
+version: "1.0.0"
+
+interfaces:
+  read_spec:
+    description: "Load canonical spec from repo or registry."
+    inputs:
+      path:
+        type: string
+    outputs:
+      spec:
+        type: object
+
+  validate_spec:
+    description: "Validate a spec instance against product-spec.schema.json."
+    inputs:
+      instance:
+        type: object
+    outputs:
+      valid:
+        type: boolean
+      errors:
+        type: array
+
+  emit_event:
+    description: "Emit a structured domain event with envelope fields."
+    inputs:
+      name:
+        type: string
+      payload:
+        type: object
+      correlation_id:
+        type: string
+      occurred_at:
+        type: string
+        format: date-time
+      emitted_by:
+        type: string
+    outputs:
+      accepted:
+        type: boolean
+
+  record_error:
+    description: "Send an error to the error tracking system."
+    inputs:
+      error:
+        type: object
+      fingerprint_tags:
+        type: array
+
+  capture_metric:
+    description: "Capture product analytics event."
+    inputs:
+      key:
+        type: string
+      properties:
+        type: object
+
+policies:
+  human_in_the_loop:
+    required_for:
+      - "Breaking schema migrations"
+      - "PII policy changes"
+      - "Security-sensitive tool grants"
