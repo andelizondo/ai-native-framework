@@ -1,0 +1,223 @@
+name: p1-risk-classification
+
+on:
+  pull_request_target:
+    types: [opened, reopened, synchronize, edited, ready_for_review]
+
+permissions:
+  contents: read
+  issues: write
+  pull-requests: write
+
+jobs:
+  classify:
+    if: github.event.pull_request.base.ref == 'main'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/github-script@v7
+        with:
+          script: |
+            const owner = context.repo.owner;
+            const repo = context.repo.repo;
+            const pr = context.payload.pull_request;
+            const marker = '<!-- p1-risk-classification -->';
+            const riskLabels = ['risk:low', 'risk:medium', 'risk:high'];
+            const autoMergeLabel = 'ai:auto-merge-candidate';
+
+            const labelPalette = {
+              'risk:low': '0e8a16',
+              'risk:medium': 'fbca04',
+              'risk:high': 'd73a4a',
+              'ai:auto-merge-candidate': '1d76db',
+            };
+
+            for (const [name, color] of Object.entries(labelPalette)) {
+              try {
+                await github.rest.issues.createLabel({
+                  owner,
+                  repo,
+                  name,
+                  color,
+                });
+              } catch (error) {
+                if (error.status !== 422) {
+                  throw error;
+                }
+              }
+            }
+
+            const files = await github.paginate(github.rest.pulls.listFiles, {
+              owner,
+              repo,
+              pull_number: pr.number,
+              per_page: 100,
+            });
+
+            const paths = files.map((file) => file.filename);
+
+            const protectedPatterns = [
+              '.github/workflows/**',
+              '.github/dependabot.yml',
+              'agents/**',
+              'package.json',
+              'package-lock.json',
+              'scripts/**',
+              'spec/**',
+              'templates/**',
+              'SECURITY.md',
+            ];
+
+            const highRiskPatterns = [
+              '**/auth/**',
+              '**/billing/**',
+              '**/payments/**',
+              '**/secrets/**',
+              '**/credentials/**',
+              '**/migrations/**',
+              '**/terraform/**',
+              '**/iac/**',
+            ];
+
+            const lowRiskPatterns = [
+              'docs/**',
+              'README.md',
+              'REPO_SCAFFOLD.md',
+              'CONTRIBUTING.md',
+              '.github/pull_request_template.md',
+              '.github/ISSUE_TEMPLATE/**',
+            ];
+
+            function escapeRegex(value) {
+              return value.replace(/[|\\{}()[\]^$+?.]/g, '\\$&');
+            }
+
+            function patternToRegExp(pattern) {
+              let source = escapeRegex(pattern);
+              source = source.replace(/\*\*/g, '.*');
+              source = source.replace(/\*/g, '[^/]*');
+              return new RegExp(`^${source}$`);
+            }
+
+            function matches(path, patterns) {
+              return patterns.some((pattern) => patternToRegExp(pattern).test(path));
+            }
+
+            let risk = 'low';
+            const reasons = [];
+
+            for (const path of paths) {
+              if (matches(path, highRiskPatterns)) {
+                risk = 'high';
+                reasons.push(`${path} matches a high-risk protected surface.`);
+                continue;
+              }
+
+              if (matches(path, protectedPatterns)) {
+                if (risk !== 'high') {
+                  risk = 'medium';
+                }
+                reasons.push(`${path} matches a protected repository surface.`);
+                continue;
+              }
+
+              if (!matches(path, lowRiskPatterns)) {
+                if (risk === 'low') {
+                  risk = 'medium';
+                }
+                reasons.push(`${path} does not match the low-risk path allowlist.`);
+              }
+            }
+
+            const uniqueReasons = [...new Set(reasons)];
+            const riskLabel = `risk:${risk}`;
+            const currentLabels = pr.labels.map((label) => label.name);
+
+            for (const label of riskLabels) {
+              if (currentLabels.includes(label) && label !== riskLabel) {
+                await github.rest.issues.removeLabel({
+                  owner,
+                  repo,
+                  issue_number: pr.number,
+                  name: label,
+                }).catch((error) => {
+                  if (error.status !== 404) {
+                    throw error;
+                  }
+                });
+              }
+            }
+
+            if (!currentLabels.includes(riskLabel)) {
+              await github.rest.issues.addLabels({
+                owner,
+                repo,
+                issue_number: pr.number,
+                labels: [riskLabel],
+              });
+            }
+
+            if (risk === 'low' && !currentLabels.includes(autoMergeLabel)) {
+              await github.rest.issues.addLabels({
+                owner,
+                repo,
+                issue_number: pr.number,
+                labels: [autoMergeLabel],
+              });
+            }
+
+            if (risk !== 'low' && currentLabels.includes(autoMergeLabel)) {
+              await github.rest.issues.removeLabel({
+                owner,
+                repo,
+                issue_number: pr.number,
+                name: autoMergeLabel,
+              }).catch((error) => {
+                if (error.status !== 404) {
+                  throw error;
+                }
+              });
+            }
+
+            const body = [
+              marker,
+              `P1 classification: **${risk}** risk.`,
+              '',
+              `Changed files: ${paths.map((path) => `\`${path}\``).join(', ')}`,
+              '',
+              'Why:',
+              ...(uniqueReasons.length > 0
+                ? uniqueReasons.map((reason) => `- ${reason}`)
+                : ['- All changed paths are currently within the low-risk allowlist.']),
+              '',
+              'Authority under `docs/P1_PR_EXECUTION_LOOP.md`:',
+              risk === 'low'
+                ? '- Eligible for automation after required checks pass.'
+                : '- Human approval remains required before merge.',
+            ].join('\n');
+
+            const comments = await github.paginate(github.rest.issues.listComments, {
+              owner,
+              repo,
+              issue_number: pr.number,
+              per_page: 100,
+            });
+
+            const existing = comments.find((comment) =>
+              comment.user?.type === 'Bot' && comment.body?.includes(marker),
+            );
+
+            if (existing) {
+              await github.rest.issues.updateComment({
+                owner,
+                repo,
+                comment_id: existing.id,
+                body,
+              });
+            } else {
+              await github.rest.issues.createComment({
+                owner,
+                repo,
+                issue_number: pr.number,
+                body,
+              });
+            }

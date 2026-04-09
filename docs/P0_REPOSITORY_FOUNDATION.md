@@ -20,6 +20,7 @@ At the end of this playbook, the repository should have:
 - Merge strategy and branch cleanup defaults configured.
 - Basic governance files for ownership, contribution flow, security reporting, issues, and pull requests.
 - Dependency and security automation enabled.
+- CODEOWNERS scoped to protected repository surfaces if low-risk PR automation will be allowed later.
 
 ## Inputs
 
@@ -57,6 +58,8 @@ Create the following files before broader collaboration begins:
 - `SECURITY.md`
 
 These files establish who must review changes, how work enters the repo, and how vulnerabilities are handled.
+
+If the repository will later allow low-risk automated PR approval or merge, CODEOWNERS **SHOULD** target protected surfaces instead of every file in the repository. A blanket `*` owner rule blocks low-risk automation by forcing owner review on every change.
 
 ## 4. Configure repository defaults on GitHub
 
@@ -120,6 +123,7 @@ The first execution of P0 in this repository applied the following concrete sett
 - Branch protection: enabled on `main`
 - Reviews required: 1
 - CODEOWNERS review: required
+- CODEOWNERS scope: protected surfaces only
 - Stale review dismissal: enabled
 - Conversation resolution: required
 - Linear history: required
@@ -130,5 +134,6 @@ The first execution of P0 in this repository applied the following concrete sett
 ## Notes for future variants
 
 - Organizations may add team-based CODEOWNERS, signed-commit requirements, deployment environments, or release workflows on top of P0.
+- Repositories that want low-risk auto-merge should keep CODEOWNERS focused on protected paths, not documentation-only surfaces.
 - Repositories with multiple validation lanes may require more than one status check.
 - If the framework later introduces machine-readable process schemas under `spec/processes/`, P0 should be encoded there as well as in Markdown.

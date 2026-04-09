@@ -6,6 +6,8 @@ Automate the path from open pull request to merge while preserving explicit huma
 
 P1 is the first operating playbook that runs continuously after repository foundation is in place. It defines how agents, CI, GitHub policy, and human checkpoints work together on every PR.
 
+The AI reviewer backend **MUST** be treated as replaceable. The framework's policy layer decides authority; the reviewer implementation supplies comments, findings, and suggested changes.
+
 ## When to run
 
 Run P1 for every pull request targeting a protected branch.
@@ -27,6 +29,7 @@ At the end of this playbook, each PR should have:
 - Repository test and validation commands.
 - CODEOWNERS and protected path definitions.
 - Threshold policy for low, medium, and high risk changes.
+- AI reviewer backend configuration and repository-specific review instructions.
 
 ## Risk tiers
 
@@ -45,6 +48,8 @@ Default agent authority:
 - Review: yes
 - Approve: yes
 - Merge: yes, if all required checks pass and policy gates are satisfied
+
+Low-risk automation only works if branch protection and CODEOWNERS are scoped so that documentation-only or metadata-only changes do not still require human codeowner review.
 
 ### Medium risk
 
@@ -115,6 +120,8 @@ No PR should be approved or merged without passing required checks.
 
 Automated review must leave an auditable artifact in the PR.
 
+Repository-specific reviewer guidance **SHOULD** live in versioned files such as `.github/copilot-instructions.md` so the AI backend can be swapped without changing the playbook's policy.
+
 ## 4. Apply threshold policy
 
 Decision rules:
@@ -168,7 +175,7 @@ The first implementation should use:
 
 - GitHub Actions for deterministic checks and PR metadata workflows
 - Branch protection and auto-merge for merge enforcement
-- An agent reviewer for code review and safe autofix proposals
+- An AI reviewer backend for code review and safe autofix proposals
 - Labels or check runs for risk classification
 
 Optional later layers:
@@ -177,6 +184,12 @@ Optional later layers:
 - Preview environments
 - Policy engine for path-based authority
 - Structured workflow state outside GitHub
+
+Initial backend for this repository:
+
+- GitHub Copilot for AI review comments and suggested changes
+- Repository custom instructions in `.github/copilot-instructions.md`
+- GitHub Actions for classification, low-risk approval, and auto-merge orchestration
 
 ## Human checkpoints
 
@@ -200,6 +213,7 @@ Recommended first implementation for this repository:
 - Allow agent approval only for low-risk PRs.
 - Allow auto-merge only after required checks pass and policy allows approval.
 - Require human review for schema, workflow, security, and policy changes until thresholds are refined further.
+- Keep approval and merge authority in GitHub policy and workflows, not in the AI reviewer backend itself.
 
 ## Events
 
@@ -219,3 +233,4 @@ Example event names:
 - P1 should eventually be encoded in machine-readable process definitions under `spec/processes/`.
 - Risk tiering should evolve from simple path rules toward evidence-based thresholds.
 - Approval policy should remain stricter than review policy.
+- The reviewer backend may change over time; the threshold policy should not depend on a single provider.
