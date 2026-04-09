@@ -23,12 +23,14 @@ jobs:
             const marker = '<!-- p1-risk-classification -->';
             const riskLabels = ['risk:low', 'risk:medium', 'risk:high'];
             const autoMergeLabel = 'ai:auto-merge-candidate';
+            const needsUpdateLabel = 'needs:update';
 
             const labelPalette = {
               'risk:low': '0e8a16',
               'risk:medium': 'fbca04',
               'risk:high': 'd73a4a',
               'ai:auto-merge-candidate': '1d76db',
+              'needs:update': '5319e7',
             };
 
             for (const [name, color] of Object.entries(labelPalette)) {
@@ -131,6 +133,7 @@ jobs:
             const uniqueReasons = [...new Set(reasons)];
             const riskLabel = `risk:${risk}`;
             const currentLabels = pr.labels.map((label) => label.name);
+            const isBehind = pr.mergeable_state === 'behind';
 
             for (const label of riskLabels) {
               if (currentLabels.includes(label) && label !== riskLabel) {
@@ -178,9 +181,32 @@ jobs:
               });
             }
 
+            if (isBehind && !currentLabels.includes(needsUpdateLabel)) {
+              await github.rest.issues.addLabels({
+                owner,
+                repo,
+                issue_number: pr.number,
+                labels: [needsUpdateLabel],
+              });
+            }
+
+            if (!isBehind && currentLabels.includes(needsUpdateLabel)) {
+              await github.rest.issues.removeLabel({
+                owner,
+                repo,
+                issue_number: pr.number,
+                name: needsUpdateLabel,
+              }).catch((error) => {
+                if (error.status !== 404) {
+                  throw error;
+                }
+              });
+            }
+
             const body = [
               marker,
               `P1 classification: **${risk}** risk.`,
+              `Branch freshness: **${isBehind ? 'outdated' : 'current'}**.`,
               '',
               `Changed files: ${paths.map((path) => `\`${path}\``).join(', ')}`,
               '',
@@ -189,10 +215,17 @@ jobs:
                 ? uniqueReasons.map((reason) => `- ${reason}`)
                 : ['- All changed paths are currently within the low-risk allowlist.']),
               '',
+              ...(isBehind
+                ? [
+                    'Freshness gate:',
+                    '- This PR is behind the protected base branch and must be updated before approval or merge automation can continue.',
+                    '',
+                  ]
+                : []),
               'Authority under `docs/P1_PR_EXECUTION_LOOP.md`:',
-              risk === 'low'
+              risk === 'low' && !isBehind
                 ? '- Eligible for automation after required checks pass.'
-                : '- Human approval remains required before merge.',
+                : '- Human approval or branch refresh remains required before merge.',
             ].join('\n');
 
             const comments = await github.paginate(github.rest.issues.listComments, {

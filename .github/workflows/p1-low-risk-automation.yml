@@ -90,6 +90,11 @@ jobs:
               return;
             }
 
+            if (labels.includes('needs:update') || pr.mergeStateStatus === 'BEHIND') {
+              core.info('Pull request is behind the protected base branch.');
+              return;
+            }
+
             const checksResponse = await github.rest.checks.listForRef({
               owner,
               repo,
