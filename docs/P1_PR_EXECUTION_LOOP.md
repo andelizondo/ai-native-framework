@@ -16,7 +16,8 @@ Run P1 for every pull request targeting a protected branch.
 
 At the end of this playbook, each PR should have:
 
-- A risk classification.
+- An initial risk classification.
+- A residual risk decision after review.
 - A branch freshness decision.
 - Deterministic validation evidence.
 - Automated review output.
@@ -32,8 +33,13 @@ At the end of this playbook, each PR should have:
 - Threshold policy for low, medium, and high risk changes.
 - AI reviewer backend configuration and repository-specific review instructions.
 - Freshness policy for PR branches relative to the protected base branch.
+- A policy decision check that maps residual risk to merge authority.
 
 ## Risk tiers
+
+Initial risk answers: how carefully should this PR be reviewed?
+
+Residual risk answers: after review and evidence, is human approval still required?
 
 ### Low risk
 
@@ -105,6 +111,20 @@ Human approval is mandatory.
 
 Classification should be conservative. When in doubt, move the PR upward in risk.
 
+Short GitHub labels are recommended for visual clarity:
+
+- `risk:l`, `risk:m`, `risk:h` for initial risk
+- `res:l`, `res:m`, `res:h` for residual risk
+- `stale` for branch freshness failures
+
+## 1.5 Determine residual risk
+
+1. Review the actual diff and validation evidence.
+2. Identify whether the initial structural risk remains material after review.
+3. Emit a residual-risk decision separately from the initial classification.
+
+Residual risk may be lower than initial risk. Example: a workflow file change is structurally medium risk, but a one-line vetted dependency bump with passing checks may be residual low risk after review.
+
 ## 2. Run deterministic checks
 
 1. Execute required validation, lint, typecheck, test, and build commands for the repository.
@@ -116,7 +136,7 @@ No PR should be approved or merged without passing required checks.
 ## 2.5 Enforce branch freshness
 
 1. Determine whether the PR branch is current with the protected base branch.
-2. If the PR is behind, label it as needing update and stop approval or merge automation.
+2. If the PR is behind, label it as `stale` and stop approval or merge automation.
 3. Re-run classification, review, and threshold checks after the branch is refreshed.
 
 Branch freshness is a hard gate. A PR evaluation is stale if the base branch has advanced in a way that could affect policy, CI, CODEOWNERS, or runtime behavior.
@@ -144,15 +164,18 @@ Repository-specific reviewer guidance **SHOULD** live in versioned files such as
 
 Decision rules:
 
-- Low risk: agent may approve and enable merge when checks pass and no blocking findings remain.
-- Medium risk: agent may review and prepare the PR, but approval and merge follow repository-specific threshold policy.
-- High risk: human review is mandatory before approval or merge.
+- Initial risk sets review depth.
+- Residual risk sets approval and merge authority.
+- Residual low: automation may approve or merge when checks pass and no blocking findings remain.
+- Residual medium: approval and merge follow repository-specific threshold policy.
+- Residual high: human review is mandatory before approval or merge.
 
 A threshold policy should include at least:
 
 - affected paths or systems
 - diff size or complexity thresholds
 - branch freshness requirements
+- initial vs residual risk rules
 - required evidence types
 - required human approver roles
 - rollback expectations for risky changes
@@ -171,7 +194,7 @@ If the PR is behind the protected branch, escalation should explicitly request a
 
 When the PR is within policy and all required checks have passed:
 
-1. Apply approval if the actor is permitted to approve that risk tier.
+1. Apply the policy decision for the residual-risk tier.
 2. Enable auto-merge or merge directly according to repository policy.
 3. Ensure branch cleanup runs after merge.
 
@@ -182,7 +205,8 @@ Merge must also be blocked if the PR branch is behind the protected base branch.
 
 Record:
 
-- risk tier
+- initial risk tier
+- residual risk tier
 - branch freshness state
 - checks executed
 - findings summary
@@ -200,6 +224,7 @@ The first implementation should use:
 - Branch protection and auto-merge for merge enforcement
 - An AI reviewer backend for code review and safe autofix proposals
 - Labels or check runs for risk classification
+- A required policy check that decides whether human approval is still necessary
 - Labels or checks for branch freshness and update requirements
 
 Optional later layers:
@@ -219,7 +244,8 @@ Initial backend for this repository:
 
 Human involvement is required when any of the following apply:
 
-- high-risk change
+- residual high risk
+- residual medium risk when repository policy requires a human checkpoint
 - unclear ownership
 - branch is behind the protected base branch and cannot be refreshed automatically
 - failing or flaky required checks
@@ -233,12 +259,14 @@ Human involvement is required when any of the following apply:
 Recommended first implementation for this repository:
 
 - Auto-classify PR risk from changed paths and labels.
-- Label stale PRs with `needs:update` and block automation until they are refreshed.
+- Distinguish initial risk from residual risk after review.
+- Label stale PRs with `stale` and block automation until they are refreshed.
 - Run `npm run validate` as the canonical required check.
 - Run automated agent review on every PR.
-- Allow agent approval only for low-risk PRs.
+- Allow automation to merge residual-low PRs.
+- Require a policy decision check before merge instead of a blanket GitHub review gate.
 - Allow auto-merge only after required checks pass and policy allows approval.
-- Require human review for schema, workflow, security, and policy changes until thresholds are refined further.
+- Require human review only when residual risk and policy thresholds still warrant it.
 - Keep approval and merge authority in GitHub policy and workflows, not in the AI reviewer backend itself.
 
 ## Events
@@ -247,6 +275,7 @@ Example event names:
 
 - `pr.opened`
 - `pr.risk_classified`
+- `pr.residual_risk_set`
 - `pr.branch_outdated`
 - `pr.branch_refreshed`
 - `pr.validation_completed`
