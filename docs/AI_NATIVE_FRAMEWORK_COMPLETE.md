@@ -324,7 +324,17 @@ For deployments targeting **solo founders or minimal teams** in **B2B SaaS**, th
 - **Playbook:** `docs/P0_REPOSITORY_FOUNDATION.md`
 - **Events (examples):** `ops.repo_published`, `ops.branch_protection_enabled`, `ops.security_automation_enabled`.
 
-After P0, the library **SHOULD** contain encoded workflows for the following six operating processes.
+#### P1 - Pull request execution loop
+
+- **Objective:** Automate PR review, testing, approval, and merge within explicit human-governed thresholds.
+- **Inputs:** PR metadata, diff, branch protection rules, required checks, and threshold policy.
+- **Outputs:** Risk classification, validation evidence, review outcome, approval decision, and merge or escalation state.
+- **Capabilities:** Builder, Ops, Researcher.
+- **Checkpoints:** Human approval is **MUST** for high-risk changes and **SHOULD** be required whenever confidence or evidence falls below policy thresholds.
+- **Playbook:** `docs/P1_PR_EXECUTION_LOOP.md`
+- **Events (examples):** `pr.risk_classified`, `pr.review_completed`, `pr.escalated`, `pr.merged`.
+
+After P1, the library **SHOULD** contain encoded workflows for the following six operating processes.
 
 #### W1 — Opportunity research
 
