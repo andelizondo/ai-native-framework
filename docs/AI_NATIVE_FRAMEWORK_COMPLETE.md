@@ -199,6 +199,7 @@ Typical layout for a framework-aligned repo:
 | `agents/interfaces.yaml` | Logical tool contracts |
 | `scripts/validate-spec.mjs` | Local and CI validation |
 | `.github/workflows/` | CI pipelines |
+| `docs/PLAYBOOKS.md` | Human-readable index of reusable playbooks |
 
 ---
 
@@ -311,7 +312,19 @@ The Process Library is the **encoded moat**: reusable, versioned procedures—tr
 
 ### 11.4 V1 default workflow set (B2B SaaS, small team)
 
-For deployments targeting **solo founders or minimal teams** in **B2B SaaS**, the library **SHOULD** contain encoded workflows for the following six processes.
+For deployments targeting **solo founders or minimal teams** in **B2B SaaS**, the library **SHOULD** contain encoded workflows for the following baseline sequence.
+
+#### P0 - Repository foundation
+
+- **Objective:** Make the repository safe for parallel human and agent execution before normal product work starts.
+- **Inputs:** Repository owner, default branch, maintainer handle, and at least one validation command.
+- **Outputs:** Protected default branch, CI baseline, merge policy, security defaults, and governance files.
+- **Capabilities:** Builder, Product, Ops.
+- **Checkpoints:** Human confirmation of repository owner, visibility, and merge policy before protection is enforced.
+- **Playbook:** `docs/P0_REPOSITORY_FOUNDATION.md`
+- **Events (examples):** `ops.repo_published`, `ops.branch_protection_enabled`, `ops.security_automation_enabled`.
+
+After P0, the library **SHOULD** contain encoded workflows for the following six operating processes.
 
 #### W1 — Opportunity research
 
