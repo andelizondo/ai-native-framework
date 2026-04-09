@@ -199,6 +199,7 @@ Typical layout for a framework-aligned repo:
 | `agents/interfaces.yaml` | Logical tool contracts |
 | `scripts/validate-spec.mjs` | Local and CI validation |
 | `.github/workflows/` | CI pipelines |
+| `docs/PLAYBOOKS.md` | Human-readable index of reusable playbooks |
 
 ---
 
@@ -311,7 +312,29 @@ The Process Library is the **encoded moat**: reusable, versioned procedures—tr
 
 ### 11.4 V1 default workflow set (B2B SaaS, small team)
 
-For deployments targeting **solo founders or minimal teams** in **B2B SaaS**, the library **SHOULD** contain encoded workflows for the following six processes.
+For deployments targeting **solo founders or minimal teams** in **B2B SaaS**, the library **SHOULD** contain encoded workflows for the following baseline sequence.
+
+#### P0 - Repository foundation
+
+- **Objective:** Make the repository safe for parallel human and agent execution before normal product work starts.
+- **Inputs:** Repository owner, default branch, maintainer handle, and at least one validation command.
+- **Outputs:** Protected default branch, CI baseline, merge policy, security defaults, and governance files.
+- **Capabilities:** Builder, Product, Ops.
+- **Checkpoints:** Human confirmation of repository owner, visibility, and merge policy before protection is enforced.
+- **Playbook:** `docs/P0_REPOSITORY_FOUNDATION.md`
+- **Events (examples):** `ops.repo_published`, `ops.branch_protection_enabled`, `ops.security_automation_enabled`.
+
+#### P1 - Pull request execution loop
+
+- **Objective:** Automate PR review, testing, approval, and merge within explicit human-governed thresholds.
+- **Inputs:** PR metadata, diff, branch protection rules, required checks, and threshold policy.
+- **Outputs:** Risk classification, validation evidence, review outcome, approval decision, and merge or escalation state.
+- **Capabilities:** Builder, Ops, Researcher, AI reviewer backend.
+- **Checkpoints:** Human approval is **MUST** for high-risk changes and **SHOULD** be required whenever confidence or evidence falls below policy thresholds.
+- **Playbook:** `docs/P1_PR_EXECUTION_LOOP.md`
+- **Events (examples):** `pr.risk_classified`, `pr.review_completed`, `pr.escalated`, `pr.merged`.
+
+After P1, the library **SHOULD** contain encoded workflows for the following six operating processes.
 
 #### W1 — Opportunity research
 

@@ -1,1 +1,10 @@
-* @andelizondo
+# Protected surfaces that always require owner review.
+.github/workflows/ @andelizondo
+.github/dependabot.yml @andelizondo
+agents/ @andelizondo
+package.json @andelizondo
+package-lock.json @andelizondo
+scripts/ @andelizondo
+spec/ @andelizondo
+templates/ @andelizondo
+SECURITY.md @andelizondo

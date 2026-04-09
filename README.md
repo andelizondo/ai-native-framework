@@ -4,6 +4,7 @@
 **Policy:** [`spec/policy/event-taxonomy.yaml`](spec/policy/event-taxonomy.yaml).  
 **Agent tool contracts:** [`agents/interfaces.yaml`](agents/interfaces.yaml).  
 **Operating framework (normative prose, v0.1):** [`docs/AI_NATIVE_FRAMEWORK_COMPLETE.md`](docs/AI_NATIVE_FRAMEWORK_COMPLETE.md) - read after `spec/` when bootstrapping company-wide behavior.  
+**Playbooks:** [`docs/PLAYBOOKS.md`](docs/PLAYBOOKS.md) - reusable procedures for bootstrapping and operating framework-aligned repos.  
 Optional human-readable mirrors can live under `docs/` (generate or keep in sync).
 
 ## Quick start
@@ -26,6 +27,7 @@ CI runs the same check (see [`.github/workflows/validate.yml`](.github/workflows
 | `agents/`                              | Provider-agnostic logical interfaces                                 |
 | `scripts/`                             | `validate-spec.mjs` (AJV + YAML)                                     |
 | `docs/AI_NATIVE_FRAMEWORK_COMPLETE.md` | Full operating framework (agent-oriented; initial v0.1)              |
+| `docs/PLAYBOOKS.md`                    | Index of reusable playbooks and operating procedures                 |
 | `REPO_SCAFFOLD.md`                     | Full copy-paste bundle + Appendix (keep in sync when editing schema) |
 
 

@@ -1,0 +1,166 @@
+name: p1-low-risk-automation
+
+on:
+  pull_request_target:
+    types: [opened, reopened, synchronize, ready_for_review, labeled, unlabeled]
+  pull_request_review:
+    types: [submitted, edited, dismissed]
+  workflow_run:
+    workflows: ["validate-spec", "p1-risk-classification"]
+    types: [completed]
+
+permissions:
+  contents: read
+  pull-requests: write
+
+jobs:
+  evaluate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/github-script@v7
+        env:
+          REQUIRED_CHECK: validate
+        with:
+          script: |
+            const owner = context.repo.owner;
+            const repo = context.repo.repo;
+
+            function getPrNumber() {
+              if (context.eventName === 'pull_request_target') {
+                return context.payload.pull_request.number;
+              }
+
+              if (context.eventName === 'pull_request_review') {
+                return context.payload.pull_request.number;
+              }
+
+              if (context.eventName === 'workflow_run') {
+                const prs = context.payload.workflow_run.pull_requests || [];
+                return prs.length > 0 ? prs[0].number : null;
+              }
+
+              return null;
+            }
+
+            const prNumber = getPrNumber();
+            if (!prNumber) {
+              core.info('No pull request is associated with this event.');
+              return;
+            }
+
+            const prQuery = await github.graphql(
+              `
+                query PullRequestState($owner: String!, $repo: String!, $number: Int!) {
+                  repository(owner: $owner, name: $repo) {
+                    pullRequest(number: $number) {
+                      id
+                      number
+                      isDraft
+                      state
+                      reviewDecision
+                      mergeStateStatus
+                      autoMergeRequest {
+                        enabledAt
+                      }
+                      author {
+                        login
+                      }
+                      labels(first: 20) {
+                        nodes {
+                          name
+                        }
+                      }
+                      headRefOid
+                    }
+                  }
+                }
+              `,
+              { owner, repo, number: prNumber },
+            );
+
+            const pr = prQuery.repository.pullRequest;
+            if (!pr || pr.state !== 'OPEN' || pr.isDraft) {
+              core.info('Pull request is not open and ready for automation.');
+              return;
+            }
+
+            const labels = pr.labels.nodes.map((label) => label.name);
+            if (!labels.includes('risk:low')) {
+              core.info('Pull request is not classified as low risk.');
+              return;
+            }
+
+            const checksResponse = await github.rest.checks.listForRef({
+              owner,
+              repo,
+              ref: pr.headRefOid,
+              per_page: 100,
+            });
+
+            const requiredCheck = process.env.REQUIRED_CHECK;
+            const validateCheck = checksResponse.data.check_runs.find(
+              (checkRun) => checkRun.name === requiredCheck,
+            );
+
+            if (!validateCheck || validateCheck.status !== 'completed' || validateCheck.conclusion !== 'success') {
+              core.info(`Required check ${requiredCheck} is not successful yet.`);
+              return;
+            }
+
+            if (pr.reviewDecision !== 'APPROVED') {
+              await github.rest.pulls.createReview({
+                owner,
+                repo,
+                pull_number: pr.number,
+                event: 'APPROVE',
+                body: [
+                  'P1 low-risk approval by automation.',
+                  '',
+                  'This PR is labeled `risk:low`, the required `validate` check passed, and no protected repository surfaces were detected.',
+                ].join('\n'),
+              });
+            }
+
+            const refreshed = await github.graphql(
+              `
+                query RefreshedPullRequest($owner: String!, $repo: String!, $number: Int!) {
+                  repository(owner: $owner, name: $repo) {
+                    pullRequest(number: $number) {
+                      id
+                      reviewDecision
+                      autoMergeRequest {
+                        enabledAt
+                      }
+                    }
+                  }
+                }
+              `,
+              { owner, repo, number: pr.number },
+            );
+
+            const refreshedPr = refreshed.repository.pullRequest;
+            if (refreshedPr.reviewDecision !== 'APPROVED') {
+              core.info('Automation could not obtain an approving review.');
+              return;
+            }
+
+            if (refreshedPr.autoMergeRequest) {
+              core.info('Auto-merge is already enabled.');
+              return;
+            }
+
+            await github.graphql(
+              `
+                mutation EnableAutoMerge($pullRequestId: ID!) {
+                  enablePullRequestAutoMerge(input: {
+                    pullRequestId: $pullRequestId,
+                    mergeMethod: SQUASH
+                  }) {
+                    pullRequest {
+                      number
+                    }
+                  }
+                }
+              `,
+              { pullRequestId: refreshedPr.id },
+            );
