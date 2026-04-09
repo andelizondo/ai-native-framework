@@ -1,9 +1,9 @@
 # AI-native framework (agent spec)
 
-**Canonical source of truth for agents:** `[spec/schema/product-spec.schema.json](spec/schema/product-spec.schema.json)` and validated instances under `[spec/examples/](spec/examples/)`.  
-**Policy:** `[spec/policy/event-taxonomy.yaml](spec/policy/event-taxonomy.yaml)`.  
-**Agent tool contracts:** `[agents/interfaces.yaml](agents/interfaces.yaml)`.  
-**Operating framework (normative prose, v0.1):** `[docs/AI_NATIVE_FRAMEWORK_COMPLETE.md](docs/AI_NATIVE_FRAMEWORK_COMPLETE.md)` — read after `spec/` when bootstrapping company-wide behavior.  
+**Canonical source of truth for agents:** [`spec/schema/product-spec.schema.json`](spec/schema/product-spec.schema.json) and validated instances under [`spec/examples/`](spec/examples/).  
+**Policy:** [`spec/policy/event-taxonomy.yaml`](spec/policy/event-taxonomy.yaml).  
+**Agent tool contracts:** [`agents/interfaces.yaml`](agents/interfaces.yaml).  
+**Operating framework (normative prose, v0.1):** [`docs/AI_NATIVE_FRAMEWORK_COMPLETE.md`](docs/AI_NATIVE_FRAMEWORK_COMPLETE.md) - read after `spec/` when bootstrapping company-wide behavior.  
 Optional human-readable mirrors can live under `docs/` (generate or keep in sync).
 
 ## Quick start
@@ -13,10 +13,9 @@ npm install
 npm run validate
 ```
 
-CI runs the same check (see `[.github/workflows/validate.yml](.github/workflows/validate.yml)`).
+CI runs the same check (see [`.github/workflows/validate.yml`](.github/workflows/validate.yml)).
 
 ## Layout
-
 
 | Path                                   | Role                                                                 |
 | -------------------------------------- | -------------------------------------------------------------------- |
@@ -34,5 +33,4 @@ CI runs the same check (see `[.github/workflows/validate.yml](.github/workflows/
 
 - **Parallel cycle:** each shipped vertical slice updates schemas, examples, and policies together.
 - **Agent-primary:** breaking changes go through schema + policy; docs follow.
-- `**kind: slice`** requires `slice_id` and `parent_product_id` (see schema `allOf`).
-
+- **`kind: slice`** requires `slice_id` and `parent_product_id` (see schema `allOf`).
