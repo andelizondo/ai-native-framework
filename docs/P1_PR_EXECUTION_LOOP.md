@@ -17,6 +17,7 @@ Run P1 for every pull request targeting a protected branch.
 At the end of this playbook, each PR should have:
 
 - A risk classification.
+- A branch freshness decision.
 - Deterministic validation evidence.
 - Automated review output.
 - A decision: auto-approve, escalate, request changes, or merge when allowed.
@@ -30,6 +31,7 @@ At the end of this playbook, each PR should have:
 - CODEOWNERS and protected path definitions.
 - Threshold policy for low, medium, and high risk changes.
 - AI reviewer backend configuration and repository-specific review instructions.
+- Freshness policy for PR branches relative to the protected base branch.
 
 ## Risk tiers
 
@@ -111,6 +113,22 @@ Classification should be conservative. When in doubt, move the PR upward in risk
 
 No PR should be approved or merged without passing required checks.
 
+## 2.5 Enforce branch freshness
+
+1. Determine whether the PR branch is current with the protected base branch.
+2. If the PR is behind, label it as needing update and stop approval or merge automation.
+3. Re-run classification, review, and threshold checks after the branch is refreshed.
+
+Branch freshness is a hard gate. A PR evaluation is stale if the base branch has advanced in a way that could affect policy, CI, CODEOWNERS, or runtime behavior.
+
+Typical invalidation triggers:
+
+- branch protection or merge-policy changes
+- workflow or CI changes on the protected branch
+- CODEOWNERS changes
+- framework or playbook changes that alter thresholds or checkpoints
+- behavior-changing merges into protected surfaces
+
 ## 3. Perform automated review
 
 1. Run an agent review against the diff and repository context.
@@ -134,6 +152,7 @@ A threshold policy should include at least:
 
 - affected paths or systems
 - diff size or complexity thresholds
+- branch freshness requirements
 - required evidence types
 - required human approver roles
 - rollback expectations for risky changes
@@ -146,6 +165,8 @@ A threshold policy should include at least:
 
 Escalation should be specific about why automation stopped.
 
+If the PR is behind the protected branch, escalation should explicitly request a rebase or branch update before any further approval decision.
+
 ## 6. Approve and merge
 
 When the PR is within policy and all required checks have passed:
@@ -155,12 +176,14 @@ When the PR is within policy and all required checks have passed:
 3. Ensure branch cleanup runs after merge.
 
 Merge must be blocked if required checks are pending, stale, or bypassed.
+Merge must also be blocked if the PR branch is behind the protected base branch.
 
 ## 7. Record outcomes
 
 Record:
 
 - risk tier
+- branch freshness state
 - checks executed
 - findings summary
 - approval source
@@ -177,6 +200,7 @@ The first implementation should use:
 - Branch protection and auto-merge for merge enforcement
 - An AI reviewer backend for code review and safe autofix proposals
 - Labels or check runs for risk classification
+- Labels or checks for branch freshness and update requirements
 
 Optional later layers:
 
@@ -197,6 +221,7 @@ Human involvement is required when any of the following apply:
 
 - high-risk change
 - unclear ownership
+- branch is behind the protected base branch and cannot be refreshed automatically
 - failing or flaky required checks
 - unresolved blocking review findings
 - security-sensitive paths
@@ -208,6 +233,7 @@ Human involvement is required when any of the following apply:
 Recommended first implementation for this repository:
 
 - Auto-classify PR risk from changed paths and labels.
+- Label stale PRs with `needs:update` and block automation until they are refreshed.
 - Run `npm run validate` as the canonical required check.
 - Run automated agent review on every PR.
 - Allow agent approval only for low-risk PRs.
@@ -221,6 +247,8 @@ Example event names:
 
 - `pr.opened`
 - `pr.risk_classified`
+- `pr.branch_outdated`
+- `pr.branch_refreshed`
 - `pr.validation_completed`
 - `pr.review_completed`
 - `pr.escalated`
@@ -234,3 +262,4 @@ Example event names:
 - Risk tiering should evolve from simple path rules toward evidence-based thresholds.
 - Approval policy should remain stricter than review policy.
 - The reviewer backend may change over time; the threshold policy should not depend on a single provider.
+- Branch freshness rules should remain policy-owned even if the repository changes reviewer backends or CI providers.
