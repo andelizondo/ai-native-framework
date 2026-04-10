@@ -102,6 +102,8 @@ Recommended minimum protection:
 
 Do not guess the required check name. Read it from the repository's check runs after the workflow has succeeded.
 
+Repositories that shift merge authority from GitHub's built-in required-review gate to a repository-specific policy check **SHOULD** document that explicitly. In that mode, GitHub branch protection may require zero built-in approvals while still requiring a policy check such as `decide` before merge.
+
 ## 6. Enable security automation
 
 Enable:
@@ -122,15 +124,16 @@ Security automation should be on before contributors begin adding integrations, 
 
 ## Baseline applied in this repository
 
-The first execution of P0 in this repository applied the following concrete settings:
+The current P0 baseline in this repository applies the following concrete settings:
 
 - Default branch: `main`
-- Required check: `validate`
+- Required checks: `validate`, `decide`
 - Merge strategy: squash only
 - Delete branch on merge: enabled
 - Branch protection: enabled on `main`
-- Reviews required: 1
-- CODEOWNERS review: required
+- Built-in GitHub approvals required: 0
+- Merge authority delegated to policy check: yes (`decide`)
+- CODEOWNERS review required by branch protection: no
 - CODEOWNERS scope: protected surfaces only
 - Stale review dismissal: enabled
 - Conversation resolution: required
