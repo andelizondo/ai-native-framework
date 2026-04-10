@@ -107,8 +107,10 @@ jobs:
 
             function patternToRegExp(pattern) {
               let source = escapeRegex(pattern);
-              source = source.replace(/\*\*/g, '.*');
+              // Replace ** first using a placeholder so the * replacement doesn't corrupt it.
+              source = source.replace(/\*\*/g, '\x00');
               source = source.replace(/\*/g, '[^/]*');
+              source = source.replace(/\x00/g, '.*');
               return new RegExp(`^${source}$`);
             }
 

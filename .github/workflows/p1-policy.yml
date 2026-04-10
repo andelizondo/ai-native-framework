@@ -7,8 +7,8 @@ name: p1-policy
 # a structured decision request for the human.
 #
 # Humans receive a specific, bounded decision request — not an open-ended review task.
-# The check fails only when a genuine human decision is required, not when a tool
-# or another workflow step is still running.
+# The check fails both when a genuine human decision is required and when required
+# evidence gates are incomplete (e.g., validate still running, review not yet present).
 
 on:
   pull_request_target:
@@ -179,12 +179,12 @@ jobs:
             );
 
             if (!validateCheck) {
-              core.info(`Required check ${requiredCheck} is not available yet; policy defers to the validation gate.`);
+              core.setFailed(`Required check '${requiredCheck}' has not started yet on ${pr.headRefOid.slice(0, 7)}. Policy will re-evaluate when it completes.`);
               return;
             }
 
             if (validateCheck.status !== 'completed') {
-              core.info(`Required check ${requiredCheck} is still running; policy defers to the validation gate.`);
+              core.setFailed(`Required check '${requiredCheck}' is still running on ${pr.headRefOid.slice(0, 7)}. Policy will re-evaluate when it completes.`);
               return;
             }
 

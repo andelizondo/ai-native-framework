@@ -74,9 +74,13 @@ jobs:
         if: steps.guard.outputs.skip == 'false' && steps.guard.outputs.is_fork == 'false'
         id: autofix
         run: |
-          # Run canonical validation — captures both stdout and stderr
-          npm run validate > /tmp/validate_output.txt 2>&1 || true
-          validate_exit=$?
+          # Run canonical validation — captures both stdout and stderr.
+          # Capture exit code before forcing the step to succeed.
+          if npm run validate > /tmp/validate_output.txt 2>&1; then
+            validate_exit=0
+          else
+            validate_exit=$?
+          fi
           echo "validate_exit=$validate_exit" >> "$GITHUB_OUTPUT"
 
           # No formatter is currently configured in this repo; report changed files as 0
