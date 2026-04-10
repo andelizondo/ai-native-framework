@@ -98,7 +98,17 @@ jobs:
               (checkRun) => checkRun.name === requiredCheck,
             );
 
-            if (!validateCheck || validateCheck.status !== 'completed' || validateCheck.conclusion !== 'success') {
+            if (!validateCheck) {
+              core.info(`Required check ${requiredCheck} is not available yet; policy defers to the required validation gate.`);
+              return;
+            }
+
+            if (validateCheck.status !== 'completed') {
+              core.info(`Required check ${requiredCheck} is still running; policy defers to the required validation gate.`);
+              return;
+            }
+
+            if (validateCheck.conclusion !== 'success') {
               core.setFailed(`Required check ${requiredCheck} is not successful.`);
               return;
             }

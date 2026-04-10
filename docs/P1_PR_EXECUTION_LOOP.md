@@ -212,7 +212,7 @@ Automation **MUST** converge without manual label toggling when the only blocker
 
 Required behavior:
 
-1. If policy evaluation fails because a required validation check has not completed yet on the current head SHA, the system **MUST** re-evaluate after that validation completes.
+1. If a required validation check has not completed yet on the current head SHA, the system **MUST** avoid creating a stale blocking policy result solely because validation is still pending. Implementations MAY defer the policy decision to the validation gate or re-evaluate automatically after validation completes.
 2. If branch freshness or residual-risk state is deterministically derivable from the current PR state, automation **MUST** set or refresh that state without manual intervention.
 3. If a stale failure exists but a newer successful policy evaluation exists on the same head SHA, the newer result **MUST** control the merge decision.
 4. Manual relabeling or comment nudges **SHOULD NOT** be required for ordinary convergence.
