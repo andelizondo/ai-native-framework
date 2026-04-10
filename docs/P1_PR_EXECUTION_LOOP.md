@@ -163,6 +163,8 @@ Automated review must leave an auditable artifact in the PR.
 
 Repository-specific reviewer guidance **SHOULD** live in versioned files such as `.github/copilot-instructions.md` so the AI backend can be swapped without changing the playbook's policy.
 
+For this repository, automated AI review is requested through a GitHub repository ruleset that enables GitHub Copilot code review on the default branch and on new pushes to matching pull requests. The ruleset controls when review is requested; `.github/copilot-instructions.md` controls repository-specific review behavior.
+
 ## 4. Apply threshold policy
 
 Decision rules:
@@ -262,7 +264,7 @@ Optional later layers:
 
 Initial backend for this repository:
 
-- GitHub Copilot for AI review comments and suggested changes
+- GitHub Copilot automatic code review via a repository ruleset targeting `~DEFAULT_BRANCH` with review on new pushes
 - Repository custom instructions in `.github/copilot-instructions.md`
 - GitHub Actions for classification, low-risk approval, and auto-merge orchestration
 
@@ -288,7 +290,7 @@ Recommended first implementation for this repository:
 - Distinguish initial risk from residual risk after review.
 - Label outdated PRs with `sync:needed` and block automation until they are refreshed.
 - Run `npm run validate` as the canonical required check.
-- Run automated agent review on every PR.
+- Run automated agent review on every PR, for example through a repository ruleset that requests GitHub Copilot review.
 - Allow automation to merge residual-low PRs.
 - Require a policy decision check before merge instead of a blanket GitHub review gate.
 - Allow auto-merge only after required checks pass and policy allows approval.
