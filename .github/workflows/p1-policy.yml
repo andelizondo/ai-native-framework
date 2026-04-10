@@ -191,9 +191,11 @@ jobs:
             });
 
             const requiredCheck = process.env.REQUIRED_CHECK;
-            const validateCheck = checksResponse.data.check_runs.find(
-              (checkRun) => checkRun.name === requiredCheck,
-            );
+            // Sort descending by start time so we always evaluate the most recent run,
+            // not an older run that may have a stale conclusion.
+            const validateCheck = checksResponse.data.check_runs
+              .filter((checkRun) => checkRun.name === requiredCheck)
+              .sort((a, b) => new Date(b.started_at).getTime() - new Date(a.started_at).getTime())[0] ?? null;
 
             if (!validateCheck) {
               core.info(
@@ -259,14 +261,18 @@ jobs:
             const hasFreshCopilotReview = latestCopilotOnHead != null;
 
             if (!hasFreshCopilotReview) {
+              core.info(
+                `No Copilot review on head ${pr.headRefOid.slice(0, 7)} yet; exiting success to avoid blocking while the reviewer initializes. The pull_request_review trigger will re-evaluate once a review is submitted.`,
+              );
               await upsertPolicyComment([
                 '**P1 policy:** waiting — configured reviewer evidence pending',
                 '',
                 `Waiting for the configured AI reviewer to submit a review on head \`${pr.headRefOid.slice(0, 7)}\`.`,
                 '',
+                'This `decide` job exits **success** so it does not race the AI reviewer on the same push. The `pull_request_review` trigger re-evaluates policy once a review is submitted.',
+                '',
                 'If automatic review did not trigger, request a Copilot review manually via the GitHub PR UI or mention `@copilot` in a comment.',
               ].join('\n'));
-              core.setFailed('Configured Copilot review has not been observed on the current pull request head SHA yet.');
               return;
             }
 

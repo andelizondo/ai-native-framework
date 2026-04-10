@@ -103,18 +103,19 @@ jobs:
             });
 
             const requiredCheck = process.env.REQUIRED_CHECK;
-            const validateCheck = checksResponse.data.check_runs.find(
-              (checkRun) => checkRun.name === requiredCheck,
-            );
+            // Sort descending so we always read the most recent run, not a stale older one.
+            const validateCheck = checksResponse.data.check_runs
+              .filter((checkRun) => checkRun.name === requiredCheck)
+              .sort((a, b) => new Date(b.started_at).getTime() - new Date(a.started_at).getTime())[0] ?? null;
 
             if (!validateCheck || validateCheck.status !== 'completed' || validateCheck.conclusion !== 'success') {
               core.info(`Required check ${requiredCheck} is not successful yet.`);
               return;
             }
 
-            const policyCheck = checksResponse.data.check_runs.find(
-              (checkRun) => checkRun.name === 'decide',
-            );
+            const policyCheck = checksResponse.data.check_runs
+              .filter((checkRun) => checkRun.name === 'decide')
+              .sort((a, b) => new Date(b.started_at).getTime() - new Date(a.started_at).getTime())[0] ?? null;
 
             if (!policyCheck || policyCheck.status !== 'completed' || policyCheck.conclusion !== 'success') {
               core.info('Policy check has not passed yet.');
