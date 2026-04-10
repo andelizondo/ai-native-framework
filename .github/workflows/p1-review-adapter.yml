@@ -23,6 +23,18 @@ jobs:
           git fetch origin "${{ github.event.pull_request.base.ref }}"
           git diff "origin/${{ github.event.pull_request.base.ref }}...HEAD" > pr.diff
 
+      - name: Initial risk from paths (P1)
+        run: |
+          git diff --name-only "origin/${{ github.event.pull_request.base.ref }}...HEAD" > changed-paths.txt
+          node scripts/p1-risk-from-paths.mjs changed-paths.txt > risk-out.json
+          RISK=$(node -p "JSON.parse(require('fs').readFileSync('risk-out.json','utf8')).risk")
+          case "$RISK" in
+            low) echo "P1_INITIAL_RISK=low" >> "$GITHUB_ENV" ;;
+            medium) echo "P1_INITIAL_RISK=med" >> "$GITHUB_ENV" ;;
+            high) echo "P1_INITIAL_RISK=high" >> "$GITHUB_ENV" ;;
+            *) echo "Unexpected risk: $RISK"; exit 1 ;;
+          esac
+
       - uses: actions/setup-node@v6
         with:
           node-version: "20"

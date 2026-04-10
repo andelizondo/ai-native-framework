@@ -127,6 +127,8 @@ Residual risk may be lower than initial risk. Example: a workflow file change is
 
 When residual risk is fully determined by repository policy and machine-observable evidence, automation **SHOULD** assign the residual-risk label directly instead of waiting for a manual follow-up step.
 
+**This repository:** `p1-review-adapter` runs the reviewer (`scripts/review-adapter.mjs`) with path-based **initial** risk from `scripts/p1-risk-from-paths.mjs` / `spec/policy/p1-path-risk.json`. The adapter merges the agent’s proposed **residual** tier with P1 guardrails (for example: initial `risk:high` always keeps residual high; blocking findings raise residual; truncated diff keeps residual at least medium). `p1-apply-residual` then sets `residual:*` on the PR and posts a short audit comment.
+
 ## 2. Run deterministic checks
 
 1. Execute required validation, lint, typecheck, test, and build commands for the repository.
@@ -264,7 +266,7 @@ Initial backend for this repository:
 
 - GitHub Copilot for AI review comments and suggested changes
 - Repository custom instructions in `.github/copilot-instructions.md`
-- GitHub Actions for classification, low-risk approval, and auto-merge orchestration
+- GitHub Actions for classification, review adapter, residual labeling, low-risk approval, and auto-merge orchestration
 
 ## Human checkpoints
 

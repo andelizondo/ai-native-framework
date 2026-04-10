@@ -14,6 +14,8 @@ jobs:
     if: github.event.pull_request.base.ref == 'main'
     runs-on: ubuntu-latest
     steps:
+      - uses: actions/checkout@v6
+
       - uses: actions/github-script@v7
         with:
           script: |
@@ -22,7 +24,6 @@ jobs:
             const pr = context.payload.pull_request;
             const marker = '<!-- p1-risk-classification -->';
             const riskLabels = ['risk:low', 'risk:med', 'risk:high'];
-            const residualLabels = ['residual:low', 'residual:med', 'residual:high'];
             const syncLabel = 'sync:needed';
 
             const labelPalette = {
@@ -59,80 +60,20 @@ jobs:
 
             const paths = files.map((file) => file.filename);
 
-            const protectedPatterns = [
-              '.github/workflows/**',
-              '.github/dependabot.yml',
-              'agents/**',
-              'package.json',
-              'package-lock.json',
-              'scripts/**',
-              'spec/**',
-              'templates/**',
-              'SECURITY.md',
-            ];
-
-            const highRiskPatterns = [
-              '**/auth/**',
-              '**/billing/**',
-              '**/payments/**',
-              '**/secrets/**',
-              '**/credentials/**',
-              '**/migrations/**',
-              '**/terraform/**',
-              '**/iac/**',
-            ];
-
-            const lowRiskPatterns = [
-              'docs/**',
-              'README.md',
-              'REPO_SCAFFOLD.md',
-              'CONTRIBUTING.md',
-              '.github/pull_request_template.md',
-              '.github/ISSUE_TEMPLATE/**',
-            ];
-
-            function escapeRegex(value) {
-              return value.replace(/[|\\{}()[\]^$+?.]/g, '\\$&');
+            const { spawnSync } = require('child_process');
+            const path = require('path');
+            const root = process.env.GITHUB_WORKSPACE;
+            const proc = spawnSync(process.execPath, [path.join(root, 'scripts', 'p1-risk-from-paths.mjs')], {
+              cwd: root,
+              input: paths.join('\n'),
+              encoding: 'utf8',
+            });
+            if (proc.status !== 0) {
+              core.setFailed(proc.stderr || proc.stdout || 'p1-risk-from-paths failed');
+              return;
             }
+            const { risk, reasons: uniqueReasons } = JSON.parse(proc.stdout);
 
-            function patternToRegExp(pattern) {
-              let source = escapeRegex(pattern);
-              source = source.replace(/\*\*/g, '.*');
-              source = source.replace(/\*/g, '[^/]*');
-              return new RegExp(`^${source}$`);
-            }
-
-            function matches(path, patterns) {
-              return patterns.some((pattern) => patternToRegExp(pattern).test(path));
-            }
-
-            let risk = 'low';
-            const reasons = [];
-
-            for (const path of paths) {
-              if (matches(path, highRiskPatterns)) {
-                risk = 'high';
-                reasons.push(`${path} matches a high-risk protected surface.`);
-                continue;
-              }
-
-              if (matches(path, protectedPatterns)) {
-                if (risk !== 'high') {
-                  risk = 'medium';
-                }
-                reasons.push(`${path} matches a protected repository surface.`);
-                continue;
-              }
-
-              if (!matches(path, lowRiskPatterns)) {
-                if (risk === 'low') {
-                  risk = 'medium';
-                }
-                reasons.push(`${path} does not match the low-risk path allowlist.`);
-              }
-            }
-
-            const uniqueReasons = [...new Set(reasons)];
             const riskLabel = `risk:${risk === 'medium' ? 'med' : risk}`;
             const currentLabels = pr.labels.map((label) => label.name);
             const isBehind = pr.mergeable_state === 'behind';
@@ -158,35 +99,6 @@ jobs:
                 repo,
                 issue_number: pr.number,
                 labels: [riskLabel],
-              });
-            }
-
-
-            for (const label of residualLabels) {
-              if (!currentLabels.includes(label)) {
-                continue;
-              }
-
-              if (risk !== 'low' || label !== 'residual:low') {
-                await github.rest.issues.removeLabel({
-                  owner,
-                  repo,
-                  issue_number: pr.number,
-                  name: label,
-                }).catch((error) => {
-                  if (error.status !== 404) {
-                    throw error;
-                  }
-                });
-              }
-            }
-
-            if (risk === 'low' && !currentLabels.includes('residual:low')) {
-              await github.rest.issues.addLabels({
-                owner,
-                repo,
-                issue_number: pr.number,
-                labels: ['residual:low'],
               });
             }
 
@@ -216,9 +128,9 @@ jobs:
               marker,
               `P1 initial risk: **${risk}**.`,
               `Branch freshness: **${isBehind ? 'outdated' : 'current'}**.`,
-              `Residual risk label: **${risk === 'low' ? 'residual:low (set automatically)' : 'pending review'}**.`,
+              `Residual risk: **set by \`p1-apply-residual\` after \`p1-review-adapter\` finishes** (see \`review-findings.json\` artifact).`,
               '',
-              `Changed files: ${paths.map((path) => `\`${path}\``).join(', ')}`,
+              `Changed files: ${paths.map((p) => `\`${p}\``).join(', ')}`,
               '',
               'Why:',
               ...(uniqueReasons.length > 0
@@ -233,7 +145,7 @@ jobs:
                   ]
                 : []),
               'Authority under `docs/P1_PR_EXECUTION_LOOP.md`:',
-              '- Initial risk determines review depth. Residual risk is set automatically only when repository policy can infer it directly from the PR state.',
+              '- Initial risk sets review depth; residual risk is derived from automated review output plus guardrails.',
             ].join('\n');
 
             const comments = await github.paginate(github.rest.issues.listComments, {

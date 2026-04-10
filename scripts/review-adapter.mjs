@@ -20,6 +20,10 @@ const { values: args } = parseArgs({
   options: {
     provider: { type: "string", default: "stub" },
     "diff-file": { type: "string" },
+    "initial-risk": {
+      type: "string",
+      description: "Overrides P1_INITIAL_RISK (low | med | high)",
+    },
     out: { type: "string" },
     instructions: {
       type: "string",
@@ -36,6 +40,10 @@ function usage() {
 Environment (anthropic):
   ANTHROPIC_API_KEY   Required for --provider anthropic
   ANTHROPIC_MODEL     Optional, default claude-3-5-haiku-20241022
+
+P1 initial risk (required for residual guardrails):
+  P1_INITIAL_RISK     low | med | high  (medium accepted)
+  --initial-risk      Same, overrides env for local runs
 
 Optional PR context (from GitHub Actions or manual):
   GITHUB_EVENT_PATH   If set and contains pull_request, fills pull_request in output.
@@ -102,6 +110,106 @@ function stripJsonFence(text) {
   return text.trim();
 }
 
+function parseRiskToken(raw) {
+  const v = (raw || "").trim().toLowerCase();
+  if (v === "high") return "high";
+  if (v === "medium" || v === "med") return "medium";
+  if (v === "low") return "low";
+  return null;
+}
+
+function resolveInitialRisk() {
+  return (
+    parseRiskToken(args["initial-risk"]) || parseRiskToken(process.env.P1_INITIAL_RISK)
+  );
+}
+
+/**
+ * Merge model suggestion with P1 guardrails. Initial risk is structural (paths);
+ * residual is post-review authority.
+ */
+function resolveResidual(initial, doc, modelResidual) {
+  const findings = doc.findings || [];
+  const blocking = findings.filter((f) => f.blocking);
+  const criticalBlocking = blocking.some((f) => f.severity === "critical");
+  const modelLevel = modelResidual?.level;
+  const modelRationale = (modelResidual?.rationale || "").trim();
+
+  if (initial === "high") {
+    return {
+      level: "high",
+      rationale:
+        "P1 guardrail: initial risk is high; residual stays high until mandatory human review.",
+    };
+  }
+
+  if (criticalBlocking) {
+    const msgs = blocking
+      .filter((f) => f.severity === "critical")
+      .map((f) => f.message)
+      .join("; ");
+    return {
+      level: "high",
+      rationale: `Blocking critical finding(s): ${msgs}`,
+    };
+  }
+
+  if (blocking.length > 0) {
+    return {
+      level: "med",
+      rationale: `Blocking finding(s) present (${blocking.length}); human or follow-up required before merge automation.`,
+    };
+  }
+
+  if (doc.truncated_diff) {
+    return {
+      level: "med",
+      rationale:
+        "Diff was truncated for the reviewer; conservative residual until full diff is reviewed.",
+    };
+  }
+
+  if (initial === "medium") {
+    if (doc.provider === "stub") {
+      return {
+        level: "med",
+        rationale:
+          "Stub reviewer (no LLM): medium initial risk without blocking findings; residual medium until a real review or human approval.",
+      };
+    }
+    const wantsLow = modelLevel === "low";
+    const confOk = doc.confidence === "high";
+    if (wantsLow && confOk) {
+      return {
+        level: "low",
+        rationale:
+          modelRationale ||
+          "No blocking findings; reviewer assessed residual low with high confidence.",
+      };
+    }
+    if (modelLevel === "high") {
+      return {
+        level: "high",
+        rationale: modelRationale || "Reviewer escalated residual to high.",
+      };
+    }
+    return {
+      level: "med",
+      rationale:
+        modelRationale ||
+        "Medium initial risk; reviewer did not clear for automated low residual.",
+    };
+  }
+
+  // initial low
+  return {
+    level: "low",
+    rationale:
+      modelRationale ||
+      "Initial low risk and no blocking findings after automated review.",
+  };
+}
+
 async function providerStub() {
   return {
     schema_version: "1.0.0",
@@ -115,7 +223,7 @@ async function providerStub() {
   };
 }
 
-async function providerAnthropic() {
+async function providerAnthropic(initialRiskLabel) {
   const key = process.env.ANTHROPIC_API_KEY;
   if (!key) {
     console.error("ANTHROPIC_API_KEY is required for --provider anthropic");
@@ -140,10 +248,20 @@ async function providerAnthropic() {
       "code": "<optional short id>"
     }
   ],
-  "confidence": "low" | "medium" | "high"
+  "confidence": "low" | "medium" | "high",
+  "residual_assessment": {
+    "level": "low" | "med" | "high",
+    "rationale": "<why this residual tier is appropriate given findings and initial risk>"
+  }
 }
 
-Rules:
+Context: P1 **initial structural risk** for this PR (from path policy) is **${initialRiskLabel}**.
+- If initial is **high**, you may still note findings but the pipeline will force residual **high** until a human reviews.
+- Prefer **residual low** only when there are **no blocking findings** and you have **high** confidence the change is safe to merge under automation.
+- Use **residual med** when uncertain or when the change warrants human eyes despite no hard blockers.
+- Use **residual high** for material security, correctness, or policy risk.
+
+Rules for findings:
 - blocking true only for issues that should block merge without human override (security, correctness, spec violations).
 - Use severity critical for security/data issues; medium for likely bugs; minor/info for style or nits.
 - If the diff is fine, findings may be [].`;
@@ -200,20 +318,35 @@ Rules:
   return parsed;
 }
 
-const providers = {
-  stub: providerStub,
-  anthropic: providerAnthropic,
-};
-
 async function main() {
+  const initial = resolveInitialRisk();
+  if (!initial) {
+    console.error(
+      "Set P1_INITIAL_RISK or --initial-risk to low | med | high (path-based initial risk for P1).",
+    );
+    process.exit(1);
+  }
+  const initialRiskLabel =
+    initial === "medium" ? "medium (med)" : initial === "high" ? "high" : "low";
+
   const name = args.provider;
-  const run = providers[name];
-  if (!run) {
-    console.error(`Unknown provider: ${name}. Choose: ${Object.keys(providers).join(", ")}`);
+  if (name !== "stub" && name !== "anthropic") {
+    console.error(`Unknown provider: ${name}. Choose: stub, anthropic`);
     process.exit(1);
   }
 
-  let doc = await run();
+  const doc =
+    name === "anthropic"
+      ? await providerAnthropic(initialRiskLabel)
+      : await providerStub();
+
+  const modelResidual = doc.residual_assessment
+    ? { ...doc.residual_assessment }
+    : null;
+  delete doc.residual_assessment;
+
+  doc.residual_assessment = resolveResidual(initial, doc, modelResidual);
+
   const pr = readPullRequestFromGithubEvent();
   if (pr && pr.number != null) {
     doc.pull_request = {

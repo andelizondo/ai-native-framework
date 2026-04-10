@@ -60,10 +60,15 @@ interfaces:
     description: >
       Produce machine-readable PR review findings for policy checks. Implementations
       (Copilot UI, SaaS bots, or scripts/review-adapter.mjs) MUST output JSON valid
-      against spec/schema/review-findings.schema.json.
+      against spec/schema/review-findings.schema.json. Residual tier MUST be merged
+      with P1 guardrails (see scripts/review-adapter.mjs); workflow p1-apply-residual
+      maps residual_assessment.level to GitHub labels.
     inputs:
       diff_text:
         type: string
+      initial_risk:
+        type: string
+        description: "Path-based tier: low | med | high (P1 initial risk)."
       repository_instructions_path:
         type: string
         description: "e.g. .github/copilot-instructions.md"
@@ -76,7 +81,7 @@ interfaces:
     outputs:
       findings_document:
         type: object
-        description: "Validated review-findings v1.0.0 document."
+        description: "Validated review-findings v1.0.0 document including residual_assessment."
 
 policies:
   human_in_the_loop:

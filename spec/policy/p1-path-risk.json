@@ -1,0 +1,32 @@
+{
+  "$comment": "Single source for P1 path-based initial risk (keep in sync with docs/P1_PR_EXECUTION_LOOP.md).",
+  "protectedPatterns": [
+    ".github/workflows/**",
+    ".github/dependabot.yml",
+    "agents/**",
+    "package.json",
+    "package-lock.json",
+    "scripts/**",
+    "spec/**",
+    "templates/**",
+    "SECURITY.md"
+  ],
+  "highRiskPatterns": [
+    "**/auth/**",
+    "**/billing/**",
+    "**/payments/**",
+    "**/secrets/**",
+    "**/credentials/**",
+    "**/migrations/**",
+    "**/terraform/**",
+    "**/iac/**"
+  ],
+  "lowRiskPatterns": [
+    "docs/**",
+    "README.md",
+    "REPO_SCAFFOLD.md",
+    "CONTRIBUTING.md",
+    ".github/pull_request_template.md",
+    ".github/ISSUE_TEMPLATE/**"
+  ]
+}

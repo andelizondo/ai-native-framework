@@ -10,7 +10,8 @@
     "generated_at",
     "summary",
     "findings",
-    "confidence"
+    "confidence",
+    "residual_assessment"
   ],
   "properties": {
     "schema_version": {
@@ -83,6 +84,22 @@
     "truncated_diff": {
       "type": "boolean",
       "description": "True when the diff was truncated before sending to the provider."
+    },
+    "residual_assessment": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["level", "rationale"],
+      "description": "Final residual risk after agent analysis and P1 guardrails (maps to label residual:*).",
+      "properties": {
+        "level": {
+          "type": "string",
+          "enum": ["low", "med", "high"]
+        },
+        "rationale": {
+          "type": "string",
+          "minLength": 1
+        }
+      }
     }
   }
 }
