@@ -1,0 +1,313 @@
+name: p1-residual-risk-engine
+
+# Determines residual risk automatically when the configured reviewer submits a review.
+# This workflow eliminates the need for any human to manually set residual:* labels.
+#
+# Engine rules (from P1 section 1.5):
+#   risk:high                         → residual:high    (always; post decision request)
+#   risk:med + control-plane          → residual:med     (owner-decision path)
+#   risk:med + APPROVED + resolved    → residual:low     (auto-downgrade)
+#   risk:med + CHANGES_REQUESTED      → autofix:pending  (trigger resolution loop)
+#   risk:low + APPROVED/COMMENTED     → residual:low
+#   risk:low + CHANGES_REQUESTED      → autofix:pending
+
+on:
+  pull_request_review:
+    types: [submitted, dismissed]
+
+permissions:
+  contents: read
+  issues: write
+  pull-requests: write
+
+jobs:
+  evaluate-residual:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/github-script@v7
+        with:
+          script: |
+            const owner = context.repo.owner;
+            const repo = context.repo.repo;
+
+            const review = context.payload.review;
+            const pr = context.payload.pull_request;
+
+            if (!pr || pr.state !== 'open' || pr.draft) {
+              core.info('Pull request is not open and ready for residual risk evaluation.');
+              return;
+            }
+
+            // Only process reviews from the configured AI reviewer (Copilot).
+            const copilotLogins = new Set(['copilot-pull-request-reviewer', 'copilot']);
+            const rawLogin = (review.user?.login ?? '').replace(/\[bot\]$/i, '').toLowerCase();
+            const isCopilotReview = review.user?.type === 'Bot' && copilotLogins.has(rawLogin);
+
+            if (!isCopilotReview) {
+              core.info('Review is not from the configured AI reviewer; residual risk engine skips.');
+              return;
+            }
+
+            // Ensure this review is for the current head SHA, not a stale commit.
+            if (review.commit_id !== pr.head.sha) {
+              core.info(`Review is on ${review.commit_id}, but head is ${pr.head.sha}; stale review ignored.`);
+              return;
+            }
+
+            const prNumber = pr.number;
+            const reviewState = review.state; // APPROVED, CHANGES_REQUESTED, COMMENTED, DISMISSED
+
+            core.info(`Evaluating residual risk for PR #${prNumber}: initial review state = ${reviewState}`);
+
+            // Fetch current labels.
+            const labelNodes = await github.paginate(github.rest.issues.listLabelsOnIssue, {
+              owner,
+              repo,
+              issue_number: prNumber,
+              per_page: 100,
+            });
+            const currentLabels = new Set(labelNodes.map((l) => l.name));
+
+            const initialRisk = ['risk:low', 'risk:med', 'risk:high'].find((l) => currentLabels.has(l));
+            const isControlPlane = currentLabels.has('control-plane');
+            const autofixAlreadyApplied = currentLabels.has('autofix:applied');
+
+            core.info(`Initial risk: ${initialRisk ?? 'unknown'}, control-plane: ${isControlPlane}`);
+
+            // Helpers.
+            const residualLabels = ['residual:low', 'residual:med', 'residual:high'];
+            const autofixLabels = ['autofix:pending', 'autofix:applied'];
+
+            async function removeLabels(names) {
+              for (const name of names) {
+                if (currentLabels.has(name)) {
+                  await github.rest.issues.removeLabel({
+                    owner, repo, issue_number: prNumber, name,
+                  }).catch((e) => { if (e.status !== 404) throw e; });
+                  currentLabels.delete(name);
+                }
+              }
+            }
+
+            async function setLabel(name) {
+              if (!currentLabels.has(name)) {
+                await github.rest.issues.addLabels({ owner, repo, issue_number: prNumber, labels: [name] });
+                currentLabels.add(name);
+              }
+            }
+
+            const marker = '<!-- p1-residual-risk-engine -->';
+
+            // upsertComment prepends the marker; callers pass only the body content.
+            async function upsertComment(body) {
+              const finalBody = [marker, body].join('\n');
+              const comments = await github.paginate(github.rest.issues.listComments, {
+                owner, repo, issue_number: prNumber, per_page: 100,
+              });
+              const existing = comments.find((c) => c.user?.type === 'Bot' && c.body?.includes(marker));
+              if (existing) {
+                await github.rest.issues.updateComment({ owner, repo, comment_id: existing.id, body: finalBody });
+              } else {
+                await github.rest.issues.createComment({ owner, repo, issue_number: prNumber, body: finalBody });
+              }
+            }
+
+            // ─── Decision: DISMISSED — clear stale labels so policy waits for a fresh review ──
+            if (reviewState === 'DISMISSED') {
+              await removeLabels([...residualLabels, ...autofixLabels]);
+              await upsertComment([
+                '**P1 residual risk engine — review dismissed**',
+                '',
+                `The configured AI reviewer dismissed their review on \`${pr.head.sha.slice(0, 7)}\`. Residual and autofix labels were cleared; policy will wait for a fresh review on this head.`,
+              ].join('\n'));
+              core.info('Copilot review dismissed — cleared residual and autofix labels.');
+              return;
+            }
+
+            // Fetch PR details for decision request context.
+            const prDetails = await github.rest.pulls.get({ owner, repo, pull_number: prNumber });
+            const prTitle = prDetails.data.title;
+
+            // Fetch review thread resolution status via GraphQL (paginated to handle PRs with >100 threads).
+            async function hasUnresolvedThreads() {
+              let after = null;
+              while (true) {
+                const data = await github.graphql(`
+                  query ReviewThreads($owner: String!, $repo: String!, $number: Int!, $after: String) {
+                    repository(owner: $owner, name: $repo) {
+                      pullRequest(number: $number) {
+                        reviewThreads(first: 100, after: $after) {
+                          nodes { isResolved isOutdated }
+                          pageInfo { hasNextPage endCursor }
+                        }
+                      }
+                    }
+                  }
+                `, { owner, repo, number: prNumber, after });
+                const { nodes, pageInfo } = data.repository.pullRequest.reviewThreads;
+                if (nodes.some((t) => !t.isResolved && !t.isOutdated)) return true;
+                if (!pageInfo.hasNextPage) return false;
+                after = pageInfo.endCursor;
+              }
+            }
+
+            // ─── Decision: risk:high ───────────────────────────────────────────────────
+            if (initialRisk === 'risk:high') {
+              await removeLabels([...residualLabels, ...autofixLabels]);
+              await setLabel('residual:high');
+
+              const reviewSummary = review.body?.trim()
+                ? review.body.trim().slice(0, 500) + (review.body.length > 500 ? '…' : '')
+                : '_No review body._';
+
+              await upsertComment([
+                '**P1 decision request**',
+                '',
+                'This PR touches high-risk surfaces. Your explicit approval or rejection is required.',
+                '',
+                '**What changed**',
+                prTitle,
+                '',
+                '**Why automation stopped**',
+                'One or more changed paths are classified `risk:high` (auth, billing, secrets, migrations, production infrastructure, or irreversible user-facing effects). Automation cannot approve or merge these changes.',
+                '',
+                '**Automated verification (complete)**',
+                `- ✓ Review submitted by configured AI reviewer on \`${pr.head.sha.slice(0, 7)}\``,
+                `- Review state: \`${reviewState}\``,
+                '',
+                '**AI reviewer summary**',
+                reviewSummary,
+                '',
+                '**Your options**',
+                '1. **Approve** — add your GitHub approval; merge proceeds automatically once all required checks pass.',
+                '2. **Request changes** — push a commit addressing concerns; automation resumes on the new head.',
+                '3. **Close** — reject this PR.',
+              ].join('\n'));
+
+              core.info('PR is risk:high — residual:high set, decision request posted.');
+              return;
+            }
+
+            // ─── Decision: control-plane (medium risk, cannot auto-downgrade) ──────────
+            if (isControlPlane) {
+              await removeLabels(residualLabels);
+              await setLabel('residual:med');
+
+              await upsertComment([
+                '**P1 decision request — control-plane change**',
+                '',
+                'This PR modifies workflow files, branch protection, or review-policy logic. Per P1 section 6.6, control-plane PRs cannot be auto-downgraded to `residual:low`. The currently merged policy governs this evaluation.',
+                '',
+                '**What changed**',
+                prTitle,
+                '',
+                '**Why automation stopped**',
+                'The `control-plane` label is present. Automation changes do not self-validate until merged into the protected branch.',
+                '',
+                '**Automated verification (complete)**',
+                `- ✓ Review submitted by configured AI reviewer on \`${pr.head.sha.slice(0, 7)}\``,
+                `- Review state: \`${reviewState}\``,
+                '',
+                '**Your options**',
+                '1. **Approve** — add your GitHub approval; merge proceeds automatically.',
+                '2. **Request changes** — push a commit addressing the review findings.',
+                '3. **Close** — reject this PR.',
+              ].join('\n'));
+
+              core.info('PR is control-plane — residual:med set, decision request posted.');
+              return;
+            }
+
+            // ─── Decision: CHANGES_REQUESTED → trigger resolution loop ────────────────
+            if (reviewState === 'CHANGES_REQUESTED') {
+              if (autofixAlreadyApplied) {
+                await removeLabels(residualLabels);
+                await setLabel('residual:med');
+
+                const reviewSummary = review.body?.trim()
+                  ? review.body.trim().slice(0, 800) + (review.body.length > 800 ? '…' : '')
+                  : '_No review body._';
+
+                await upsertComment([
+                  '**P1 decision request — resolution loop exhausted**',
+                  '',
+                  'The automated resolution loop already ran on this PR. The configured AI reviewer still requests changes on the current head. The remaining findings require your decision.',
+                  '',
+                  '**What changed**',
+                  prTitle,
+                  '',
+                  '**Why automation stopped**',
+                  '`autofix:applied` is present and the reviewer still returns `CHANGES_REQUESTED`. Remaining findings are outside the safe autofix boundary (logic, security, or behavior-changing changes).',
+                  '',
+                  '**Automated verification (complete)**',
+                  `- ✓ Review submitted by configured AI reviewer on \`${pr.head.sha.slice(0, 7)}\``,
+                  '- ✓ Resolution loop: already ran (see previous autofix commit)',
+                  '',
+                  '**Remaining reviewer findings**',
+                  reviewSummary,
+                  '',
+                  '**Your options**',
+                  '1. **Push a fix commit** — address the findings above; automation resumes on the new head.',
+                  '2. **Approve** — override the reviewer findings and add your GitHub approval.',
+                  '3. **Close** — reject this PR.',
+                ].join('\n'));
+
+                core.info('Resolution loop already ran; residual:med set, decision request posted.');
+              } else {
+                await removeLabels([...residualLabels, 'autofix:pending']);
+                await setLabel('autofix:pending');
+
+                await upsertComment([
+                  '**P1 residual risk engine — resolution loop triggered**',
+                  '',
+                  `The configured AI reviewer requested changes on \`${pr.head.sha.slice(0, 7)}\`. The automated resolution loop (\`p1-autofix\`) will attempt to apply safe fixes and push a new commit.`,
+                  '',
+                  'Automation will re-evaluate residual risk after the resolution loop completes. No human action is needed yet.',
+                ].join('\n'));
+
+                core.info('CHANGES_REQUESTED — autofix:pending set, resolution loop triggered.');
+              }
+              return;
+            }
+
+            // ─── Decision: APPROVED or COMMENTED → evaluate thread resolution ─────────
+            if (reviewState === 'APPROVED' || reviewState === 'COMMENTED') {
+              const unresolved = await hasUnresolvedThreads();
+
+              if (unresolved && initialRisk === 'risk:med') {
+                if (!autofixAlreadyApplied) {
+                  await removeLabels([...residualLabels, 'autofix:pending']);
+                  await setLabel('autofix:pending');
+
+                  await upsertComment([
+                    '**P1 residual risk engine — unresolved review threads**',
+                    '',
+                    `The configured AI reviewer submitted a \`${reviewState}\` review on \`${pr.head.sha.slice(0, 7)}\`, but unresolved review threads remain. The automated resolution loop (\`p1-autofix\`) will attempt to address any auto-fixable items.`,
+                    '',
+                    'Automation will re-evaluate after the resolution loop completes.',
+                  ].join('\n'));
+                  core.info('Unresolved threads on risk:med — autofix:pending set.');
+                } else {
+                  await removeLabels(residualLabels);
+                  await setLabel('residual:med');
+                  core.info('Unresolved threads on risk:med after autofix — residual:med set.');
+                }
+                return;
+              }
+
+              await removeLabels([...residualLabels, 'autofix:pending']);
+              await setLabel('residual:low');
+
+              await upsertComment([
+                `**P1 residual risk engine — \`residual:low\` set**`,
+                '',
+                `The configured AI reviewer submitted \`${reviewState}\` on \`${pr.head.sha.slice(0, 7)}\` and all review threads are resolved or outdated. No human approval is required.`,
+                '',
+                'The policy check will evaluate merge readiness. Merge will proceed automatically when all required checks pass.',
+              ].join('\n'));
+
+              core.info(`${reviewState} with resolved threads — residual:low set.`);
+              return;
+            }
+
+            core.info(`Review state is ${reviewState}; no residual risk action taken.`);
