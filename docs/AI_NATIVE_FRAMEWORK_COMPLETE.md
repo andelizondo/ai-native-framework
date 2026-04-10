@@ -175,6 +175,7 @@ Bindings below are **recommended defaults** for greenfield implementations; the 
 
 | Concern | Default choice | Role |
 |---------|----------------|------|
+| **Source control / PR governance** | GitHub + branch protection + rulesets + Copilot code review (or equivalent) | Reviews, approvals, merge policy, audit trail |
 | **Frontend** | Next.js + Tailwind + shadcn/ui | Product UI, marketing surfaces |
 | **Application API** | Next.js route handlers or Node / FastAPI | Business logic, auth integration |
 | **Data** | PostgreSQL; Supabase for auth/storage/APIs | System of record |
@@ -330,7 +331,7 @@ For deployments targeting **solo founders or minimal teams** in **B2B SaaS**, th
 - **Inputs:** PR metadata, diff, branch protection rules, required checks, threshold policy, branch freshness state, and residual-risk decision.
 - **Outputs:** Initial risk classification, residual-risk decision, freshness decision, validation evidence, review outcome, approval decision, and merge or escalation state.
 - **Capabilities:** Builder, Ops, Researcher, AI reviewer backend.
-- **Checkpoints:** Human approval is **MUST** for high-risk changes and **SHOULD** be required whenever confidence or evidence falls below policy thresholds. Event-ordering failures between automation steps **MUST NOT** by themselves force human review. Automation-owned PRs **MUST** be synced with the current protected branch before review authority is exercised, deterministic PR state such as residual-risk labels **MUST** be set automatically when policy can infer it, and control-plane PRs **MUST** be judged by the policy currently merged on the protected branch until the update itself lands.
+- **Checkpoints:** Human approval is **MUST** for high-risk changes and **SHOULD** be required whenever confidence or evidence falls below policy thresholds. Event-ordering failures between automation steps **MUST NOT** by themselves force human review. Automation-owned PRs **MUST** be synced with the current protected branch before review authority is exercised, deterministic PR state such as residual-risk labels **MUST** be set automatically when policy can infer it, and control-plane PRs **MUST** be judged by the policy currently merged on the protected branch until the update itself lands. Repository-level auto-review configuration such as GitHub rulesets **MAY** request an AI review automatically, but **MUST NOT** itself be treated as approval authority.
 - **Playbook:** `docs/P1_PR_EXECUTION_LOOP.md`
 - **Events (examples):** `pr.risk_classified`, `pr.residual_risk_set`, `pr.branch_outdated`, `pr.review_completed`, `pr.escalated`, `pr.merged`.
 

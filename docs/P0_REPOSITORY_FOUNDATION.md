@@ -18,6 +18,7 @@ At the end of this playbook, the repository should have:
 - CI running on push and pull request.
 - Branch protection bound to real required checks.
 - Merge strategy and branch cleanup defaults configured.
+- Repository rulesets configured for any default automated review behavior.
 - Basic governance files for ownership, contribution flow, security reporting, issues, and pull requests.
 - Dependency and security automation enabled.
 - CODEOWNERS scoped to protected repository surfaces if low-risk PR automation will be allowed later.
@@ -72,8 +73,11 @@ Apply the following repository settings:
 - Enable issues if they are part of the operating loop.
 - Disable wiki unless it is intentionally used.
 - Set the repository description.
+- Configure repository rulesets for automated PR review if the repository will use a host-native reviewer such as GitHub Copilot.
 
 These choices keep history readable and prevent the repo from accumulating unmanaged side channels.
+
+If automated PR review is enabled at the repository level, the trigger configuration belongs in repository settings or rulesets, while repository-specific review behavior **SHOULD** remain in versioned files such as `.github/copilot-instructions.md`.
 
 ## 5. Protect the default branch
 
@@ -130,6 +134,9 @@ The first execution of P0 in this repository applied the following concrete sett
 - Force pushes: disabled
 - Branch deletions: disabled
 - Security automation: enabled
+- Automated PR review: GitHub Copilot via repository ruleset on `~DEFAULT_BRANCH`
+- Copilot review on new pushes: enabled
+- Copilot review on draft PRs: disabled
 
 ## Notes for future variants
 
