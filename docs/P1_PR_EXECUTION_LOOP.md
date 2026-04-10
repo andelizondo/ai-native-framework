@@ -217,6 +217,18 @@ For this repository, the intended review order is:
 5. The residual risk engine reads Copilot's review state and all review thread resolution status together with the initial risk label.
 6. The residual risk engine sets the `residual:*` label from the combined evidence.
 
+**Review thread resolution ownership:**
+
+The reviewer is the primary owner of resolving their own threads. When Copilot re-reviews after a fix commit, it **SHOULD** resolve threads it opened and considers satisfied. However, GitHub Copilot's PR reviewer may not always re-review or resolve threads automatically after a new commit — this is a host-platform limitation, not a policy gap.
+
+When threads are not resolved by the reviewer after fixes are confirmed, automation **MUST NOT** allow the process to deadlock. The implementing agent **MAY** resolve reviewer threads on the reviewer's behalf when all of the following conditions hold:
+
+1. The implementing agent applied fixes that address the finding.
+2. The reviewer (or the reviewer's SWE agent) has explicitly confirmed in the PR timeline that the finding is addressed.
+3. No substantive disagreement about the fix exists on the thread.
+
+Resolving threads without reviewer confirmation is not permitted. Thread resolution without confirmation bypasses verification and defeats the purpose of the review gate.
+
 Host-platform note:
 
 - GitHub may allow `@copilot` comments to trigger Copilot follow-up work even when there is no supported public REST or CLI endpoint for requesting a Copilot re-review directly.
@@ -278,7 +290,7 @@ A threshold policy should include at least:
 1. If findings are autofixable and within authority, run the resolution loop (step 3.5) and rerun checks.
 2. If findings are not autofixable, post a structured decision request (see below) with explicit findings and the exact action required.
 3. If the PR crosses a human decision point, post the decision request with the evidence bundle before stopping.
-4. If review conversations are already addressed by the latest branch state, automation **MAY** resolve those conversations explicitly after verification.
+4. If review conversations are already addressed by the latest branch state, automation **MAY** resolve those conversations explicitly after verification (see reviewer confirmation rules in section 3).
 
 **Decision request format**
 
