@@ -4,7 +4,8 @@
   "type": "module",
   "description": "Agent-native product spec schemas, policies, and validation (canonical source: spec/)",
   "scripts": {
-    "validate": "node scripts/validate-spec.mjs"
+    "validate": "node scripts/validate-spec.mjs",
+    "review:adapter": "node scripts/review-adapter.mjs"
   },
   "devDependencies": {
     "ajv": "^8.17.1",

@@ -1,0 +1,48 @@
+name: p1-review-adapter
+
+on:
+  pull_request:
+    types: [opened, reopened, synchronize, ready_for_review]
+
+permissions:
+  contents: read
+  pull-requests: read
+
+jobs:
+  review_adapter:
+    if: github.event.pull_request.base.ref == 'main' && github.event.pull_request.draft == false
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+          ref: ${{ github.event.pull_request.head.sha }}
+
+      - name: Build PR diff
+        run: |
+          git fetch origin "${{ github.event.pull_request.base.ref }}"
+          git diff "origin/${{ github.event.pull_request.base.ref }}...HEAD" > pr.diff
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version: "20"
+          cache: "npm"
+
+      - run: npm ci
+
+      - name: Run review adapter
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          ANTHROPIC_MODEL: ${{ vars.ANTHROPIC_REVIEW_MODEL }}
+        run: |
+          if [ -n "$ANTHROPIC_API_KEY" ]; then
+            node scripts/review-adapter.mjs --diff-file pr.diff --provider anthropic --out review-findings.json
+          else
+            node scripts/review-adapter.mjs --diff-file pr.diff --provider stub --out review-findings.json
+          fi
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: review-findings
+          path: review-findings.json
+          if-no-files-found: error

@@ -1,0 +1,88 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://ai-native-framework.local/schemas/review-findings.schema.json",
+  "title": "PR review adapter output",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "provider",
+    "generated_at",
+    "summary",
+    "findings",
+    "confidence"
+  ],
+  "properties": {
+    "schema_version": {
+      "type": "string",
+      "const": "1.0.0"
+    },
+    "provider": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Logical provider id (stub, anthropic, openai, coderabbit, etc.)."
+    },
+    "generated_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "pull_request": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "number": { "type": "integer", "minimum": 1 },
+        "base_sha": { "type": "string", "minLength": 7 },
+        "head_sha": { "type": "string", "minLength": 7 },
+        "base_ref": { "type": "string" },
+        "head_ref": { "type": "string" }
+      }
+    },
+    "summary": {
+      "type": "string",
+      "minLength": 1
+    },
+    "findings": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["severity", "blocking", "message"],
+        "properties": {
+          "severity": {
+            "type": "string",
+            "enum": ["critical", "medium", "minor", "info"]
+          },
+          "blocking": {
+            "type": "boolean",
+            "description": "If true, policy may fail the PR until resolved."
+          },
+          "message": {
+            "type": "string",
+            "minLength": 1
+          },
+          "path": {
+            "type": "string",
+            "description": "Repo-relative path, if applicable."
+          },
+          "line": {
+            "type": "integer",
+            "minimum": 1,
+            "description": "1-based line in path, if applicable."
+          },
+          "code": {
+            "type": "string",
+            "description": "Short machine-readable finding code."
+          }
+        }
+      }
+    },
+    "confidence": {
+      "type": "string",
+      "enum": ["low", "medium", "high"]
+    },
+    "truncated_diff": {
+      "type": "boolean",
+      "description": "True when the diff was truncated before sending to the provider."
+    }
+  }
+}

@@ -56,6 +56,28 @@ interfaces:
       properties:
         type: object
 
+  review_pull_request:
+    description: >
+      Produce machine-readable PR review findings for policy checks. Implementations
+      (Copilot UI, SaaS bots, or scripts/review-adapter.mjs) MUST output JSON valid
+      against spec/schema/review-findings.schema.json.
+    inputs:
+      diff_text:
+        type: string
+      repository_instructions_path:
+        type: string
+        description: "e.g. .github/copilot-instructions.md"
+      pull_request:
+        type: object
+        description: "Optional metadata: number, base_sha, head_sha, refs."
+      provider:
+        type: string
+        description: "Logical backend id: stub, anthropic, openai, etc."
+    outputs:
+      findings_document:
+        type: object
+        description: "Validated review-findings v1.0.0 document."
+
 policies:
   human_in_the_loop:
     required_for:
