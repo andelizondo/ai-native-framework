@@ -183,6 +183,7 @@ Decision rules:
 - Residual low: automation may approve or merge when checks pass and no blocking findings remain.
 - Residual medium: approval and merge follow repository-specific threshold policy.
 - Residual high: human review is mandatory before approval or merge.
+- In a personal-repository deployment with a single human operator, threshold policy **MAY** allow the repository owner to act as the final human checkpoint for residual medium after all evidence gates pass, even when no second human reviewer exists.
 
 A threshold policy should include at least:
 
@@ -213,6 +214,14 @@ If residual risk still requires human intervention, automation **MUST** finish e
 - auto-merge enabled in advance when repository policy allows merge immediately after approval
 
 The goal is a one-click human checkpoint whenever the platform permits it: the human should only need to approve, not reconstruct evidence or perform routine preparation work first.
+
+For personal repositories operated by a single human, "one-click approval-ready" may instead mean "one explicit owner decision ready." In that mode, automation **SHOULD** leave a PR comment that states the exact action needed from the owner:
+
+- merge now
+- request changes
+- close the PR
+
+The workflow **MUST NOT** deadlock indefinitely on an unavailable second human reviewer if repository policy explicitly names the owner as the terminal checkpoint for that risk tier.
 
 If the PR is behind the protected branch, escalation should explicitly request a rebase or branch update before any further approval decision. Automation-owned PRs should treat this as a creation failure and reopen the review loop only after syncing.
 
@@ -249,6 +258,8 @@ Required behavior:
 1. Automation changes do not self-validate until they are merged into the protected branch.
 2. The active workflow version on the protected branch is the source of truth for labels, checks, and merge authority during review.
 3. Framework updates should record any bootstrap exception used to merge a control-plane change.
+
+On a personal repository with no second human reviewer, implementations **SHOULD** minimize bootstrap exceptions by encoding the owner-decision path directly in policy for the allowed risk tiers, rather than relying on ad hoc manual overrides.
 
 ## 7. Record outcomes
 
@@ -317,6 +328,7 @@ Recommended first implementation for this repository:
 - Require a policy decision check before merge instead of a blanket GitHub review gate.
 - Allow auto-merge only after required checks pass and policy allows approval.
 - Require human review only when residual risk and policy thresholds still warrant it, and leave those PRs in an approval-ready state before stopping.
+- For a personal repository with one human operator, allow the owner-decision path for residual medium when policy explicitly permits it and all required evidence is present.
 - Re-run policy automatically after fresh validation lands on the same head SHA when earlier policy runs failed only because validation was not ready yet.
 - Keep approval and merge authority in GitHub policy and workflows, not in the AI reviewer backend itself.
 
