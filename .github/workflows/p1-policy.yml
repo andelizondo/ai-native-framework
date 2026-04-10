@@ -7,8 +7,11 @@ name: p1-policy
 # a structured decision request for the human.
 #
 # Humans receive a specific, bounded decision request — not an open-ended review task.
-# The check fails both when a genuine human decision is required and when required
-# evidence gates are incomplete (e.g., validate still running, review not yet present).
+# The check fails when a genuine human decision is required or when required evidence
+# is conclusively missing/failed (e.g., validate finished with failure, no Copilot review).
+# When validate has not started or is still running, this job exits success and defers —
+# branch protection still requires the validate check, and workflow_run re-triggers this
+# job after validate-spec completes (see getPrNumber fallback for empty pull_requests).
 
 on:
   pull_request_target:
@@ -36,7 +39,7 @@ jobs:
             const owner = context.repo.owner;
             const repo = context.repo.repo;
 
-            function getPrNumber() {
+            async function getPrNumber() {
               if (context.eventName === 'pull_request_target') {
                 return context.payload.pull_request.number;
               }
@@ -45,12 +48,26 @@ jobs:
               }
               if (context.eventName === 'workflow_run') {
                 const prs = context.payload.workflow_run.pull_requests || [];
-                return prs.length > 0 ? prs[0].number : null;
+                if (prs.length > 0) {
+                  return prs[0].number;
+                }
+                // GitHub often omits pull_requests on workflow_run; resolve via the head commit.
+                const headSha = context.payload.workflow_run.head_sha;
+                if (!headSha) {
+                  return null;
+                }
+                const { data: associated } = await github.rest.repos.listPullRequestsAssociatedWithCommit({
+                  owner,
+                  repo,
+                  commit_sha: headSha,
+                });
+                const openPr = associated.find((p) => p.state === 'open');
+                return openPr ? openPr.number : null;
               }
               return null;
             }
 
-            const prNumber = getPrNumber();
+            const prNumber = await getPrNumber();
             if (!prNumber) {
               core.info('No pull request is associated with this event.');
               return;
@@ -179,12 +196,34 @@ jobs:
             );
 
             if (!validateCheck) {
-              core.setFailed(`Required check '${requiredCheck}' has not started yet on ${pr.headRefOid.slice(0, 7)}. Policy will re-evaluate when it completes.`);
+              core.info(
+                `Required check '${requiredCheck}' is not registered yet on ${pr.headRefOid.slice(0, 7)}; deferring (validate gate still blocks merge).`,
+              );
+              await upsertPolicyComment([
+                '**P1 policy:** waiting — validation not registered yet',
+                '',
+                `Head \`${pr.headRefOid.slice(0, 7)}\`: no \`${requiredCheck}\` check run is visible on this SHA yet.`,
+                '',
+                'This `decide` job exits **success** so it does not race `validate-spec` on the same push. Branch protection still requires `validate` before merge.',
+                '',
+                'A full policy decision will replace this comment after `validate` completes and this check re-evaluates (including via `workflow_run`).',
+              ].join('\n'));
               return;
             }
 
             if (validateCheck.status !== 'completed') {
-              core.setFailed(`Required check '${requiredCheck}' is still running on ${pr.headRefOid.slice(0, 7)}. Policy will re-evaluate when it completes.`);
+              core.info(
+                `Required check '${requiredCheck}' is still ${validateCheck.status} on ${pr.headRefOid.slice(0, 7)}; deferring.`,
+              );
+              await upsertPolicyComment([
+                '**P1 policy:** waiting — validation in progress',
+                '',
+                `Head \`${pr.headRefOid.slice(0, 7)}\`: \`${requiredCheck}\` is \`${validateCheck.status}\` (not completed yet).`,
+                '',
+                'This `decide` job exits **success** to avoid failing while validation is still running. Merge remains blocked until `validate` completes successfully.',
+                '',
+                'This comment updates on every evaluation so it always reflects the **current** head SHA.',
+              ].join('\n'));
               return;
             }
 

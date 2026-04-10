@@ -20,6 +20,8 @@
 4. `agents/interfaces.yaml`  
 5. This Markdown file and other `docs/*` (explanatory; **MUST NOT** override 1–4)
 
+Repository-local agent runtime files such as `AGENTS.md`, `SKILLS.md`, and `MEMORY.md` are explanatory operating artifacts unless promoted into machine-validated schema or policy. They **SHOULD** align with items 1–4 and **MUST NOT** contradict them.
+
 ### 0.3 Conformance keywords
 
 - **MUST / MUST NOT:** Hard requirement. Violation blocks release unless a human waiver is recorded in the decision log.  
@@ -200,6 +202,9 @@ Typical layout for a framework-aligned repo:
 | `spec/processes/` | *(Introduce)* validated process/workflow instances |
 | `templates/` | Generators and empty templates (e.g. slice spec) |
 | `agents/interfaces.yaml` | Logical tool contracts |
+| `AGENTS.md` | Repository-local bootstrap instructions, authority map, and execution rules for agents |
+| `SKILLS.md` | Reusable capability registry; maps recurring work to procedures and artifacts |
+| `MEMORY.md` | Durable working memory: current state, constraints, glossary, decisions, open loops |
 | `scripts/validate-spec.mjs` | Local and CI validation |
 | `.github/workflows/` | CI pipelines |
 | `docs/PLAYBOOKS.md` | Human-readable index of reusable playbooks |
@@ -215,6 +220,23 @@ Task runners—LLM-backed or deterministic—**MUST** operate inside capability 
 ### 7.2 Capability types (non-exhaustive catalog)
 
 Strategist, Researcher, Product, Builder (engineering), Designer, Growth, Sales ops, Support, Finance/Ops. Each capability **MUST** eventually declare in machine form: tools, data access, escalation paths, forbidden actions.
+
+### 7.2.1 Repository-local context bundle
+
+Framework-aligned repositories **SHOULD** expose a lightweight agent context bundle at the repo root:
+
+- `AGENTS.md` — first-read bootstrap contract for agents entering the repository.
+- `SKILLS.md` — reusable procedures, capability definitions, and when-to-use guidance.
+- `MEMORY.md` — durable repository memory with update rules.
+
+This bundle is the provider-agnostic replacement for hidden system prompts or IDE-only conventions. It gives agents a shared, versioned operating surface while keeping the normative source of truth in schemas, policy, and interfaces.
+
+Minimum requirements:
+
+- `AGENTS.md` **MUST** define the repo authority ladder, canonical commands, change discipline, and escalation conditions.
+- `SKILLS.md` **SHOULD** map recurring workflows to named skills or procedures, each with triggers, inputs, outputs, and links to deeper docs or playbooks.
+- `MEMORY.md` **MUST** distinguish stable facts from temporary working state and **MUST NOT** become an unbounded log dump.
+- Changes to these files **SHOULD** be reviewed whenever repo policy, architecture, workflows, or terminology changes.
 
 ### 7.3 Orchestrator
 
@@ -303,6 +325,8 @@ The Process Library is the **encoded moat**: reusable, versioned procedures—tr
 | **Go-to-market** | Launch, landing pages, content, outbound |
 | **Operations** | Onboarding, support, reporting, pricing experiments, internal ops |
 
+The repository-local `SKILLS.md` file is the operator-facing index into this library. Process definitions may remain in Markdown initially, but the skill index **SHOULD** point to the canonical playbook or schema-backed process artifact for each recurring workflow.
+
 ### 11.3 Workflow record shape (each entry SHOULD declare)
 
 - **Inputs** and **outputs** (artifact types).  
@@ -336,6 +360,16 @@ For deployments targeting **solo founders or minimal teams** in **B2B SaaS**, th
 - **Checkpoints:** Human approval is **MUST** for high-risk changes and **SHOULD** be required whenever confidence or evidence falls below policy thresholds. Event-ordering failures between automation steps **MUST NOT** by themselves force human review. Automation-owned PRs **MUST** be synced with the current protected branch before review authority is exercised, deterministic PR state such as residual-risk labels **MUST** be set automatically when policy can infer it, and control-plane PRs **MUST** be judged by the policy currently merged on the protected branch until the update itself lands. Repository-level auto-review configuration such as GitHub rulesets **MAY** request an AI review automatically, but **MUST NOT** itself be treated as approval authority. When a repository-configured reviewer exists, its review output **SHOULD** be consumed before the agent assigns residual risk, and missing reviewer output for the current head SHA **MUST** remain a blocking state rather than an implicit pass. If reviewer follow-up is needed, an authorized collaborator **MAY** request it through host-supported mechanisms such as `@copilot` comments or the repository UI. If that follow-up causes a bot or app to push a new PR commit, required checks and review freshness **MUST** be re-evaluated on the new head SHA. Host-platform approval prompts on privileged downstream automation **MUST** be interpreted as trust-boundary safeguards unless the required PR-scoped checks themselves fail. If a human checkpoint remains, automation **MUST** complete all non-human preparation work first and leave the PR approval-ready wherever the host platform allows it. In personal-repository single-human mode, the owner **MAY** be the final checkpoint for allowed medium-risk changes, provided policy explicitly says so and the agent states the exact action required from the owner.
 - **Playbook:** `docs/P1_PR_EXECUTION_LOOP.md`
 - **Events (examples):** `pr.risk_classified`, `pr.residual_risk_set`, `pr.branch_outdated`, `pr.review_completed`, `pr.escalated`, `pr.merged`.
+
+#### P2 - Agent context bundle
+
+- **Objective:** Install and maintain the repository-local runtime standard that lets agents bootstrap correctly without relying on hidden prompt state.
+- **Inputs:** Repository purpose, authority ladder, canonical commands, playbooks, glossary, and current operating constraints.
+- **Outputs:** Versioned `AGENTS.md`, `SKILLS.md`, and `MEMORY.md` files linked to the framework and playbooks.
+- **Capabilities:** Builder, Product, Ops.
+- **Checkpoints:** Human review when the bundle changes agent authority, escalation rules, or durable memory policy.
+- **Playbook:** `docs/P2_AGENT_CONTEXT_BUNDLE.md`
+- **Events (examples):** `agent.context_bundle_installed`, `agent.skill_registered`, `agent.memory_updated`.
 
 After P1, the library **SHOULD** contain encoded workflows for the following six operating processes.
 
