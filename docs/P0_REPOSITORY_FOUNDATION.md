@@ -79,6 +79,10 @@ These choices keep history readable and prevent the repo from accumulating unman
 
 If automated PR review is enabled at the repository level, the trigger configuration belongs in repository settings or rulesets, while repository-specific review behavior **SHOULD** remain in versioned files such as `.github/copilot-instructions.md`.
 
+If P1 residual-risk decisions will depend on host-native reviewer output, that reviewer **SHOULD** be configured during P0 so automated review arrives before downstream agent policy or approval actions run.
+
+If the repository is a personal repository with a single human operator, P0 **SHOULD** also decide which risk tiers permit an owner-decision path so P1 does not deadlock on a nonexistent second human reviewer.
+
 ## 5. Protect the default branch
 
 Bind branch protection to the actual successful CI check emitted by GitHub Actions.

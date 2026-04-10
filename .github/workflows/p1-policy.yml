@@ -49,6 +49,10 @@ jobs:
               `
                 query PullRequestPolicy($owner: String!, $repo: String!, $number: Int!) {
                   repository(owner: $owner, name: $repo) {
+                    owner {
+                      __typename
+                      login
+                    }
                     pullRequest(number: $number) {
                       id
                       number
@@ -56,6 +60,9 @@ jobs:
                       isDraft
                       mergeStateStatus
                       headRefOid
+                      author {
+                        login
+                      }
                       labels(first: 30) {
                         nodes { name }
                       }
@@ -74,14 +81,51 @@ jobs:
               { owner, repo, number: prNumber },
             );
 
-            const pr = data.repository.pullRequest;
+            const repository = data.repository;
+            const pr = repository.pullRequest;
             if (!pr || pr.state !== 'OPEN' || pr.isDraft) {
               core.info('Pull request is not open and ready for policy evaluation.');
               return;
             }
 
+            async function upsertPolicyComment(body) {
+              const marker = '<!-- p1-policy-decision -->';
+              const finalBody = [marker, body].join('\n');
+              const comments = await github.paginate(github.rest.issues.listComments, {
+                owner,
+                repo,
+                issue_number: prNumber,
+                per_page: 100,
+              });
+              const existing = comments.find(
+                (comment) => comment.user?.type === 'Bot' && comment.body?.includes(marker),
+              );
+
+              if (existing) {
+                await github.rest.issues.updateComment({
+                  owner,
+                  repo,
+                  comment_id: existing.id,
+                  body: finalBody,
+                });
+                return;
+              }
+
+              await github.rest.issues.createComment({
+                owner,
+                repo,
+                issue_number: prNumber,
+                body: finalBody,
+              });
+            }
+
             const labels = pr.labels.nodes.map((label) => label.name);
             if (labels.includes('sync:needed') || pr.mergeStateStatus === 'BEHIND') {
+              await upsertPolicyComment([
+                '**P1 policy:** blocked',
+                '',
+                'Action needed: update the PR branch so it is current with the protected base branch, then let automation rerun.',
+              ].join('\n'));
               core.setFailed('PR is behind the protected base branch and must be updated before policy can pass.');
               return;
             }
@@ -98,19 +142,67 @@ jobs:
               (checkRun) => checkRun.name === requiredCheck,
             );
 
-            if (!validateCheck || validateCheck.status !== 'completed' || validateCheck.conclusion !== 'success') {
+            if (!validateCheck) {
+              core.info(`Required check ${requiredCheck} is not available yet; policy defers to the required validation gate.`);
+              return;
+            }
+
+            if (validateCheck.status !== 'completed') {
+              core.info(`Required check ${requiredCheck} is still running; policy defers to the required validation gate.`);
+              return;
+            }
+
+            if (validateCheck.conclusion !== 'success') {
+              await upsertPolicyComment([
+                '**P1 policy:** blocked',
+                '',
+                `Action needed: fix the required check \`${requiredCheck}\` so it completes successfully on the current head SHA.`,
+              ].join('\n'));
               core.setFailed(`Required check ${requiredCheck} is not successful.`);
               return;
             }
 
             const residual = labels.find((label) => ['residual:low', 'residual:med', 'residual:high'].includes(label));
             if (!residual) {
+              await upsertPolicyComment([
+                '**P1 policy:** waiting on residual risk',
+                '',
+                'Action needed: complete automated review and set `residual:*` before policy can decide merge authority.',
+              ].join('\n'));
               core.setFailed('Residual risk has not been set yet.');
               return;
             }
 
             if (residual === 'residual:low') {
+              await upsertPolicyComment([
+                '**P1 policy:** pass',
+                '',
+                'Residual risk is `residual:low`; policy does not require human approval.',
+              ].join('\n'));
               core.info('Residual risk is low; policy check passes without human approval.');
+              return;
+            }
+
+            const repoOwner = repository.owner;
+            const repoIsPersonal = repoOwner?.__typename === 'User';
+            const prAuthorLogin = pr.author?.login;
+            const ownerSelfClearAllowed =
+              repoIsPersonal &&
+              prAuthorLogin &&
+              repoOwner?.login === prAuthorLogin &&
+              residual === 'residual:med';
+
+            if (ownerSelfClearAllowed) {
+              await upsertPolicyComment([
+                '**P1 policy:** pass via personal-repo owner exception',
+                '',
+                'Residual risk is `residual:med`, all required checks are green, and the PR author is the owner of this personal repository.',
+                'Action needed from owner: review the evidence bundle and choose one of:',
+                '- merge the PR',
+                '- push changes that address concerns',
+                '- close the PR',
+              ].join('\n'));
+              core.info('Residual medium is allowed for the owner of a personal repository after evidence gates pass.');
               return;
             }
 
@@ -119,8 +211,21 @@ jobs:
             );
 
             if (!humanApproved) {
+              await upsertPolicyComment([
+                '**P1 policy:** blocked awaiting human checkpoint',
+                '',
+                `Residual risk is \`${residual}\`, so policy still requires human intervention.`,
+                'Action needed from owner:',
+                '- review the automated findings and evidence bundle',
+                '- either approve, request changes, or close the PR',
+              ].join('\n'));
               core.setFailed('Residual risk requires a human approval before merge.');
               return;
             }
 
+            await upsertPolicyComment([
+              '**P1 policy:** pass',
+              '',
+              `Residual risk is \`${residual}\` and a human approval is present.`,
+            ].join('\n'));
             core.info('Residual risk requires human approval and one is present; policy check passes.');

@@ -89,6 +89,8 @@ Agents **MUST** escalate or halt when **any** holds:
 - Strategy or positioning must change.  
 - Required approval is missing.
 
+In a personal repository operated by a single human, the framework **MAY** define that repository owner as the terminal human checkpoint for specific medium-risk actions once the evidence bundle is complete. This is still human-governed; it is not equivalent to removing the checkpoint.
+
 ---
 
 ## 4. End-to-end value chain
@@ -331,7 +333,7 @@ For deployments targeting **solo founders or minimal teams** in **B2B SaaS**, th
 - **Inputs:** PR metadata, diff, branch protection rules, required checks, threshold policy, branch freshness state, and residual-risk decision.
 - **Outputs:** Initial risk classification, residual-risk decision, freshness decision, validation evidence, review outcome, approval decision, and merge or escalation state.
 - **Capabilities:** Builder, Ops, Researcher, AI reviewer backend.
-- **Checkpoints:** Human approval is **MUST** for high-risk changes and **SHOULD** be required whenever confidence or evidence falls below policy thresholds. Event-ordering failures between automation steps **MUST NOT** by themselves force human review. Automation-owned PRs **MUST** be synced with the current protected branch before review authority is exercised, deterministic PR state such as residual-risk labels **MUST** be set automatically when policy can infer it, and control-plane PRs **MUST** be judged by the policy currently merged on the protected branch until the update itself lands. Repository-level auto-review configuration such as GitHub rulesets **MAY** request an AI review automatically, but **MUST NOT** itself be treated as approval authority.
+- **Checkpoints:** Human approval is **MUST** for high-risk changes and **SHOULD** be required whenever confidence or evidence falls below policy thresholds. Event-ordering failures between automation steps **MUST NOT** by themselves force human review. Automation-owned PRs **MUST** be synced with the current protected branch before review authority is exercised, deterministic PR state such as residual-risk labels **MUST** be set automatically when policy can infer it, and control-plane PRs **MUST** be judged by the policy currently merged on the protected branch until the update itself lands. Repository-level auto-review configuration such as GitHub rulesets **MAY** request an AI review automatically, but **MUST NOT** itself be treated as approval authority. When a repository-configured reviewer exists, its review output **SHOULD** be consumed before the agent assigns residual risk. If a human checkpoint remains, automation **MUST** complete all non-human preparation work first and leave the PR approval-ready wherever the host platform allows it. In personal-repository single-human mode, the owner **MAY** be the final checkpoint for allowed medium-risk changes, provided policy explicitly says so and the agent states the exact action required from the owner.
 - **Playbook:** `docs/P1_PR_EXECUTION_LOOP.md`
 - **Events (examples):** `pr.risk_classified`, `pr.residual_risk_set`, `pr.branch_outdated`, `pr.review_completed`, `pr.escalated`, `pr.merged`.
 
