@@ -111,12 +111,14 @@ jobs:
 
             const copilotReviewerLogins = new Set([
               'copilot-pull-request-reviewer',
-              'Copilot',
+              'copilot',
             ]);
 
             function isCopilotReview(review) {
-              const login = review.user?.login ?? review.author?.login;
+              const rawLogin = review.user?.login ?? review.author?.login ?? '';
               const type = review.user?.type;
+              // Normalize: strip trailing "[bot]" suffix and lowercase for comparison
+              const login = rawLogin.replace(/\[bot\]$/i, '').toLowerCase();
               return type === 'Bot' && copilotReviewerLogins.has(login);
             }
 
