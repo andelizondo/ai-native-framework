@@ -111,11 +111,11 @@ Human approval is mandatory.
 
 Classification should be conservative. When in doubt, move the PR upward in risk.
 
-Short GitHub labels are recommended for visual clarity:
+GitHub labels should be compact but self-explanatory:
 
-- `risk:l`, `risk:m`, `risk:h` for initial risk
-- `res:l`, `res:m`, `res:h` for residual risk
-- `stale` for branch freshness failures
+- `risk:low`, `risk:med`, `risk:high` for initial risk
+- `residual:low`, `residual:med`, `residual:high` for residual risk
+- `sync:needed` when the PR branch is behind the protected base branch
 
 ## 1.5 Determine residual risk
 
@@ -124,6 +124,8 @@ Short GitHub labels are recommended for visual clarity:
 3. Emit a residual-risk decision separately from the initial classification.
 
 Residual risk may be lower than initial risk. Example: a workflow file change is structurally medium risk, but a one-line vetted dependency bump with passing checks may be residual low risk after review.
+
+When residual risk is fully determined by repository policy and machine-observable evidence, automation **SHOULD** assign the residual-risk label directly instead of waiting for a manual follow-up step.
 
 ## 2. Run deterministic checks
 
@@ -136,8 +138,9 @@ No PR should be approved or merged without passing required checks.
 ## 2.5 Enforce branch freshness
 
 1. Determine whether the PR branch is current with the protected base branch.
-2. If the PR is behind, label it as `stale` and stop approval or merge automation.
+2. If the PR is behind, label it as `sync:needed` and stop approval or merge automation.
 3. Re-run classification, review, and threshold checks after the branch is refreshed.
+4. If automation owns PR creation, it **MUST** sync with the current protected base branch before opening the PR.
 
 Branch freshness is a hard gate. A PR evaluation is stale if the base branch has advanced in a way that could affect policy, CI, CODEOWNERS, or runtime behavior.
 
@@ -188,7 +191,7 @@ A threshold policy should include at least:
 
 Escalation should be specific about why automation stopped.
 
-If the PR is behind the protected branch, escalation should explicitly request a rebase or branch update before any further approval decision.
+If the PR is behind the protected branch, escalation should explicitly request a rebase or branch update before any further approval decision. Automation-owned PRs should treat this as a creation failure and reopen the review loop only after syncing.
 
 ## 6. Approve and merge
 
@@ -208,10 +211,21 @@ Automation **MUST** converge without manual label toggling when the only blocker
 Required behavior:
 
 1. If policy evaluation fails because a required validation check has not completed yet on the current head SHA, the system **MUST** re-evaluate after that validation completes.
-2. If a stale failure exists but a newer successful policy evaluation exists on the same head SHA, the newer result **MUST** control the merge decision.
-3. Manual relabeling or comment nudges **SHOULD NOT** be required for ordinary convergence.
+2. If branch freshness or residual-risk state is deterministically derivable from the current PR state, automation **MUST** set or refresh that state without manual intervention.
+3. If a stale failure exists but a newer successful policy evaluation exists on the same head SHA, the newer result **MUST** control the merge decision.
+4. Manual relabeling or comment nudges **SHOULD NOT** be required for ordinary convergence.
 
 This rule prevents false human escalation caused only by event ordering.
+
+## 6.6 Control-plane changes
+
+PRs that modify the PR automation control plane itself, including workflow files, branch-protection assumptions, or review-policy logic, **MUST** be evaluated under the currently merged policy on the protected branch, not the proposed policy in the PR branch.
+
+Required behavior:
+
+1. Automation changes do not self-validate until they are merged into the protected branch.
+2. The active workflow version on the protected branch is the source of truth for labels, checks, and merge authority during review.
+3. Framework updates should record any bootstrap exception used to merge a control-plane change.
 
 ## 7. Record outcomes
 
@@ -272,7 +286,7 @@ Recommended first implementation for this repository:
 
 - Auto-classify PR risk from changed paths and labels.
 - Distinguish initial risk from residual risk after review.
-- Label stale PRs with `stale` and block automation until they are refreshed.
+- Label outdated PRs with `sync:needed` and block automation until they are refreshed.
 - Run `npm run validate` as the canonical required check.
 - Run automated agent review on every PR.
 - Allow automation to merge residual-low PRs.
