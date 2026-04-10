@@ -8,10 +8,11 @@ name: p1-policy
 #
 # Humans receive a specific, bounded decision request — not an open-ended review task.
 # The check fails when a genuine human decision is required or when required evidence
-# is conclusively missing/failed (e.g., validate finished with failure, no configured AI review).
-# When validate has not started or is still running, this job exits success and defers —
-# branch protection still requires the validate check, and workflow_run re-triggers this
-# job after validate-spec completes (see getPrNumber fallback for empty pull_requests).
+# is conclusively failed. If evidence is not yet available for the current head SHA
+# (for example, validate is still pending or AI review evidence has not yet been posted),
+# this job exits success, emits a waiting/deferred state, and relies on branch protection
+# plus workflow_run re-triggers after validate-spec completes (see getPrNumber fallback
+# for empty pull_requests).
 
 on:
   pull_request_target:

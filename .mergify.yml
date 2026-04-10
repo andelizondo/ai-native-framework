@@ -9,6 +9,8 @@ queue_rules:
       - label = residual:low
       - -draft
       - -label = sync:needed
+      - check-success = validate
+      - check-success = decide
     merge_conditions:
       - check-success = validate
       - check-success = decide

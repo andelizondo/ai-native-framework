@@ -351,7 +351,7 @@ jobs:
                 '',
                 `Configured AI reviewers reached aggregate state \`${aggregateReviewState}\` on \`${pr.head.sha.slice(0, 7)}\` and all review threads are resolved or outdated. No human approval is required.`,
                 '',
-                'The policy check will evaluate merge readiness. Mergify will queue and merge low-risk PRs automatically when all required checks pass.',
+                'The policy check will evaluate merge readiness. Mergify watches for the `residual:low` label and will automatically queue and merge this PR when all required checks pass — this workflow does not invoke Mergify directly.',
               ].join('\n'));
 
               core.info(`${aggregateReviewState} with resolved threads — residual:low set.`);
