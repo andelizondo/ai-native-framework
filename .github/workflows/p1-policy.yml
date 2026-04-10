@@ -1,12 +1,22 @@
 name: p1-policy
 
+# Required check: decide
+#
+# Policy decision engine. Reads labels set by the risk classification and residual
+# risk engine, verifies all evidence gates, and either passes the check or emits
+# a structured decision request for the human.
+#
+# Humans receive a specific, bounded decision request — not an open-ended review task.
+# The check fails only when a genuine human decision is required, not when a tool
+# or another workflow step is still running.
+
 on:
   pull_request_target:
     types: [opened, reopened, synchronize, ready_for_review, labeled, unlabeled]
   pull_request_review:
     types: [submitted, edited, dismissed]
   workflow_run:
-    workflows: ["validate-spec", "p1-risk-classification"]
+    workflows: ["validate-spec", "p1-risk-classification", "p1-residual-risk-engine", "p1-branch-sync", "p1-autofix"]
     types: [completed]
 
 permissions:
@@ -57,6 +67,7 @@ jobs:
                     pullRequest(number: $number) {
                       id
                       number
+                      title
                       state
                       isDraft
                       mergeStateStatus
@@ -78,8 +89,9 @@ jobs:
               return;
             }
 
+            const marker = '<!-- p1-policy-decision -->';
+
             async function upsertPolicyComment(body) {
-              const marker = '<!-- p1-policy-decision -->';
               const finalBody = [marker, body].join('\n');
               const comments = await github.paginate(github.rest.issues.listComments, {
                 owner,
@@ -117,7 +129,6 @@ jobs:
             function isCopilotReview(review) {
               const rawLogin = review.user?.login ?? review.author?.login ?? '';
               const type = review.user?.type;
-              // Normalize: strip trailing "[bot]" suffix and lowercase for comparison
               const login = rawLogin.replace(/\[bot\]$/i, '').toLowerCase();
               return type === 'Bot' && copilotReviewerLogins.has(login);
             }
@@ -131,16 +142,20 @@ jobs:
 
             const labels = labelNodes.map((label) => label.name);
             const risk = labels.find((label) => ['risk:low', 'risk:med', 'risk:high'].includes(label));
+
+            // ── Gate 1: Branch freshness ─────────────────────────────────────────────
             if (labels.includes('sync:needed') || pr.mergeStateStatus === 'BEHIND') {
               await upsertPolicyComment([
-                '**P1 policy:** blocked',
+                '**P1 policy:** blocked — branch out of date',
                 '',
-                'Action needed: update the PR branch so it is current with the protected base branch, then let automation rerun.',
+                'The `p1-branch-sync` workflow is attempting to rebase this branch automatically.',
+                'If a rebase conflict was reported, resolve it and push; policy will re-evaluate on the new head.',
               ].join('\n'));
-              core.setFailed('PR is behind the protected base branch and must be updated before policy can pass.');
+              core.setFailed('PR is behind the protected base branch. Waiting for p1-branch-sync to resolve.');
               return;
             }
 
+            // ── Gate 2: Required validation check ────────────────────────────────────
             const checksResponse = await github.rest.checks.listForRef({
               owner,
               repo,
@@ -154,25 +169,31 @@ jobs:
             );
 
             if (!validateCheck) {
-              core.info(`Required check ${requiredCheck} is not available yet; policy defers to the required validation gate.`);
+              core.info(`Required check ${requiredCheck} is not available yet; policy defers to the validation gate.`);
               return;
             }
 
             if (validateCheck.status !== 'completed') {
-              core.info(`Required check ${requiredCheck} is still running; policy defers to the required validation gate.`);
+              core.info(`Required check ${requiredCheck} is still running; policy defers to the validation gate.`);
               return;
             }
 
             if (validateCheck.conclusion !== 'success') {
               await upsertPolicyComment([
-                '**P1 policy:** blocked',
+                '**P1 policy:** blocked — required check failing',
                 '',
-                `Action needed: fix the required check \`${requiredCheck}\` so it completes successfully on the current head SHA.`,
+                `The \`${requiredCheck}\` check did not pass on the current head \`${pr.headRefOid.slice(0, 7)}\`.`,
+                '',
+                '**What to do**',
+                `Fix the failures reported by \`${requiredCheck}\` and push a new commit. Automation will re-evaluate on the new head.`,
+                '',
+                'If the failure is a flaky test unrelated to this PR, re-run the check manually.',
               ].join('\n'));
               core.setFailed(`Required check ${requiredCheck} is not successful.`);
               return;
             }
 
+            // ── Gate 3: Copilot review evidence ──────────────────────────────────────
             const reviews = await github.paginate(github.rest.pulls.listReviews, {
               owner,
               repo,
@@ -187,18 +208,23 @@ jobs:
 
             if (!hasFreshCopilotReview) {
               await upsertPolicyComment([
-                '**P1 policy:** blocked awaiting Copilot review',
+                '**P1 policy:** waiting — configured reviewer evidence pending',
                 '',
-                'Configured reviewer evidence is required on the current head SHA before residual risk can be finalized.',
-                'Action needed:',
-                '- wait for automatic Copilot review to arrive, or',
-                '- request Copilot review manually in the GitHub PR UI if automatic review did not trigger or is stale',
+                `Waiting for the configured AI reviewer to submit a review on head \`${pr.headRefOid.slice(0, 7)}\`.`,
+                '',
+                'If automatic review did not trigger, request a Copilot review manually via the GitHub PR UI or mention `@copilot` in a comment.',
               ].join('\n'));
               core.setFailed('Configured Copilot review has not been observed on the current pull request head SHA yet.');
               return;
             }
 
+            // ── Gate 4: Residual risk label ───────────────────────────────────────────
+            // The residual risk engine (p1-residual-risk-engine) sets this automatically.
+            // If it is not yet set, either the engine hasn't run or a race condition exists.
             let residual = labels.find((label) => ['residual:low', 'residual:med', 'residual:high'].includes(label));
+
+            // Convergence: if risk:low and Copilot reviewed but residual not yet set, assign it now.
+            // The engine should have done this, but policy assigns it as a fallback to avoid stalls.
             if (!residual && risk === 'risk:low') {
               await github.rest.issues.addLabels({
                 owner,
@@ -211,25 +237,30 @@ jobs:
 
             if (!residual) {
               await upsertPolicyComment([
-                '**P1 policy:** waiting on residual risk',
+                '**P1 policy:** waiting — residual risk pending',
                 '',
-                'Copilot review evidence is present, but residual risk has not been finalized yet.',
-                'Action needed: review the evidence bundle and set `residual:*` before policy can decide merge authority.',
+                'Copilot review evidence is present, but the residual risk engine has not yet set a `residual:*` label.',
+                '',
+                'This resolves automatically. If it does not resolve within a few minutes, check the `p1-residual-risk-engine` workflow run for errors.',
               ].join('\n'));
-              core.setFailed('Residual risk has not been set yet.');
+              core.setFailed('Residual risk has not been set yet by the residual risk engine.');
               return;
             }
 
+            // ── Decision: residual:low → pass ─────────────────────────────────────────
             if (residual === 'residual:low') {
               await upsertPolicyComment([
                 '**P1 policy:** pass',
                 '',
-                'Copilot review evidence is present and residual risk is `residual:low`; policy does not require human approval.',
+                `All gates satisfied. Residual risk: \`${residual}\`. Copilot reviewed on \`${pr.headRefOid.slice(0, 7)}\`. No human approval required.`,
+                '',
+                'Auto-merge will be enabled by `p1-low-risk-automation` when all required checks pass.',
               ].join('\n'));
               core.info('Residual risk is low; policy check passes without human approval.');
               return;
             }
 
+            // ── Decision: residual:med or residual:high → check for human approval ────
             const repoOwner = repository.owner;
             const repoIsPersonal = repoOwner?.__typename === 'User';
             const prAuthorLogin = pr.author?.login;
@@ -240,19 +271,23 @@ jobs:
               residual === 'residual:med';
 
             if (ownerSelfClearAllowed) {
+              // Personal repo owner path: policy passes, owner decides at merge time.
               await upsertPolicyComment([
-                '**P1 policy:** pass via personal-repo owner exception',
+                '**P1 policy:** pass — owner decision path',
                 '',
-                'Residual risk is `residual:med`, all required checks are green, and the PR author is the owner of this personal repository.',
-                'Action needed from owner: review the evidence bundle and choose one of:',
-                '- merge the PR',
-                '- push changes that address concerns',
-                '- close the PR',
+                `Residual risk: \`${residual}\`. All required evidence gates pass. This is a personal repository and the PR author is the owner.`,
+                '',
+                '**Decision needed from you**',
+                'Review the automated findings and choose one option:',
+                '1. **Approve and merge** — add your GitHub approval; merge proceeds automatically.',
+                '2. **Push changes** — address any concerns and push; automation resumes on the new head.',
+                '3. **Close** — reject this PR.',
               ].join('\n'));
               core.info('Residual medium is allowed for the owner of a personal repository after evidence gates pass.');
               return;
             }
 
+            // Check if a human has already approved this head.
             const humanApproved = reviews.some((review) =>
               review.state === 'APPROVED' &&
               review.user &&
@@ -260,22 +295,72 @@ jobs:
               review.commit_id === pr.headRefOid,
             );
 
-            if (!humanApproved) {
+            if (humanApproved) {
               await upsertPolicyComment([
-                '**P1 policy:** blocked awaiting human checkpoint',
+                '**P1 policy:** pass',
                 '',
-                `Residual risk is \`${residual}\`, so policy still requires human intervention.`,
-                'Action needed from owner:',
-                '- review the automated findings and evidence bundle',
-                '- either approve, request changes, or close the PR',
+                `Residual risk: \`${residual}\`. Human approval is present on \`${pr.headRefOid.slice(0, 7)}\`. All gates satisfied.`,
               ].join('\n'));
-              core.setFailed('Residual risk requires a human approval before merge.');
+              core.info('Residual risk requires human approval and one is present; policy check passes.');
               return;
             }
 
+            // No human approval yet. Emit a structured decision request (P1 section 5 format).
+            const copilotReview = copilotReviews.find((r) => r.commit_id === pr.headRefOid);
+            const reviewBody = copilotReview?.body?.trim() ?? '';
+            const reviewSummary = reviewBody
+              ? reviewBody.slice(0, 800) + (reviewBody.length > 800 ? '\n\n_(truncated — see full review on the PR timeline)_' : '')
+              : '_No review body submitted by the configured reviewer._';
+
+            const isHighRisk = residual === 'residual:high';
+            const isControlPlane = labels.includes('control-plane');
+
+            // Single-sentence decision statement (first line of the request).
+            const decisionStatement = isHighRisk
+              ? 'Approve or reject this PR — it touches high-risk production surfaces that automation cannot approve on its own.'
+              : isControlPlane
+              ? 'Approve or reject this PR — it modifies the automation control plane and cannot be auto-approved per policy.'
+              : 'Approve or reject this PR — residual risk requires an explicit human decision before merge.';
+
+            const stopReason = isHighRisk
+              ? 'One or more changed paths are classified `risk:high` (auth, billing, secrets, migrations, or production infrastructure). These changes require an explicit human decision.'
+              : isControlPlane
+              ? 'The `control-plane` label is present. This PR modifies workflow files, branch protection, or review-policy logic. Per P1 §6.6, control-plane changes cannot be auto-downgraded to `residual:low`.'
+              : `Residual risk is \`${residual}\` and repository policy requires a human checkpoint for this risk tier.`;
+
+            // Build the remaining-items section from the reviewer body if available.
+            const remainingItems = reviewBody
+              ? [
+                  'The configured AI reviewer findings are listed below. Review them and decide whether to approve or push fixes.',
+                  '',
+                  reviewSummary,
+                ]
+              : ['The configured AI reviewer submitted this review with no body. Check the PR timeline for inline comments.'];
+
             await upsertPolicyComment([
-              '**P1 policy:** pass',
+              '**P1 decision request**',
               '',
-              `Residual risk is \`${residual}\` and a human approval is present.`,
+              decisionStatement,
+              '',
+              '**What changed**',
+              pr.title,
+              '',
+              '**Why automation stopped**',
+              stopReason,
+              '',
+              '**Automated verification (complete)**',
+              `- ✓ Required checks: \`${requiredCheck}\` passed on \`${pr.headRefOid.slice(0, 7)}\``,
+              `- ✓ Configured AI reviewer: submitted on \`${pr.headRefOid.slice(0, 7)}\``,
+              `- ✓ Branch: current with base`,
+              ...(labels.includes('autofix:applied') ? ['- ✓ Resolution loop: ran (safe auto-fixes applied)'] : []),
+              '',
+              '**Remaining items requiring your decision**',
+              ...remainingItems,
+              '',
+              '**Your options**',
+              '1. **Approve** — add your GitHub approval; merge proceeds automatically once all required checks pass.',
+              '2. **Request changes** — push a commit addressing the findings above; automation resumes on the new head.',
+              '3. **Close** — reject this PR.',
             ].join('\n'));
-            core.info('Residual risk requires human approval and one is present; policy check passes.');
+
+            core.setFailed(`Residual risk is ${residual}; a human decision is required before merge.`);

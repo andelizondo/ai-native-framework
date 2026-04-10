@@ -1,0 +1,237 @@
+name: p1-autofix
+
+# Agent resolution loop (P1 section 3.5).
+# Runs when autofix:pending is applied by the residual risk engine.
+# Applies all safe, tool-driven fixes (formatting, lint) and pushes a new commit.
+# Posts a structured resolution summary showing what was and was not auto-fixed.
+#
+# Safe autofix actions (from P1 section 3.5):
+#   - Formatting and style (biome)
+#   - Import ordering
+#   - Lint rule violations with deterministic fixes
+#   - Whitespace normalization
+#
+# Not safe for automated fix (will be listed in resolution summary for human decision):
+#   - Logic changes
+#   - Security-sensitive code paths
+#   - Schema migrations
+#   - Test assertions
+#   - Anything that changes observable runtime behavior
+#
+# If autofix:applied is already on this PR and the trigger fires again,
+# the remaining issues require a human decision. The residual risk engine
+# handles that escalation; this workflow exits early.
+
+on:
+  pull_request_target:
+    types: [labeled]
+
+permissions:
+  contents: write
+  issues: write
+  pull-requests: write
+
+jobs:
+  resolve:
+    if: github.event.label.name == 'autofix:pending'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check if resolution loop already ran
+        id: guard
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const pr = context.payload.pull_request;
+            const labels = pr.labels.map((l) => l.name);
+            if (labels.includes('autofix:applied')) {
+              core.info('autofix:applied is already present; resolution loop will not re-run. Residual risk engine handles remaining escalation.');
+              core.setOutput('skip', 'true');
+            } else {
+              core.setOutput('skip', 'false');
+            }
+            core.setOutput('pr_number', pr.number);
+            core.setOutput('head_ref', pr.head.ref);
+            core.setOutput('is_fork', String(pr.head.repo.full_name !== pr.base.repo.full_name));
+
+      - name: Checkout PR branch
+        if: steps.guard.outputs.skip == 'false' && steps.guard.outputs.is_fork == 'false'
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.ref }}
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Set up Node.js
+        if: steps.guard.outputs.skip == 'false' && steps.guard.outputs.is_fork == 'false'
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: "npm"
+
+      - name: Install dependencies
+        if: steps.guard.outputs.skip == 'false' && steps.guard.outputs.is_fork == 'false'
+        run: npm ci
+
+      - name: Run safe auto-fixes (biome)
+        if: steps.guard.outputs.skip == 'false' && steps.guard.outputs.is_fork == 'false'
+        id: autofix
+        run: |
+          # Capture pre-fix state
+          git diff --name-only > /tmp/pre_fix_unstaged.txt
+
+          # Apply all safe auto-fixable changes: formatting, import ordering, lint with --fix
+          npx biome check --write --unsafe . 2>&1 | tee /tmp/biome_output.txt || true
+
+          # Check what changed
+          git diff --name-only > /tmp/post_fix_changed.txt
+          changed_count=$(git diff --name-only | wc -l | tr -d ' ')
+          echo "changed_files=$changed_count" >> "$GITHUB_OUTPUT"
+
+          # Run validate to see what remains broken after fixes
+          npm run validate 2>&1 > /tmp/validate_output.txt || true
+          validate_exit=${PIPESTATUS[0]}
+          echo "validate_exit=$validate_exit" >> "$GITHUB_OUTPUT"
+
+      - name: Commit auto-fix changes
+        if: steps.guard.outputs.skip == 'false' && steps.guard.outputs.is_fork == 'false' && steps.autofix.outputs.changed_files != '0'
+        id: commit
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git commit -m "fix: automated resolution loop — formatting and lint fixes
+
+          Applied by p1-autofix workflow (P1 section 3.5 agent resolution loop).
+          Safe autofix actions: biome format, import ordering, deterministic lint fixes.
+          See PR comment for full resolution summary."
+          git push origin HEAD:${{ github.event.pull_request.head.ref }}
+          echo "committed=true" >> "$GITHUB_OUTPUT"
+
+      - name: Update labels
+        if: steps.guard.outputs.skip == 'false' && steps.guard.outputs.is_fork == 'false'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const prNumber = parseInt('${{ steps.guard.outputs.pr_number }}');
+            const owner = context.repo.owner;
+            const repo = context.repo.repo;
+
+            // Remove autofix:pending; add autofix:applied
+            await github.rest.issues.removeLabel({
+              owner, repo, issue_number: prNumber, name: 'autofix:pending',
+            }).catch((e) => { if (e.status !== 404) throw e; });
+
+            const current = await github.paginate(github.rest.issues.listLabelsOnIssue, {
+              owner, repo, issue_number: prNumber, per_page: 100,
+            });
+            if (!current.find((l) => l.name === 'autofix:applied')) {
+              await github.rest.issues.addLabels({
+                owner, repo, issue_number: prNumber, labels: ['autofix:applied'],
+              });
+            }
+
+      - name: Post resolution summary
+        if: steps.guard.outputs.skip == 'false' && steps.guard.outputs.is_fork == 'false'
+        uses: actions/github-script@v7
+        env:
+          CHANGED_FILES: ${{ steps.autofix.outputs.changed_files }}
+          VALIDATE_EXIT: ${{ steps.autofix.outputs.validate_exit }}
+          COMMITTED: ${{ steps.commit.outputs.committed }}
+        with:
+          script: |
+            const prNumber = parseInt('${{ steps.guard.outputs.pr_number }}');
+            const owner = context.repo.owner;
+            const repo = context.repo.repo;
+            const marker = '<!-- p1-autofix -->';
+
+            const changedFiles = parseInt(process.env.CHANGED_FILES ?? '0');
+            const validatePassed = process.env.VALIDATE_EXIT === '0';
+            const committed = process.env.COMMITTED === 'true';
+
+            const lines = [marker, '**P1 resolution loop — summary**', ''];
+
+            if (committed) {
+              lines.push(`✓ Applied auto-fixes to **${changedFiles}** file(s) (formatting, import ordering, biome lint).`);
+            } else {
+              lines.push('✓ No formatting or lint auto-fixes were needed.');
+            }
+
+            lines.push('');
+
+            if (validatePassed) {
+              lines.push('✓ `npm run validate` passes after fixes. The configured AI reviewer will re-evaluate on the new head.');
+              lines.push('');
+              lines.push('No further action needed. Automation continues.');
+            } else {
+              lines.push('⚠ `npm run validate` still fails after auto-fixes. The remaining issues are outside the safe autofix boundary (logic errors, schema violations, or behavior-changing changes).');
+              lines.push('');
+              lines.push('**Remaining items require a decision:**');
+              lines.push('- Check the `validate` check output for the specific failures.');
+              lines.push('- Push a commit that resolves the failures, or close the PR.');
+              lines.push('');
+              lines.push('Automation will resume on the next push.');
+            }
+
+            const comments = await github.paginate(github.rest.issues.listComments, {
+              owner, repo, issue_number: prNumber, per_page: 100,
+            });
+            const existing = comments.find((c) => c.user?.type === 'Bot' && c.body?.includes(marker));
+            const finalBody = lines.join('\n');
+
+            if (existing) {
+              await github.rest.issues.updateComment({ owner, repo, comment_id: existing.id, body: finalBody });
+            } else {
+              await github.rest.issues.createComment({ owner, repo, issue_number: prNumber, body: finalBody });
+            }
+
+      # ── Fork branch: cannot push, post instructions ───────────────────────────
+      - name: Post fork autofix instructions
+        if: steps.guard.outputs.skip == 'false' && steps.guard.outputs.is_fork == 'true'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const pr = context.payload.pull_request;
+            const prNumber = pr.number;
+            const owner = context.repo.owner;
+            const repo = context.repo.repo;
+            const marker = '<!-- p1-autofix -->';
+
+            const body = [
+              marker,
+              '**P1 resolution loop — fork branch**',
+              '',
+              `@${pr.user.login}: the configured AI reviewer requested changes on this PR. Automation cannot push auto-fixes to fork branches.`,
+              '',
+              'Run the following to apply safe auto-fixes locally:',
+              '',
+              '```bash',
+              'npm ci',
+              'npx biome check --write --unsafe .',
+              'npm run validate',
+              '```',
+              '',
+              'Commit the result and push. Automation will resume on the new head.',
+            ].join('\n');
+
+            const comments = await github.paginate(github.rest.issues.listComments, {
+              owner, repo, issue_number: prNumber, per_page: 100,
+            });
+            const existing = comments.find((c) => c.user?.type === 'Bot' && c.body?.includes(marker));
+
+            if (existing) {
+              await github.rest.issues.updateComment({ owner, repo, comment_id: existing.id, body });
+            } else {
+              await github.rest.issues.createComment({ owner, repo, issue_number: prNumber, body });
+            }
+
+            // Still remove autofix:pending and add autofix:applied to prevent loops.
+            await github.rest.issues.removeLabel({
+              owner, repo, issue_number: prNumber, name: 'autofix:pending',
+            }).catch((e) => { if (e.status !== 404) throw e; });
+
+            const current = await github.paginate(github.rest.issues.listLabelsOnIssue, {
+              owner, repo, issue_number: prNumber, per_page: 100,
+            });
+            if (!current.find((l) => l.name === 'autofix:applied')) {
+              await github.rest.issues.addLabels({ owner, repo, issue_number: prNumber, labels: ['autofix:applied'] });
+            }

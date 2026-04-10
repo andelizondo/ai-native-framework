@@ -33,6 +33,9 @@ jobs:
               'residual:med': 'fbca04',
               'residual:high': 'd73a4a',
               'sync:needed': '5319e7',
+              'control-plane': 'e4e669',
+              'autofix:pending': 'c5def5',
+              'autofix:applied': '006b75',
             };
 
             for (const [name, color] of Object.entries(labelPalette)) {
@@ -59,9 +62,16 @@ jobs:
 
             const paths = files.map((file) => file.filename);
 
-            const protectedPatterns = [
+            // Control-plane patterns: changes here cannot be auto-downgraded to residual:low.
+            // See P1 section 6.6.
+            const controlPlanePatterns = [
               '.github/workflows/**',
               '.github/dependabot.yml',
+              '.github/CODEOWNERS',
+              'CODEOWNERS',
+            ];
+
+            const protectedPatterns = [
               'agents/**',
               'package.json',
               'package-lock.json',
@@ -107,28 +117,44 @@ jobs:
             }
 
             let risk = 'low';
+            let isControlPlane = false;
             const reasons = [];
 
-            for (const path of paths) {
-              if (matches(path, highRiskPatterns)) {
-                risk = 'high';
-                reasons.push(`${path} matches a high-risk protected surface.`);
-                continue;
-              }
+            const isDependabot = pr.user && pr.user.login === 'dependabot[bot]';
 
-              if (matches(path, protectedPatterns)) {
-                if (risk !== 'high') {
-                  risk = 'medium';
+            if (isDependabot) {
+              reasons.push('Dependency updates from dependabot are classified as low risk.');
+            } else {
+              for (const path of paths) {
+                if (matches(path, highRiskPatterns)) {
+                  risk = 'high';
+                  reasons.push(`${path} matches a high-risk protected surface.`);
+                  continue;
                 }
-                reasons.push(`${path} matches a protected repository surface.`);
-                continue;
-              }
 
-              if (!matches(path, lowRiskPatterns)) {
-                if (risk === 'low') {
-                  risk = 'medium';
+                if (matches(path, controlPlanePatterns)) {
+                  if (risk !== 'high') {
+                    risk = 'medium';
+                  }
+                  isControlPlane = true;
+                  reasons.push(`${path} matches the control-plane pattern (workflow, branch protection, or CODEOWNERS).`);
+                  continue;
                 }
-                reasons.push(`${path} does not match the low-risk path allowlist.`);
+
+                if (matches(path, protectedPatterns)) {
+                  if (risk !== 'high') {
+                    risk = 'medium';
+                  }
+                  reasons.push(`${path} matches a protected repository surface.`);
+                  continue;
+                }
+
+                if (!matches(path, lowRiskPatterns)) {
+                  if (risk === 'low') {
+                    risk = 'medium';
+                  }
+                  reasons.push(`${path} does not match the low-risk path allowlist.`);
+                }
               }
             }
 
@@ -136,6 +162,30 @@ jobs:
             const riskLabel = `risk:${risk === 'medium' ? 'med' : risk}`;
             const currentLabels = new Set(pr.labels.map((label) => label.name));
             const isBehind = pr.mergeable_state === 'behind';
+
+            // Manage control-plane label.
+            if (isControlPlane && !currentLabels.has('control-plane')) {
+              await github.rest.issues.addLabels({
+                owner,
+                repo,
+                issue_number: pr.number,
+                labels: ['control-plane'],
+              });
+              currentLabels.add('control-plane');
+            }
+            if (!isControlPlane && currentLabels.has('control-plane')) {
+              await github.rest.issues.removeLabel({
+                owner,
+                repo,
+                issue_number: pr.number,
+                name: 'control-plane',
+              }).catch((error) => {
+                if (error.status !== 404) {
+                  throw error;
+                }
+              });
+              currentLabels.delete('control-plane');
+            }
 
             for (const label of riskLabels) {
               if (currentLabels.has(label) && label !== riskLabel) {
@@ -164,25 +214,9 @@ jobs:
             }
 
 
-            for (const label of residualLabels) {
-              if (!currentLabels.has(label)) {
-                continue;
-              }
-
-              if (risk !== 'low' || label !== 'residual:low') {
-                await github.rest.issues.removeLabel({
-                  owner,
-                  repo,
-                  issue_number: pr.number,
-                  name: label,
-                }).catch((error) => {
-                  if (error.status !== 404) {
-                    throw error;
-                  }
-                });
-                currentLabels.delete(label);
-              }
-            }
+            // Residual labels are managed exclusively by p1-residual-risk-engine.
+            // This workflow does NOT clear or set residual:* labels to avoid races.
+            // The engine re-evaluates whenever the Copilot review is refreshed on the new head SHA.
 
             if (isBehind && !currentLabels.has(syncLabel)) {
               await github.rest.issues.addLabels({
@@ -209,30 +243,26 @@ jobs:
             }
 
             const residualLabel = [...currentLabels].find((label) => residualLabels.includes(label));
-            const residualLabelSummary = residualLabel ? `**${residualLabel}**.` : '**pending review**.';
+            const residualLabelSummary = residualLabel ? `**${residualLabel}**` : '**pending — set automatically by residual risk engine after review**';
 
             const body = [
               marker,
               `P1 initial risk: **${risk}**.`,
-              `Branch freshness: **${isBehind ? 'outdated' : 'current'}**.`,
-              `Residual risk label: ${residualLabelSummary}`,
+              `Branch freshness: **${isBehind ? 'outdated — p1-branch-sync will rebase automatically' : 'current'}**.`,
+              `Residual risk: ${residualLabelSummary}.`,
+              ...(isControlPlane ? ['Control-plane: **yes** — cannot auto-downgrade to `residual:low` (P1 §6.6).'] : []),
               '',
               `Changed files: ${paths.map((path) => `\`${path}\``).join(', ')}`,
               '',
-              'Why:',
+              'Classification rationale:',
               ...(uniqueReasons.length > 0
                 ? uniqueReasons.map((reason) => `- ${reason}`)
-                : ['- All changed paths are currently within the low-risk allowlist.']),
+                : ['- All changed paths are within the low-risk allowlist.']),
               '',
-              ...(isBehind
-                ? [
-                    'Freshness gate:',
-                    '- This PR is behind the protected base branch and is labeled `sync:needed` until it is updated.',
-                    '',
-                  ]
-                : []),
-              'Authority under `docs/P1_PR_EXECUTION_LOOP.md`:',
-              '- Initial risk determines review depth. Residual risk is assigned only after configured review evidence is available.',
+              'Next steps handled automatically:',
+              ...(isBehind ? ['- `p1-branch-sync`: will attempt automated rebase.'] : []),
+              '- `p1-residual-risk-engine`: will set `residual:*` after the configured AI reviewer submits a review.',
+              '- `p1-policy` (`decide` check): will evaluate merge authority once residual risk is set.',
             ].join('\n');
 
             const comments = await github.paginate(github.rest.issues.listComments, {

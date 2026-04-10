@@ -6,7 +6,7 @@ on:
   pull_request_review:
     types: [submitted, edited, dismissed]
   workflow_run:
-    workflows: ["validate-spec", "p1-risk-classification", "p1-policy"]
+    workflows: ["validate-spec", "p1-risk-classification", "p1-residual-risk-engine", "p1-autofix", "p1-policy"]
     types: [completed]
 
 permissions:
