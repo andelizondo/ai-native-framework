@@ -25,6 +25,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/github-script@v7
+        env:
+          CONFIGURED_AI_REVIEWERS: ${{ vars.CONFIGURED_AI_REVIEWERS || 'copilot-pull-request-reviewer,copilot,coderabbitai,coderabbit' }}
         with:
           script: |
             const owner = context.repo.owner;
@@ -38,12 +40,12 @@ jobs:
               return;
             }
 
-            const configuredReviewerLogins = new Set([
-              'copilot-pull-request-reviewer',
-              'copilot',
-              'coderabbitai',
-              'coderabbit',
-            ]);
+            const configuredReviewerLogins = new Set(
+              (process.env.CONFIGURED_AI_REVIEWERS || '')
+                .split(',')
+                .map((s) => s.trim().replace(/\[bot\]$/i, '').toLowerCase())
+                .filter(Boolean),
+            );
 
             function normalizeLogin(login) {
               return (login ?? '').replace(/\[bot\]$/i, '').toLowerCase();
@@ -253,7 +255,7 @@ jobs:
                 '',
                 '**Automated verification (complete)**',
                 `- ✓ Review submitted by configured AI reviewer on \`${pr.head.sha.slice(0, 7)}\``,
-                  `- Aggregate review state: \`${aggregateReviewState}\``,
+                `- Aggregate review state: \`${aggregateReviewState}\``,
                 '',
                 '**Your options**',
                 '1. **Approve** — add your GitHub approval; merge proceeds automatically.',
