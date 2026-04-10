@@ -11,6 +11,7 @@ on:
 
 permissions:
   contents: read
+  issues: write
   pull-requests: write
 
 jobs:
@@ -63,17 +64,6 @@ jobs:
                       author {
                         login
                       }
-                      labels(first: 30) {
-                        nodes { name }
-                      }
-                      latestReviews(first: 20) {
-                        nodes {
-                          state
-                          author {
-                            login
-                          }
-                        }
-                      }
                     }
                   }
                 }
@@ -119,11 +109,25 @@ jobs:
               });
             }
 
-            function isCopilotLogin(login) {
-              return typeof login === 'string' && /copilot/i.test(login);
+            const copilotReviewerLogins = new Set([
+              'copilot-pull-request-reviewer',
+              'Copilot',
+            ]);
+
+            function isCopilotReview(review) {
+              const login = review.user?.login ?? review.author?.login;
+              const type = review.user?.type;
+              return type === 'Bot' && copilotReviewerLogins.has(login);
             }
 
-            const labels = pr.labels.nodes.map((label) => label.name);
+            const labelNodes = await github.paginate(github.rest.issues.listLabelsOnIssue, {
+              owner,
+              repo,
+              issue_number: prNumber,
+              per_page: 100,
+            });
+
+            const labels = labelNodes.map((label) => label.name);
             const risk = labels.find((label) => ['risk:low', 'risk:med', 'risk:high'].includes(label));
             if (labels.includes('sync:needed') || pr.mergeStateStatus === 'BEHIND') {
               await upsertPolicyComment([
@@ -174,19 +178,21 @@ jobs:
               per_page: 100,
             });
 
-            const copilotReviews = reviews.filter((review) => isCopilotLogin(review.user?.login));
-            const hasCopilotReview = copilotReviews.length > 0;
+            const copilotReviews = reviews.filter((review) => isCopilotReview(review));
+            const hasFreshCopilotReview = copilotReviews.some(
+              (review) => review.commit_id === pr.headRefOid,
+            );
 
-            if (!hasCopilotReview) {
+            if (!hasFreshCopilotReview) {
               await upsertPolicyComment([
                 '**P1 policy:** blocked awaiting Copilot review',
                 '',
-                'Configured reviewer evidence is required before residual risk can be finalized.',
+                'Configured reviewer evidence is required on the current head SHA before residual risk can be finalized.',
                 'Action needed:',
                 '- wait for automatic Copilot review to arrive, or',
-                '- request Copilot review manually in the GitHub PR UI if automatic review did not trigger',
+                '- request Copilot review manually in the GitHub PR UI if automatic review did not trigger or is stale',
               ].join('\n'));
-              core.setFailed('Configured Copilot review has not been observed on the pull request yet.');
+              core.setFailed('Configured Copilot review has not been observed on the current pull request head SHA yet.');
               return;
             }
 
@@ -245,8 +251,11 @@ jobs:
               return;
             }
 
-            const humanApproved = pr.latestReviews.nodes.some((review) =>
-              review.state === 'APPROVED' && review.author && !review.author.login.endsWith('[bot]'),
+            const humanApproved = reviews.some((review) =>
+              review.state === 'APPROVED' &&
+              review.user &&
+              review.user.type !== 'Bot' &&
+              review.commit_id === pr.headRefOid,
             );
 
             if (!humanApproved) {

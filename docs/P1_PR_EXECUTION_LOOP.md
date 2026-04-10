@@ -122,8 +122,9 @@ GitHub labels should be compact but self-explanatory:
 1. Review the actual diff and validation evidence.
 2. If a repository-configured reviewer backend is expected to produce review output first, wait for that review artifact before final residual-risk assignment.
 3. Policy **MUST** treat missing configured-reviewer evidence as a blocking state, not as implicit approval.
-4. Identify whether the initial structural risk remains material after review.
-5. Emit a residual-risk decision separately from the initial classification.
+4. If the PR head changes after review, the policy layer **SHOULD** require fresh reviewer evidence for the current head SHA before lowering residual risk.
+5. Identify whether the initial structural risk remains material after review.
+6. Emit a residual-risk decision separately from the initial classification.
 
 Residual risk may be lower than initial risk. Example: a workflow file change is structurally medium risk, but a one-line vetted dependency bump with passing checks may be residual low risk after review.
 
@@ -167,7 +168,7 @@ Automated review must leave an auditable artifact in the PR.
 
 Repository-specific reviewer guidance **SHOULD** live in versioned files such as `.github/copilot-instructions.md` so the AI backend can be swapped without changing the playbook's policy.
 
-For this repository, automated AI review is requested through a GitHub repository ruleset that enables GitHub Copilot code review on the default branch and on new pushes to matching pull requests. The ruleset controls when review is requested; `.github/copilot-instructions.md` controls repository-specific review behavior. The policy check **MUST** verify that Copilot review output actually appeared on the PR before it treats review as complete.
+For this repository, automated AI review is requested through a GitHub repository ruleset that enables GitHub Copilot code review on the default branch and on new pushes to matching pull requests. The ruleset controls when review is requested; `.github/copilot-instructions.md` controls repository-specific review behavior. The policy check **MUST** verify that expected Copilot review output actually appeared on the PR for the current head SHA before it treats review as complete.
 
 For this repository, the intended review order is:
 
