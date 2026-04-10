@@ -1,0 +1,16 @@
+queue_rules:
+  - name: low-risk
+    autoqueue: true
+    batch_size: 1
+    merge_method: squash
+    update_method: rebase
+    queue_conditions:
+      - base = main
+      - label = residual:low
+      - -draft
+      - -label = sync:needed
+      - check-success = validate
+      - check-success = decide
+    merge_conditions:
+      - check-success = validate
+      - check-success = decide

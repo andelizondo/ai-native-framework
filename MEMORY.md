@@ -28,6 +28,8 @@ This file stores durable repository memory for agents. It is not a transcript an
 
 - 2026-04-10: Adopted a repository-local agent context bundle built around `AGENTS.md`, `SKILLS.md`, and `MEMORY.md`.
 - 2026-04-10: Added `P2 - Agent context bundle` as a first-class playbook in the framework.
+- 2026-04-11: Extended P1 to treat AI review as a configured reviewer set, added `.coderabbit.yaml` for CodeRabbit auto-review, and moved low-risk merge execution to Mergify via `.mergify.yml`.
+- 2026-04-11: Tightened Dependabot scheduling for `npm` and GitHub Actions on `main`, grouped routine version updates, and labeled dependency PRs for the low-risk automation path.
 
 ## Update Rules
 

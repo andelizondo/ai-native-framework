@@ -14,7 +14,7 @@ Automate the path from open pull request to merge while preserving explicit huma
 
 P1 is the first operating playbook that runs continuously after repository foundation is in place. It defines how agents, CI, GitHub policy, and human decision points work together on every PR.
 
-The AI reviewer backend **MUST** be treated as replaceable. The framework's policy layer decides authority; the reviewer implementation supplies comments, findings, and suggested changes.
+The AI reviewer backend **MUST** be treated as replaceable. The framework's policy layer decides authority; the reviewer implementation supplies comments, findings, and suggested changes. Merge execution tooling is also replaceable: policy decides when merge is allowed, while a merge executor performs the merge or queue operation.
 
 ## When to run
 
@@ -50,7 +50,7 @@ Agents executing P1 **MUST** run the following toolchain before any approval or 
 Required tools:
 
 - **Canonical validation** — `npm run validate` (lint + schema validation). Failing this is an unconditional blocker.
-- **Automated AI review** — Repository-configured reviewer (currently GitHub Copilot via ruleset). Missing review evidence on the current head SHA is an unconditional blocker.
+- **Automated AI review** — Repository-configured AI reviewer set (currently GitHub Copilot via ruleset plus CodeRabbit via app configuration). Missing review evidence on the current head SHA is an unconditional blocker.
 - **Branch freshness check** — Comparison of PR head ancestry against the protected base branch. Being behind is a blocker until resolved automatically or flagged with `sync:needed`.
 
 Optional tools (enable as repository matures):
@@ -150,16 +150,16 @@ GitHub labels should be compact but self-explanatory:
 
 ### 1.5 Determine residual risk
 
-Residual risk is determined **automatically** by the residual risk engine (`p1-residual-risk-engine`). The engine runs when the configured reviewer submits a review on the current head SHA. No manual label setting is expected or required.
+Residual risk is determined **automatically** by the residual risk engine (`p1-residual-risk-engine`). The engine runs when a configured AI reviewer submits a review on the current head SHA. No manual label setting is expected or required.
 
 Engine rules:
 
 1. If `risk:high`: set `residual:high` unconditionally. Post a decision request.
 2. If `risk:med` and the PR has the `control-plane` label: set `residual:med`. The owner-decision path applies for personal repositories; a second human approval applies otherwise.
-3. If `risk:med` and the configured reviewer state is `APPROVED` and all review threads are resolved or outdated: set `residual:low`.
-4. If `risk:med` and the configured reviewer state is `CHANGES_REQUESTED`: set `autofix:pending` and leave `residual` unset until the resolution loop runs (see step 3.5).
-5. If `risk:low` and the configured reviewer state is `APPROVED` or `COMMENTED`: set `residual:low`.
-6. If `risk:low` and the configured reviewer state is `CHANGES_REQUESTED`: set `autofix:pending`.
+3. If `risk:med`, no configured AI reviewer still requests changes on the current head SHA, and the aggregated reviewer state across active configured reviewers is `APPROVED` or `COMMENTED` with all review threads resolved or outdated: set `residual:low`.
+4. If `risk:med` and any configured AI reviewer state is `CHANGES_REQUESTED`: set `autofix:pending` and leave `residual` unset until the resolution loop runs (see step 3.5).
+5. If `risk:low`, no configured AI reviewer still requests changes on the current head SHA, and the aggregated reviewer state across active configured reviewers is `APPROVED` or `COMMENTED`: set `residual:low`.
+6. If `risk:low` and any configured AI reviewer state is `CHANGES_REQUESTED`: set `autofix:pending`.
 
 If the PR head changes after residual risk is set, the engine **MUST** clear the existing `residual:*` label and re-evaluate from the new review evidence.
 
@@ -206,20 +206,21 @@ Automated review must leave an auditable artifact in the PR.
 
 Repository-specific reviewer guidance **SHOULD** live in versioned files such as `.github/copilot-instructions.md` so the AI backend can be swapped without changing the playbook's policy.
 
-For this repository, automated AI review is requested through a GitHub repository ruleset that enables GitHub Copilot code review on the default branch and on new pushes to matching pull requests. The ruleset controls when review is requested; `.github/copilot-instructions.md` controls repository-specific review behavior. The policy check **MUST** verify that expected Copilot review output actually appeared on the PR for the current head SHA before it treats review as complete.
+For this repository, automated AI review is requested through a GitHub repository ruleset that enables GitHub Copilot code review on the default branch and on new pushes to matching pull requests, plus a root `.coderabbit.yaml` configuration that enables CodeRabbit auto-review for non-draft pull requests. `.github/copilot-instructions.md` controls Copilot-specific review behavior; `.coderabbit.yaml` controls CodeRabbit behavior. The policy check **MUST** verify that expected configured AI review output actually appeared on the PR for the current head SHA before it treats review as complete.
 
 For this repository, the intended review order is:
 
 1. GitHub Copilot review is requested automatically by ruleset.
-2. If the expected Copilot review does not appear or does not refresh on the latest head SHA, an authorized collaborator **MAY** explicitly request follow-up work by mentioning `@copilot` on the PR or by using the host platform's re-review UI.
-3. If `@copilot` produces a new commit on the PR branch, automation **MUST** treat that commit like any other new head SHA: rerun required checks, require fresh review evidence where policy says so, and re-evaluate residual risk from the updated state.
-4. The policy layer waits until Copilot review output is observable on the PR timeline.
-5. The residual risk engine reads Copilot's review state and all review thread resolution status together with the initial risk label.
-6. The residual risk engine sets the `residual:*` label from the combined evidence.
+2. CodeRabbit review is requested automatically by app configuration from `.coderabbit.yaml`.
+3. If the expected reviewer output does not appear or does not refresh on the latest head SHA, an authorized collaborator **MAY** explicitly request follow-up work by mentioning `@copilot`, commenting `@coderabbitai review`, or using the host platform's re-review UI.
+4. If either reviewer produces a new commit on the PR branch, automation **MUST** treat that commit like any other new head SHA: rerun required checks, require fresh review evidence where policy says so, and re-evaluate residual risk from the updated state.
+5. The policy layer waits until configured AI review output is observable on the PR timeline.
+6. The residual risk engine reads the latest active review state from the configured AI reviewer set together with all review thread resolution status and the initial risk label.
+7. The residual risk engine sets the `residual:*` label from the combined evidence.
 
 **Review thread resolution ownership:**
 
-The reviewer is the primary owner of resolving their own threads. When Copilot re-reviews after a fix commit, it **SHOULD** resolve threads it opened and considers satisfied. However, GitHub Copilot's PR reviewer may not always re-review or resolve threads automatically after a new commit — this is a host-platform limitation, not a policy gap.
+The reviewer is the primary owner of resolving their own threads. When configured AI reviewers re-review after a fix commit, they **SHOULD** resolve threads they opened and consider satisfied. However, GitHub-hosted reviewers may not always re-review or resolve threads automatically after a new commit — this is a host-platform limitation, not a policy gap.
 
 When threads are not resolved by the reviewer after fixes are confirmed, automation **MUST NOT** allow the process to deadlock. The implementing agent **MAY** resolve reviewer threads on the reviewer's behalf when all of the following conditions hold:
 
@@ -231,7 +232,7 @@ Resolving threads without reviewer confirmation is not permitted. Thread resolut
 
 Host-platform note:
 
-- GitHub may allow `@copilot` comments to trigger Copilot follow-up work even when there is no supported public REST or CLI endpoint for requesting a Copilot re-review directly.
+- GitHub may allow `@copilot` comments or `@coderabbitai review` comments to trigger follow-up reviewer work even when there is no supported public REST or CLI endpoint for requesting a re-review directly.
 - When a bot or app pushes a commit to the PR branch, direct PR-scoped checks may still run normally while some downstream `workflow_run` automation can enter an approval-required or `action_required` state under GitHub's trust model. That host safeguard **MUST NOT** be misinterpreted as a PR policy failure by itself.
 
 ### 3.5 Agent resolution loop
@@ -244,7 +245,7 @@ The resolution loop runs when `autofix:pending` is applied:
 2. Run all auto-fixable toolchain commands (e.g., `biome check --write .` for formatting and lint).
 3. Commit any changes and push. Label the PR with `autofix:applied`.
 4. Post a structured resolution comment listing what was fixed and what was not.
-5. If everything is now fixed and `npm run validate` passes: remove `autofix:pending`. The Copilot reviewer re-runs on the new head SHA and the residual risk engine re-evaluates.
+5. If everything is now fixed and `npm run validate` passes: remove `autofix:pending`. Configured AI reviewers re-run on the new head SHA and the residual risk engine re-evaluates.
 6. If unfixed issues remain after the resolution loop: post a structured decision request (see section 5) for the specific remaining items. Do not run the resolution loop again on the same PR once `autofix:applied` is set.
 
 The resolution loop **MUST NOT** attempt fixes outside the safe autofix set. Changes that require reasoning about business logic, security intent, or product behavior are decision items, not autofix items.
@@ -338,7 +339,7 @@ The workflow **MUST NOT** deadlock indefinitely on an unavailable second human r
 When the PR is within policy and all required checks have passed:
 
 1. Apply the policy decision for the residual-risk tier.
-2. Enable auto-merge or merge directly according to repository policy.
+2. Enable the configured merge executor or merge directly according to repository policy.
 3. Ensure branch cleanup runs after merge.
 
 Merge must be blocked if required checks are pending, stale, or bypassed.
@@ -401,7 +402,7 @@ Human involvement is required when any of the following apply:
 Human involvement is **NOT** required for:
 
 - Verifying that checks pass — the check status is machine-observable
-- Confirming that Copilot approved — review state is machine-observable
+- Confirming that a configured AI reviewer approved or commented — review state is machine-observable
 - Resolving lint or formatting issues — the resolution loop handles these
 - Confirming branch freshness — the sync workflow handles this
 - Setting `residual:*` labels — the residual risk engine handles this
@@ -413,8 +414,9 @@ When a human does act, they receive a decision request (section 5) with the full
 The primary implementation uses:
 
 - **GitHub Actions** for deterministic checks and PR metadata workflows
-- **Branch protection and auto-merge** for merge enforcement
+- **Branch protection** for merge enforcement
 - **AI reviewer backend** for code review and safe autofix proposals
+- **Mergify merge queue** for low-risk merge execution after policy passes
 - **Labels and check runs** for risk classification and residual risk state
 - **Required policy check** (`decide`) that decides whether human approval is still necessary
 - **Labels and checks** for branch freshness and update requirements
@@ -422,11 +424,11 @@ The primary implementation uses:
 Implemented workflows:
 
 - `p1-risk-classification` — Classifies changed paths; applies `risk:*`, `sync:needed`, `control-plane` labels
-- `p1-residual-risk-engine` — Triggers on Copilot review submission; auto-assigns `residual:*` or `autofix:pending`
+- `p1-residual-risk-engine` — Triggers on configured AI review submission; auto-assigns `residual:*` or `autofix:pending`
 - `p1-branch-sync` — Triggers on `sync:needed`; auto-rebases same-repo branches; posts sync command for forks
 - `p1-autofix` — Triggers on `autofix:pending`; runs tool-based fixes, commits, and posts resolution summary
 - `p1-policy` — Required check `decide`; reads labels and evidence; passes or emits a structured decision request
-- `p1-low-risk-automation` — Enables auto-merge when `residual:low` and all checks pass
+- `Mergify` (`.mergify.yml`) — Auto-queues and squash-merges `residual:low` PRs on `main` when `validate` and `decide` succeed
 
 Optional later layers:
 
