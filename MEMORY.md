@@ -23,7 +23,6 @@ This file stores durable repository memory for agents. It is not a transcript an
 
 - Encode P0, P1, and P2 as machine-readable process artifacts under future `spec/processes/`.
 - Decide whether larger future workflow catalogs should live only in `SKILLS.md` or split into a `skills/` directory.
-- Keep `REPO_SCAFFOLD.md` aligned if the repository scaffold should eventually materialize the agent context bundle too.
 
 ## Recent Decisions
 

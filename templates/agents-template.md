@@ -34,6 +34,12 @@
 - [Rule]
 - [Rule]
 
+## Change Discipline
+
+- When adding a new recurring workflow, update [playbook index] and `SKILLS.md`.
+- When changing repo operating rules, check whether `AGENTS.md` and `MEMORY.md` now need updates.
+- When introducing durable process knowledge, prefer a playbook or schema-backed artifact over burying it in memory.
+
 ## Escalation Conditions
 
 - [Condition]
@@ -45,3 +51,7 @@
 - `[path]` - [purpose]
 - `[path]` - [purpose]
 - `[path]` - [purpose]
+
+## Definition Of Done
+
+A framework change is not complete if it leaves the runtime bundle stale. If your edit changes how an agent should bootstrap, choose a skill, validate work, or preserve context, update this bundle in the same change.
