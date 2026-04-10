@@ -8,7 +8,7 @@ name: p1-policy
 #
 # Humans receive a specific, bounded decision request — not an open-ended review task.
 # The check fails when a genuine human decision is required or when required evidence
-# is conclusively missing/failed (e.g., validate finished with failure, no Copilot review).
+# is conclusively missing/failed (e.g., validate finished with failure, no configured AI review).
 # When validate has not started or is still running, this job exits success and defers —
 # branch protection still requires the validate check, and workflow_run re-triggers this
 # job after validate-spec completes (see getPrNumber fallback for empty pull_requests).
@@ -138,16 +138,22 @@ jobs:
               });
             }
 
-            const copilotReviewerLogins = new Set([
+            const configuredReviewerLogins = new Set([
               'copilot-pull-request-reviewer',
               'copilot',
+              'coderabbitai',
+              'coderabbit',
             ]);
 
-            function isCopilotReview(review) {
+            function normalizeLogin(login) {
+              return (login ?? '').replace(/\[bot\]$/i, '').toLowerCase();
+            }
+
+            function isConfiguredAiReview(review) {
               const rawLogin = review.user?.login ?? review.author?.login ?? '';
-              const type = review.user?.type;
-              const login = rawLogin.replace(/\[bot\]$/i, '').toLowerCase();
-              return type === 'Bot' && copilotReviewerLogins.has(login);
+              const type = review.user?.type ?? review.author?.type;
+              const login = normalizeLogin(rawLogin);
+              return type === 'Bot' && configuredReviewerLogins.has(login);
             }
 
             const labelNodes = await github.paginate(github.rest.issues.listLabelsOnIssue, {
@@ -244,7 +250,7 @@ jobs:
               return;
             }
 
-            // ── Gate 3: Copilot review evidence ──────────────────────────────────────
+            // ── Gate 3: configured AI review evidence ───────────────────────────────
             const reviews = await github.paginate(github.rest.pulls.listReviews, {
               owner,
               repo,
@@ -252,26 +258,25 @@ jobs:
               per_page: 100,
             });
 
-            const copilotReviews = reviews.filter((review) => isCopilotReview(review));
-            // Dismissed reviews don't count as evidence — find the latest non-dismissed one on the current head.
-            const copilotOnHead = copilotReviews
+            const aiReviews = reviews.filter((review) => isConfiguredAiReview(review));
+            const aiOnHead = aiReviews
               .filter((r) => r.commit_id === pr.headRefOid && r.state !== 'DISMISSED')
               .sort((a, b) => new Date(b.submitted_at).getTime() - new Date(a.submitted_at).getTime());
-            const latestCopilotOnHead = copilotOnHead[0] ?? null;
-            const hasFreshCopilotReview = latestCopilotOnHead != null;
+            const latestAiOnHead = aiOnHead[0] ?? null;
+            const hasFreshAiReview = latestAiOnHead != null;
 
-            if (!hasFreshCopilotReview) {
+            if (!hasFreshAiReview) {
               core.info(
-                `No Copilot review on head ${pr.headRefOid.slice(0, 7)} yet; exiting success to avoid blocking while the reviewer initializes. The pull_request_review trigger will re-evaluate once a review is submitted.`,
+                `No configured AI review on head ${pr.headRefOid.slice(0, 7)} yet; exiting success to avoid blocking while the reviewer initializes. The pull_request_review trigger will re-evaluate once a review is submitted.`,
               );
               await upsertPolicyComment([
                 '**P1 policy:** waiting — configured reviewer evidence pending',
                 '',
-                `Waiting for the configured AI reviewer to submit a review on head \`${pr.headRefOid.slice(0, 7)}\`.`,
+                `Waiting for a configured AI reviewer to submit a review on head \`${pr.headRefOid.slice(0, 7)}\`.`,
                 '',
                 'This `decide` job exits **success** so it does not race the AI reviewer on the same push. The `pull_request_review` trigger re-evaluates policy once a review is submitted.',
                 '',
-                'If automatic review did not trigger, request a Copilot review manually via the GitHub PR UI or mention `@copilot` in a comment.',
+                'If automatic review did not trigger, request a follow-up review via the GitHub PR UI, mention `@copilot`, or comment `@coderabbitai review`.',
               ].join('\n'));
               return;
             }
@@ -281,13 +286,13 @@ jobs:
             // If it is not yet set, either the engine hasn't run or a race condition exists.
             let residual = labels.find((label) => ['residual:low', 'residual:med', 'residual:high'].includes(label));
 
-            // Convergence: if risk:low and Copilot approved/commented but residual not yet set, assign it now.
+            // Convergence: if risk:low and a configured AI reviewer approved/commented but residual not yet set, assign it now.
             // Only applies for APPROVED/COMMENTED — not CHANGES_REQUESTED, which the residual engine must handle.
-            const copilotAllowsFallback =
-              latestCopilotOnHead != null &&
-              (latestCopilotOnHead.state === 'APPROVED' || latestCopilotOnHead.state === 'COMMENTED');
+            const aiReviewerAllowsFallback =
+              latestAiOnHead != null &&
+              (latestAiOnHead.state === 'APPROVED' || latestAiOnHead.state === 'COMMENTED');
 
-            if (!residual && risk === 'risk:low' && copilotAllowsFallback) {
+            if (!residual && risk === 'risk:low' && aiReviewerAllowsFallback) {
               await github.rest.issues.addLabels({
                 owner,
                 repo,
@@ -301,7 +306,7 @@ jobs:
               await upsertPolicyComment([
                 '**P1 policy:** waiting — residual risk pending',
                 '',
-                'Copilot review evidence is present, but the residual risk engine has not yet set a `residual:*` label.',
+                'Configured AI review evidence is present, but the residual risk engine has not yet set a `residual:*` label.',
                 '',
                 'This resolves automatically. If it does not resolve within a few minutes, check the `p1-residual-risk-engine` workflow run for errors.',
               ].join('\n'));
@@ -314,9 +319,9 @@ jobs:
               await upsertPolicyComment([
                 '**P1 policy:** pass',
                 '',
-                `All gates satisfied. Residual risk: \`${residual}\`. Copilot reviewed on \`${pr.headRefOid.slice(0, 7)}\`. No human approval required.`,
+                `All gates satisfied. Residual risk: \`${residual}\`. Configured AI review evidence is present on \`${pr.headRefOid.slice(0, 7)}\`. No human approval required.`,
                 '',
-                'Auto-merge will be enabled by `p1-low-risk-automation` when all required checks pass.',
+                'Mergify will queue and merge this PR automatically when all required checks pass.',
               ].join('\n'));
               core.info('Residual risk is low; policy check passes without human approval.');
               return;
@@ -368,8 +373,8 @@ jobs:
             }
 
             // No human approval yet. Emit a structured decision request (P1 section 5 format).
-            const copilotReview = latestCopilotOnHead;
-            const reviewBody = copilotReview?.body?.trim() ?? '';
+            const aiReview = latestAiOnHead;
+            const reviewBody = aiReview?.body?.trim() ?? '';
             const reviewSummary = reviewBody
               ? reviewBody.slice(0, 800) + (reviewBody.length > 800 ? '\n\n_(truncated — see full review on the PR timeline)_' : '')
               : '_No review body submitted by the configured reviewer._';
@@ -412,7 +417,7 @@ jobs:
               '',
               '**Automated verification (complete)**',
               `- ✓ Required checks: \`${requiredCheck}\` passed on \`${pr.headRefOid.slice(0, 7)}\``,
-              `- ✓ Configured AI reviewer: submitted on \`${pr.headRefOid.slice(0, 7)}\``,
+              `- ✓ Configured AI reviewer: \`${aiReview?.user?.login ?? aiReview?.author?.login ?? 'unknown'}\` submitted on \`${pr.headRefOid.slice(0, 7)}\``,
               `- ✓ Branch: current with base`,
               ...(labels.includes('autofix:applied') ? ['- ✓ Resolution loop: ran (safe auto-fixes applied)'] : []),
               '',

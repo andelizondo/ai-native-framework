@@ -1,12 +1,12 @@
 name: p1-residual-risk-engine
 
-# Determines residual risk automatically when the configured reviewer submits a review.
+# Determines residual risk automatically when a configured AI reviewer submits a review.
 # This workflow eliminates the need for any human to manually set residual:* labels.
 #
 # Engine rules (from P1 section 1.5):
 #   risk:high                         → residual:high    (always; post decision request)
 #   risk:med + control-plane          → residual:med     (owner-decision path)
-#   risk:med + APPROVED + resolved    → residual:low     (auto-downgrade)
+#   risk:med + APPROVED/COMMENTED     → residual:low     (when no configured reviewer still requests changes and threads are resolved)
 #   risk:med + CHANGES_REQUESTED      → autofix:pending  (trigger resolution loop)
 #   risk:low + APPROVED/COMMENTED     → residual:low
 #   risk:low + CHANGES_REQUESTED      → autofix:pending
@@ -38,13 +38,25 @@ jobs:
               return;
             }
 
-            // Only process reviews from the configured AI reviewer (Copilot).
-            const copilotLogins = new Set(['copilot-pull-request-reviewer', 'copilot']);
-            const rawLogin = (review.user?.login ?? '').replace(/\[bot\]$/i, '').toLowerCase();
-            const isCopilotReview = review.user?.type === 'Bot' && copilotLogins.has(rawLogin);
+            const configuredReviewerLogins = new Set([
+              'copilot-pull-request-reviewer',
+              'copilot',
+              'coderabbitai',
+              'coderabbit',
+            ]);
 
-            if (!isCopilotReview) {
-              core.info('Review is not from the configured AI reviewer; residual risk engine skips.');
+            function normalizeLogin(login) {
+              return (login ?? '').replace(/\[bot\]$/i, '').toLowerCase();
+            }
+
+            function isConfiguredAiReview(candidate) {
+              const login = normalizeLogin(candidate.user?.login ?? candidate.author?.login);
+              const type = candidate.user?.type ?? candidate.author?.type;
+              return type === 'Bot' && configuredReviewerLogins.has(login);
+            }
+
+            if (!isConfiguredAiReview(review)) {
+              core.info('Review is not from a configured AI reviewer; residual risk engine skips.');
               return;
             }
 
@@ -55,9 +67,7 @@ jobs:
             }
 
             const prNumber = pr.number;
-            const reviewState = review.state; // APPROVED, CHANGES_REQUESTED, COMMENTED, DISMISSED
-
-            core.info(`Evaluating residual risk for PR #${prNumber}: initial review state = ${reviewState}`);
+            core.info(`Evaluating residual risk for PR #${prNumber} after ${review.user?.login ?? 'configured AI reviewer'} review event.`);
 
             // Fetch current labels.
             const labelNodes = await github.paginate(github.rest.issues.listLabelsOnIssue, {
@@ -112,15 +122,51 @@ jobs:
               }
             }
 
-            // ─── Decision: DISMISSED — clear stale labels so policy waits for a fresh review ──
-            if (reviewState === 'DISMISSED') {
+            const allReviews = await github.paginate(github.rest.pulls.listReviews, {
+              owner,
+              repo,
+              pull_number: prNumber,
+              per_page: 100,
+            });
+
+            const latestReviewsByReviewer = new Map();
+            const configuredReviewsOnHead = allReviews
+              .filter((candidate) => isConfiguredAiReview(candidate) && candidate.commit_id === pr.head.sha)
+              .sort((a, b) => new Date(b.submitted_at).getTime() - new Date(a.submitted_at).getTime());
+
+            for (const candidate of configuredReviewsOnHead) {
+              const login = normalizeLogin(candidate.user?.login ?? candidate.author?.login);
+              if (!latestReviewsByReviewer.has(login)) {
+                latestReviewsByReviewer.set(login, candidate);
+              }
+            }
+
+            const freshConfiguredReviews = [...latestReviewsByReviewer.values()].filter(
+              (candidate) => candidate.state !== 'DISMISSED',
+            );
+            const latestConfiguredReview = freshConfiguredReviews[0] ?? null;
+            const latestReviewerLogin = latestConfiguredReview?.user?.login ?? latestConfiguredReview?.author?.login ?? 'configured AI reviewer';
+            const hasChangesRequested = freshConfiguredReviews.some((candidate) => candidate.state === 'CHANGES_REQUESTED');
+            const hasApprovalLikeReview = freshConfiguredReviews.some(
+              (candidate) => candidate.state === 'APPROVED' || candidate.state === 'COMMENTED',
+            );
+            const aggregateReviewState = hasChangesRequested
+              ? 'CHANGES_REQUESTED'
+              : hasApprovalLikeReview
+              ? freshConfiguredReviews.some((candidate) => candidate.state === 'APPROVED')
+                ? 'APPROVED'
+                : 'COMMENTED'
+              : null;
+
+            // ─── Decision: all configured reviews on head dismissed — clear stale labels ──
+            if (!aggregateReviewState) {
               await removeLabels([...residualLabels, ...autofixLabels]);
               await upsertComment([
                 '**P1 residual risk engine — review dismissed**',
                 '',
-                `The configured AI reviewer dismissed their review on \`${pr.head.sha.slice(0, 7)}\`. Residual and autofix labels were cleared; policy will wait for a fresh review on this head.`,
+                `No configured AI reviewer currently has an active review on \`${pr.head.sha.slice(0, 7)}\`. Residual and autofix labels were cleared; policy will wait for fresh review evidence on this head.`,
               ].join('\n'));
-              core.info('Copilot review dismissed — cleared residual and autofix labels.');
+              core.info('No active configured AI review remains on head — cleared residual and autofix labels.');
               return;
             }
 
@@ -156,8 +202,8 @@ jobs:
               await removeLabels([...residualLabels, ...autofixLabels]);
               await setLabel('residual:high');
 
-              const reviewSummary = review.body?.trim()
-                ? review.body.trim().slice(0, 500) + (review.body.length > 500 ? '…' : '')
+              const reviewSummary = latestConfiguredReview?.body?.trim()
+                ? latestConfiguredReview.body.trim().slice(0, 500) + (latestConfiguredReview.body.length > 500 ? '…' : '')
                 : '_No review body._';
 
               await upsertComment([
@@ -172,8 +218,9 @@ jobs:
                 'One or more changed paths are classified `risk:high` (auth, billing, secrets, migrations, production infrastructure, or irreversible user-facing effects). Automation cannot approve or merge these changes.',
                 '',
                 '**Automated verification (complete)**',
-                `- ✓ Review submitted by configured AI reviewer on \`${pr.head.sha.slice(0, 7)}\``,
-                `- Review state: \`${reviewState}\``,
+                `- ✓ Review submitted by configured AI reviewer set on \`${pr.head.sha.slice(0, 7)}\``,
+                `- Latest review source: \`${latestReviewerLogin}\``,
+                `- Aggregate review state: \`${aggregateReviewState}\``,
                 '',
                 '**AI reviewer summary**',
                 reviewSummary,
@@ -206,7 +253,7 @@ jobs:
                 '',
                 '**Automated verification (complete)**',
                 `- ✓ Review submitted by configured AI reviewer on \`${pr.head.sha.slice(0, 7)}\``,
-                `- Review state: \`${reviewState}\``,
+                  `- Aggregate review state: \`${aggregateReviewState}\``,
                 '',
                 '**Your options**',
                 '1. **Approve** — add your GitHub approval; merge proceeds automatically.',
@@ -219,13 +266,13 @@ jobs:
             }
 
             // ─── Decision: CHANGES_REQUESTED → trigger resolution loop ────────────────
-            if (reviewState === 'CHANGES_REQUESTED') {
+            if (aggregateReviewState === 'CHANGES_REQUESTED') {
               if (autofixAlreadyApplied) {
                 await removeLabels(residualLabels);
                 await setLabel('residual:med');
 
-                const reviewSummary = review.body?.trim()
-                  ? review.body.trim().slice(0, 800) + (review.body.length > 800 ? '…' : '')
+                const reviewSummary = latestConfiguredReview?.body?.trim()
+                  ? latestConfiguredReview.body.trim().slice(0, 800) + (latestConfiguredReview.body.length > 800 ? '…' : '')
                   : '_No review body._';
 
                 await upsertComment([
@@ -240,7 +287,8 @@ jobs:
                   '`autofix:applied` is present and the reviewer still returns `CHANGES_REQUESTED`. Remaining findings are outside the safe autofix boundary (logic, security, or behavior-changing changes).',
                   '',
                   '**Automated verification (complete)**',
-                  `- ✓ Review submitted by configured AI reviewer on \`${pr.head.sha.slice(0, 7)}\``,
+                  `- ✓ Review submitted by configured AI reviewer set on \`${pr.head.sha.slice(0, 7)}\``,
+                  `- Latest review source: \`${latestReviewerLogin}\``,
                   '- ✓ Resolution loop: already ran (see previous autofix commit)',
                   '',
                   '**Remaining reviewer findings**',
@@ -260,7 +308,7 @@ jobs:
                 await upsertComment([
                   '**P1 residual risk engine — resolution loop triggered**',
                   '',
-                  `The configured AI reviewer requested changes on \`${pr.head.sha.slice(0, 7)}\`. The automated resolution loop (\`p1-autofix\`) will attempt to apply safe fixes and push a new commit.`,
+                  `A configured AI reviewer requested changes on \`${pr.head.sha.slice(0, 7)}\`. The automated resolution loop (\`p1-autofix\`) will attempt to apply safe fixes and push a new commit.`,
                   '',
                   'Automation will re-evaluate residual risk after the resolution loop completes. No human action is needed yet.',
                 ].join('\n'));
@@ -271,7 +319,7 @@ jobs:
             }
 
             // ─── Decision: APPROVED or COMMENTED → evaluate thread resolution ─────────
-            if (reviewState === 'APPROVED' || reviewState === 'COMMENTED') {
+            if (aggregateReviewState === 'APPROVED' || aggregateReviewState === 'COMMENTED') {
               const unresolved = await hasUnresolvedThreads();
 
               if (unresolved && initialRisk === 'risk:med') {
@@ -282,7 +330,7 @@ jobs:
                   await upsertComment([
                     '**P1 residual risk engine — unresolved review threads**',
                     '',
-                    `The configured AI reviewer submitted a \`${reviewState}\` review on \`${pr.head.sha.slice(0, 7)}\`, but unresolved review threads remain. The automated resolution loop (\`p1-autofix\`) will attempt to address any auto-fixable items.`,
+                    `Configured AI reviewers reached aggregate state \`${aggregateReviewState}\` on \`${pr.head.sha.slice(0, 7)}\`, but unresolved review threads remain. The automated resolution loop (\`p1-autofix\`) will attempt to address any auto-fixable items.`,
                     '',
                     'Automation will re-evaluate after the resolution loop completes.',
                   ].join('\n'));
@@ -301,13 +349,13 @@ jobs:
               await upsertComment([
                 `**P1 residual risk engine — \`residual:low\` set**`,
                 '',
-                `The configured AI reviewer submitted \`${reviewState}\` on \`${pr.head.sha.slice(0, 7)}\` and all review threads are resolved or outdated. No human approval is required.`,
+                `Configured AI reviewers reached aggregate state \`${aggregateReviewState}\` on \`${pr.head.sha.slice(0, 7)}\` and all review threads are resolved or outdated. No human approval is required.`,
                 '',
-                'The policy check will evaluate merge readiness. Merge will proceed automatically when all required checks pass.',
+                'The policy check will evaluate merge readiness. Mergify will queue and merge low-risk PRs automatically when all required checks pass.',
               ].join('\n'));
 
-              core.info(`${reviewState} with resolved threads — residual:low set.`);
+              core.info(`${aggregateReviewState} with resolved threads — residual:low set.`);
               return;
             }
 
-            core.info(`Review state is ${reviewState}; no residual risk action taken.`);
+            core.info(`Aggregate review state is ${aggregateReviewState}; no residual risk action taken.`);
