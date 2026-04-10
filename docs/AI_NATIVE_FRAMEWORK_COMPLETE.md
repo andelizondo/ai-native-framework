@@ -330,7 +330,7 @@ For deployments targeting **solo founders or minimal teams** in **B2B SaaS**, th
 - **Inputs:** PR metadata, diff, branch protection rules, required checks, threshold policy, branch freshness state, and residual-risk decision.
 - **Outputs:** Initial risk classification, residual-risk decision, freshness decision, validation evidence, review outcome, approval decision, and merge or escalation state.
 - **Capabilities:** Builder, Ops, Researcher, AI reviewer backend.
-- **Checkpoints:** Human approval is **MUST** for high-risk changes and **SHOULD** be required whenever confidence or evidence falls below policy thresholds. Event-ordering failures between automation steps **MUST NOT** by themselves force human review. Automation-owned PRs **MUST** be synced with the current protected branch before review authority is exercised, and deterministic PR state such as residual-risk labels **MUST** be set automatically when policy can infer it.
+- **Checkpoints:** Human approval is **MUST** for high-risk changes and **SHOULD** be required whenever confidence or evidence falls below policy thresholds. Event-ordering failures between automation steps **MUST NOT** by themselves force human review. Automation-owned PRs **MUST** be synced with the current protected branch before review authority is exercised, deterministic PR state such as residual-risk labels **MUST** be set automatically when policy can infer it, and control-plane PRs **MUST** be judged by the policy currently merged on the protected branch until the update itself lands.
 - **Playbook:** `docs/P1_PR_EXECUTION_LOOP.md`
 - **Events (examples):** `pr.risk_classified`, `pr.residual_risk_set`, `pr.branch_outdated`, `pr.review_completed`, `pr.escalated`, `pr.merged`.
 

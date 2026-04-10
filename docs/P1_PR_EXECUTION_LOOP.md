@@ -217,6 +217,16 @@ Required behavior:
 
 This rule prevents false human escalation caused only by event ordering.
 
+## 6.6 Control-plane changes
+
+PRs that modify the PR automation control plane itself, including workflow files, branch-protection assumptions, or review-policy logic, **MUST** be evaluated under the currently merged policy on the protected branch, not the proposed policy in the PR branch.
+
+Required behavior:
+
+1. Automation changes do not self-validate until they are merged into the protected branch.
+2. The active workflow version on the protected branch is the source of truth for labels, checks, and merge authority during review.
+3. Framework updates should record any bootstrap exception used to merge a control-plane change.
+
 ## 7. Record outcomes
 
 Record:
