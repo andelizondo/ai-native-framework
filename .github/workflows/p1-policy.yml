@@ -199,6 +199,15 @@ jobs:
               core.info(
                 `Required check '${requiredCheck}' is not registered yet on ${pr.headRefOid.slice(0, 7)}; deferring (validate gate still blocks merge).`,
               );
+              await upsertPolicyComment([
+                '**P1 policy:** waiting — validation not registered yet',
+                '',
+                `Head \`${pr.headRefOid.slice(0, 7)}\`: no \`${requiredCheck}\` check run is visible on this SHA yet.`,
+                '',
+                'This `decide` job exits **success** so it does not race `validate-spec` on the same push. Branch protection still requires `validate` before merge.',
+                '',
+                'A full policy decision will replace this comment after `validate` completes and this check re-evaluates (including via `workflow_run`).',
+              ].join('\n'));
               return;
             }
 
@@ -206,6 +215,15 @@ jobs:
               core.info(
                 `Required check '${requiredCheck}' is still ${validateCheck.status} on ${pr.headRefOid.slice(0, 7)}; deferring.`,
               );
+              await upsertPolicyComment([
+                '**P1 policy:** waiting — validation in progress',
+                '',
+                `Head \`${pr.headRefOid.slice(0, 7)}\`: \`${requiredCheck}\` is \`${validateCheck.status}\` (not completed yet).`,
+                '',
+                'This `decide` job exits **success** to avoid failing while validation is still running. Merge remains blocked until `validate` completes successfully.',
+                '',
+                'This comment updates on every evaluation so it always reflects the **current** head SHA.',
+              ].join('\n'));
               return;
             }
 
