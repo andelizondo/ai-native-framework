@@ -201,6 +201,18 @@ When the PR is within policy and all required checks have passed:
 Merge must be blocked if required checks are pending, stale, or bypassed.
 Merge must also be blocked if the PR branch is behind the protected base branch.
 
+## 6.5 Convergence rule
+
+Automation **MUST** converge without manual label toggling when the only blocker is timing between checks.
+
+Required behavior:
+
+1. If policy evaluation fails because a required validation check has not completed yet on the current head SHA, the system **MUST** re-evaluate after that validation completes.
+2. If a stale failure exists but a newer successful policy evaluation exists on the same head SHA, the newer result **MUST** control the merge decision.
+3. Manual relabeling or comment nudges **SHOULD NOT** be required for ordinary convergence.
+
+This rule prevents false human escalation caused only by event ordering.
+
 ## 7. Record outcomes
 
 Record:
@@ -267,6 +279,7 @@ Recommended first implementation for this repository:
 - Require a policy decision check before merge instead of a blanket GitHub review gate.
 - Allow auto-merge only after required checks pass and policy allows approval.
 - Require human review only when residual risk and policy thresholds still warrant it.
+- Re-run policy automatically after fresh validation lands on the same head SHA when earlier policy runs failed only because validation was not ready yet.
 - Keep approval and merge authority in GitHub policy and workflows, not in the AI reviewer backend itself.
 
 ## Events
@@ -292,3 +305,4 @@ Example event names:
 - Approval policy should remain stricter than review policy.
 - The reviewer backend may change over time; the threshold policy should not depend on a single provider.
 - Branch freshness rules should remain policy-owned even if the repository changes reviewer backends or CI providers.
+- Event ordering between validation and policy checks should be treated as an automation-convergence concern, not as a human-review concern.
