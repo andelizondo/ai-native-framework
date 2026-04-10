@@ -119,7 +119,12 @@ jobs:
               });
             }
 
+            function isCopilotLogin(login) {
+              return typeof login === 'string' && /copilot/i.test(login);
+            }
+
             const labels = pr.labels.nodes.map((label) => label.name);
+            const risk = labels.find((label) => ['risk:low', 'risk:med', 'risk:high'].includes(label));
             if (labels.includes('sync:needed') || pr.mergeStateStatus === 'BEHIND') {
               await upsertPolicyComment([
                 '**P1 policy:** blocked',
@@ -162,12 +167,46 @@ jobs:
               return;
             }
 
-            const residual = labels.find((label) => ['residual:low', 'residual:med', 'residual:high'].includes(label));
+            const reviews = await github.paginate(github.rest.pulls.listReviews, {
+              owner,
+              repo,
+              pull_number: prNumber,
+              per_page: 100,
+            });
+
+            const copilotReviews = reviews.filter((review) => isCopilotLogin(review.user?.login));
+            const hasCopilotReview = copilotReviews.length > 0;
+
+            if (!hasCopilotReview) {
+              await upsertPolicyComment([
+                '**P1 policy:** blocked awaiting Copilot review',
+                '',
+                'Configured reviewer evidence is required before residual risk can be finalized.',
+                'Action needed:',
+                '- wait for automatic Copilot review to arrive, or',
+                '- request Copilot review manually in the GitHub PR UI if automatic review did not trigger',
+              ].join('\n'));
+              core.setFailed('Configured Copilot review has not been observed on the pull request yet.');
+              return;
+            }
+
+            let residual = labels.find((label) => ['residual:low', 'residual:med', 'residual:high'].includes(label));
+            if (!residual && risk === 'risk:low') {
+              await github.rest.issues.addLabels({
+                owner,
+                repo,
+                issue_number: prNumber,
+                labels: ['residual:low'],
+              });
+              residual = 'residual:low';
+            }
+
             if (!residual) {
               await upsertPolicyComment([
                 '**P1 policy:** waiting on residual risk',
                 '',
-                'Action needed: complete automated review and set `residual:*` before policy can decide merge authority.',
+                'Copilot review evidence is present, but residual risk has not been finalized yet.',
+                'Action needed: review the evidence bundle and set `residual:*` before policy can decide merge authority.',
               ].join('\n'));
               core.setFailed('Residual risk has not been set yet.');
               return;
@@ -177,7 +216,7 @@ jobs:
               await upsertPolicyComment([
                 '**P1 policy:** pass',
                 '',
-                'Residual risk is `residual:low`; policy does not require human approval.',
+                'Copilot review evidence is present and residual risk is `residual:low`; policy does not require human approval.',
               ].join('\n'));
               core.info('Residual risk is low; policy check passes without human approval.');
               return;

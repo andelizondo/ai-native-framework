@@ -121,8 +121,9 @@ GitHub labels should be compact but self-explanatory:
 
 1. Review the actual diff and validation evidence.
 2. If a repository-configured reviewer backend is expected to produce review output first, wait for that review artifact before final residual-risk assignment.
-3. Identify whether the initial structural risk remains material after review.
-4. Emit a residual-risk decision separately from the initial classification.
+3. Policy **MUST** treat missing configured-reviewer evidence as a blocking state, not as implicit approval.
+4. Identify whether the initial structural risk remains material after review.
+5. Emit a residual-risk decision separately from the initial classification.
 
 Residual risk may be lower than initial risk. Example: a workflow file change is structurally medium risk, but a one-line vetted dependency bump with passing checks may be residual low risk after review.
 
@@ -166,13 +167,14 @@ Automated review must leave an auditable artifact in the PR.
 
 Repository-specific reviewer guidance **SHOULD** live in versioned files such as `.github/copilot-instructions.md` so the AI backend can be swapped without changing the playbook's policy.
 
-For this repository, automated AI review is requested through a GitHub repository ruleset that enables GitHub Copilot code review on the default branch and on new pushes to matching pull requests. The ruleset controls when review is requested; `.github/copilot-instructions.md` controls repository-specific review behavior.
+For this repository, automated AI review is requested through a GitHub repository ruleset that enables GitHub Copilot code review on the default branch and on new pushes to matching pull requests. The ruleset controls when review is requested; `.github/copilot-instructions.md` controls repository-specific review behavior. The policy check **MUST** verify that Copilot review output actually appeared on the PR before it treats review as complete.
 
 For this repository, the intended review order is:
 
 1. GitHub Copilot review is requested automatically by ruleset.
-2. The agent reads Copilot's review output together with the diff and deterministic evidence.
-3. The agent sets or recommends the `residual:*` decision from that combined evidence.
+2. The policy layer waits until Copilot review output is observable on the PR timeline.
+3. The agent reads Copilot's review output together with the diff and deterministic evidence.
+4. The agent or policy layer sets or recommends the `residual:*` decision from that combined evidence.
 
 ## 4. Apply threshold policy
 
@@ -323,6 +325,7 @@ Recommended first implementation for this repository:
 - Label outdated PRs with `sync:needed` and block automation until they are refreshed.
 - Run `npm run validate` as the canonical required check.
 - Run repository-configured automated review on every PR, for example through a repository ruleset that requests GitHub Copilot review.
+- Treat the absence of the expected Copilot review artifact as a blocking state rather than silently proceeding.
 - Use the repository reviewer output as input to the agent's residual-risk decision instead of treating agent labeling as a separate first-pass review.
 - Allow automation to merge residual-low PRs.
 - Require a policy decision check before merge instead of a blanket GitHub review gate.
