@@ -81,8 +81,8 @@ jobs:
             }
 
             const labels = pr.labels.nodes.map((label) => label.name);
-            if (labels.includes('stale') || pr.mergeStateStatus === 'BEHIND') {
-              core.setFailed('PR is stale and must be updated before policy can pass.');
+            if (labels.includes('sync:needed') || pr.mergeStateStatus === 'BEHIND') {
+              core.setFailed('PR is behind the protected base branch and must be updated before policy can pass.');
               return;
             }
 
@@ -103,13 +103,13 @@ jobs:
               return;
             }
 
-            const residual = labels.find((label) => ['res:l', 'res:m', 'res:h'].includes(label));
+            const residual = labels.find((label) => ['residual:low', 'residual:med', 'residual:high'].includes(label));
             if (!residual) {
               core.setFailed('Residual risk has not been set yet.');
               return;
             }
 
-            if (residual === 'res:l') {
+            if (residual === 'residual:low') {
               core.info('Residual risk is low; policy check passes without human approval.');
               return;
             }

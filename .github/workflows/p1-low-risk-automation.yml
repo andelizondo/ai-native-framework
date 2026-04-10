@@ -85,12 +85,12 @@ jobs:
             }
 
             const labels = pr.labels.nodes.map((label) => label.name);
-            if (!labels.includes('res:l')) {
+            if (!labels.includes('residual:low')) {
               core.info('Pull request is not classified as residual low risk.');
               return;
             }
 
-            if (labels.includes('stale') || pr.mergeStateStatus === 'BEHIND') {
+            if (labels.includes('sync:needed') || pr.mergeStateStatus === 'BEHIND') {
               core.info('Pull request is behind the protected base branch.');
               return;
             }

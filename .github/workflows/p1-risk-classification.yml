@@ -21,18 +21,18 @@ jobs:
             const repo = context.repo.repo;
             const pr = context.payload.pull_request;
             const marker = '<!-- p1-risk-classification -->';
-            const riskLabels = ['risk:l', 'risk:m', 'risk:h'];
-            const residualLabels = ['res:l', 'res:m', 'res:h'];
-            const staleLabel = 'stale';
+            const riskLabels = ['risk:low', 'risk:med', 'risk:high'];
+            const residualLabels = ['residual:low', 'residual:med', 'residual:high'];
+            const syncLabel = 'sync:needed';
 
             const labelPalette = {
-              'risk:l': '0e8a16',
-              'risk:m': 'fbca04',
-              'risk:h': 'd73a4a',
-              'res:l': '0e8a16',
-              'res:m': 'fbca04',
-              'res:h': 'd73a4a',
-              stale: '5319e7',
+              'risk:low': '0e8a16',
+              'risk:med': 'fbca04',
+              'risk:high': 'd73a4a',
+              'residual:low': '0e8a16',
+              'residual:med': 'fbca04',
+              'residual:high': 'd73a4a',
+              'sync:needed': '5319e7',
             };
 
             for (const [name, color] of Object.entries(labelPalette)) {
@@ -133,7 +133,7 @@ jobs:
             }
 
             const uniqueReasons = [...new Set(reasons)];
-            const riskLabel = `risk:${risk[0]}`;
+            const riskLabel = `risk:${risk === 'medium' ? 'med' : risk}`;
             const currentLabels = pr.labels.map((label) => label.name);
             const isBehind = pr.mergeable_state === 'behind';
 
@@ -161,27 +161,50 @@ jobs:
               });
             }
 
+
             for (const label of residualLabels) {
               if (!currentLabels.includes(label)) {
                 continue;
               }
+
+              if (risk !== 'low' || label !== 'residual:low') {
+                await github.rest.issues.removeLabel({
+                  owner,
+                  repo,
+                  issue_number: pr.number,
+                  name: label,
+                }).catch((error) => {
+                  if (error.status !== 404) {
+                    throw error;
+                  }
+                });
+              }
             }
 
-            if (isBehind && !currentLabels.includes(staleLabel)) {
+            if (risk === 'low' && !currentLabels.includes('residual:low')) {
               await github.rest.issues.addLabels({
                 owner,
                 repo,
                 issue_number: pr.number,
-                labels: [staleLabel],
+                labels: ['residual:low'],
               });
             }
 
-            if (!isBehind && currentLabels.includes(staleLabel)) {
+            if (isBehind && !currentLabels.includes(syncLabel)) {
+              await github.rest.issues.addLabels({
+                owner,
+                repo,
+                issue_number: pr.number,
+                labels: [syncLabel],
+              });
+            }
+
+            if (!isBehind && currentLabels.includes(syncLabel)) {
               await github.rest.issues.removeLabel({
                 owner,
                 repo,
                 issue_number: pr.number,
-                name: staleLabel,
+                name: syncLabel,
               }).catch((error) => {
                 if (error.status !== 404) {
                   throw error;
@@ -193,6 +216,7 @@ jobs:
               marker,
               `P1 initial risk: **${risk}**.`,
               `Branch freshness: **${isBehind ? 'outdated' : 'current'}**.`,
+              `Residual risk label: **${risk === 'low' ? 'residual:low (set automatically)' : 'pending review'}**.`,
               '',
               `Changed files: ${paths.map((path) => `\`${path}\``).join(', ')}`,
               '',
@@ -204,12 +228,12 @@ jobs:
               ...(isBehind
                 ? [
                     'Freshness gate:',
-                    '- This PR is behind the protected base branch and must be updated before approval or merge automation can continue.',
+                    '- This PR is behind the protected base branch and is labeled `sync:needed` until it is updated.',
                     '',
                   ]
                 : []),
               'Authority under `docs/P1_PR_EXECUTION_LOOP.md`:',
-              '- Initial risk determines review depth. Residual risk must still be set before policy can approve or merge.',
+              '- Initial risk determines review depth. Residual risk is set automatically only when repository policy can infer it directly from the PR state.',
             ].join('\n');
 
             const comments = await github.paginate(github.rest.issues.listComments, {
