@@ -118,6 +118,9 @@ jobs:
           exit_code=$?
           echo "exit_code=$exit_code" >> "$GITHUB_OUTPUT"
           if [ $exit_code -ne 0 ]; then
+            # Capture conflicting paths before aborting so they can be reported to the author.
+            conflict_files=$(git diff --name-only --diff-filter=U | tr '\n' ',' | sed 's/,$//')
+            echo "conflict_files=$conflict_files" >> "$GITHUB_OUTPUT"
             git rebase --abort
           fi
 
@@ -185,19 +188,30 @@ jobs:
             const headRef = '${{ steps.pr-info.outputs.head_ref }}';
             const baseRef = '${{ steps.pr-info.outputs.base_ref }}';
             const author = '${{ steps.pr-info.outputs.author }}';
+            const conflictFiles = '${{ steps.rebase.outputs.conflict_files }}';
             const marker = '<!-- p1-branch-sync -->';
+
+            const conflictSection = conflictFiles
+              ? [
+                  '**Conflicting files:**',
+                  ...conflictFiles.split(',').map((f) => `- \`${f.trim()}\``),
+                  '',
+                ]
+              : [];
 
             const body = [
               marker,
               '**P1 branch sync — merge conflict**',
               '',
-              `@${author}: the automated rebase of \`${headRef}\` onto \`${baseRef}\` encountered merge conflicts that cannot be resolved automatically. Please resolve the conflicts locally and push.`,
+              `@${author}: the automated rebase of \`${headRef}\` onto \`${baseRef}\` encountered merge conflicts that cannot be resolved automatically.`,
+              '',
+              ...conflictSection,
+              'Resolve the conflicts locally and push:',
               '',
               '```bash',
               `git fetch origin`,
               `git rebase origin/${baseRef}`,
-              `# Fix conflicts in each file shown by git status, then:`,
-              `git add .`,
+              `# For each conflicting file: resolve, then git add <file>`,
               `git rebase --continue`,
               `git push --force-with-lease origin ${headRef}`,
               '```',

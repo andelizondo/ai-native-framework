@@ -140,16 +140,26 @@ jobs:
               per_page: 100,
             });
 
-            const labels = labelNodes.map((label) => label.name);
+            let labels = labelNodes.map((label) => label.name);
             const risk = labels.find((label) => ['risk:low', 'risk:med', 'risk:high'].includes(label));
 
             // ── Gate 1: Branch freshness ─────────────────────────────────────────────
+            // If the branch is behind and sync:needed is missing, apply it so p1-branch-sync can run.
+            // Without this, policy would block indefinitely since p1-branch-sync only triggers on the label.
+            if (pr.mergeStateStatus === 'BEHIND' && !labels.includes('sync:needed')) {
+              await github.rest.issues.addLabels({ owner, repo, issue_number: prNumber, labels: ['sync:needed'] });
+              labels = [...labels, 'sync:needed'];
+            }
+
             if (labels.includes('sync:needed') || pr.mergeStateStatus === 'BEHIND') {
+              const isActivelySyncing = pr.mergeStateStatus === 'BEHIND' && labels.includes('sync:needed');
+              const syncMessage = isActivelySyncing
+                ? 'The `sync:needed` label has been applied. `p1-branch-sync` will rebase same-repo branches automatically, or post exact commands for forks. If a conflict was reported, resolve it and push.'
+                : '`sync:needed` is present. Waiting for `p1-branch-sync` to complete. Policy will re-evaluate on the updated head.';
               await upsertPolicyComment([
                 '**P1 policy:** blocked — branch out of date',
                 '',
-                'The `p1-branch-sync` workflow is attempting to rebase this branch automatically.',
-                'If a rebase conflict was reported, resolve it and push; policy will re-evaluate on the new head.',
+                syncMessage,
               ].join('\n'));
               core.setFailed('PR is behind the protected base branch. Waiting for p1-branch-sync to resolve.');
               return;
@@ -202,9 +212,12 @@ jobs:
             });
 
             const copilotReviews = reviews.filter((review) => isCopilotReview(review));
-            const hasFreshCopilotReview = copilotReviews.some(
-              (review) => review.commit_id === pr.headRefOid,
-            );
+            // Dismissed reviews don't count as evidence — find the latest non-dismissed one on the current head.
+            const copilotOnHead = copilotReviews
+              .filter((r) => r.commit_id === pr.headRefOid && r.state !== 'DISMISSED')
+              .sort((a, b) => new Date(b.submitted_at).getTime() - new Date(a.submitted_at).getTime());
+            const latestCopilotOnHead = copilotOnHead[0] ?? null;
+            const hasFreshCopilotReview = latestCopilotOnHead != null;
 
             if (!hasFreshCopilotReview) {
               await upsertPolicyComment([
@@ -223,9 +236,13 @@ jobs:
             // If it is not yet set, either the engine hasn't run or a race condition exists.
             let residual = labels.find((label) => ['residual:low', 'residual:med', 'residual:high'].includes(label));
 
-            // Convergence: if risk:low and Copilot reviewed but residual not yet set, assign it now.
-            // The engine should have done this, but policy assigns it as a fallback to avoid stalls.
-            if (!residual && risk === 'risk:low') {
+            // Convergence: if risk:low and Copilot approved/commented but residual not yet set, assign it now.
+            // Only applies for APPROVED/COMMENTED — not CHANGES_REQUESTED, which the residual engine must handle.
+            const copilotAllowsFallback =
+              latestCopilotOnHead != null &&
+              (latestCopilotOnHead.state === 'APPROVED' || latestCopilotOnHead.state === 'COMMENTED');
+
+            if (!residual && risk === 'risk:low' && copilotAllowsFallback) {
               await github.rest.issues.addLabels({
                 owner,
                 repo,
@@ -306,7 +323,7 @@ jobs:
             }
 
             // No human approval yet. Emit a structured decision request (P1 section 5 format).
-            const copilotReview = copilotReviews.find((r) => r.commit_id === pr.headRefOid);
+            const copilotReview = latestCopilotOnHead;
             const reviewBody = copilotReview?.body?.trim() ?? '';
             const reviewSummary = reviewBody
               ? reviewBody.slice(0, 800) + (reviewBody.length > 800 ? '\n\n_(truncated — see full review on the PR timeline)_' : '')

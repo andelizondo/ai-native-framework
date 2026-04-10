@@ -121,40 +121,39 @@ jobs:
             const reasons = [];
 
             const isDependabot = pr.user && pr.user.login === 'dependabot[bot]';
-
             if (isDependabot) {
-              reasons.push('Dependency updates from dependabot are classified as low risk.');
-            } else {
-              for (const path of paths) {
-                if (matches(path, highRiskPatterns)) {
-                  risk = 'high';
-                  reasons.push(`${path} matches a high-risk protected surface.`);
-                  continue;
-                }
+              reasons.push('Pull request authored by Dependabot; path-based rules still apply.');
+            }
 
-                if (matches(path, controlPlanePatterns)) {
-                  if (risk !== 'high') {
-                    risk = 'medium';
-                  }
-                  isControlPlane = true;
-                  reasons.push(`${path} matches the control-plane pattern (workflow, branch protection, or CODEOWNERS).`);
-                  continue;
-                }
+            for (const path of paths) {
+              if (matches(path, highRiskPatterns)) {
+                risk = 'high';
+                reasons.push(`${path} matches a high-risk protected surface.`);
+                continue;
+              }
 
-                if (matches(path, protectedPatterns)) {
-                  if (risk !== 'high') {
-                    risk = 'medium';
-                  }
-                  reasons.push(`${path} matches a protected repository surface.`);
-                  continue;
+              if (matches(path, controlPlanePatterns)) {
+                if (risk !== 'high') {
+                  risk = 'medium';
                 }
+                isControlPlane = true;
+                reasons.push(`${path} matches the control-plane pattern (workflow, branch protection, or CODEOWNERS).`);
+                continue;
+              }
 
-                if (!matches(path, lowRiskPatterns)) {
-                  if (risk === 'low') {
-                    risk = 'medium';
-                  }
-                  reasons.push(`${path} does not match the low-risk path allowlist.`);
+              if (matches(path, protectedPatterns)) {
+                if (risk !== 'high') {
+                  risk = 'medium';
                 }
+                reasons.push(`${path} matches a protected repository surface.`);
+                continue;
+              }
+
+              if (!matches(path, lowRiskPatterns)) {
+                if (risk === 'low') {
+                  risk = 'medium';
+                }
+                reasons.push(`${path} does not match the low-risk path allowlist.`);
               }
             }
 
