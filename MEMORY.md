@@ -6,10 +6,10 @@ This file stores durable repository memory for agents. It is not a transcript an
 
 - This repository is the canonical home of an AI-native operating framework for product-led companies.
 - Canonical truth is ordered by the authority ladder in `AGENTS.md`, with schema and policy above explanatory Markdown.
-- The repository currently defines two operating playbooks in active use:
+- The repository currently defines the following first-class operating playbooks:
   - `P0` for repository foundation
   - `P1` for pull request execution
-- `P2` now defines the repository-local agent context bundle standard.
+  - `P2` for the repository-local agent context bundle standard
 - The canonical validation command is `npm run validate`.
 - The framework is explicitly provider-agnostic at the core layer.
 

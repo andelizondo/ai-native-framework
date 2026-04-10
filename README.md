@@ -24,7 +24,7 @@ CI runs the same check (see [`.github/workflows/validate.yml`](.github/workflows
 | `spec/schema/`                         | JSON Schema for product and slice specs                              |
 | `spec/examples/`                       | Golden + future validated YAML specs                                 |
 | `spec/policy/`                         | Event naming, PII, idempotency, deprecation rules                    |
-| `templates/`                           | Empty `slice-spec.yaml` template                                     |
+| `templates/`                           | `slice-spec.yaml` plus `agents-template.md`, `skills-template.md`, `memory-template.md` |
 | `agents/`                              | Provider-agnostic logical interfaces                                 |
 | `scripts/`                             | `validate-spec.mjs` (AJV + YAML)                                     |
 | `AGENTS.md`                            | Agent bootstrap contract: authority, workflow, and repo-specific rules |
