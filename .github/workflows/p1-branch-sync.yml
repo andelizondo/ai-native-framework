@@ -21,7 +21,7 @@ jobs:
     if: github.event.label.name == 'sync:needed'
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/github-script@v7
+      - uses: actions/github-script@v9
         id: pr-info
         with:
           script: |
@@ -41,7 +41,7 @@ jobs:
       # ── Fork branch: cannot push, post sync command instead ──────────────────
       - name: Post sync instructions for fork
         if: steps.pr-info.outputs.is_fork == 'true'
-        uses: actions/github-script@v7
+        uses: actions/github-script@v9
         with:
           script: |
             const prNumber = parseInt('${{ steps.pr-info.outputs.pr_number }}');
@@ -93,7 +93,7 @@ jobs:
       # ── Same-repo branch: attempt automated rebase ───────────────────────────
       - name: Checkout repository
         if: steps.pr-info.outputs.is_fork == 'false'
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
         with:
           ref: ${{ steps.pr-info.outputs.head_ref }}
           fetch-depth: 0
@@ -130,7 +130,7 @@ jobs:
 
       - name: Remove sync:needed label after successful rebase
         if: steps.pr-info.outputs.is_fork == 'false' && steps.rebase.outputs.exit_code == '0'
-        uses: actions/github-script@v7
+        uses: actions/github-script@v9
         with:
           script: |
             const prNumber = parseInt('${{ steps.pr-info.outputs.pr_number }}');
@@ -181,7 +181,7 @@ jobs:
 
       - name: Post conflict report on rebase failure
         if: steps.pr-info.outputs.is_fork == 'false' && steps.rebase.outputs.exit_code != '0'
-        uses: actions/github-script@v7
+        uses: actions/github-script@v9
         with:
           script: |
             const prNumber = parseInt('${{ steps.pr-info.outputs.pr_number }}');

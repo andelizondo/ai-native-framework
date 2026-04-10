@@ -36,7 +36,7 @@ jobs:
     steps:
       - name: Check if resolution loop already ran
         id: guard
-        uses: actions/github-script@v7
+        uses: actions/github-script@v9
         with:
           script: |
             const pr = context.payload.pull_request;
@@ -53,7 +53,7 @@ jobs:
 
       - name: Checkout PR branch
         if: steps.guard.outputs.skip == 'false' && steps.guard.outputs.is_fork == 'false'
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
         with:
           ref: ${{ github.event.pull_request.head.ref }}
           fetch-depth: 0
@@ -61,7 +61,7 @@ jobs:
 
       - name: Set up Node.js
         if: steps.guard.outputs.skip == 'false' && steps.guard.outputs.is_fork == 'false'
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v6
         with:
           node-version: "20"
           cache: "npm"
@@ -102,7 +102,7 @@ jobs:
 
       - name: Update labels
         if: steps.guard.outputs.skip == 'false' && steps.guard.outputs.is_fork == 'false'
-        uses: actions/github-script@v7
+        uses: actions/github-script@v9
         with:
           script: |
             const prNumber = parseInt('${{ steps.guard.outputs.pr_number }}');
@@ -125,7 +125,7 @@ jobs:
 
       - name: Post resolution summary
         if: steps.guard.outputs.skip == 'false' && steps.guard.outputs.is_fork == 'false'
-        uses: actions/github-script@v7
+        uses: actions/github-script@v9
         env:
           CHANGED_FILES: ${{ steps.autofix.outputs.changed_files }}
           VALIDATE_EXIT: ${{ steps.autofix.outputs.validate_exit }}
@@ -180,7 +180,7 @@ jobs:
       # ── Fork branch: cannot push, post instructions ───────────────────────────
       - name: Post fork autofix instructions
         if: steps.guard.outputs.skip == 'false' && steps.guard.outputs.is_fork == 'true'
-        uses: actions/github-script@v7
+        uses: actions/github-script@v9
         with:
           script: |
             const pr = context.payload.pull_request;
