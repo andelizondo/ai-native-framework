@@ -289,10 +289,22 @@ jobs:
             // If it is not yet set, either the engine hasn't run or a race condition exists.
             let residual = labels.find((label) => ['residual:low', 'residual:med', 'residual:high'].includes(label));
 
+            // Deduplicate by reviewer login, keeping the latest review per reviewer on this head SHA.
+            // Mirrors the deduplication logic in p1-residual-risk-engine.yml to avoid stale
+            // CHANGES_REQUESTED from a reviewer who later APPROVED blocking the fallback.
+            const latestAiByReviewer = new Map();
+            for (const r of aiOnHead) {
+              const login = normalizeLogin(r.user?.login ?? r.author?.login);
+              if (!latestAiByReviewer.has(login)) {
+                latestAiByReviewer.set(login, r);
+              }
+            }
+            const freshAiReviews = [...latestAiByReviewer.values()];
+
             // Convergence: if risk:low and a configured AI reviewer approved/commented but residual not yet set, assign it now.
             // Only applies for APPROVED/COMMENTED — not CHANGES_REQUESTED, which the residual engine must handle.
-            const hasChangesRequestedOnHead = aiOnHead.some((r) => r.state === 'CHANGES_REQUESTED');
-            const hasApprovalLikeOnHead = aiOnHead.some(
+            const hasChangesRequestedOnHead = freshAiReviews.some((r) => r.state === 'CHANGES_REQUESTED');
+            const hasApprovalLikeOnHead = freshAiReviews.some(
               (r) => r.state === 'APPROVED' || r.state === 'COMMENTED',
             );
             const aiReviewerAllowsFallback = !hasChangesRequestedOnHead && hasApprovalLikeOnHead;
