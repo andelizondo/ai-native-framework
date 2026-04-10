@@ -21,16 +21,18 @@ jobs:
             const repo = context.repo.repo;
             const pr = context.payload.pull_request;
             const marker = '<!-- p1-risk-classification -->';
-            const riskLabels = ['risk:low', 'risk:medium', 'risk:high'];
-            const autoMergeLabel = 'ai:auto-merge-candidate';
-            const needsUpdateLabel = 'needs:update';
+            const riskLabels = ['risk:l', 'risk:m', 'risk:h'];
+            const residualLabels = ['res:l', 'res:m', 'res:h'];
+            const staleLabel = 'stale';
 
             const labelPalette = {
-              'risk:low': '0e8a16',
-              'risk:medium': 'fbca04',
-              'risk:high': 'd73a4a',
-              'ai:auto-merge-candidate': '1d76db',
-              'needs:update': '5319e7',
+              'risk:l': '0e8a16',
+              'risk:m': 'fbca04',
+              'risk:h': 'd73a4a',
+              'res:l': '0e8a16',
+              'res:m': 'fbca04',
+              'res:h': 'd73a4a',
+              stale: '5319e7',
             };
 
             for (const [name, color] of Object.entries(labelPalette)) {
@@ -131,7 +133,7 @@ jobs:
             }
 
             const uniqueReasons = [...new Set(reasons)];
-            const riskLabel = `risk:${risk}`;
+            const riskLabel = `risk:${risk[0]}`;
             const currentLabels = pr.labels.map((label) => label.name);
             const isBehind = pr.mergeable_state === 'behind';
 
@@ -159,43 +161,27 @@ jobs:
               });
             }
 
-            if (risk === 'low' && !currentLabels.includes(autoMergeLabel)) {
+            for (const label of residualLabels) {
+              if (!currentLabels.includes(label)) {
+                continue;
+              }
+            }
+
+            if (isBehind && !currentLabels.includes(staleLabel)) {
               await github.rest.issues.addLabels({
                 owner,
                 repo,
                 issue_number: pr.number,
-                labels: [autoMergeLabel],
+                labels: [staleLabel],
               });
             }
 
-            if (risk !== 'low' && currentLabels.includes(autoMergeLabel)) {
+            if (!isBehind && currentLabels.includes(staleLabel)) {
               await github.rest.issues.removeLabel({
                 owner,
                 repo,
                 issue_number: pr.number,
-                name: autoMergeLabel,
-              }).catch((error) => {
-                if (error.status !== 404) {
-                  throw error;
-                }
-              });
-            }
-
-            if (isBehind && !currentLabels.includes(needsUpdateLabel)) {
-              await github.rest.issues.addLabels({
-                owner,
-                repo,
-                issue_number: pr.number,
-                labels: [needsUpdateLabel],
-              });
-            }
-
-            if (!isBehind && currentLabels.includes(needsUpdateLabel)) {
-              await github.rest.issues.removeLabel({
-                owner,
-                repo,
-                issue_number: pr.number,
-                name: needsUpdateLabel,
+                name: staleLabel,
               }).catch((error) => {
                 if (error.status !== 404) {
                   throw error;
@@ -205,7 +191,7 @@ jobs:
 
             const body = [
               marker,
-              `P1 classification: **${risk}** risk.`,
+              `P1 initial risk: **${risk}**.`,
               `Branch freshness: **${isBehind ? 'outdated' : 'current'}**.`,
               '',
               `Changed files: ${paths.map((path) => `\`${path}\``).join(', ')}`,
@@ -223,9 +209,7 @@ jobs:
                   ]
                 : []),
               'Authority under `docs/P1_PR_EXECUTION_LOOP.md`:',
-              risk === 'low' && !isBehind
-                ? '- Eligible for automation after required checks pass.'
-                : '- Human approval or branch refresh remains required before merge.',
+              '- Initial risk determines review depth. Residual risk must still be set before policy can approve or merge.',
             ].join('\n');
 
             const comments = await github.paginate(github.rest.issues.listComments, {
