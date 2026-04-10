@@ -79,7 +79,7 @@ These choices keep history readable and prevent the repo from accumulating unman
 
 If automated PR review is enabled at the repository level, the trigger configuration belongs in repository settings or rulesets, while repository-specific review behavior **SHOULD** remain in versioned files such as `.github/copilot-instructions.md`.
 
-If P1 residual-risk decisions will depend on host-native reviewer output, that reviewer **SHOULD** be configured during P0 so automated review arrives before downstream agent policy or approval actions run.
+If P1 residual-risk decisions will depend on host-native reviewer output, that reviewer **SHOULD** be configured during P0 so automated review arrives before downstream agent policy or approval actions run. P0 **SHOULD** also verify that the expected review artifact is observable on PRs for the current head SHA, because repository configuration alone is not sufficient evidence that review actually ran.
 
 If the repository is a personal repository with a single human operator, P0 **SHOULD** also decide which risk tiers permit an owner-decision path so P1 does not deadlock on a nonexistent second human reviewer.
 
@@ -144,6 +144,7 @@ The current P0 baseline in this repository applies the following concrete settin
 - Automated PR review: GitHub Copilot via repository ruleset on `~DEFAULT_BRANCH`
 - Copilot review on new pushes: enabled
 - Copilot review on draft PRs: disabled
+- Policy gate for observed Copilot review artifact on the current head SHA before residual-low merge authority: enabled
 
 ## Notes for future variants
 

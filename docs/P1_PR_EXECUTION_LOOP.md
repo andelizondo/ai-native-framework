@@ -121,8 +121,10 @@ GitHub labels should be compact but self-explanatory:
 
 1. Review the actual diff and validation evidence.
 2. If a repository-configured reviewer backend is expected to produce review output first, wait for that review artifact before final residual-risk assignment.
-3. Identify whether the initial structural risk remains material after review.
-4. Emit a residual-risk decision separately from the initial classification.
+3. Policy **MUST** treat missing configured-reviewer evidence as a blocking state, not as implicit approval.
+4. If the PR head changes after review, the policy layer **SHOULD** require fresh reviewer evidence for the current head SHA before lowering residual risk.
+5. Identify whether the initial structural risk remains material after review.
+6. Emit a residual-risk decision separately from the initial classification.
 
 Residual risk may be lower than initial risk. Example: a workflow file change is structurally medium risk, but a one-line vetted dependency bump with passing checks may be residual low risk after review.
 
@@ -166,13 +168,21 @@ Automated review must leave an auditable artifact in the PR.
 
 Repository-specific reviewer guidance **SHOULD** live in versioned files such as `.github/copilot-instructions.md` so the AI backend can be swapped without changing the playbook's policy.
 
-For this repository, automated AI review is requested through a GitHub repository ruleset that enables GitHub Copilot code review on the default branch and on new pushes to matching pull requests. The ruleset controls when review is requested; `.github/copilot-instructions.md` controls repository-specific review behavior.
+For this repository, automated AI review is requested through a GitHub repository ruleset that enables GitHub Copilot code review on the default branch and on new pushes to matching pull requests. The ruleset controls when review is requested; `.github/copilot-instructions.md` controls repository-specific review behavior. The policy check **MUST** verify that expected Copilot review output actually appeared on the PR for the current head SHA before it treats review as complete.
 
 For this repository, the intended review order is:
 
 1. GitHub Copilot review is requested automatically by ruleset.
-2. The agent reads Copilot's review output together with the diff and deterministic evidence.
-3. The agent sets or recommends the `residual:*` decision from that combined evidence.
+2. If the expected Copilot review does not appear or does not refresh on the latest head SHA, an authorized collaborator **MAY** explicitly request follow-up work by mentioning `@copilot` on the PR or by using the host platform's re-review UI.
+3. If `@copilot` produces a new commit on the PR branch, automation **MUST** treat that commit like any other new head SHA: rerun required checks, require fresh review evidence where policy says so, and re-evaluate residual risk from the updated state.
+4. The policy layer waits until Copilot review output is observable on the PR timeline.
+5. The agent reads Copilot's review output together with the diff and deterministic evidence.
+6. The agent or policy layer sets or recommends the `residual:*` decision from that combined evidence.
+
+Host-platform note:
+
+- GitHub may allow `@copilot` comments to trigger Copilot follow-up work even when there is no supported public REST or CLI endpoint for requesting a Copilot re-review directly.
+- When a bot or app pushes a commit to the PR branch, direct PR-scoped checks may still run normally while some downstream `workflow_run` automation can enter an approval-required or `action_required` state under GitHub's trust model. That host safeguard **MUST NOT** be misinterpreted as a PR policy failure by itself.
 
 ## 4. Apply threshold policy
 
@@ -200,6 +210,7 @@ A threshold policy should include at least:
 1. If findings are autofixable and within authority, update the branch and rerun checks.
 2. If findings are not autofixable, request changes with explicit reasons.
 3. If the PR crosses a human checkpoint, notify the required approver with the evidence bundle.
+4. If review conversations are already addressed by the latest branch state, an authorized collaborator or automation with host support **MAY** resolve those conversations explicitly after verification.
 
 Escalation should be specific about why automation stopped.
 
@@ -210,6 +221,7 @@ If residual risk still requires human intervention, automation **MUST** finish e
 - residual-risk label applied
 - automated review summary and escalation rationale posted on the PR
 - safe autofixes already applied when permitted
+- review conversations resolved when their underlying findings are already addressed and the host supports explicit resolution
 - required reviewer or approver requested when the host supports it
 - auto-merge enabled in advance when repository policy allows merge immediately after approval
 
@@ -246,6 +258,7 @@ Required behavior:
 2. If branch freshness or residual-risk state is deterministically derivable from the current PR state, automation **MUST** set or refresh that state without manual intervention.
 3. If a stale failure exists but a newer successful policy evaluation exists on the same head SHA, the newer result **MUST** control the merge decision.
 4. Manual relabeling or comment nudges **SHOULD NOT** be required for ordinary convergence.
+5. If the host platform places privileged downstream automation such as `workflow_run` jobs into an approval-required state solely because the triggering commit came from a bot or app, the implementation **SHOULD** treat direct PR-scoped required checks on the current head SHA as the primary merge signal and document the host safeguard separately.
 
 This rule prevents false human escalation caused only by event ordering.
 
@@ -323,6 +336,7 @@ Recommended first implementation for this repository:
 - Label outdated PRs with `sync:needed` and block automation until they are refreshed.
 - Run `npm run validate` as the canonical required check.
 - Run repository-configured automated review on every PR, for example through a repository ruleset that requests GitHub Copilot review.
+- Treat the absence of the expected Copilot review artifact as a blocking state rather than silently proceeding.
 - Use the repository reviewer output as input to the agent's residual-risk decision instead of treating agent labeling as a separate first-pass review.
 - Allow automation to merge residual-low PRs.
 - Require a policy decision check before merge instead of a blanket GitHub review gate.
