@@ -90,17 +90,17 @@ Bind branch protection to the actual successful CI check emitted by GitHub Actio
 Recommended minimum protection:
 
 - Require pull requests before merging.
-- Require at least one approving review.
-- Require CODEOWNERS review.
+- Require the repository's real merge-gate checks on the protected branch.
 - Dismiss stale approvals on new commits.
 - Require conversation resolution before merge.
 - Enforce rules for administrators.
 - Require linear history.
 - Disallow force pushes.
 - Disallow branch deletion.
-- Require the canonical validation check.
+- Require strict status checks so the PR branch must be up to date before merge.
 
 Do not guess the required check name. Read it from the repository's check runs after the workflow has succeeded.
+If repository policy intentionally delegates merge authority to a policy check instead of GitHub's built-in approval count, branch protection **MUST** still require every concrete merge gate status context that agents depend on. Missing branch protection is a control-plane incident and should be corrected immediately.
 
 Repositories that shift merge authority from GitHub's built-in required-review gate to a repository-specific policy check **SHOULD** document that explicitly. In that mode, GitHub branch protection may require zero built-in approvals while still requiring a policy check such as `decide` before merge.
 
@@ -127,10 +127,11 @@ Security automation should be on before contributors begin adding integrations, 
 The current P0 baseline in this repository applies the following concrete settings:
 
 - Default branch: `main`
-- Required checks: `validate`, `decide`
+- Required checks: `validate`, `decide`, `CodeRabbit`
 - Merge strategy: squash only
 - Delete branch on merge: enabled
 - Branch protection: enabled on `main`
+- Strict status checks: enabled
 - Built-in GitHub approvals required: 0
 - Merge authority delegated to policy check: yes (`decide`)
 - CODEOWNERS review required by branch protection: no
