@@ -4,6 +4,10 @@ on:
   pull_request_target:
     types: [opened, reopened, synchronize, edited, ready_for_review]
 
+concurrency:
+  group: p1-risk-classification-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
 permissions:
   contents: read
   issues: write

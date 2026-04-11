@@ -40,13 +40,12 @@ on:
     types: [opened, reopened, synchronize, ready_for_review, labeled, unlabeled]
   pull_request_review:
     types: [submitted, edited, dismissed]
-  workflow_run:
-    workflows: ["validate-spec", "p1-risk-classification", "p1-residual-risk-engine", "p1-branch-sync", "p1-autofix"]
+  check_run:
     types: [completed]
 
 concurrency:
-  group: p1-policy-decide-${{ github.event_name == 'workflow_run' && github.event.workflow_run.head_sha || github.event.pull_request.head.sha || github.sha }}
-  cancel-in-progress: true
+  group: p1-policy-${{ github.event.pull_request.number || github.event.check_run.pull_requests[0].number }}
+  cancel-in-progress: false
 
 permissions:
   contents: read
@@ -56,6 +55,7 @@ permissions:
 
 jobs:
   decide:
+    if: github.event_name != 'check_run' || contains(fromJSON('["validate", "p1-risk-classification"]'), github.event.check_run.name)
     runs-on: ubuntu-latest
     steps:
       - uses: actions/github-script@v9
@@ -85,23 +85,12 @@ jobs:
               if (context.eventName === 'pull_request_review') {
                 return context.payload.pull_request.number;
               }
-              if (context.eventName === 'workflow_run') {
-                const prs = context.payload.workflow_run.pull_requests || [];
+              if (context.eventName === 'check_run') {
+                const prs = context.payload.check_run.pull_requests || [];
                 if (prs.length > 0) {
                   return prs[0].number;
                 }
-                // GitHub often omits pull_requests on workflow_run; resolve via the head commit.
-                const headSha = context.payload.workflow_run.head_sha;
-                if (!headSha) {
-                  return null;
-                }
-                const { data: associated } = await github.rest.repos.listPullRequestsAssociatedWithCommit({
-                  owner,
-                  repo,
-                  commit_sha: headSha,
-                });
-                const openPr = associated.find((p) => p.state === 'open');
-                return openPr ? openPr.number : null;
+                return null;
               }
               return null;
             }
