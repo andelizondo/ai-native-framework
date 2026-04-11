@@ -374,7 +374,7 @@ For deployments targeting **solo founders or minimal teams** in **B2B SaaS**, th
   - When automation is authorized for the residual-risk tier and all merge gates are green, the executing agent **MUST** finish the loop—merge directly or verify the configured merge executor (for example a queue) merged—rather than stopping at an open PR.
 - **Capabilities:** Builder, Ops, Researcher, AI reviewer backend.
 - **Checkpoints:**
-  - Human approval is **MUST** for high-risk changes and **SHOULD** be required whenever confidence or evidence falls below policy thresholds.
+  - Human approval **MUST** be required for high-risk changes and **SHOULD** be required whenever confidence or evidence falls below policy thresholds.
   - Event-ordering failures between automation steps **MUST NOT** by themselves force human review.
   - Automation-owned PRs **MUST** be synced with the current protected branch before review authority is exercised.
   - Deterministic PR state such as residual-risk labels **MUST** be set automatically when policy can infer it.
