@@ -209,7 +209,7 @@ Automated review must leave an auditable artifact in the PR.
 
 Repository-specific reviewer guidance **SHOULD** live in versioned files such as `.coderabbit.yaml` or equivalent backend configuration so the AI backend can be swapped without changing the playbook's policy.
 
-For this repository, automated AI review is requested through the root `.coderabbit.yaml` configuration, which enables CodeRabbit auto-review for non-draft pull requests. The policy check **MUST** verify both that the reviewer status context completed successfully and that expected configured AI review output actually appeared on the PR for the current head SHA before it treats review as complete.
+For this repository, automated AI review is requested through the root `.coderabbit.yaml` configuration, which enables CodeRabbit auto-review for non-draft pull requests. The policy check **MUST** verify both that the reviewer status context completed successfully and that expected configured AI review output actually appeared on the PR for the current head SHA before it treats review as complete. Acceptable current-head output is either a formal review on that SHA or a configured-reviewer PR timeline comment that explicitly references that SHA.
 
 For this repository, the intended review order is:
 
@@ -219,7 +219,7 @@ For this repository, the intended review order is:
 4. If CodeRabbit has already posted a "review in progress" style comment or otherwise clearly started on the current head SHA, poll for up to 5 minutes in 1-minute intervals before taking recovery action.
 5. If CodeRabbit is still not finished after that 5-minute wait window, ask the user whether to keep waiting or trigger recovery with `@coderabbitai review`. Do not post the manual trigger automatically once the reviewer has clearly started.
 6. If the reviewer produces a new commit on the PR branch, automation **MUST** treat that commit like any other new head SHA: rerun required checks, require fresh review evidence where policy says so, and re-evaluate residual risk from the updated state.
-7. The policy layer waits until configured AI review output is observable on the PR timeline.
+7. The policy layer waits until configured AI review output is observable on the PR timeline for the current head SHA.
 8. The residual risk engine reads the latest active review state from the configured AI reviewer set together with all review thread resolution status and the initial risk label.
 9. The residual risk engine sets the `residual:*` label from the combined evidence.
 
