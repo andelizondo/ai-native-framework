@@ -401,6 +401,16 @@ For deployments targeting **solo founders or minimal teams** in **B2B SaaS**, th
 - **Playbook:** `ai/playbooks/agent-context-bundle.md`
 - **Events (examples):** `agent.context_bundle_installed`, `agent.skill_registered`, `agent.memory_updated`.
 
+#### Framework review
+
+- **Objective:** Audit the framework itself for contradiction, duplication, unnecessary complexity, and missing decision rules.
+- **Inputs:** Audit scope, authoritative sources in ladder order, recent framework changes, and known operator or agent friction.
+- **Outputs:** Structured findings, remediation recommendations, and explicit keep-as-is decisions for stable areas.
+- **Capabilities:** Researcher, Product, Ops.
+- **Checkpoints:** Human review when proposed remediation would change governance authority, merge policy, or automation power.
+- **Playbook:** `ai/playbooks/framework-review.md`
+- **Events (examples):** `framework.review_started`, `framework.contradiction_found`, `framework.remediation_proposed`.
+
 After pull request execution is in place, the library **SHOULD** contain encoded workflows for the following six operating processes.
 
 #### W1 — Opportunity research

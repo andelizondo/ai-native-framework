@@ -55,6 +55,14 @@ That sequence is **practical**, not a ranking of importance: mature repos often 
 - **Load:** [`playbooks/agent-context-bundle.md`](playbooks/agent-context-bundle.md)
 - **Constraints:** keep the bundle subordinate to schema and policy; do not duplicate full playbooks inside the root index files.
 
+### Framework review
+
+- **When to use:** auditing the framework itself for contradiction, duplication, unnecessary complexity, or missing decision rules.
+- **Inputs:** audit scope, authoritative sources in ladder order, recent framework changes, and known friction points.
+- **Outputs:** structured findings, remediation recommendations, and explicit keep-as-is decisions for stable areas.
+- **Load:** [`playbooks/framework-review.md`](playbooks/framework-review.md)
+- **Constraints:** audit the framework, not ordinary feature code; follow the authority ladder and do not weaken higher-order artifacts to satisfy lower-order drift.
+
 ## Adding A New Playbook
 
 Add a new playbook document under `ai/playbooks/` when all of these are true:

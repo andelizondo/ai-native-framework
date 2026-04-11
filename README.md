@@ -65,8 +65,9 @@ The playbooks turn repeated operational work into reusable procedures:
 - [Repository foundation](ai/playbooks/repository-foundation.md) — CI, branch protection, merge policy, security defaults, governance files, and repository settings so the repo is safe before routine feature work.
 - [Pull request execution loop](ai/playbooks/pull-request-execution-loop.md) — classification, review, residual-risk decisions, branch freshness, safe autofix, policy checks, and low-risk merge flow.
 - [Agent context bundle](ai/playbooks/agent-context-bundle.md) — how to install and maintain root `AGENTS.md` and the `ai/` bundle (skills, playbooks, memory).
+- [Framework review](ai/playbooks/framework-review.md) — how to audit the framework itself for contradiction, duplication, unnecessary complexity, and missing decision rules.
 
-Together they cover governed collaboration, automatable PR policy, and portable agent bootstrap. None of them replaces schema or policy; each is written to stand alone, though **materializing a new repo** usually applies repository foundation first so later automation matches reality.
+Together they cover governed collaboration, automatable PR policy, portable agent bootstrap, and framework self-review. None of them replaces schema or policy; each is written to stand alone, though **materializing a new repo** usually applies repository foundation first so later automation matches reality.
 
 See [`ai/PLAYBOOKS.md`](ai/PLAYBOOKS.md) for the full playbook discovery index.
 

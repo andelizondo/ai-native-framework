@@ -10,13 +10,14 @@ This file stores durable repository memory for agents. It is not a transcript an
   - `ai/playbooks/repository-foundation.md`
   - `ai/playbooks/pull-request-execution-loop.md`
   - `ai/playbooks/agent-context-bundle.md`
+  - `ai/playbooks/framework-review.md`
 - The canonical validation command is `npm run validate`.
 - The framework is explicitly provider-agnostic at the core layer.
 - For this repository, pull requests should be opened ready for review by default unless the user explicitly asks for a draft PR.
 - For this repository, agents must wait for every configured merge gate on the current head SHA to complete successfully before merging, even if host branch protection is missing or misconfigured.
 - For this repository, CodeRabbit should be allowed to start automatically; manual `@coderabbitai review` comments are only for two cases: no reviewer signal appears after roughly 15 seconds on a new head SHA, or the reviewer is still in progress after 5 minutes and the user explicitly agrees to trigger recovery.
 - Agent runtime layout: root `AGENTS.md` only; `ai/SKILLS.md` and `ai/skills/` for skills; `ai/PLAYBOOKS.md` and `ai/playbooks/` for unitary procedures; `ai/MEMORY.md` for durable memory.
-- The first top-level repository-local skills are `Designer`, `PM`, and `Developer`.
+- The top-level repository-local skills are `Designer`, `PM`, `Developer`, and `Framework Keeper`.
 
 ## Current Bundle State
 
@@ -28,7 +29,7 @@ This file stores durable repository memory for agents. It is not a transcript an
 
 ## Active Open Loops
 
-- Encode the three framework playbooks as machine-readable process artifacts under future `spec/processes/`.
+- Encode the current framework playbooks as machine-readable process artifacts under future `spec/processes/`.
 
 ## Recent Decisions
 
@@ -47,6 +48,7 @@ This file stores durable repository memory for agents. It is not a transcript an
 - 2026-04-11: CodeRabbit finding closure should be recorded in the review thread itself when possible, and stale or cancelled required jobs should be rerun on the current head before considering control-plane changes.
 - 2026-04-11: `p1-policy` `decide` polls required reviewer commit statuses (shared wait budget across contexts; `P1_POLICY_REVIEWER_STATUS_*` vars) so the check stays in progress while CodeRabbit is pending instead of failing immediately.
 - 2026-04-11: `decide` refreshes issue labels after earlier gates and polls for a `residual:*` label (`P1_POLICY_RESIDUAL_LABEL_*` vars) so the residual risk engine can land slightly after `decide` starts without failing red on a stale label read.
+- 2026-04-11: Added `Framework Keeper` as a repository-local skill and `ai/playbooks/framework-review.md` as the canonical procedure for auditing the framework itself for consistency, efficiency, and predictability.
 
 ## Update Rules
 
