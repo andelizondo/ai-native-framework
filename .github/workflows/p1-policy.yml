@@ -591,19 +591,23 @@ jobs:
               const residualPollMs =
                 Math.max(5, parseInt(process.env.P1_POLICY_RESIDUAL_LABEL_POLL_INTERVAL_SECONDS || '10', 10)) * 1000;
               let waitedResidual = 0;
+              labels = await loadIssueLabelNames();
+              residual = labels.find((label) =>
+                ['residual:low', 'residual:med', 'residual:high'].includes(label),
+              );
               while (!residual && waitedResidual < residualWaitMaxMs) {
-                labels = await loadIssueLabelNames();
-                residual = labels.find((label) =>
-                  ['residual:low', 'residual:med', 'residual:high'].includes(label),
-                );
-                if (residual) break;
                 core.info(
                   `Residual risk label not on issue yet; waiting ${residualPollMs}ms (${Math.round(
                     waitedResidual / 1000,
                   )}s / ${Math.round(residualWaitMaxMs / 1000)}s max).`,
                 );
-                await sleepMs(residualPollMs);
-                waitedResidual += residualPollMs;
+                const sleepForMs = Math.min(residualPollMs, residualWaitMaxMs - waitedResidual);
+                await sleepMs(sleepForMs);
+                waitedResidual += sleepForMs;
+                labels = await loadIssueLabelNames();
+                residual = labels.find((label) =>
+                  ['residual:low', 'residual:med', 'residual:high'].includes(label),
+                );
               }
             }
 
