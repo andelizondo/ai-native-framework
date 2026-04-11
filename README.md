@@ -20,7 +20,7 @@ Higher items override lower items:
 2. Validated artifacts under [`spec/examples/`](spec/examples/) and future `spec/processes/`
 3. [`spec/policy/event-taxonomy.yaml`](spec/policy/event-taxonomy.yaml)
 4. [`agents/interfaces.yaml`](agents/interfaces.yaml)
-5. [`docs/AI_NATIVE_FRAMEWORK_COMPLETE.md`](docs/AI_NATIVE_FRAMEWORK_COMPLETE.md) and other `docs/*`
+5. [`docs/AI_NATIVE_FRAMEWORK.md`](docs/AI_NATIVE_FRAMEWORK.md) and other `docs/*`
 6. [`AGENTS.md`](AGENTS.md), [`SKILLS.md`](SKILLS.md), [`MEMORY.md`](MEMORY.md)
 
 The root agent context bundle is operationally important, but it does not override schema, policy, or interface contracts.
@@ -104,7 +104,7 @@ CI runs the same validation via [`.github/workflows/validate.yml`](.github/workf
 | `AGENTS.md` | Agent bootstrap contract |
 | `SKILLS.md` | Skill and procedure registry |
 | `MEMORY.md` | Durable operating memory |
-| `docs/AI_NATIVE_FRAMEWORK_COMPLETE.md` | Full framework prose |
+| `docs/AI_NATIVE_FRAMEWORK.md` | Full framework prose |
 | `docs/PLAYBOOKS.md` | Playbook index |
 | `REPO_SCAFFOLD.md` | Copy-paste scaffold for materializing framework-aligned repos |
 
@@ -129,7 +129,7 @@ Today that validates example specs against the product schema. As the framework 
 ## Recommended Reading Order
 
 1. [`README.md`](README.md)
-2. [`docs/AI_NATIVE_FRAMEWORK_COMPLETE.md`](docs/AI_NATIVE_FRAMEWORK_COMPLETE.md)
+2. [`docs/AI_NATIVE_FRAMEWORK.md`](docs/AI_NATIVE_FRAMEWORK.md)
 3. [`docs/PLAYBOOKS.md`](docs/PLAYBOOKS.md)
 4. The specific playbook or spec files relevant to the task
 5. [`AGENTS.md`](AGENTS.md)
