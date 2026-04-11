@@ -21,7 +21,7 @@
 5. Versioned procedure playbooks under `ai/playbooks/*.md` where a repository maintains them — **MUST NOT** contradict 1–4  
 6. This Markdown file and other `docs/*` (explanatory narrative; **MUST NOT** override 1–5)
 
-Repository-local agent files: root `AGENTS.md` plus `ai/PLAYBOOKS.md`, `ai/SKILLS.md`, `ai/skills/`, `ai/MEMORY.md`, and related indices are routing and bootstrap surfaces unless promoted into machine-validated schema or policy. They **SHOULD** align with items 1–4 and **MUST NOT** contradict them.
+Repository-local agent files: root `AGENTS.md` plus `ai/PLAYBOOKS.md`, `ai/SKILLS.md`, `ai/skills/`, `ai/MEMORY.md`, and related indices are routing and bootstrap surfaces unless promoted into machine-validated schema or policy. They **SHOULD** align with items 1–5 and **MUST NOT** contradict them (including normative procedure playbooks under `ai/playbooks/*.md`).
 
 ### 0.3 Conformance keywords
 
