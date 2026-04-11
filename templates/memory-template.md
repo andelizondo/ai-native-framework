@@ -1,4 +1,6 @@
-# MEMORY.md template
+# `ai/MEMORY.md` template
+
+Place the rendered file at `ai/MEMORY.md` (with `AGENTS.md` at the repo root).
 
 ## Stable Facts
 

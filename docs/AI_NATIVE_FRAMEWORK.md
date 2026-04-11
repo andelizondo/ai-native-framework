@@ -18,9 +18,10 @@
 2. Validated YAML/JSON under `spec/examples/` and (when introduced) `spec/processes/`  
 3. `spec/policy/event-taxonomy.yaml`  
 4. `agents/interfaces.yaml`  
-5. This Markdown file and other `docs/*` (explanatory; **MUST NOT** override 1–4)
+5. Versioned procedure playbooks under `ai/playbooks/*.md` where a repository maintains them — **MUST NOT** contradict 1–4  
+6. This Markdown file and other `docs/*` (explanatory narrative; **MUST NOT** override 1–5)
 
-Repository-local agent runtime files such as `AGENTS.md`, `SKILLS.md`, `skills/`, and `MEMORY.md` are explanatory operating artifacts unless promoted into machine-validated schema or policy. They **SHOULD** align with items 1–4 and **MUST NOT** contradict them.
+Repository-local agent files: root `AGENTS.md` plus `ai/PLAYBOOKS.md`, `ai/SKILLS.md`, `ai/skills/`, `ai/MEMORY.md`, and related indices are routing and bootstrap surfaces unless promoted into machine-validated schema or policy. They **SHOULD** align with items 1–5 and **MUST NOT** contradict them (including normative procedure playbooks under `ai/playbooks/*.md`).
 
 ### 0.3 Conformance keywords
 
@@ -202,13 +203,14 @@ Typical layout for a framework-aligned repo:
 | `spec/processes/` | *(Introduce)* validated process/workflow instances |
 | `templates/` | Generators and empty templates (e.g. slice spec) |
 | `agents/interfaces.yaml` | Logical tool contracts |
-| `AGENTS.md` | Repository-local bootstrap instructions, authority map, and execution rules for agents |
-| `SKILLS.md` | Root discovery index; maps recurring work to skills, playbooks, and artifacts |
-| `skills/` | On-demand skill bodies loaded only when selected from `SKILLS.md` |
-| `MEMORY.md` | Durable working memory: current state, constraints, glossary, decisions, open loops |
+| `AGENTS.md` | Repository-local bootstrap instructions at repo root; authority map and execution rules for agents |
+| `ai/SKILLS.md` | Skill discovery index under `ai/`; maps recurring work to skills, playbooks, and artifacts |
+| `ai/skills/` | On-demand skill bodies loaded only when selected from `ai/SKILLS.md` |
+| `ai/MEMORY.md` | Durable working memory: current state, constraints, glossary, decisions, open loops |
 | `scripts/validate-spec.mjs` | Local and CI validation |
 | `.github/workflows/` | CI pipelines |
-| `docs/PLAYBOOKS.md` | Human-readable index of reusable playbooks |
+| `ai/PLAYBOOKS.md` | Playbook discovery index under `ai/`; links into `ai/playbooks/` |
+| `ai/playbooks/` | On-demand procedure playbooks loaded from `ai/PLAYBOOKS.md` |
 
 ---
 
@@ -224,21 +226,24 @@ Strategist, Researcher, Product, Builder (engineering), Designer, Growth, Sales 
 
 ### 7.2.1 Repository-local context bundle
 
-Framework-aligned repositories **SHOULD** expose a lightweight agent context bundle at the repo root:
+Framework-aligned repositories **SHOULD** expose a lightweight agent context surface: **root `AGENTS.md`** as the common first-read entry point, plus an **`ai/` directory** for everything else agents load progressively:
 
-- `AGENTS.md` — first-read bootstrap contract for agents entering the repository.
-- `SKILLS.md` — low-cost skill discovery index and routing surface.
-- `skills/` — on-demand skill bodies for workflows that need more than index-level guidance.
-- `MEMORY.md` — durable repository memory with update rules.
+- `AGENTS.md` — bootstrap contract for agents entering the repository (typically the only agent file at repo root).
+- `ai/PLAYBOOKS.md` — low-cost playbook discovery index; points to unitary procedures under `ai/playbooks/`.
+- `ai/playbooks/` — on-demand procedure playbooks for recurring governance and automation loops.
+- `ai/SKILLS.md` — low-cost skill discovery index and routing surface for role- and task-oriented harnesses.
+- `ai/skills/` — on-demand skill bodies for workflows that need more than index-level guidance.
+- `ai/MEMORY.md` — durable repository memory with update rules.
 
-This bundle is the provider-agnostic replacement for hidden system prompts or IDE-only conventions. It gives agents a shared, versioned operating surface while keeping the normative source of truth in schemas, policy, and interfaces.
+This surface is the provider-agnostic replacement for hidden system prompts or IDE-only conventions. It gives agents a shared, versioned operating map while keeping the normative source of truth in schemas, policy, interfaces, and playbook files under `ai/playbooks/`.
 
 Minimum requirements:
 
-- `AGENTS.md` **MUST** define the repo authority ladder, canonical commands, change discipline, and escalation conditions.
-- `SKILLS.md` **SHOULD** map recurring workflows to named skills or procedures, each with triggers, inputs, outputs, and links to deeper docs, playbooks, or `skills/*.md`.
-- `skills/` **SHOULD** hold the deeper workflow bodies so agents load only the skill they selected instead of the whole catalog.
-- `MEMORY.md` **MUST** distinguish stable facts from temporary working state and **MUST NOT** become an unbounded log dump.
+- `AGENTS.md` **MUST** define the repo authority ladder, canonical commands, change discipline, and escalation conditions (including where `ai/` lives).
+- `ai/PLAYBOOKS.md` **SHOULD** list each versioned procedure playbook with triggers, inputs, outputs, and a link into `ai/playbooks/*.md`.
+- `ai/SKILLS.md` **SHOULD** map recurring workflows to named skills or procedures, each with triggers, inputs, outputs, and links to deeper docs, `ai/playbooks/*.md`, or `ai/skills/*.md`.
+- `ai/skills/` **SHOULD** hold the deeper skill bodies so agents load only the skill they selected instead of the whole catalog.
+- `ai/MEMORY.md` **MUST** distinguish stable facts from temporary working state and **MUST NOT** become an unbounded log dump.
 - Changes to these files **SHOULD** be reviewed whenever repo policy, architecture, workflows, or terminology changes.
 
 ### 7.3 Orchestrator
@@ -328,7 +333,7 @@ The Process Library is the **encoded moat**: reusable, versioned procedures—tr
 | **Go-to-market** | Launch, landing pages, content, outbound |
 | **Operations** | Onboarding, support, reporting, pricing experiments, internal ops |
 
-The repository-local `SKILLS.md` file is the operator-facing index into this library. Deeper workflow bodies may live under `skills/`, and process definitions may remain in Markdown initially, but the skill index **SHOULD** point to the canonical playbook or schema-backed process artifact for each recurring workflow.
+The repository-local `ai/PLAYBOOKS.md` and `ai/SKILLS.md` files are operator-facing indices into this library. Deeper procedure bodies may live under `ai/playbooks/` and `ai/skills/`, and process definitions may remain in Markdown initially, but each index **SHOULD** point to the canonical playbook file or schema-backed process artifact for each recurring workflow.
 
 ### 11.3 Workflow record shape (each entry SHOULD declare)
 
@@ -342,39 +347,61 @@ The repository-local `SKILLS.md` file is the operator-facing index into this lib
 
 ### 11.4 V1 default workflow set (B2B SaaS, small team)
 
-For deployments targeting **solo founders or minimal teams** in **B2B SaaS**, the library **SHOULD** contain encoded workflows for the following baseline sequence.
+For deployments targeting **solo founders or minimal teams** in **B2B SaaS**, the library **SHOULD** contain encoded workflows for the following baseline set (often adopted in dependency order when materializing a new repository; each entry is still an atomic playbook).
 
-#### P0 - Repository foundation
+#### Repository foundation
 
 - **Objective:** Make the repository safe for parallel human and agent execution before normal product work starts.
 - **Inputs:** Repository owner, default branch, maintainer handle, and at least one validation command.
 - **Outputs:** Protected default branch, CI baseline, merge policy, security defaults, and governance files.
 - **Capabilities:** Builder, Product, Ops.
 - **Checkpoints:** Human confirmation of repository owner, visibility, and merge policy before protection is enforced.
-- **Playbook:** `docs/P0_REPOSITORY_FOUNDATION.md`
+- **Playbook:** `ai/playbooks/repository-foundation.md`
 - **Events (examples):** `ops.repo_published`, `ops.branch_protection_enabled`, `ops.security_automation_enabled`.
 
-#### P1 - Pull request execution loop
+#### Pull request execution loop
 
 - **Objective:** Automate PR review, testing, approval, and merge within explicit human-governed thresholds.
 - **Inputs:** PR metadata, diff, branch protection rules, required checks, threshold policy, branch freshness state, and residual-risk decision.
-- **Outputs:** Initial risk classification, residual-risk decision, freshness decision, validation evidence, review outcome, approval decision, and merge or escalation state.
+- **Outputs:**
+  - Initial risk classification.
+  - Residual-risk decision.
+  - Branch freshness decision.
+  - Validation evidence.
+  - Review outcome.
+  - Approval decision.
+  - Merge or escalation state.
+  - When automation is authorized for the residual-risk tier and all merge gates are green, the executing agent **MUST** finish the loop—merge directly or verify the configured merge executor (for example a queue) merged—rather than stopping at an open PR.
 - **Capabilities:** Builder, Ops, Researcher, AI reviewer backend.
-- **Checkpoints:** Human approval is **MUST** for high-risk changes and **SHOULD** be required whenever confidence or evidence falls below policy thresholds. Event-ordering failures between automation steps **MUST NOT** by themselves force human review. Automation-owned PRs **MUST** be synced with the current protected branch before review authority is exercised, deterministic PR state such as residual-risk labels **MUST** be set automatically when policy can infer it, and control-plane PRs **MUST** be judged by the policy currently merged on the protected branch until the update itself lands. Repository-level auto-review configuration such as GitHub rulesets or app integrations **MAY** request an AI review automatically, but **MUST NOT** itself be treated as approval authority. When a repository-configured reviewer exists, both its status context and its current-head review output **SHOULD** be consumed before the agent assigns residual risk; acceptable output can be either a formal review on that SHA or a configured-reviewer timeline comment that explicitly references it. Missing or pending reviewer evidence on the current head SHA **MUST** remain a blocking state rather than an implicit pass. Agents **MUST NOT** merge while any configured merge gate is still pending, even if host branch protection is missing or misconfigured. If reviewer follow-up is needed, an authorized collaborator **MAY** request it through host-supported mechanisms such as reviewer commands or the repository UI. If that follow-up causes a bot or app to push a new PR commit, required checks and review freshness **MUST** be re-evaluated on the new head SHA. Host-platform approval prompts on privileged downstream automation **MUST** be interpreted as trust-boundary safeguards unless the required PR-scoped checks themselves fail. If a human checkpoint remains, automation **MUST** complete all non-human preparation work first and leave the PR approval-ready wherever the host platform allows it. In personal-repository single-human mode, the owner **MAY** be the final checkpoint for allowed medium-risk changes, provided policy explicitly says so and the agent states the exact action required from the owner.
-- **Playbook:** `docs/P1_PR_EXECUTION_LOOP.md`
+- **Checkpoints:**
+  - Human approval **MUST** be required for high-risk changes and **SHOULD** be required whenever confidence or evidence falls below policy thresholds.
+  - Event-ordering failures between automation steps **MUST NOT** by themselves force human review.
+  - Automation-owned PRs **MUST** be synced with the current protected branch before review authority is exercised.
+  - Deterministic PR state such as residual-risk labels **MUST** be set automatically when policy can infer it.
+  - Control-plane PRs **MUST** be judged by the policy currently merged on the protected branch until the update itself lands.
+  - Repository-level auto-review configuration such as GitHub rulesets or app integrations **MAY** request an AI review automatically, but **MUST NOT** itself be treated as approval authority.
+  - When a repository-configured reviewer exists, both its status context and its current-head review output **SHOULD** be consumed before the agent assigns residual risk; acceptable output is either a formal review on that SHA or a configured-reviewer timeline comment that explicitly references it.
+  - Missing or pending reviewer evidence on the current head SHA **MUST** remain a blocking state rather than an implicit pass.
+  - Agents **MUST NOT** merge while any configured merge gate is still pending, even if host branch protection is missing or misconfigured.
+  - If reviewer follow-up is needed, an authorized collaborator **MAY** request it through host-supported mechanisms such as reviewer commands or the repository UI.
+  - If that follow-up causes a bot or app to push a new PR commit, required checks and review freshness **MUST** be re-evaluated on the new head SHA.
+  - Host-platform approval prompts on privileged downstream automation **MUST** be interpreted as trust-boundary safeguards unless the required PR-scoped checks themselves fail.
+  - If a human checkpoint remains, automation **MUST** complete all non-human preparation work first and leave the PR approval-ready wherever the host platform allows it.
+  - In personal-repository single-human mode, the owner **MAY** be the final checkpoint for allowed medium-risk changes, provided policy explicitly says so and the agent states the exact action required from the owner.
+- **Playbook:** `ai/playbooks/pull-request-execution-loop.md`
 - **Events (examples):** `pr.risk_classified`, `pr.residual_risk_set`, `pr.branch_outdated`, `pr.review_completed`, `pr.escalated`, `pr.merged`.
 
-#### P2 - Agent context bundle
+#### Agent context bundle
 
 - **Objective:** Install and maintain the repository-local runtime standard that lets agents bootstrap correctly without relying on hidden prompt state.
 - **Inputs:** Repository purpose, authority ladder, canonical commands, playbooks, glossary, and current operating constraints.
-- **Outputs:** Versioned `AGENTS.md`, `SKILLS.md`, optional `skills/`, and `MEMORY.md` artifacts linked to the framework and playbooks.
+- **Outputs:** Versioned root `AGENTS.md`, plus `ai/SKILLS.md`, optional `ai/skills/`, `ai/PLAYBOOKS.md`, `ai/playbooks/`, and `ai/MEMORY.md` linked to the framework.
 - **Capabilities:** Builder, Product, Ops.
 - **Checkpoints:** Human review when the bundle changes agent authority, escalation rules, or durable memory policy.
-- **Playbook:** `docs/P2_AGENT_CONTEXT_BUNDLE.md`
+- **Playbook:** `ai/playbooks/agent-context-bundle.md`
 - **Events (examples):** `agent.context_bundle_installed`, `agent.skill_registered`, `agent.memory_updated`.
 
-After P1, the library **SHOULD** contain encoded workflows for the following six operating processes.
+After pull request execution is in place, the library **SHOULD** contain encoded workflows for the following six operating processes.
 
 #### W1 — Opportunity research
 

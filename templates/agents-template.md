@@ -4,14 +4,17 @@
 
 [One paragraph: what this repository is for and why agents operate here.]
 
+**Recommended layout:** keep **`AGENTS.md` at the repository root** as the only agent file there; put playbook indices, playbooks, skill indices, skills, and memory under **`ai/`** (see the canonical framework repo for a full example).
+
 ## Read Order
 
 1. `README.md`
 2. [Primary framework or architecture doc]
-3. [Playbook index]
-4. [Task-specific canonical docs]
-5. `SKILLS.md`
-6. `MEMORY.md`
+3. `ai/PLAYBOOKS.md` (or your playbook index path)
+4. [Task-specific playbooks under `ai/playbooks/` or specs]
+5. `ai/SKILLS.md`
+6. Only the specific `ai/skills/*.md` files selected from `ai/SKILLS.md`
+7. `ai/MEMORY.md`
 
 ## Authority Ladder
 
@@ -19,8 +22,9 @@
 2. [Validated instances]
 3. [Policy files]
 4. [Interface contracts]
-5. [Playbooks and docs]
-6. `AGENTS.md`, `SKILLS.md`, `MEMORY.md`
+5. `ai/playbooks/*.md` (procedure bodies)
+6. [Explanatory docs, e.g. `docs/*`]
+7. `AGENTS.md`, `ai/PLAYBOOKS.md`, `ai/SKILLS.md`, `ai/skills/*.md`, `ai/MEMORY.md`
 
 ## Canonical Commands
 
@@ -36,9 +40,9 @@
 
 ## Change Discipline
 
-- When adding a new recurring workflow, update [playbook index] and `SKILLS.md`.
-- When changing repo operating rules, check whether `AGENTS.md` and `MEMORY.md` now need updates.
-- When introducing durable process knowledge, prefer a playbook or schema-backed artifact over burying it in memory.
+- When adding a new recurring workflow, update `ai/PLAYBOOKS.md`, `ai/playbooks/` as needed, and `ai/SKILLS.md`.
+- When changing repo operating rules, check whether `AGENTS.md` and `ai/MEMORY.md` now need updates.
+- When introducing durable process knowledge, prefer a playbook under `ai/playbooks/` or a schema-backed artifact over burying it in memory.
 
 ## Escalation Conditions
 
@@ -54,4 +58,4 @@
 
 ## Definition Of Done
 
-A framework change is not complete if it leaves the runtime bundle stale. If your edit changes how an agent should bootstrap, choose a skill, validate work, or preserve context, update this bundle in the same change.
+A framework change is not complete if it leaves the agent bundle under `ai/` stale. If your edit changes how an agent should bootstrap, choose a skill or playbook, validate work, or preserve context, update `AGENTS.md`, `ai/PLAYBOOKS.md`, `ai/SKILLS.md`, `ai/skills/`, `ai/playbooks/`, or `ai/MEMORY.md` in the same change as appropriate.

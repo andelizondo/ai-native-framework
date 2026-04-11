@@ -60,4 +60,4 @@ Turn intent into a scoped change definition that explains what should change, wh
 
 - `README.md`
 - `docs/AI_NATIVE_FRAMEWORK.md`
-- `docs/P2_AGENT_CONTEXT_BUNDLE.md`
+- `ai/playbooks/agent-context-bundle.md`

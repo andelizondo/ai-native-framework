@@ -1,14 +1,14 @@
-# P0 - Repository foundation
+# Repository foundation
 
 ## Objective
 
 Create a repository that is safe to collaborate in before product, growth, or operations workflows start shipping changes.
 
-This is the first playbook step in the framework. It converts a raw repository into a governed execution surface with validation, review controls, security defaults, and contributor guidance.
+This playbook converts a raw repository into a governed execution surface with validation, review controls, security defaults, and contributor guidance.
 
 ## When to run
 
-Run P0 immediately after creating a new repository and before opening normal feature branches.
+Run it when you create a new repository and before opening normal feature branches, or whenever you need to audit or repair the same surfaces in an existing repository.
 
 ## Outcomes
 
@@ -73,15 +73,15 @@ Apply the following repository settings:
 - Enable issues if they are part of the operating loop.
 - Disable wiki unless it is intentionally used.
 - Set the repository description.
-- Configure automated PR review for the repository if P1 will depend on a repository-configured AI reviewer.
+- Configure automated PR review for the repository if pull request automation will depend on a repository-configured AI reviewer.
 
 These choices keep history readable and prevent the repo from accumulating unmanaged side channels.
 
 If automated PR review is enabled at the repository level, the trigger configuration belongs in repository settings, rulesets, or app configuration, while repository-specific review behavior **SHOULD** remain in versioned configuration files such as `.coderabbit.yaml` or equivalent reviewer config.
 
-If P1 residual-risk decisions will depend on host-native reviewer output, that reviewer **SHOULD** be configured during P0 so automated review arrives before downstream agent policy or approval actions run. P0 **SHOULD** also verify that the expected review artifact is observable on PRs for the current head SHA, because repository configuration alone is not sufficient evidence that review actually ran.
+If residual-risk decisions in the pull request execution playbook will depend on host-native reviewer output, that reviewer **SHOULD** be configured while applying this playbook so automated review arrives before downstream agent policy or approval actions run. This playbook **SHOULD** also verify that the expected review artifact is observable on PRs for the current head SHA, because repository configuration alone is not sufficient evidence that review actually ran.
 
-If the repository is a personal repository with a single human operator, P0 **SHOULD** also decide which risk tiers permit an owner-decision path so P1 does not deadlock on a nonexistent second human reviewer.
+If the repository is a personal repository with a single human operator, this playbook **SHOULD** also decide which risk tiers permit an owner-decision path so pull request policy does not deadlock on a nonexistent second human reviewer.
 
 ## 5. Protect the default branch
 
@@ -124,7 +124,7 @@ Security automation should be on before contributors begin adding integrations, 
 
 ## Baseline applied in this repository
 
-The current P0 baseline in this repository applies the following concrete settings:
+The current repository-foundation baseline in this repository applies the following concrete settings:
 
 - Default branch: `main`
 - Required checks: `validate`, `decide`, `CodeRabbit`
@@ -149,7 +149,7 @@ The current P0 baseline in this repository applies the following concrete settin
 
 ## Notes for future variants
 
-- Organizations may add team-based CODEOWNERS, signed-commit requirements, deployment environments, or release workflows on top of P0.
+- Organizations may add team-based CODEOWNERS, signed-commit requirements, deployment environments, or release workflows on top of this baseline.
 - Repositories that want low-risk auto-merge should keep CODEOWNERS focused on protected paths, not documentation-only surfaces.
 - Repositories with multiple validation lanes may require more than one status check.
-- If the framework later introduces machine-readable process schemas under `spec/processes/`, P0 should be encoded there as well as in Markdown.
+- If the framework later introduces machine-readable process schemas under `spec/processes/`, this playbook should be encoded there as well as in Markdown.
