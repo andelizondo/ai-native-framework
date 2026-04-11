@@ -1,6 +1,6 @@
 # SKILLS.md
 
-This file is the skill discovery index for the repository-local agent context bundle. Read it to decide which skill to load, then open only the specific `skills/*.md` file or canonical playbook needed for the current task.
+This file is the skill discovery index for the repository-local agent bundle under **`ai/`** (root `AGENTS.md` is the only agent file outside this folder). Read it to decide which skill to load, then open only the specific `skills/*.md` file next to this index or a playbook under `playbooks/` for the current task. For playbook routing alone, you may start from `PLAYBOOKS.md` in this directory instead.
 
 ## How To Use This File
 
@@ -18,7 +18,7 @@ Discovery should stay broad and cheap. Execution should stay narrow and deep.
 - **When to use:** orienting a new agent or starting substantial work in this repository
 - **Inputs:** repository purpose, current task, affected files
 - **Outputs:** correct read order, authority map, and validation plan
-- **Load:** `AGENTS.md`, `README.md`, `docs/AI_NATIVE_FRAMEWORK.md`
+- **Load:** `AGENTS.md`, `README.md`, `docs/AI_NATIVE_FRAMEWORK.md`, `PLAYBOOKS.md` (in this directory)
 - **Notes:** use this before making policy, playbook, or workflow changes
 
 ### Designer
@@ -37,34 +37,34 @@ Discovery should stay broad and cheap. Execution should stay narrow and deep.
 
 ### Developer
 
-- **When to use:** implementing repository changes and carrying them through validation, PR review, and merge under P1
+- **When to use:** implementing repository changes and carrying them through validation, PR review, and merge per the pull request execution playbook
 - **Inputs:** approved scope, affected files, repository constraints, live PR state
 - **Outputs:** implementation, verification evidence, review closure, published PR state
 - **Load:** `skills/developer.md`
 
-### P0 - Repository Foundation
+### Repository foundation (playbook)
 
 - **When to use:** establishing or auditing repository governance, CI, branch protection, security defaults, and contributor surfaces
 - **Inputs:** repository owner, default branch, canonical validation command, maintainer identity
 - **Outputs:** governed repo baseline and recorded settings
-- **Load:** `docs/P0_REPOSITORY_FOUNDATION.md`
+- **Load:** `playbooks/repository-foundation.md`
 - **Constraints:** do not guess required check names; read real emitted checks
 
-### P1 - Pull Request Execution Loop
+### Pull request execution loop (playbook)
 
 - **When to use:** designing, implementing, or reviewing PR automation, risk policy, branch freshness, or merge authority behavior
 - **Inputs:** PR metadata, labels, required checks, review state, branch freshness state, threshold policy
 - **Outputs:** residual-risk decision, merge authority, or structured escalation request
-- **Load:** `docs/P1_PR_EXECUTION_LOOP.md`
+- **Load:** `playbooks/pull-request-execution-loop.md`
 - **Constraints:** machines verify, humans decide; do not convert timing gaps into human-review work
 
-### P2 - Agent Context Bundle
+### Agent context bundle (playbook)
 
-- **When to use:** creating or updating `AGENTS.md`, `SKILLS.md`, `skills/*.md`, `MEMORY.md`, or making agent bootstrap behavior explicit in a repository
+- **When to use:** creating or updating root `AGENTS.md`, or files under `ai/` (`SKILLS.md`, `skills/*.md`, `MEMORY.md`, `PLAYBOOKS.md`, `playbooks/`), or making agent bootstrap behavior explicit in a repository
 - **Inputs:** authority ladder, canonical commands, playbooks, glossary, durable facts, open loops
-- **Outputs:** maintained agent runtime bundle
-- **Load:** `docs/P2_AGENT_CONTEXT_BUNDLE.md`
-- **Constraints:** keep the bundle concise, index-shaped at the root, and subordinate to schema and policy
+- **Outputs:** maintained agent runtime bundle (`AGENTS.md` + `ai/`)
+- **Load:** `playbooks/agent-context-bundle.md`
+- **Constraints:** keep the bundle concise, index-shaped inside `ai/`, and subordinate to schema and policy
 
 ### Spec Evolution
 
@@ -84,7 +84,7 @@ Discovery should stay broad and cheap. Execution should stay narrow and deep.
 
 ## Adding A New Skill
 
-Add a new `skills/*.md` file when all of these are true:
+Add a new `ai/skills/*.md` file when all of these are true:
 
 - the workflow recurs
 - the workflow has a stable trigger
@@ -93,7 +93,7 @@ Add a new `skills/*.md` file when all of these are true:
 
 For each new skill:
 
-- keep `SKILLS.md` as the discovery pointer, not the full body
+- keep `ai/SKILLS.md` as the discovery pointer, not the full body
 - make the skill file operational and concise
 - include triggers, inputs, outputs, workflow steps, decision rules, escalations, and completion criteria
 - point to the canonical docs or playbooks the skill relies on

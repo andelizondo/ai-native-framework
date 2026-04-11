@@ -1,4 +1,4 @@
-# P1 - Pull request execution loop
+# Pull request execution loop
 
 ## Operating target
 
@@ -12,13 +12,13 @@ Any verification step that still requires human attention is a gap in tooling, n
 
 Automate the path from open pull request to merge while preserving explicit human authority for changes that exceed defined risk thresholds.
 
-P1 is the first operating playbook that runs continuously after repository foundation is in place. It defines how agents, CI, GitHub policy, and human decision points work together on every PR.
+This playbook runs continuously on repositories that use it, once a governed baseline exists (see the repository foundation playbook). It defines how agents, CI, GitHub policy, and human decision points work together on every PR. Configured workflows in this repository use a `p1-*` job naming prefix and related environment variables for traceability; those identifiers refer to this document, not to an ordering label.
 
 The AI reviewer backend **MUST** be treated as replaceable. The framework's policy layer decides authority; the reviewer implementation supplies comments, findings, and suggested changes. Merge execution tooling is also replaceable: policy decides when merge is allowed, while a merge executor performs the merge or queue operation.
 
 ## When to run
 
-Run P1 for every pull request targeting a protected branch.
+Use it for every pull request targeting a protected branch.
 
 ## Outcomes
 
@@ -45,7 +45,7 @@ At the end of this playbook, each PR should have:
 
 ## Agent self-verification toolchain
 
-Agents executing P1 **MUST** run the following toolchain before any approval or merge decision. No human checking substitutes for missing tool output.
+Agents executing this playbook **MUST** run the following toolchain before any approval or merge decision. No human checking substitutes for missing tool output.
 
 Required tools:
 
@@ -243,7 +243,7 @@ Resolving threads without reviewer confirmation is not permitted. Thread resolut
 3. **Non-blocking suggestions** remain the merging agent’s responsibility: fix when reasonable; otherwise reply with a clear decision using the outcomes in `.coderabbit.yaml`: **fix**, **accept as follow-up**, or **won't change** (equivalent prose: *fixed* → **fix**; *deferred* → **accept as follow-up**; *rejected* → **won't change**). Prefer replying directly on the review thread so the resolution history stays attached to the finding. “Looks good” without addressing open threads is not sufficient.
 4. Agents **MUST NOT** close or resolve review threads solely to satisfy GitHub’s “conversations resolved” requirement unless the substance above is already visible on the PR.
 5. **Automation vs prose:** Section **1.5** step 3 and the **`p1-policy`** workflow (`decide` job) both consult GitHub’s **review-thread state** (threads **resolved** or **outdated**). A consolidated PR comment alone does **not** flip that state. To avoid deadlocks, the merging agent **MUST** either push fixes (threads often become **outdated**), post on **each thread** (then resolve when the finding is truly closed), or obtain an explicit **human maintainer waiver** on the PR that names the thread(s) or review comment IDs it overrides—and still ensure thread state matches reality before merge. Silent bulk-resolution without visible decisions remains forbidden.
-6. If the current head SHA satisfies P1 evidence but a required host-side workflow run is stale or `cancelled`, rerun the required job on the current head before treating the situation as a repository-settings problem. Repository settings changes are separate control-plane work and **MUST NOT** be the default remediation path.
+6. If the current head SHA satisfies the evidence requirements of this playbook but a required host-side workflow run is stale or `cancelled`, rerun the required job on the current head before treating the situation as a repository-settings problem. Repository settings changes are separate control-plane work and **MUST NOT** be the default remediation path.
 
 Host-platform note:
 
@@ -311,6 +311,8 @@ A threshold policy should include at least:
 **Decision request format**
 
 When automation must stop for a human, the escalation comment **MUST** follow this structure. The human should be able to act in under two minutes without reading any other document.
+
+The template below uses a `**P1 decision request**` heading so it matches comments emitted by this repository’s `p1-policy` automation (the `P1` prefix is a workflow trace tag, not a playbook ordering label).
 
 ```
 **P1 decision request**
@@ -476,7 +478,7 @@ Example event names:
 
 ## Notes for future variants
 
-- P1 should eventually be encoded in machine-readable process definitions under `spec/processes/`.
+- This playbook should eventually be encoded in machine-readable process definitions under `spec/processes/`.
 - Risk tiering should evolve from simple path rules toward evidence-based thresholds incorporating security scanner output, coverage delta, and diff complexity scores.
 - Approval policy should remain stricter than review policy.
 - The reviewer backend may change over time; the threshold policy should not depend on a single provider.

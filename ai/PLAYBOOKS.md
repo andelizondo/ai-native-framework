@@ -1,0 +1,72 @@
+# PLAYBOOKS.md
+
+This file is the playbook discovery index for this repository. It lives under **`ai/`** next to `SKILLS.md` and the `playbooks/` subdirectory. Read it to decide which procedure applies, then open only the linked file under `playbooks/`. Agents also see matching entries in `ai/SKILLS.md` for routing; this file is the canonical inventory of procedure playbooks.
+
+Each playbook is **atomic**: it states its own objective, inputs, outputs, and constraints. You can open any one of them when that topic is what you need.
+
+## How To Use This File
+
+1. Match the situation to the closest playbook entry below.
+2. Open only the linked playbook under `playbooks/` for the selected entry.
+3. Follow cross-references inside that playbook when they point at schema, policy, or tooling.
+4. If no entry fits, treat the gap as a signal to extend the framework or add a new playbook after the task is complete.
+
+Discovery should stay broad and cheap. Execution should stay narrow and deep.
+
+## Suggested Bootstrap Order (Not Part Of Playbook Identity)
+
+When you are **standing up a new framework-aligned repository**, work usually flows:
+
+1. Establish a governed baseline (repository foundation) so CI, checks, and protection are real.
+2. Layer pull request automation on top of that baseline.
+3. Add or refresh the material under `ai/` (this index, skills, playbooks, memory) when agents will participate repeatedly.
+
+That sequence is **practical**, not a ranking of importance: mature repos often touch only one playbook at a time.
+
+## Relationship To `SKILLS.md`
+
+- **`ai/SKILLS.md`** routes agents to the right *next file* (skills, playbooks, or spec surfaces).
+- **`PLAYBOOKS.md`** (this file) lists every procedure playbook and what each one is responsible for; bodies live in `playbooks/*.md` relative to `ai/`, the same way skill bodies live in `skills/*.md` relative to `ai/`.
+- When you add or retire a playbook, update this file and align `SKILLS.md` in this directory (and root `AGENTS.md` if the important-paths map changes).
+
+## Playbook Index
+
+### Repository foundation
+
+- **When to use:** creating a new repository, or auditing or repairing governance, CI, branch protection, security defaults, and contributor surfaces.
+- **Inputs:** repository name and owner; default branch; at least one passing validation workflow; maintainer handle for CODEOWNERS.
+- **Outputs:** governed execution surface with CI, protection aligned to real checks, merge defaults, governance files, and dependency or security automation as described in the playbook.
+- **Load:** [`playbooks/repository-foundation.md`](playbooks/repository-foundation.md)
+- **Constraints:** do not guess required check names; read checks the host actually emits.
+
+### Pull request execution loop
+
+- **When to use:** every pull request targeting a protected branch; or when designing, implementing, or reviewing PR automation, risk policy, branch freshness, or merge authority.
+- **Inputs:** PR metadata, diff, labels, required checks, CODEOWNERS, threshold policy, reviewer configuration, freshness policy, and policy decision mapping residual risk to merge authority.
+- **Outputs:** risk classification, residual-risk decision, freshness decision, validation and review evidence, and a recorded decision path (approve, escalate, request changes, or merge when allowed).
+- **Load:** [`playbooks/pull-request-execution-loop.md`](playbooks/pull-request-execution-loop.md)
+- **Constraints:** machines verify, humans decide; treat the AI reviewer and merge executor as replaceable implementations behind policy. Configured workflows in this repository use a `p1-*` / `P1_*` naming prefix for traceability; that prefix refers to this playbook, not to an ordering label.
+
+### Agent context bundle
+
+- **When to use:** installing or maintaining the agent bundle: root `AGENTS.md`, plus `SKILLS.md`, optional `skills/`, and `MEMORY.md` under `ai/`, whenever bootstrap behavior or the authority ladder changes.
+- **Inputs:** repository purpose; authority ladder; canonical commands; playbook inventory; glossary and architecture facts; durable memory and open loops.
+- **Outputs:** concise root `AGENTS.md`, an index-shaped `ai/SKILLS.md`, optional `ai/skills/*.md` bodies, maintained `ai/MEMORY.md`, and links from README or framework docs into `ai/`.
+- **Load:** [`playbooks/agent-context-bundle.md`](playbooks/agent-context-bundle.md)
+- **Constraints:** keep the bundle subordinate to schema and policy; do not duplicate full playbooks inside the root index files.
+
+## Adding A New Playbook
+
+Add a new playbook document under `ai/playbooks/` when all of these are true:
+
+- the procedure recurs or governs a long-lived loop
+- the trigger and outcomes are stable enough to version in prose
+- the workflow is not already better expressed as a single `ai/skills/*.md` harness
+
+Prefer filenames `{kebab-case-slug}.md` (for example `repository-foundation.md`) so the topic reads clearly; the `playbooks/` directory under `ai/` already namespaces them. Do not encode ordering in the filename unless the repository has an explicit, stable sequence contract.
+
+For each new playbook:
+
+- add a row to this index with when to use, inputs, outputs, load path, and constraints
+- add or adjust a matching entry in `ai/SKILLS.md` when agents should route to it
+- update `docs/AI_NATIVE_FRAMEWORK.md` or `README.md` when the framework’s human-facing map should show the new procedure

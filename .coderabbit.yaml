@@ -6,7 +6,7 @@ reviews:
   review_status: true
   collapse_walkthrough: false
   # When true, CodeRabbit can leave a blocking review state for substantive findings instead of
-  # only informational comments. Pair with P1: agents must still close every thread with a fix
+  # only informational comments. Pair with the pull request execution playbook: agents must still close every thread with a fix
   # or an explicit written decision on the PR before merge.
   request_changes_workflow: true
   instructions: |

@@ -1,4 +1,6 @@
-# SKILLS.md template
+# `ai/SKILLS.md` template
+
+Place the rendered file at `ai/SKILLS.md` in a framework-aligned repository (with `AGENTS.md` at the repo root).
 
 ## How To Use This File
 
