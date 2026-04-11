@@ -10,6 +10,14 @@ name: p1-policy
 # The check fails closed whenever required evidence is missing, pending, or failed on the
 # current head SHA. That makes `decide` a belt-and-suspenders merge blocker even when host
 # branch protection is absent or misconfigured.
+#
+# `pull_request_target` often runs while `validate-spec` is still in flight on the same SHA.
+# `decide` waits up to P1_POLICY_VALIDATE_WAIT_SECONDS (default 180s) before failing on
+# in-progress validation. Optional: P1_POLICY_VALIDATE_POLL_INTERVAL_SECONDS (default 10s).
+#
+# When the configured reviewer reports success via commit status (e.g. CodeRabbit) but never
+# submits a GitHub Review, `p1-residual-risk-engine` does not run; `decide` applies the same
+# residual outcomes as that workflow for the status-only path.
 
 on:
   pull_request_target:
@@ -33,12 +41,18 @@ jobs:
       - uses: actions/github-script@v9
         env:
           REQUIRED_CHECK: validate
+          P1_POLICY_VALIDATE_WAIT_SECONDS: ${{ vars.P1_POLICY_VALIDATE_WAIT_SECONDS || '180' }}
+          P1_POLICY_VALIDATE_POLL_INTERVAL_SECONDS: ${{ vars.P1_POLICY_VALIDATE_POLL_INTERVAL_SECONDS || '10' }}
           CONFIGURED_AI_REVIEWERS: ${{ vars.CONFIGURED_AI_REVIEWERS || 'coderabbitai,coderabbit' }}
           REQUIRED_AI_REVIEW_STATUS_CONTEXTS: ${{ vars.REQUIRED_AI_REVIEW_STATUS_CONTEXTS || 'CodeRabbit' }}
         with:
           script: |
             const owner = context.repo.owner;
             const repo = context.repo.repo;
+
+            function sleepMs(ms) {
+              return new Promise((resolve) => setTimeout(resolve, ms));
+            }
 
             async function getPrNumber() {
               if (context.eventName === 'pull_request_target') {
@@ -208,31 +222,26 @@ jobs:
             }
 
             // ── Gate 2: Required validation check ────────────────────────────────────
-            const checksResponse = await github.rest.checks.listForRef({
-              owner,
-              repo,
-              ref: pr.headRefOid,
-              per_page: 100,
-            });
-
             const requiredCheck = process.env.REQUIRED_CHECK;
-            // Sort descending by start time so we always evaluate the most recent run,
-            // not an older run that may have a stale conclusion.
-            const validateCheck = latestByStartedAt(
-              checksResponse.data.check_runs.filter((checkRun) => checkRun.name === requiredCheck),
-              (checkRun) => checkRun.started_at,
-            );
+            const validateWaitMaxMs =
+              Math.max(0, parseInt(process.env.P1_POLICY_VALIDATE_WAIT_SECONDS || '180', 10)) * 1000;
+            const validatePollMs =
+              Math.max(5, parseInt(process.env.P1_POLICY_VALIDATE_POLL_INTERVAL_SECONDS || '10', 10)) * 1000;
 
-            const statusResponse = await github.rest.repos.getCombinedStatusForRef({
-              owner,
-              repo,
-              ref: pr.headRefOid,
-            });
+            async function fetchLatestValidateCheck() {
+              const resp = await github.rest.checks.listForRef({
+                owner,
+                repo,
+                ref: pr.headRefOid,
+                per_page: 100,
+              });
+              return latestByStartedAt(
+                resp.data.check_runs.filter((checkRun) => checkRun.name === requiredCheck),
+                (checkRun) => checkRun.started_at,
+              );
+            }
 
-            const reviewStatusContexts = (process.env.REQUIRED_AI_REVIEW_STATUS_CONTEXTS || '')
-              .split(',')
-              .map((s) => s.trim())
-              .filter(Boolean);
+            let validateCheck = await fetchLatestValidateCheck();
 
             if (!validateCheck) {
               core.info(
@@ -249,18 +258,27 @@ jobs:
               return;
             }
 
-            if (validateCheck.status !== 'completed') {
+            let waitedValidate = 0;
+            while (validateCheck && validateCheck.status !== 'completed' && waitedValidate < validateWaitMaxMs) {
               core.info(
-                `Required check '${requiredCheck}' is still ${validateCheck.status} on ${pr.headRefOid.slice(0, 7)}; deferring.`,
+                `Required check '${requiredCheck}' is still ${validateCheck.status} on ${pr.headRefOid.slice(0, 7)}; waiting ${validatePollMs}ms (${Math.round(
+                  waitedValidate / 1000,
+                )}s / ${Math.round(validateWaitMaxMs / 1000)}s max).`,
               );
+              await sleepMs(validatePollMs);
+              waitedValidate += validatePollMs;
+              validateCheck = await fetchLatestValidateCheck();
+            }
+
+            if (!validateCheck || validateCheck.status !== 'completed') {
               await upsertPolicyComment([
                 '**P1 policy:** blocked — validation in progress',
                 '',
-                `Head \`${pr.headRefOid.slice(0, 7)}\`: \`${requiredCheck}\` is \`${validateCheck.status}\` (not completed yet).`,
+                `Head \`${pr.headRefOid.slice(0, 7)}\`: \`${requiredCheck}\` did not reach \`completed\` within the wait window.`,
                 '',
                 '`decide` fails closed until validation completes successfully on the current head SHA.',
               ].join('\n'));
-              core.setFailed(`Required check ${requiredCheck} is still ${validateCheck.status} on the current head SHA.`);
+              core.setFailed(`Required check ${requiredCheck} is still in progress on the current head SHA after waiting.`);
               return;
             }
 
@@ -279,46 +297,87 @@ jobs:
               return;
             }
 
-            for (const contextName of reviewStatusContexts) {
-              const context = latestByStartedAt(
-                statusResponse.data.statuses.filter((status) => status.context === contextName),
-                (status) => status.created_at,
-              );
+            const statusResponse = await github.rest.repos.getCombinedStatusForRef({
+              owner,
+              repo,
+              ref: pr.headRefOid,
+            });
 
-              if (!context) {
-                await upsertPolicyComment([
-                  '**P1 policy:** blocked — reviewer status missing',
-                  '',
-                  `Head \`${pr.headRefOid.slice(0, 7)}\`: no status context named \`${contextName}\` is visible yet.`,
-                  '',
-                  '`decide` fails closed until the configured reviewer status context is visible and successful on the current head SHA.',
-                ].join('\n'));
-                core.setFailed(`Required reviewer status context ${contextName} is not registered yet on the current head SHA.`);
-                return;
+            const reviewStatusContexts = (process.env.REQUIRED_AI_REVIEW_STATUS_CONTEXTS || '')
+              .split(',')
+              .map((s) => s.trim())
+              .filter(Boolean);
+
+            let reviewerStatusesSatisfied = false;
+            if (reviewStatusContexts.length > 0) {
+              for (const contextName of reviewStatusContexts) {
+                const context = latestByStartedAt(
+                  statusResponse.data.statuses.filter((status) => status.context === contextName),
+                  (status) => status.created_at,
+                );
+
+                if (!context) {
+                  await upsertPolicyComment([
+                    '**P1 policy:** blocked — reviewer status missing',
+                    '',
+                    `Head \`${pr.headRefOid.slice(0, 7)}\`: no status context named \`${contextName}\` is visible yet.`,
+                    '',
+                    '`decide` fails closed until the configured reviewer status context is visible and successful on the current head SHA.',
+                  ].join('\n'));
+                  core.setFailed(`Required reviewer status context ${contextName} is not registered yet on the current head SHA.`);
+                  return;
+                }
+
+                if (context.state === 'pending') {
+                  await upsertPolicyComment([
+                    '**P1 policy:** blocked — reviewer status pending',
+                    '',
+                    `Head \`${pr.headRefOid.slice(0, 7)}\`: reviewer status context \`${contextName}\` is still pending.`,
+                    '',
+                    '`decide` fails closed until the configured reviewer status context completes successfully on the current head SHA.',
+                  ].join('\n'));
+                  core.setFailed(`Required reviewer status context ${contextName} is still pending on the current head SHA.`);
+                  return;
+                }
+
+                if (context.state !== 'success') {
+                  await upsertPolicyComment([
+                    '**P1 policy:** blocked — reviewer status failing',
+                    '',
+                    `Head \`${pr.headRefOid.slice(0, 7)}\`: reviewer status context \`${contextName}\` is \`${context.state}\`.`,
+                    '',
+                    'Fix the reviewer-reported issue or re-run the reviewer before merge.',
+                  ].join('\n'));
+                  core.setFailed(`Required reviewer status context ${contextName} is ${context.state} on the current head SHA.`);
+                  return;
+                }
               }
+              reviewerStatusesSatisfied = true;
+            }
 
-              if (context.state === 'pending') {
-                await upsertPolicyComment([
-                  '**P1 policy:** blocked — reviewer status pending',
-                  '',
-                  `Head \`${pr.headRefOid.slice(0, 7)}\`: reviewer status context \`${contextName}\` is still pending.`,
-                  '',
-                  '`decide` fails closed until the configured reviewer status context completes successfully on the current head SHA.',
-                ].join('\n'));
-                core.setFailed(`Required reviewer status context ${contextName} is still pending on the current head SHA.`);
-                return;
-              }
-
-              if (context.state !== 'success') {
-                await upsertPolicyComment([
-                  '**P1 policy:** blocked — reviewer status failing',
-                  '',
-                  `Head \`${pr.headRefOid.slice(0, 7)}\`: reviewer status context \`${contextName}\` is \`${context.state}\`.`,
-                  '',
-                  'Fix the reviewer-reported issue or re-run the reviewer before merge.',
-                ].join('\n'));
-                core.setFailed(`Required reviewer status context ${contextName} is ${context.state} on the current head SHA.`);
-                return;
+            async function hasUnresolvedThreads() {
+              let after = null;
+              while (true) {
+                const threadData = await github.graphql(
+                  `
+                    query ReviewThreads($owner: String!, $repo: String!, $number: Int!, $after: String) {
+                      repository(owner: $owner, name: $repo) {
+                        pullRequest(number: $number) {
+                          reviewThreads(first: 100, after: $after) {
+                            nodes { isResolved isOutdated }
+                            pageInfo { hasNextPage endCursor }
+                          }
+                        }
+                      }
+                    }
+                  `,
+                  { owner, repo, number: prNumber, after },
+                );
+                const rt = threadData.repository.pullRequest.reviewThreads;
+                const { nodes, pageInfo } = rt;
+                if (nodes.some((t) => !t.isResolved && !t.isOutdated)) return true;
+                if (!pageInfo.hasNextPage) return false;
+                after = pageInfo.endCursor;
               }
             }
 
@@ -345,7 +404,20 @@ jobs:
               .filter((comment) => isConfiguredAiComment(comment) && commentMentionsHeadSha(comment, pr.headRefOid))
               .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())[0] ?? null;
             const latestAiEvidence = latestAiOnHead ?? aiCommentOnHead;
-            const hasFreshAiReview = latestAiEvidence != null;
+
+            const latestAiByReviewer = new Map();
+            for (const r of aiOnHead) {
+              const login = normalizeLogin(r.user?.login ?? r.author?.login);
+              if (!latestAiByReviewer.has(login)) {
+                latestAiByReviewer.set(login, r);
+              }
+            }
+            const freshAiReviews = [...latestAiByReviewer.values()];
+            const hasChangesRequestedOnHead = freshAiReviews.some((r) => r.state === 'CHANGES_REQUESTED');
+
+            const hasFreshAiReview =
+              latestAiEvidence != null ||
+              (reviewerStatusesSatisfied && reviewStatusContexts.length > 0 && !hasChangesRequestedOnHead);
 
             if (!hasFreshAiReview) {
               core.info(
@@ -354,7 +426,11 @@ jobs:
               await upsertPolicyComment([
                 '**P1 policy:** blocked — configured reviewer evidence pending',
                 '',
-                `Waiting for a configured AI reviewer to leave current-head output on \`${pr.headRefOid.slice(0, 7)}\` (either a review on that SHA or a reviewer comment that explicitly references it).`,
+                `Waiting for a configured AI reviewer to leave current-head output on \`${pr.headRefOid.slice(0, 7)}\` (a review or comment on that SHA${
+                  reviewStatusContexts.length > 0
+                    ? `, or successful required reviewer status contexts such as \`${reviewStatusContexts.join('`, `')}\` with no \`CHANGES_REQUESTED\` review from a configured reviewer on that SHA`
+                    : ''
+                }).`,
                 '',
                 '`decide` fails closed until reviewer output is observable on the current head SHA. Wait for the automatic reviewer run first. If no reviewer signal appears after roughly 15 seconds, a manual reviewer command is allowed; if review has already started, poll up to 5 minutes and then ask the user before triggering recovery.',
                 '',
@@ -369,21 +445,8 @@ jobs:
             // If it is not yet set, either the engine hasn't run or a race condition exists.
             let residual = labels.find((label) => ['residual:low', 'residual:med', 'residual:high'].includes(label));
 
-            // Deduplicate by reviewer login, keeping the latest review per reviewer on this head SHA.
-            // Mirrors the deduplication logic in p1-residual-risk-engine.yml to avoid stale
-            // CHANGES_REQUESTED from a reviewer who later APPROVED blocking the fallback.
-            const latestAiByReviewer = new Map();
-            for (const r of aiOnHead) {
-              const login = normalizeLogin(r.user?.login ?? r.author?.login);
-              if (!latestAiByReviewer.has(login)) {
-                latestAiByReviewer.set(login, r);
-              }
-            }
-            const freshAiReviews = [...latestAiByReviewer.values()];
-
             // Convergence: if risk:low and a configured AI reviewer approved/commented but residual not yet set, assign it now.
             // Only applies for APPROVED/COMMENTED — not CHANGES_REQUESTED, which the residual engine must handle.
-            const hasChangesRequestedOnHead = freshAiReviews.some((r) => r.state === 'CHANGES_REQUESTED');
             const hasApprovalLikeOnHead = freshAiReviews.some(
               (r) => r.state === 'APPROVED' || r.state === 'COMMENTED',
             );
@@ -397,6 +460,72 @@ jobs:
                 labels: ['residual:low'],
               });
               residual = 'residual:low';
+            }
+
+            const statusOnlyEvidence =
+              reviewerStatusesSatisfied &&
+              reviewStatusContexts.length > 0 &&
+              aiOnHead.length === 0;
+
+            if (!residual && statusOnlyEvidence && risk) {
+              const autofixApplied = labels.includes('autofix:applied');
+              const isControlPlane = labels.includes('control-plane');
+
+              if (risk === 'risk:high') {
+                await github.rest.issues.addLabels({
+                  owner,
+                  repo,
+                  issue_number: prNumber,
+                  labels: ['residual:high'],
+                });
+                residual = 'residual:high';
+              } else if (risk === 'risk:med') {
+                if (isControlPlane) {
+                  await github.rest.issues.addLabels({
+                    owner,
+                    repo,
+                    issue_number: prNumber,
+                    labels: ['residual:med'],
+                  });
+                  residual = 'residual:med';
+                } else {
+                  const unresolved = await hasUnresolvedThreads();
+                  if (unresolved) {
+                    if (!autofixApplied) {
+                      await github.rest.issues.addLabels({
+                        owner,
+                        repo,
+                        issue_number: prNumber,
+                        labels: ['autofix:pending'],
+                      });
+                    } else {
+                      await github.rest.issues.addLabels({
+                        owner,
+                        repo,
+                        issue_number: prNumber,
+                        labels: ['residual:med'],
+                      });
+                      residual = 'residual:med';
+                    }
+                  } else {
+                    await github.rest.issues.addLabels({
+                      owner,
+                      repo,
+                      issue_number: prNumber,
+                      labels: ['residual:low'],
+                    });
+                    residual = 'residual:low';
+                  }
+                }
+              } else if (risk === 'risk:low') {
+                await github.rest.issues.addLabels({
+                  owner,
+                  repo,
+                  issue_number: prNumber,
+                  labels: ['residual:low'],
+                });
+                residual = 'residual:low';
+              }
             }
 
             if (!residual) {
@@ -472,6 +601,9 @@ jobs:
             // No human approval yet. Emit a structured decision request (P1 section 5 format).
             const aiReview = latestAiOnHead;
             const aiEvidence = latestAiOnHead ?? aiCommentOnHead;
+            const reviewerEvidenceSummary = aiEvidence
+              ? `\`${aiEvidence.user?.login ?? aiEvidence.author?.login ?? 'unknown'}\` left current-head output on \`${pr.headRefOid.slice(0, 7)}\``
+              : `required reviewer status contexts succeeded on \`${pr.headRefOid.slice(0, 7)}\` (no GitHub Review on this SHA)`;
             const reviewBody = aiReview?.body?.trim() ?? aiCommentOnHead?.body?.trim() ?? '';
             const reviewSummary = reviewBody
               ? reviewBody.slice(0, 800) + (reviewBody.length > 800 ? '\n\n_(truncated — see full review on the PR timeline)_' : '')
@@ -515,7 +647,7 @@ jobs:
               '',
               '**Automated verification (complete)**',
               `- ✓ Required checks: \`${requiredCheck}\` passed on \`${pr.headRefOid.slice(0, 7)}\``,
-              `- ✓ Configured AI reviewer: \`${aiEvidence?.user?.login ?? aiEvidence?.author?.login ?? 'unknown'}\` left current-head output on \`${pr.headRefOid.slice(0, 7)}\``,
+              `- ✓ Configured AI reviewer: ${reviewerEvidenceSummary}`,
               `- ✓ Branch: current with base`,
               ...(labels.includes('autofix:applied') ? ['- ✓ Resolution loop: ran (safe auto-fixes applied)'] : []),
               '',
