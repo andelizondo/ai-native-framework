@@ -214,11 +214,12 @@ For this repository, automated AI review is requested through the root `.coderab
 For this repository, the intended review order is:
 
 1. CodeRabbit review is requested automatically by app configuration from `.coderabbit.yaml`.
-2. If the expected reviewer output does not appear or does not refresh on the latest head SHA, an authorized collaborator **MAY** explicitly request follow-up work by commenting `@coderabbitai review` or using the host platform's re-review UI.
-3. If the reviewer produces a new commit on the PR branch, automation **MUST** treat that commit like any other new head SHA: rerun required checks, require fresh review evidence where policy says so, and re-evaluate residual risk from the updated state.
-4. The policy layer waits until configured AI review output is observable on the PR timeline.
-5. The residual risk engine reads the latest active review state from the configured AI reviewer set together with all review thread resolution status and the initial risk label.
-6. The residual risk engine sets the `residual:*` label from the combined evidence.
+2. Automation and agents **SHOULD** wait for the automatic reviewer run before taking any manual action. Do not post `@coderabbitai review` during ordinary PR flow just to speed things up or keep checks moving.
+3. If the expected reviewer output does not appear, stays pending unusually long, or does not refresh on the latest head SHA, an authorized collaborator **MAY** explicitly request follow-up work by commenting `@coderabbitai review` or using the host platform's re-review UI as a recovery action.
+4. If the reviewer produces a new commit on the PR branch, automation **MUST** treat that commit like any other new head SHA: rerun required checks, require fresh review evidence where policy says so, and re-evaluate residual risk from the updated state.
+5. The policy layer waits until configured AI review output is observable on the PR timeline.
+6. The residual risk engine reads the latest active review state from the configured AI reviewer set together with all review thread resolution status and the initial risk label.
+7. The residual risk engine sets the `residual:*` label from the combined evidence.
 
 **Review thread resolution ownership:**
 
@@ -234,7 +235,7 @@ Resolving threads without reviewer confirmation is not permitted. Thread resolut
 
 Host-platform note:
 
-- GitHub may allow `@coderabbitai review` comments to trigger follow-up reviewer work even when there is no supported public REST or CLI endpoint for requesting a re-review directly.
+- GitHub may allow `@coderabbitai review` comments to trigger follow-up reviewer work even when there is no supported public REST or CLI endpoint for requesting a re-review directly. Treat this as a recovery tool for a stalled reviewer, not part of the normal PR path.
 - When a bot or app pushes a commit to the PR branch, direct PR-scoped checks may still run normally while some downstream `workflow_run` automation can enter an approval-required or `action_required` state under GitHub's trust model. That host safeguard **MUST NOT** be misinterpreted as a PR policy failure by itself.
 
 ### 3.5 Agent resolution loop
