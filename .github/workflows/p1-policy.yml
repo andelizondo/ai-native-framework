@@ -20,10 +20,10 @@ name: p1-policy
 # residual outcomes as that workflow for the status-only path.
 #
 # Required reviewer status contexts (e.g. CodeRabbit) are often still `pending` when `decide`
-# first runs on the same SHA as `validate-spec`. `decide` polls until each context is
-# success/failure/error or until P1_POLICY_REVIEWER_STATUS_WAIT_SECONDS (default 900s) elapses,
-# so the job stays in progress instead of failing red and forcing empty commits. Override via
-# repo variable P1_POLICY_REVIEWER_STATUS_POLL_INTERVAL_SECONDS (default 10s).
+# first runs on the same SHA as `validate-spec`. `decide` polls until every required context
+# is terminal (success/failure/error) or until P1_POLICY_REVIEWER_STATUS_WAIT_SECONDS (default
+# 900s) elapses — one shared budget for all contexts, not per context. Override poll interval via
+# P1_POLICY_REVIEWER_STATUS_POLL_INTERVAL_SECONDS (default 10s).
 
 on:
   pull_request_target:
@@ -315,44 +315,49 @@ jobs:
             const reviewerStatusPollMs =
               Math.max(5, parseInt(process.env.P1_POLICY_REVIEWER_STATUS_POLL_INTERVAL_SECONDS || '10', 10)) * 1000;
 
-            async function fetchLatestReviewerStatus(contextName) {
+            async function fetchLatestReviewerStatuses() {
               const sr = await github.rest.repos.getCombinedStatusForRef({
                 owner,
                 repo,
                 ref: pr.headRefOid,
               });
-              return latestByStartedAt(
-                sr.data.statuses.filter((status) => status.context === contextName),
-                (status) => status.created_at,
-              );
+              const ctxSet = new Set(reviewStatusContexts);
+              const byContext = new Map();
+              for (const status of sr.data.statuses) {
+                if (!ctxSet.has(status.context)) continue;
+                const prev = byContext.get(status.context);
+                if (
+                  !prev ||
+                  new Date(status.created_at).getTime() > new Date(prev.created_at).getTime()
+                ) {
+                  byContext.set(status.context, status);
+                }
+              }
+              return byContext;
             }
 
             let reviewerStatusesSatisfied = false;
             if (reviewStatusContexts.length > 0) {
+              let latestByContext = await fetchLatestReviewerStatuses();
+              let waitedReviewer = 0;
+              while (waitedReviewer < reviewerStatusWaitMaxMs) {
+                const unresolved = reviewStatusContexts.filter((name) => {
+                  const st = latestByContext.get(name);
+                  return !st || st.state === 'pending';
+                });
+                if (unresolved.length === 0) break;
+                core.info(
+                  `Required reviewer status(es) still missing or pending (${unresolved.join(', ')}) on ${pr.headRefOid.slice(0, 7)}; waiting ${reviewerStatusPollMs}ms (${Math.round(
+                    waitedReviewer / 1000,
+                  )}s / ${Math.round(reviewerStatusWaitMaxMs / 1000)}s shared budget).`,
+                );
+                await sleepMs(reviewerStatusPollMs);
+                waitedReviewer += reviewerStatusPollMs;
+                latestByContext = await fetchLatestReviewerStatuses();
+              }
+
               for (const contextName of reviewStatusContexts) {
-                let context = await fetchLatestReviewerStatus(contextName);
-                let waitedReviewer = 0;
-                while (
-                  (!context || context.state === 'pending') &&
-                  waitedReviewer < reviewerStatusWaitMaxMs
-                ) {
-                  if (!context) {
-                    core.info(
-                      `Required reviewer status '${contextName}' not visible yet on ${pr.headRefOid.slice(0, 7)}; waiting ${reviewerStatusPollMs}ms (${Math.round(
-                        waitedReviewer / 1000,
-                      )}s / ${Math.round(reviewerStatusWaitMaxMs / 1000)}s max).`,
-                    );
-                  } else {
-                    core.info(
-                      `Required reviewer status '${contextName}' is ${context.state} on ${pr.headRefOid.slice(0, 7)}; waiting ${reviewerStatusPollMs}ms (${Math.round(
-                        waitedReviewer / 1000,
-                      )}s / ${Math.round(reviewerStatusWaitMaxMs / 1000)}s max).`,
-                    );
-                  }
-                  await sleepMs(reviewerStatusPollMs);
-                  waitedReviewer += reviewerStatusPollMs;
-                  context = await fetchLatestReviewerStatus(contextName);
-                }
+                const context = latestByContext.get(contextName);
 
                 if (!context) {
                   await upsertPolicyComment([
