@@ -50,6 +50,7 @@ Agents executing P1 **MUST** run the following toolchain before any approval or 
 Required tools:
 
 - **Canonical validation** — `npm run validate` (lint + schema validation). Failing this is an unconditional blocker.
+- **Configured AI reviewer status context** — repository-configured reviewer status for the current head SHA (currently `CodeRabbit`). Missing, pending, or failing reviewer status is an unconditional blocker.
 - **Automated AI review** — Repository-configured AI reviewer set (currently CodeRabbit via app configuration). Missing review evidence on the current head SHA is an unconditional blocker.
 - **Branch freshness check** — Comparison of PR head ancestry against the protected base branch. Being behind is a blocker until resolved automatically or flagged with `sync:needed`.
 
@@ -170,10 +171,12 @@ The engine **MUST NOT** skip a configured reviewer step and assign residual risk
 1. Execute required validation, lint, typecheck, test, and build commands for the repository.
 2. Run security and dependency checks where applicable.
 3. Fail closed when required checks are missing or inconclusive.
+4. Wait for every configured merge gate to finish on the current head SHA before any approval or merge attempt. In this repository, that includes `validate`, `decide`, and the configured reviewer status context.
 
 No PR should be approved or merged without passing required checks.
+Agents **MUST NOT** merge a PR while any configured merge gate is still pending, even if GitHub or another merge executor would technically allow the merge because branch protection is missing or misconfigured. Host protection is a second line of defense, not the agent's source of truth.
 
-The canonical required check for this repository is `validate` (`npm run validate`). All additional toolchain checks should be registered as required checks in branch protection or as blocking policy gates.
+The canonical required checks for this repository are `validate`, `decide`, and the configured reviewer status context (`CodeRabbit`). All additional toolchain checks should be registered as required checks in branch protection or as blocking policy gates.
 
 ### 2.5 Enforce branch freshness (automated)
 
@@ -206,7 +209,7 @@ Automated review must leave an auditable artifact in the PR.
 
 Repository-specific reviewer guidance **SHOULD** live in versioned files such as `.coderabbit.yaml` or equivalent backend configuration so the AI backend can be swapped without changing the playbook's policy.
 
-For this repository, automated AI review is requested through the root `.coderabbit.yaml` configuration, which enables CodeRabbit auto-review for non-draft pull requests. The policy check **MUST** verify that expected configured AI review output actually appeared on the PR for the current head SHA before it treats review as complete.
+For this repository, automated AI review is requested through the root `.coderabbit.yaml` configuration, which enables CodeRabbit auto-review for non-draft pull requests. The policy check **MUST** verify both that the reviewer status context completed successfully and that expected configured AI review output actually appeared on the PR for the current head SHA before it treats review as complete.
 
 For this repository, the intended review order is:
 
@@ -343,6 +346,7 @@ When the PR is within policy and all required checks have passed:
 
 Merge must be blocked if required checks are pending, stale, or bypassed.
 Merge must also be blocked if the PR branch is behind the protected base branch.
+Visible success from GitHub's merge UI is not sufficient by itself; automation **MUST** independently verify that every configured merge gate for the current head SHA is complete and green before merging.
 
 ### 6.5 Convergence rule
 

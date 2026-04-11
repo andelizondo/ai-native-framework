@@ -10,7 +10,9 @@ queue_rules:
       - -draft
       - -label = sync:needed
       - check-success = validate
+      - check-success = CodeRabbit
       - check-success = decide
     merge_conditions:
       - check-success = validate
+      - check-success = CodeRabbit
       - check-success = decide

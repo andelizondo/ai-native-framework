@@ -13,6 +13,7 @@ This file stores durable repository memory for agents. It is not a transcript an
 - The canonical validation command is `npm run validate`.
 - The framework is explicitly provider-agnostic at the core layer.
 - For this repository, pull requests should be opened ready for review by default unless the user explicitly asks for a draft PR.
+- For this repository, agents must wait for every configured merge gate on the current head SHA to complete successfully before merging, even if host branch protection is missing or misconfigured.
 
 ## Current Bundle State
 
@@ -32,6 +33,7 @@ This file stores durable repository memory for agents. It is not a transcript an
 - 2026-04-11: Standardized P1 on CodeRabbit auto-review via `.coderabbit.yaml` and moved low-risk merge execution to Mergify via `.mergify.yml`.
 - 2026-04-11: Tightened Dependabot scheduling for `npm` and GitHub Actions on `main`, grouped routine version updates, and labeled dependency PRs for the low-risk automation path.
 - 2026-04-11: Set repository-local agent behavior to open pull requests ready for review by default; draft PRs require an explicit user request.
+- 2026-04-11: Tightened P1 and `main` protection so merges wait for the full merge-gate set (`validate`, `decide`, and reviewer status) even if host protection is misconfigured.
 
 ## Update Rules
 

@@ -7,12 +7,9 @@ name: p1-policy
 # a structured decision request for the human.
 #
 # Humans receive a specific, bounded decision request — not an open-ended review task.
-# The check fails when a genuine human decision is required or when required evidence
-# is conclusively failed. If evidence is not yet available for the current head SHA
-# (for example, validate is still pending or AI review evidence has not yet been posted),
-# this job exits success, emits a waiting/deferred state, and relies on branch protection
-# plus workflow_run re-triggers after validate-spec completes (see getPrNumber fallback
-# for empty pull_requests).
+# The check fails closed whenever required evidence is missing, pending, or failed on the
+# current head SHA. That makes `decide` a belt-and-suspenders merge blocker even when host
+# branch protection is absent or misconfigured.
 
 on:
   pull_request_target:
@@ -37,6 +34,7 @@ jobs:
         env:
           REQUIRED_CHECK: validate
           CONFIGURED_AI_REVIEWERS: ${{ vars.CONFIGURED_AI_REVIEWERS || 'coderabbitai,coderabbit' }}
+          REQUIRED_AI_REVIEW_STATUS_CONTEXTS: ${{ vars.REQUIRED_AI_REVIEW_STATUS_CONTEXTS || 'CodeRabbit' }}
         with:
           script: |
             const owner = context.repo.owner;
@@ -152,6 +150,12 @@ jobs:
               return (login ?? '').replace(/\[bot\]$/i, '').toLowerCase();
             }
 
+            function latestByStartedAt(items, getStartedAt) {
+              return [...items].sort(
+                (a, b) => new Date(getStartedAt(b) || 0).getTime() - new Date(getStartedAt(a) || 0).getTime(),
+              )[0] ?? null;
+            }
+
             function isConfiguredAiReview(review) {
               const rawLogin = review.user?.login ?? review.author?.login ?? '';
               const type = review.user?.type ?? review.author?.type;
@@ -202,23 +206,34 @@ jobs:
             const requiredCheck = process.env.REQUIRED_CHECK;
             // Sort descending by start time so we always evaluate the most recent run,
             // not an older run that may have a stale conclusion.
-            const validateCheck = checksResponse.data.check_runs
-              .filter((checkRun) => checkRun.name === requiredCheck)
-              .sort((a, b) => new Date(b.started_at).getTime() - new Date(a.started_at).getTime())[0] ?? null;
+            const validateCheck = latestByStartedAt(
+              checksResponse.data.check_runs.filter((checkRun) => checkRun.name === requiredCheck),
+              (checkRun) => checkRun.started_at,
+            );
+
+            const statusResponse = await github.rest.repos.getCombinedStatusForRef({
+              owner,
+              repo,
+              ref: pr.headRefOid,
+            });
+
+            const reviewStatusContexts = (process.env.REQUIRED_AI_REVIEW_STATUS_CONTEXTS || '')
+              .split(',')
+              .map((s) => s.trim())
+              .filter(Boolean);
 
             if (!validateCheck) {
               core.info(
                 `Required check '${requiredCheck}' is not registered yet on ${pr.headRefOid.slice(0, 7)}; deferring (validate gate still blocks merge).`,
               );
               await upsertPolicyComment([
-                '**P1 policy:** waiting — validation not registered yet',
+                '**P1 policy:** blocked — validation not registered yet',
                 '',
                 `Head \`${pr.headRefOid.slice(0, 7)}\`: no \`${requiredCheck}\` check run is visible on this SHA yet.`,
                 '',
-                'This `decide` job exits **success** so it does not race `validate-spec` on the same push. Branch protection still requires `validate` before merge.',
-                '',
-                'A full policy decision will replace this comment after `validate` completes and this check re-evaluates (including via `workflow_run`).',
+                '`decide` fails closed until the expected validation check is visible for the current head SHA.',
               ].join('\n'));
+              core.setFailed(`Required check ${requiredCheck} is not registered yet on the current head SHA.`);
               return;
             }
 
@@ -227,14 +242,13 @@ jobs:
                 `Required check '${requiredCheck}' is still ${validateCheck.status} on ${pr.headRefOid.slice(0, 7)}; deferring.`,
               );
               await upsertPolicyComment([
-                '**P1 policy:** waiting — validation in progress',
+                '**P1 policy:** blocked — validation in progress',
                 '',
                 `Head \`${pr.headRefOid.slice(0, 7)}\`: \`${requiredCheck}\` is \`${validateCheck.status}\` (not completed yet).`,
                 '',
-                'This `decide` job exits **success** to avoid failing while validation is still running. Merge remains blocked until `validate` completes successfully.',
-                '',
-                'This comment updates on every evaluation so it always reflects the **current** head SHA.',
+                '`decide` fails closed until validation completes successfully on the current head SHA.',
               ].join('\n'));
+              core.setFailed(`Required check ${requiredCheck} is still ${validateCheck.status} on the current head SHA.`);
               return;
             }
 
@@ -251,6 +265,49 @@ jobs:
               ].join('\n'));
               core.setFailed(`Required check ${requiredCheck} is not successful.`);
               return;
+            }
+
+            for (const contextName of reviewStatusContexts) {
+              const context = latestByStartedAt(
+                statusResponse.data.statuses.filter((status) => status.context === contextName),
+                (status) => status.created_at,
+              );
+
+              if (!context) {
+                await upsertPolicyComment([
+                  '**P1 policy:** blocked — reviewer status missing',
+                  '',
+                  `Head \`${pr.headRefOid.slice(0, 7)}\`: no status context named \`${contextName}\` is visible yet.`,
+                  '',
+                  '`decide` fails closed until the configured reviewer status context is visible and successful on the current head SHA.',
+                ].join('\n'));
+                core.setFailed(`Required reviewer status context ${contextName} is not registered yet on the current head SHA.`);
+                return;
+              }
+
+              if (context.state === 'pending') {
+                await upsertPolicyComment([
+                  '**P1 policy:** blocked — reviewer status pending',
+                  '',
+                  `Head \`${pr.headRefOid.slice(0, 7)}\`: reviewer status context \`${contextName}\` is still pending.`,
+                  '',
+                  '`decide` fails closed until the configured reviewer status context completes successfully on the current head SHA.',
+                ].join('\n'));
+                core.setFailed(`Required reviewer status context ${contextName} is still pending on the current head SHA.`);
+                return;
+              }
+
+              if (context.state !== 'success') {
+                await upsertPolicyComment([
+                  '**P1 policy:** blocked — reviewer status failing',
+                  '',
+                  `Head \`${pr.headRefOid.slice(0, 7)}\`: reviewer status context \`${contextName}\` is \`${context.state}\`.`,
+                  '',
+                  'Fix the reviewer-reported issue or re-run the reviewer before merge.',
+                ].join('\n'));
+                core.setFailed(`Required reviewer status context ${contextName} is ${context.state} on the current head SHA.`);
+                return;
+              }
             }
 
             // ── Gate 3: configured AI review evidence ───────────────────────────────
@@ -270,17 +327,18 @@ jobs:
 
             if (!hasFreshAiReview) {
               core.info(
-                `No configured AI review on head ${pr.headRefOid.slice(0, 7)} yet; exiting success to avoid blocking while the reviewer initializes. The pull_request_review trigger will re-evaluate once a review is submitted.`,
+                `No configured AI review on head ${pr.headRefOid.slice(0, 7)} yet; failing closed until review evidence appears.`,
               );
               await upsertPolicyComment([
-                '**P1 policy:** waiting — configured reviewer evidence pending',
+                '**P1 policy:** blocked — configured reviewer evidence pending',
                 '',
                 `Waiting for a configured AI reviewer to submit a review on head \`${pr.headRefOid.slice(0, 7)}\`.`,
                 '',
-                'This `decide` job exits **success** so it does not race the AI reviewer on the same push. The `pull_request_review` trigger re-evaluates policy once a review is submitted.',
+                '`decide` fails closed until reviewer output is observable on the current head SHA.',
                 '',
                 'If automatic review did not trigger, request a follow-up review via the GitHub PR UI or the configured AI reviewer command for this repository.',
               ].join('\n'));
+              core.setFailed('Configured AI review has not been observed on the current head SHA yet.');
               return;
             }
 
@@ -321,13 +379,13 @@ jobs:
 
             if (!residual) {
               await upsertPolicyComment([
-                '**P1 policy:** waiting — residual risk pending',
+                '**P1 policy:** blocked — residual risk pending',
                 '',
                 'Configured AI review evidence is present, but the residual risk engine has not yet set a `residual:*` label.',
                 '',
-                'This resolves automatically. If it does not resolve within a few minutes, check the `p1-residual-risk-engine` workflow run for errors.',
+                '`decide` fails closed until the residual risk engine updates the current head SHA.',
               ].join('\n'));
-              core.info('Residual risk not set yet; deferring until residual engine updates labels.');
+              core.setFailed('Residual risk label is not set yet on the current head SHA.');
               return;
             }
 

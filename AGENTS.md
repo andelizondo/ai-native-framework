@@ -42,6 +42,7 @@ If you change schema, examples, policy, templates, or playbooks, run `npm run va
 - Prefer updating the framework and playbooks together when a process change affects repository behavior.
 - Keep repository-local agent instructions concise. Link outward instead of duplicating long prose.
 - Preserve the distinction between stable memory and temporary working notes.
+- Do not merge a pull request in this repository until every configured merge gate on the current head SHA is complete and green. This rule still applies if GitHub branch protection is missing or misconfigured.
 - When publishing changes with a pull request in this repository, open the PR ready for review by default. Use a draft PR only when the user explicitly asks for draft state.
 
 ## Change Discipline
