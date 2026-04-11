@@ -2,7 +2,7 @@
 
 ## Objective
 
-Install and maintain a repository-local runtime standard for agents using three explicit files:
+Install and maintain a repository-local runtime standard for agents using core root files plus an optional `skills/` directory for deeper workflow bodies:
 
 - `AGENTS.md` for bootstrap and authority
 - `SKILLS.md` for skill discovery
@@ -10,7 +10,7 @@ Install and maintain a repository-local runtime standard for agents using three 
 
 Repositories with enough recurring workflows **SHOULD** also add a `skills/` directory that contains the full skill bodies loaded on demand from the root index.
 
-P2 makes agent behavior inspectable, versioned, and portable across coding environments. It complements P0 and P1 by defining how an agent enters the repository, how it chooses a procedure, and how it preserves durable context between sessions.
+P2 makes agent behavior inspectable, versioned, and portable across coding environments. It complements P0 and P1 by defining how an agent enters the repository, how it chooses a procedure, and how it preserves durable context between sessions. Specs, policy, and playbooks remain the durable operating system; the runtime bundle is the bootstrap surface that points agents toward them.
 
 ## When to run
 

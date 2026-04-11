@@ -66,7 +66,7 @@ The playbooks turn repeated operational work into reusable procedures:
 2. [`docs/P1_PR_EXECUTION_LOOP.md`](docs/P1_PR_EXECUTION_LOOP.md)  
    Automate pull request classification, review, residual-risk decisions, branch freshness, safe autofix, policy checks, and low-risk merge flow.
 3. [`docs/P2_AGENT_CONTEXT_BUNDLE.md`](docs/P2_AGENT_CONTEXT_BUNDLE.md)  
-   Install and maintain the repository-local runtime standard for agents using `AGENTS.md`, `SKILLS.md`, and `MEMORY.md`.
+   Install and maintain the repository-local runtime standard for agents using `AGENTS.md`, `SKILLS.md`, `skills/`, and `MEMORY.md`.
 
 Together:
 
