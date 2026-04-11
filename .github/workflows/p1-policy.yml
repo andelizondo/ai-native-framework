@@ -279,7 +279,7 @@ jobs:
                 '',
                 'This `decide` job exits **success** so it does not race the AI reviewer on the same push. The `pull_request_review` trigger re-evaluates policy once a review is submitted.',
                 '',
-                'If automatic review did not trigger, request a follow-up review via the GitHub PR UI or comment `@coderabbitai review`.',
+                'If automatic review did not trigger, request a follow-up review via the GitHub PR UI or the configured AI reviewer command for this repository.',
               ].join('\n'));
               return;
             }
