@@ -4,7 +4,7 @@ This repository is an AI-native operating system for building and running produc
 
 The framework is designed for agents to execute structured work under explicit constraints, while humans retain authority for strategy, ambiguity, and high-stakes decisions.
 
-## What This Repository Contains
+## Core framework artifacts
 
 - Machine-validated product and slice specifications
 - Event and governance policy
