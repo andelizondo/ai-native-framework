@@ -215,11 +215,13 @@ For this repository, the intended review order is:
 
 1. CodeRabbit review is requested automatically by app configuration from `.coderabbit.yaml`.
 2. Automation and agents **SHOULD** wait for the automatic reviewer run before taking any manual action. Do not post `@coderabbitai review` during ordinary PR flow just to speed things up or keep checks moving.
-3. If the expected reviewer output does not appear, stays pending unusually long, or does not refresh on the latest head SHA, an authorized collaborator **MAY** explicitly request follow-up work by commenting `@coderabbitai review` or using the host platform's re-review UI as a recovery action.
-4. If the reviewer produces a new commit on the PR branch, automation **MUST** treat that commit like any other new head SHA: rerun required checks, require fresh review evidence where policy says so, and re-evaluate residual risk from the updated state.
-5. The policy layer waits until configured AI review output is observable on the PR timeline.
-6. The residual risk engine reads the latest active review state from the configured AI reviewer set together with all review thread resolution status and the initial risk label.
-7. The residual risk engine sets the `residual:*` label from the combined evidence.
+3. If no CodeRabbit signal appears at all on a new head SHA after roughly 15 seconds, an authorized collaborator **MAY** explicitly request follow-up work by commenting `@coderabbitai review` or using the host platform's re-review UI without additional approval, because the automatic trigger likely did not fire.
+4. If CodeRabbit has already posted a "review in progress" style comment or otherwise clearly started on the current head SHA, poll for up to 5 minutes in 1-minute intervals before taking recovery action.
+5. If CodeRabbit is still not finished after that 5-minute wait window, ask the user whether to keep waiting or trigger recovery with `@coderabbitai review`. Do not post the manual trigger automatically once the reviewer has clearly started.
+6. If the reviewer produces a new commit on the PR branch, automation **MUST** treat that commit like any other new head SHA: rerun required checks, require fresh review evidence where policy says so, and re-evaluate residual risk from the updated state.
+7. The policy layer waits until configured AI review output is observable on the PR timeline.
+8. The residual risk engine reads the latest active review state from the configured AI reviewer set together with all review thread resolution status and the initial risk label.
+9. The residual risk engine sets the `residual:*` label from the combined evidence.
 
 **Review thread resolution ownership:**
 

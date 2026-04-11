@@ -334,9 +334,9 @@ jobs:
                 '',
                 `Waiting for a configured AI reviewer to submit a review on head \`${pr.headRefOid.slice(0, 7)}\`.`,
                 '',
-                '`decide` fails closed until reviewer output is observable on the current head SHA. Wait for the automatic reviewer run first; only use a manual reviewer command if the reviewer is clearly stalled or never starts on this head.',
+                '`decide` fails closed until reviewer output is observable on the current head SHA. Wait for the automatic reviewer run first. If no reviewer signal appears after roughly 15 seconds, a manual reviewer command is allowed; if review has already started, poll up to 5 minutes and then ask the user before triggering recovery.',
                 '',
-                'If the reviewer remains missing or stalled after a reasonable wait, request a follow-up review via the GitHub PR UI or the configured AI reviewer command for this repository.',
+                'Use a manual reviewer command only for a missing trigger after the short initial wait, or after the 5-minute in-progress wait window with explicit user approval.',
               ].join('\n'));
               core.setFailed('Configured AI review has not been observed on the current head SHA yet.');
               return;
