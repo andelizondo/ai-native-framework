@@ -235,6 +235,13 @@ When threads are not resolved by the reviewer after fixes are confirmed, automat
 
 Resolving threads without reviewer confirmation is not permitted. Thread resolution without confirmation bypasses verification and defeats the purpose of the review gate.
 
+**Finding closure before merge (configured AI reviewer):**
+
+1. A green reviewer status context is **necessary** but **not sufficient**. The merging agent **MUST** treat review comments as work items.
+2. **Blocking findings** (including those surfaced via CodeRabbit’s request-changes workflow when enabled) **MUST** be fixed on the head SHA or explicitly waived by the human maintainer in the PR timeline with a recorded rationale.
+3. **Non-blocking suggestions** remain the merging agent’s responsibility: fix when reasonable; otherwise reply with a clear decision per thread or in one summary comment that enumerates each item. “Looks good” without addressing open threads is not sufficient.
+4. Agents **MUST NOT** close or resolve review threads solely to satisfy GitHub’s “conversations resolved” requirement unless the substance above is already visible on the PR.
+
 Host-platform note:
 
 - GitHub may allow `@coderabbitai review` comments to trigger follow-up reviewer work even when there is no supported public REST or CLI endpoint for requesting a re-review directly. Treat this as a recovery tool for a stalled reviewer, not part of the normal PR path.

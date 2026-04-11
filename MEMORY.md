@@ -37,6 +37,7 @@ This file stores durable repository memory for agents. It is not a transcript an
 - 2026-04-11: Tightened P1 and `main` protection so merges wait for the full merge-gate set (`validate`, `decide`, and reviewer status) even if host protection is misconfigured.
 - 2026-04-11: Standardized CodeRabbit handling so automatic review is the default path and manual `@coderabbitai review` comments are only for stalled-review recovery.
 - 2026-04-11: Refined CodeRabbit recovery policy: auto-trigger only if no reviewer signal appears after about 15 seconds; once review has clearly started, poll up to 5 minutes and then ask the user before posting `@coderabbitai review`.
+- 2026-04-11: CodeRabbit `request_changes_workflow` enabled; P1/AGENTS require visible per-finding closure (fix or stated decision) before merge—green status alone is not enough.
 
 ## Update Rules
 
