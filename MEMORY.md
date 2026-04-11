@@ -39,6 +39,7 @@ This file stores durable repository memory for agents. It is not a transcript an
 - 2026-04-11: Refined CodeRabbit recovery policy: auto-trigger only if no reviewer signal appears after about 15 seconds; once review has clearly started, poll up to 5 minutes and then ask the user before posting `@coderabbitai review`.
 - 2026-04-11: CodeRabbit `request_changes_workflow` enabled; P1/AGENTS require visible per-finding closure (fix or stated decision) before merge—green status alone is not enough.
 - 2026-04-11: `p1-policy` `decide` polls required reviewer commit statuses (shared wait budget across contexts; `P1_POLICY_REVIEWER_STATUS_*` vars) so the check stays in progress while CodeRabbit is pending instead of failing immediately.
+- 2026-04-11: `decide` refreshes issue labels after earlier gates and polls for a `residual:*` label (`P1_POLICY_RESIDUAL_LABEL_*` vars) so the residual risk engine can land slightly after `decide` starts without failing red on a stale label read.
 
 ## Update Rules
 
