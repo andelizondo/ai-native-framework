@@ -37,7 +37,8 @@ Implement the selected change in the repository and carry it through validation,
 4. Publish through a PR and follow P1 until the current head SHA is converged.
 5. Reply directly on each CodeRabbit thread with the resolution details when a finding is fixed, deferred, or intentionally unchanged.
 6. If host-side required checks are stale or cancelled but the current head otherwise satisfies policy, rerun the required job on the current head before diagnosing deeper causes.
-7. Merge only when every configured merge gate for the current head is complete and green.
+7. Before treating the work as fully closed, ask whether the completed workflow revealed durable learnings that should update the framework bundle or a playbook.
+8. Merge only when every configured merge gate for the current head is complete and green.
 
 ## Decision Rules
 

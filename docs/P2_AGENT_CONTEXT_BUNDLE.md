@@ -133,6 +133,7 @@ Before closing P2:
 - `SKILLS.md` changes when the routing index changes.
 - `skills/*.md` changes when a recurring workflow is added, retired, or materially changed.
 - `MEMORY.md` changes when a durable fact changes, a decision is made, or an open loop is closed or created.
+- After any non-trivial completed workflow, evaluate whether the work produced durable learnings that should update `MEMORY.md`, `SKILLS.md`, `skills/*.md`, `AGENTS.md`, or a playbook before the task is treated as fully closed.
 - Temporary working notes should graduate into schema, playbooks, or code comments when they become durable policy.
 
 ## Recommended template discipline
