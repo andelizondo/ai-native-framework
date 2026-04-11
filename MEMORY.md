@@ -12,6 +12,7 @@ This file stores durable repository memory for agents. It is not a transcript an
   - `P2` for the repository-local agent context bundle standard
 - The canonical validation command is `npm run validate`.
 - The framework is explicitly provider-agnostic at the core layer.
+- For this repository, pull requests should be opened ready for review by default unless the user explicitly asks for a draft PR.
 
 ## Current Bundle State
 
@@ -30,6 +31,7 @@ This file stores durable repository memory for agents. It is not a transcript an
 - 2026-04-10: Added `P2 - Agent context bundle` as a first-class playbook in the framework.
 - 2026-04-11: Standardized P1 on CodeRabbit auto-review via `.coderabbit.yaml` and moved low-risk merge execution to Mergify via `.mergify.yml`.
 - 2026-04-11: Tightened Dependabot scheduling for `npm` and GitHub Actions on `main`, grouped routine version updates, and labeled dependency PRs for the low-risk automation path.
+- 2026-04-11: Set repository-local agent behavior to open pull requests ready for review by default; draft PRs require an explicit user request.
 
 ## Update Rules
 
