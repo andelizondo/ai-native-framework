@@ -18,6 +18,12 @@ name: p1-policy
 # When the configured reviewer reports success via commit status (e.g. CodeRabbit) but never
 # submits a GitHub Review, `p1-residual-risk-engine` does not run; `decide` applies the same
 # residual outcomes as that workflow for the status-only path.
+#
+# Required reviewer status contexts (e.g. CodeRabbit) are often still `pending` when `decide`
+# first runs on the same SHA as `validate-spec`. `decide` polls until each context is
+# success/failure/error or until P1_POLICY_REVIEWER_STATUS_WAIT_SECONDS (default 900s) elapses,
+# so the job stays in progress instead of failing red and forcing empty commits. Override via
+# repo variable P1_POLICY_REVIEWER_STATUS_POLL_INTERVAL_SECONDS (default 10s).
 
 on:
   pull_request_target:
@@ -43,6 +49,8 @@ jobs:
           REQUIRED_CHECK: validate
           P1_POLICY_VALIDATE_WAIT_SECONDS: ${{ vars.P1_POLICY_VALIDATE_WAIT_SECONDS || '180' }}
           P1_POLICY_VALIDATE_POLL_INTERVAL_SECONDS: ${{ vars.P1_POLICY_VALIDATE_POLL_INTERVAL_SECONDS || '10' }}
+          P1_POLICY_REVIEWER_STATUS_WAIT_SECONDS: ${{ vars.P1_POLICY_REVIEWER_STATUS_WAIT_SECONDS || '900' }}
+          P1_POLICY_REVIEWER_STATUS_POLL_INTERVAL_SECONDS: ${{ vars.P1_POLICY_REVIEWER_STATUS_POLL_INTERVAL_SECONDS || '10' }}
           CONFIGURED_AI_REVIEWERS: ${{ vars.CONFIGURED_AI_REVIEWERS || 'coderabbitai,coderabbit' }}
           REQUIRED_AI_REVIEW_STATUS_CONTEXTS: ${{ vars.REQUIRED_AI_REVIEW_STATUS_CONTEXTS || 'CodeRabbit' }}
         with:
@@ -297,46 +305,76 @@ jobs:
               return;
             }
 
-            const statusResponse = await github.rest.repos.getCombinedStatusForRef({
-              owner,
-              repo,
-              ref: pr.headRefOid,
-            });
-
             const reviewStatusContexts = (process.env.REQUIRED_AI_REVIEW_STATUS_CONTEXTS || '')
               .split(',')
               .map((s) => s.trim())
               .filter(Boolean);
 
+            const reviewerStatusWaitMaxMs =
+              Math.max(0, parseInt(process.env.P1_POLICY_REVIEWER_STATUS_WAIT_SECONDS || '900', 10)) * 1000;
+            const reviewerStatusPollMs =
+              Math.max(5, parseInt(process.env.P1_POLICY_REVIEWER_STATUS_POLL_INTERVAL_SECONDS || '10', 10)) * 1000;
+
+            async function fetchLatestReviewerStatus(contextName) {
+              const sr = await github.rest.repos.getCombinedStatusForRef({
+                owner,
+                repo,
+                ref: pr.headRefOid,
+              });
+              return latestByStartedAt(
+                sr.data.statuses.filter((status) => status.context === contextName),
+                (status) => status.created_at,
+              );
+            }
+
             let reviewerStatusesSatisfied = false;
             if (reviewStatusContexts.length > 0) {
               for (const contextName of reviewStatusContexts) {
-                const context = latestByStartedAt(
-                  statusResponse.data.statuses.filter((status) => status.context === contextName),
-                  (status) => status.created_at,
-                );
+                let context = await fetchLatestReviewerStatus(contextName);
+                let waitedReviewer = 0;
+                while (
+                  (!context || context.state === 'pending') &&
+                  waitedReviewer < reviewerStatusWaitMaxMs
+                ) {
+                  if (!context) {
+                    core.info(
+                      `Required reviewer status '${contextName}' not visible yet on ${pr.headRefOid.slice(0, 7)}; waiting ${reviewerStatusPollMs}ms (${Math.round(
+                        waitedReviewer / 1000,
+                      )}s / ${Math.round(reviewerStatusWaitMaxMs / 1000)}s max).`,
+                    );
+                  } else {
+                    core.info(
+                      `Required reviewer status '${contextName}' is ${context.state} on ${pr.headRefOid.slice(0, 7)}; waiting ${reviewerStatusPollMs}ms (${Math.round(
+                        waitedReviewer / 1000,
+                      )}s / ${Math.round(reviewerStatusWaitMaxMs / 1000)}s max).`,
+                    );
+                  }
+                  await sleepMs(reviewerStatusPollMs);
+                  waitedReviewer += reviewerStatusPollMs;
+                  context = await fetchLatestReviewerStatus(contextName);
+                }
 
                 if (!context) {
                   await upsertPolicyComment([
-                    '**P1 policy:** blocked — reviewer status missing',
+                    '**P1 policy:** blocked — reviewer status missing (timeout)',
                     '',
-                    `Head \`${pr.headRefOid.slice(0, 7)}\`: no status context named \`${contextName}\` is visible yet.`,
+                    `Head \`${pr.headRefOid.slice(0, 7)}\`: no status context named \`${contextName}\` appeared within the wait window.`,
                     '',
-                    '`decide` fails closed until the configured reviewer status context is visible and successful on the current head SHA.',
+                    'Wait for the configured reviewer to register a status on this SHA, or increase `P1_POLICY_REVIEWER_STATUS_WAIT_SECONDS` if reviews routinely start later.',
                   ].join('\n'));
-                  core.setFailed(`Required reviewer status context ${contextName} is not registered yet on the current head SHA.`);
+                  core.setFailed(`Required reviewer status context ${contextName} did not appear within the wait window.`);
                   return;
                 }
 
                 if (context.state === 'pending') {
                   await upsertPolicyComment([
-                    '**P1 policy:** blocked — reviewer status pending',
+                    '**P1 policy:** blocked — reviewer status pending (timeout)',
                     '',
-                    `Head \`${pr.headRefOid.slice(0, 7)}\`: reviewer status context \`${contextName}\` is still pending.`,
+                    `Head \`${pr.headRefOid.slice(0, 7)}\`: reviewer status context \`${contextName}\` stayed pending longer than the configured wait window.`,
                     '',
-                    '`decide` fails closed until the configured reviewer status context completes successfully on the current head SHA.',
+                    'If the reviewer is still running, increase `P1_POLICY_REVIEWER_STATUS_WAIT_SECONDS` or wait for it to finish and re-run `decide` via a follow-up workflow event.',
                   ].join('\n'));
-                  core.setFailed(`Required reviewer status context ${contextName} is still pending on the current head SHA.`);
+                  core.setFailed(`Required reviewer status context ${contextName} stayed pending beyond the wait window.`);
                   return;
                 }
 
