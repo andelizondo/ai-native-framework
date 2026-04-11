@@ -29,6 +29,11 @@ name: p1-policy
 # After other gates, `decide` refreshes issue labels, then polls until a `residual:*` label appears or
 # P1_POLICY_RESIDUAL_LABEL_WAIT_SECONDS (default 180s) elapses. Poll interval:
 # P1_POLICY_RESIDUAL_LABEL_POLL_INTERVAL_SECONDS (default 10s).
+#
+# Concurrency: the same head SHA is often reached by many events at once (e.g. `pull_request_target` +
+# `pull_request_review` + several `workflow_run` completions). Without a group, multiple `decide` jobs
+# poll in parallel (wasting minutes) and the commit shows many duplicate green `decide` checks. One
+# run per head SHA is enough; cancel in-flight duplicates.
 
 on:
   pull_request_target:
@@ -38,6 +43,10 @@ on:
   workflow_run:
     workflows: ["validate-spec", "p1-risk-classification", "p1-residual-risk-engine", "p1-branch-sync", "p1-autofix"]
     types: [completed]
+
+concurrency:
+  group: p1-policy-decide-${{ github.event_name == 'workflow_run' && github.event.workflow_run.head_sha || github.event.pull_request.head.sha || github.sha }}
+  cancel-in-progress: true
 
 permissions:
   contents: read
