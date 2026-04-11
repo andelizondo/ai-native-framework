@@ -9,7 +9,7 @@ This repository defines an AI-native operating framework for product-led compani
 Read these in order before making non-trivial changes:
 
 1. `README.md`
-2. `docs/AI_NATIVE_FRAMEWORK_COMPLETE.md`
+2. `docs/AI_NATIVE_FRAMEWORK.md`
 3. `docs/PLAYBOOKS.md`
 4. The specific playbook or spec files relevant to the task
 5. `SKILLS.md`
@@ -68,7 +68,7 @@ Escalate or stop when any of these are true:
 - `spec/examples/` - validated product and slice examples
 - `spec/policy/` - event and governance policy
 - `agents/interfaces.yaml` - logical tool interfaces for agent workflows
-- `docs/AI_NATIVE_FRAMEWORK_COMPLETE.md` - normative framework prose
+- `docs/AI_NATIVE_FRAMEWORK.md` - normative framework prose
 - `docs/PLAYBOOKS.md` - playbook index
 - `docs/P0_REPOSITORY_FOUNDATION.md` - repository bootstrap
 - `docs/P1_PR_EXECUTION_LOOP.md` - PR automation policy

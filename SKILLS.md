@@ -16,7 +16,7 @@ This file maps recurring repository work to reusable procedures. Use it to decid
 - **When to use:** orienting a new agent or starting substantial work in this repository
 - **Inputs:** repository purpose, current task, affected files
 - **Outputs:** correct read order, authority map, and validation plan
-- **Canonical sources:** `AGENTS.md`, `README.md`, `docs/AI_NATIVE_FRAMEWORK_COMPLETE.md`
+- **Canonical sources:** `AGENTS.md`, `README.md`, `docs/AI_NATIVE_FRAMEWORK.md`
 - **Notes:** use this before making policy or playbook changes
 
 ### P0 - Repository Foundation
@@ -48,7 +48,7 @@ This file maps recurring repository work to reusable procedures. Use it to decid
 - **When to use:** changing framework structure, required fields, or examples under `spec/`
 - **Inputs:** desired behavioral change, schema updates, example updates, policy impact
 - **Outputs:** aligned schema, examples, and documentation
-- **Canonical sources:** `spec/schema/product-spec.schema.json`, `spec/examples/`, `docs/AI_NATIVE_FRAMEWORK_COMPLETE.md`
+- **Canonical sources:** `spec/schema/product-spec.schema.json`, `spec/examples/`, `docs/AI_NATIVE_FRAMEWORK.md`
 - **Constraints:** avoid spec theater; machine validation is the source of truth
 
 ### Interface Evolution
@@ -56,7 +56,7 @@ This file maps recurring repository work to reusable procedures. Use it to decid
 - **When to use:** changing logical tool contracts or capability boundaries
 - **Inputs:** workflow need, capability boundary, interface change rationale
 - **Outputs:** updated `agents/interfaces.yaml` and aligned docs
-- **Canonical sources:** `agents/interfaces.yaml`, `docs/AI_NATIVE_FRAMEWORK_COMPLETE.md`
+- **Canonical sources:** `agents/interfaces.yaml`, `docs/AI_NATIVE_FRAMEWORK.md`
 - **Constraints:** express capabilities, not mascots or vendor-specific personas
 
 ## Adding A New Skill
