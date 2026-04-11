@@ -18,9 +18,9 @@ The framework is designed for agents to execute structured work under explicit c
 
 Higher items override lower items:
 
-1. [`spec/schema/product-spec.schema.json`](spec/schema/product-spec.schema.json)
+1. [`spec/schema/`](spec/schema/)
 2. Validated artifacts under [`spec/examples/`](spec/examples/) and future `spec/processes/`
-3. [`spec/policy/event-taxonomy.yaml`](spec/policy/event-taxonomy.yaml)
+3. [`spec/policy/`](spec/policy/)
 4. [`agents/interfaces.yaml`](agents/interfaces.yaml)
 5. [`ai/playbooks/`](ai/playbooks/) (procedure bodies)
 6. [`docs/AI_NATIVE_FRAMEWORK.md`](docs/AI_NATIVE_FRAMEWORK.md) and other explanatory `docs/*`
