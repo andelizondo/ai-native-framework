@@ -23,3 +23,5 @@ queue_rules:
       - check-success = validate
       - check-success = CodeRabbit
       - check-success = decide
+merge_protections_settings:
+  reporting_method: check-runs
