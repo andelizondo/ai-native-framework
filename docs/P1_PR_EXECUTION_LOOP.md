@@ -235,6 +235,14 @@ When threads are not resolved by the reviewer after fixes are confirmed, automat
 
 Resolving threads without reviewer confirmation is not permitted. Thread resolution without confirmation bypasses verification and defeats the purpose of the review gate.
 
+**Finding closure before merge (configured AI reviewer):**
+
+1. A green reviewer status context is **necessary** but **not sufficient**. The merging agent **MUST** treat review comments as work items.
+2. **Blocking findings** (including those surfaced via CodeRabbit’s request-changes workflow when enabled) **MUST** be fixed on the head SHA or explicitly waived by the human maintainer in the PR timeline with a recorded rationale.
+3. **Non-blocking suggestions** remain the merging agent’s responsibility: fix when reasonable; otherwise reply with a clear decision per thread or in one summary comment that enumerates each item using the outcomes in `.coderabbit.yaml`: **fix**, **accept as follow-up**, or **won't change** (equivalent prose: *fixed* → **fix**; *deferred* → **accept as follow-up**; *rejected* → **won't change**). “Looks good” without addressing open threads is not sufficient.
+4. Agents **MUST NOT** close or resolve review threads solely to satisfy GitHub’s “conversations resolved” requirement unless the substance above is already visible on the PR.
+5. **Automation vs prose:** Section **1.5** step 3 and the **`p1-policy`** workflow (`decide` job) both consult GitHub’s **review-thread state** (threads **resolved** or **outdated**). A consolidated PR comment alone does **not** flip that state. To avoid deadlocks, the merging agent **MUST** either push fixes (threads often become **outdated**), post on **each thread** (then resolve when the finding is truly closed), or obtain an explicit **human maintainer waiver** on the PR that names the thread(s) or review comment IDs it overrides—and still ensure thread state matches reality before merge. Silent bulk-resolution without visible decisions remains forbidden.
+
 Host-platform note:
 
 - GitHub may allow `@coderabbitai review` comments to trigger follow-up reviewer work even when there is no supported public REST or CLI endpoint for requesting a re-review directly. Treat this as a recovery tool for a stalled reviewer, not part of the normal PR path.
