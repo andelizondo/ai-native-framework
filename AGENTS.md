@@ -82,6 +82,7 @@ Escalate or stop when any of these are true:
 - `ai/playbooks/repository-foundation.md` - governed repository baseline (CI, protection, contributor surfaces)
 - `ai/playbooks/pull-request-execution-loop.md` - pull request automation and merge policy
 - `ai/playbooks/agent-context-bundle.md` - how to install and maintain the `ai/` bundle alongside root `AGENTS.md`
+- `ai/playbooks/framework-review.md` - how to audit the framework itself for consistency, efficiency, and predictability
 - `ai/SKILLS.md` - skill discovery index (role- and task-oriented harnesses)
 - `ai/skills/` - on-demand skill bodies selected from `ai/SKILLS.md`
 - `ai/MEMORY.md` - durable operating memory and open loops

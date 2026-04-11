@@ -42,6 +42,13 @@ Discovery should stay broad and cheap. Execution should stay narrow and deep.
 - **Outputs:** implementation, verification evidence, review closure, published PR state
 - **Load:** `skills/developer.md`
 
+### Framework Keeper
+
+- **When to use:** auditing the framework itself for contradiction, duplication, unnecessary complexity, or underspecified decision paths
+- **Inputs:** audit scope, relevant authoritative artifacts, known operator pain points, recent framework changes
+- **Outputs:** structured findings, recommended remediations, and explicit decisions on what should remain unchanged
+- **Load:** `skills/framework-keeper.md`
+
 ### Repository foundation (playbook)
 
 - **When to use:** establishing or auditing repository governance, CI, branch protection, security defaults, and contributor surfaces
