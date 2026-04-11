@@ -21,7 +21,7 @@ Higher items override lower items:
 1. [`spec/schema/`](spec/schema/)
 2. Validated artifacts under [`spec/examples/`](spec/examples/) and future `spec/processes/`
 3. [`spec/policy/`](spec/policy/)
-4. [`agents/interfaces.yaml`](agents/interfaces.yaml)
+4. [`interfaces/interfaces.yaml`](interfaces/interfaces.yaml)
 5. [`ai/playbooks/`](ai/playbooks/) (procedure bodies)
 6. [`docs/AI_NATIVE_FRAMEWORK.md`](docs/AI_NATIVE_FRAMEWORK.md) and other explanatory `docs/*`
 7. [`AGENTS.md`](AGENTS.md), [`ai/PLAYBOOKS.md`](ai/PLAYBOOKS.md), [`ai/SKILLS.md`](ai/SKILLS.md), [`ai/skills/`](ai/skills/), [`ai/MEMORY.md`](ai/MEMORY.md)
@@ -83,7 +83,7 @@ Most agent tools default to **root [`AGENTS.md`](AGENTS.md)**. After that, the l
 | [`ai/SKILLS.md`](ai/SKILLS.md) | Which **role/task skill** to open under `ai/skills/` |
 | [`ai/MEMORY.md`](ai/MEMORY.md) | Durable repo facts and open loops |
 
-Procedure bodies: [`ai/playbooks/`](ai/playbooks/). Skill bodies: [`ai/skills/`](ai/skills/). Normative machine rules: `spec/` and `agents/`.
+Procedure bodies: [`ai/playbooks/`](ai/playbooks/). Skill bodies: [`ai/skills/`](ai/skills/). Normative machine rules: `spec/` and `interfaces/`.
 
 ## Agent bundle (`ai/`)
 
@@ -113,7 +113,7 @@ CI runs the same validation via [`.github/workflows/validate.yml`](.github/workf
 | `spec/examples/` | Validated example specifications |
 | `spec/policy/` | Event naming, PII, idempotency, ordering, and deprecation rules |
 | `templates/` | Reusable templates including slice and agent-context bundle templates |
-| `agents/` | Provider-agnostic logical interfaces |
+| `interfaces/` | Provider-agnostic logical interfaces |
 | `scripts/` | Validation tooling |
 | `AGENTS.md` | Agent bootstrap contract (sole agent file at repo root) |
 | `ai/PLAYBOOKS.md` | Playbook discovery index |

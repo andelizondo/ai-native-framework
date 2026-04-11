@@ -17,7 +17,7 @@
 1. JSON Schema under `spec/schema/`  
 2. Validated YAML/JSON under `spec/examples/` and (when introduced) `spec/processes/`  
 3. `spec/policy/event-taxonomy.yaml`  
-4. `agents/interfaces.yaml`  
+4. `interfaces/interfaces.yaml`  
 5. Versioned procedure playbooks under `ai/playbooks/*.md` where a repository maintains them — **MUST NOT** contradict 1–4  
 6. This Markdown file and other `docs/*` (explanatory narrative; **MUST NOT** override 1–5)
 
@@ -202,7 +202,7 @@ Typical layout for a framework-aligned repo:
 | `spec/policy/` | Event taxonomy and related policy YAML |
 | `spec/processes/` | *(Introduce)* validated process/workflow instances |
 | `templates/` | Generators and empty templates (e.g. slice spec) |
-| `agents/interfaces.yaml` | Logical tool contracts |
+| `interfaces/interfaces.yaml` | Logical tool contracts |
 | `AGENTS.md` | Repository-local bootstrap instructions at repo root; authority map and execution rules for agents |
 | `ai/SKILLS.md` | Skill discovery index under `ai/`; maps recurring work to skills, playbooks, and artifacts |
 | `ai/skills/` | On-demand skill bodies loaded only when selected from `ai/SKILLS.md` |
@@ -248,7 +248,7 @@ Minimum requirements:
 
 ### 7.3 Orchestrator
 
-The **orchestrator** is **infrastructure** (workflow engine, graph runtime, queue worker graph, etc.), **not** a chat persona. It **MUST** implement: decomposition, state, retries, handoffs per `agents/interfaces.yaml` and future orchestration schemas.
+The **orchestrator** is **infrastructure** (workflow engine, graph runtime, queue worker graph, etc.), **not** a chat persona. It **MUST** implement: decomposition, state, retries, handoffs per `interfaces/interfaces.yaml` and future orchestration schemas.
 
 ---
 

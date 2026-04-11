@@ -85,8 +85,8 @@ Discovery should stay broad and cheap. Execution should stay narrow and deep.
 
 - **When to use:** changing logical tool contracts or capability boundaries
 - **Inputs:** workflow need, capability boundary, interface change rationale
-- **Outputs:** updated `agents/interfaces.yaml` and aligned docs
-- **Load:** `agents/interfaces.yaml`, `docs/AI_NATIVE_FRAMEWORK.md`
+- **Outputs:** updated `interfaces/interfaces.yaml` and aligned docs
+- **Load:** `interfaces/interfaces.yaml`, `docs/AI_NATIVE_FRAMEWORK.md`
 - **Constraints:** express capabilities, not mascots or vendor-specific personas
 
 ## Adding A New Skill

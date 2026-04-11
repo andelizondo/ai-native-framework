@@ -165,4 +165,4 @@ Avoid:
 ## Notes for future variants
 
 - This playbook should eventually gain a machine-readable schema under `spec/processes/`.
-- Multi-agent systems may also introduce `agents/*.md` capability files, but root `AGENTS.md` should remain the universal first-read surface.
+- Multi-agent systems may also introduce dedicated capability-contract files outside `ai/`, but root `AGENTS.md` should remain the universal first-read surface.

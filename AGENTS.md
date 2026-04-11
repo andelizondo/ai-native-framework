@@ -23,7 +23,7 @@ Higher items override lower items:
 1. `spec/schema/*`
 2. Validated artifacts under `spec/examples/*` and future `spec/processes/*`
 3. `spec/policy/*`
-4. `agents/interfaces.yaml`
+4. `interfaces/interfaces.yaml`
 5. `ai/playbooks/*.md`
 6. `docs/*` (framework prose and other explanatory docs)
 7. `AGENTS.md`, `ai/PLAYBOOKS.md`, `ai/SKILLS.md`, `ai/skills/*.md`, `ai/MEMORY.md`
@@ -76,7 +76,7 @@ Escalate or stop when any of these are true:
 - `spec/schema/` - canonical machine validation rules
 - `spec/examples/` - validated product and slice examples
 - `spec/policy/` - event and governance policy
-- `agents/interfaces.yaml` - logical tool interfaces for agent workflows
+- `interfaces/interfaces.yaml` - logical tool interfaces for agent workflows
 - `docs/AI_NATIVE_FRAMEWORK.md` - normative framework prose
 - `ai/PLAYBOOKS.md` - playbook discovery index (procedures live in `ai/playbooks/`)
 - `ai/playbooks/repository-foundation.md` - governed repository baseline (CI, protection, contributor surfaces)

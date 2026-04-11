@@ -495,5 +495,5 @@ Example event names:
 - The reviewer backend may change over time; the threshold policy should not depend on a single provider.
 - Branch freshness rules should remain policy-owned even if the repository changes reviewer backends or CI providers.
 - Event ordering between validation and policy checks should be treated as an automation-convergence concern, not as a human-review concern.
-- The resolution loop should be extended with an LLM-driven semantic fix layer once the safe autofix boundary is well-established. The tool interface for this is defined in `agents/interfaces.yaml`.
+- The resolution loop should be extended with an LLM-driven semantic fix layer once the safe autofix boundary is well-established. The tool interface for this is defined in `interfaces/interfaces.yaml`.
 - The decision request format in section 5 is machine-generatable. Future versions should produce it from structured finding objects rather than free-form text.
