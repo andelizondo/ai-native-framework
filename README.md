@@ -1,3 +1,5 @@
+![AI-Native Framework banner](assets/brand/governed-orchestration-banner.svg)
+
 # AI-Native Framework
 
 This repository is an AI-native operating system for building and running product-led companies. It is spec-driven, event-observable, human-governed, and provider-agnostic at the core.
