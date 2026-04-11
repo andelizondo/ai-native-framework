@@ -14,6 +14,7 @@ This file stores durable repository memory for agents. It is not a transcript an
 - The framework is explicitly provider-agnostic at the core layer.
 - For this repository, pull requests should be opened ready for review by default unless the user explicitly asks for a draft PR.
 - For this repository, agents must wait for every configured merge gate on the current head SHA to complete successfully before merging, even if host branch protection is missing or misconfigured.
+- For this repository, CodeRabbit should be allowed to start automatically; manual `@coderabbitai review` comments are only for two cases: no reviewer signal appears after roughly 15 seconds on a new head SHA, or the reviewer is still in progress after 5 minutes and the user explicitly agrees to trigger recovery.
 
 ## Current Bundle State
 
@@ -34,6 +35,8 @@ This file stores durable repository memory for agents. It is not a transcript an
 - 2026-04-11: Tightened Dependabot scheduling for `npm` and GitHub Actions on `main`, grouped routine version updates, and labeled dependency PRs for the low-risk automation path.
 - 2026-04-11: Set repository-local agent behavior to open pull requests ready for review by default; draft PRs require an explicit user request.
 - 2026-04-11: Tightened P1 and `main` protection so merges wait for the full merge-gate set (`validate`, `decide`, and reviewer status) even if host protection is misconfigured.
+- 2026-04-11: Standardized CodeRabbit handling so automatic review is the default path and manual `@coderabbitai review` comments are only for stalled-review recovery.
+- 2026-04-11: Refined CodeRabbit recovery policy: auto-trigger only if no reviewer signal appears after about 15 seconds; once review has clearly started, poll up to 5 minutes and then ask the user before posting `@coderabbitai review`.
 
 ## Update Rules
 

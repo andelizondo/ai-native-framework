@@ -43,6 +43,7 @@ If you change schema, examples, policy, templates, or playbooks, run `npm run va
 - Keep repository-local agent instructions concise. Link outward instead of duplicating long prose.
 - Preserve the distinction between stable memory and temporary working notes.
 - Do not merge a pull request in this repository until every configured merge gate on the current head SHA is complete and green. This rule still applies if GitHub branch protection is missing or misconfigured.
+- Wait for CodeRabbit's automatic review run by default. If no CodeRabbit comment or status appears after roughly 15 seconds on a new head SHA, you may post `@coderabbitai review` without asking. If CodeRabbit has already posted a "review in progress" style comment or otherwise clearly started, poll for up to 5 minutes in 1-minute intervals and then ask the user before posting a manual `@coderabbitai review` recovery comment.
 - When publishing changes with a pull request in this repository, open the PR ready for review by default. Use a draft PR only when the user explicitly asks for draft state.
 
 ## Change Discipline

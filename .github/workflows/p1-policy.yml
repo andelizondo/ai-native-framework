@@ -163,6 +163,18 @@ jobs:
               return type === 'Bot' && configuredReviewerLogins.has(login);
             }
 
+            function isConfiguredAiComment(comment) {
+              const rawLogin = comment.user?.login ?? comment.author?.login ?? '';
+              const type = comment.user?.type ?? comment.author?.type;
+              const login = normalizeLogin(rawLogin);
+              return type === 'Bot' && configuredReviewerLogins.has(login);
+            }
+
+            function commentMentionsHeadSha(comment, headSha) {
+              const body = comment.body ?? '';
+              return body.includes(headSha) || body.includes(headSha.slice(0, 7));
+            }
+
             const labelNodes = await github.paginate(github.rest.issues.listLabelsOnIssue, {
               owner,
               repo,
@@ -323,7 +335,17 @@ jobs:
               .filter((r) => r.commit_id === pr.headRefOid && r.state !== 'DISMISSED')
               .sort((a, b) => new Date(b.submitted_at).getTime() - new Date(a.submitted_at).getTime());
             const latestAiOnHead = aiOnHead[0] ?? null;
-            const hasFreshAiReview = latestAiOnHead != null;
+            const prComments = await github.paginate(github.rest.issues.listComments, {
+              owner,
+              repo,
+              issue_number: prNumber,
+              per_page: 100,
+            });
+            const aiCommentOnHead = prComments
+              .filter((comment) => isConfiguredAiComment(comment) && commentMentionsHeadSha(comment, pr.headRefOid))
+              .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())[0] ?? null;
+            const latestAiEvidence = latestAiOnHead ?? aiCommentOnHead;
+            const hasFreshAiReview = latestAiEvidence != null;
 
             if (!hasFreshAiReview) {
               core.info(
@@ -332,11 +354,11 @@ jobs:
               await upsertPolicyComment([
                 '**P1 policy:** blocked — configured reviewer evidence pending',
                 '',
-                `Waiting for a configured AI reviewer to submit a review on head \`${pr.headRefOid.slice(0, 7)}\`.`,
+                `Waiting for a configured AI reviewer to leave current-head output on \`${pr.headRefOid.slice(0, 7)}\` (either a review on that SHA or a reviewer comment that explicitly references it).`,
                 '',
-                '`decide` fails closed until reviewer output is observable on the current head SHA.',
+                '`decide` fails closed until reviewer output is observable on the current head SHA. Wait for the automatic reviewer run first. If no reviewer signal appears after roughly 15 seconds, a manual reviewer command is allowed; if review has already started, poll up to 5 minutes and then ask the user before triggering recovery.',
                 '',
-                'If automatic review did not trigger, request a follow-up review via the GitHub PR UI or the configured AI reviewer command for this repository.',
+                'Use a manual reviewer command only for a missing trigger after the short initial wait, or after the 5-minute in-progress wait window with explicit user approval.',
               ].join('\n'));
               core.setFailed('Configured AI review has not been observed on the current head SHA yet.');
               return;
@@ -449,7 +471,8 @@ jobs:
 
             // No human approval yet. Emit a structured decision request (P1 section 5 format).
             const aiReview = latestAiOnHead;
-            const reviewBody = aiReview?.body?.trim() ?? '';
+            const aiEvidence = latestAiOnHead ?? aiCommentOnHead;
+            const reviewBody = aiReview?.body?.trim() ?? aiCommentOnHead?.body?.trim() ?? '';
             const reviewSummary = reviewBody
               ? reviewBody.slice(0, 800) + (reviewBody.length > 800 ? '\n\n_(truncated — see full review on the PR timeline)_' : '')
               : '_No review body submitted by the configured reviewer._';
@@ -492,7 +515,7 @@ jobs:
               '',
               '**Automated verification (complete)**',
               `- ✓ Required checks: \`${requiredCheck}\` passed on \`${pr.headRefOid.slice(0, 7)}\``,
-              `- ✓ Configured AI reviewer: \`${aiReview?.user?.login ?? aiReview?.author?.login ?? 'unknown'}\` submitted on \`${pr.headRefOid.slice(0, 7)}\``,
+              `- ✓ Configured AI reviewer: \`${aiEvidence?.user?.login ?? aiEvidence?.author?.login ?? 'unknown'}\` left current-head output on \`${pr.headRefOid.slice(0, 7)}\``,
               `- ✓ Branch: current with base`,
               ...(labels.includes('autofix:applied') ? ['- ✓ Resolution loop: ran (safe auto-fixes applied)'] : []),
               '',
