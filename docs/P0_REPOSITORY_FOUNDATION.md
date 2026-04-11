@@ -73,11 +73,11 @@ Apply the following repository settings:
 - Enable issues if they are part of the operating loop.
 - Disable wiki unless it is intentionally used.
 - Set the repository description.
-- Configure repository rulesets for automated PR review if the repository will use a host-native reviewer such as GitHub Copilot.
+- Configure automated PR review for the repository if P1 will depend on a repository-configured AI reviewer.
 
 These choices keep history readable and prevent the repo from accumulating unmanaged side channels.
 
-If automated PR review is enabled at the repository level, the trigger configuration belongs in repository settings or rulesets, while repository-specific review behavior **SHOULD** remain in versioned files such as `.github/copilot-instructions.md`.
+If automated PR review is enabled at the repository level, the trigger configuration belongs in repository settings, rulesets, or app configuration, while repository-specific review behavior **SHOULD** remain in versioned configuration files such as `.coderabbit.yaml` or equivalent reviewer config.
 
 If P1 residual-risk decisions will depend on host-native reviewer output, that reviewer **SHOULD** be configured during P0 so automated review arrives before downstream agent policy or approval actions run. P0 **SHOULD** also verify that the expected review artifact is observable on PRs for the current head SHA, because repository configuration alone is not sufficient evidence that review actually ran.
 
@@ -141,10 +141,10 @@ The current P0 baseline in this repository applies the following concrete settin
 - Force pushes: disabled
 - Branch deletions: disabled
 - Security automation: enabled
-- Automated PR review: GitHub Copilot via repository ruleset on `~DEFAULT_BRANCH`
-- Copilot review on new pushes: enabled
-- Copilot review on draft PRs: disabled
-- Policy gate for observed Copilot review artifact on the current head SHA before residual-low merge authority: enabled
+- Automated PR review: CodeRabbit via `.coderabbit.yaml`
+- CodeRabbit review on new pushes: enabled
+- CodeRabbit review on draft PRs: disabled
+- Policy gate for observed CodeRabbit review artifact on the current head SHA before residual-low merge authority: enabled
 
 ## Notes for future variants
 
