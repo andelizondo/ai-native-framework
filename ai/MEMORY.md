@@ -29,7 +29,7 @@ This file stores durable repository memory for agents. It is not a transcript an
 
 ## Active Open Loops
 
-- Encode the three framework playbooks as machine-readable process artifacts under future `spec/processes/`.
+- Encode the current framework playbooks as machine-readable process artifacts under future `spec/processes/`.
 
 ## Recent Decisions
 
@@ -48,7 +48,7 @@ This file stores durable repository memory for agents. It is not a transcript an
 - 2026-04-11: CodeRabbit finding closure should be recorded in the review thread itself when possible, and stale or cancelled required jobs should be rerun on the current head before considering control-plane changes.
 - 2026-04-11: `p1-policy` `decide` polls required reviewer commit statuses (shared wait budget across contexts; `P1_POLICY_REVIEWER_STATUS_*` vars) so the check stays in progress while CodeRabbit is pending instead of failing immediately.
 - 2026-04-11: `decide` refreshes issue labels after earlier gates and polls for a `residual:*` label (`P1_POLICY_RESIDUAL_LABEL_*` vars) so the residual risk engine can land slightly after `decide` starts without failing red on a stale label read.
-- 2026-04-12: Added `Framework Keeper` as a repository-local skill and `ai/playbooks/framework-review.md` as the canonical procedure for auditing the framework itself for consistency, efficiency, and predictability.
+- 2026-04-11: Added `Framework Keeper` as a repository-local skill and `ai/playbooks/framework-review.md` as the canonical procedure for auditing the framework itself for consistency, efficiency, and predictability.
 
 ## Update Rules
 
