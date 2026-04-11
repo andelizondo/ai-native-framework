@@ -24,6 +24,11 @@ name: p1-policy
 # is terminal (success/failure/error) or until P1_POLICY_REVIEWER_STATUS_WAIT_SECONDS (default
 # 900s) elapses — one shared budget for all contexts, not per context. Override poll interval via
 # P1_POLICY_REVIEWER_STATUS_POLL_INTERVAL_SECONDS (default 10s).
+#
+# The residual risk engine may set `residual:*` slightly after `decide` starts on the same event chain.
+# After other gates, `decide` refreshes issue labels, then polls until a `residual:*` label appears or
+# P1_POLICY_RESIDUAL_LABEL_WAIT_SECONDS (default 180s) elapses. Poll interval:
+# P1_POLICY_RESIDUAL_LABEL_POLL_INTERVAL_SECONDS (default 10s).
 
 on:
   pull_request_target:
@@ -51,6 +56,8 @@ jobs:
           P1_POLICY_VALIDATE_POLL_INTERVAL_SECONDS: ${{ vars.P1_POLICY_VALIDATE_POLL_INTERVAL_SECONDS || '10' }}
           P1_POLICY_REVIEWER_STATUS_WAIT_SECONDS: ${{ vars.P1_POLICY_REVIEWER_STATUS_WAIT_SECONDS || '900' }}
           P1_POLICY_REVIEWER_STATUS_POLL_INTERVAL_SECONDS: ${{ vars.P1_POLICY_REVIEWER_STATUS_POLL_INTERVAL_SECONDS || '10' }}
+          P1_POLICY_RESIDUAL_LABEL_WAIT_SECONDS: ${{ vars.P1_POLICY_RESIDUAL_LABEL_WAIT_SECONDS || '180' }}
+          P1_POLICY_RESIDUAL_LABEL_POLL_INTERVAL_SECONDS: ${{ vars.P1_POLICY_RESIDUAL_LABEL_POLL_INTERVAL_SECONDS || '10' }}
           CONFIGURED_AI_REVIEWERS: ${{ vars.CONFIGURED_AI_REVIEWERS || 'coderabbitai,coderabbit' }}
           REQUIRED_AI_REVIEW_STATUS_CONTEXTS: ${{ vars.REQUIRED_AI_REVIEW_STATUS_CONTEXTS || 'CodeRabbit' }}
         with:
@@ -197,15 +204,18 @@ jobs:
               return body.includes(headSha) || body.includes(headSha.slice(0, 7));
             }
 
-            const labelNodes = await github.paginate(github.rest.issues.listLabelsOnIssue, {
-              owner,
-              repo,
-              issue_number: prNumber,
-              per_page: 100,
-            });
+            async function loadIssueLabelNames() {
+              const labelNodes = await github.paginate(github.rest.issues.listLabelsOnIssue, {
+                owner,
+                repo,
+                issue_number: prNumber,
+                per_page: 100,
+              });
+              return labelNodes.map((label) => label.name);
+            }
 
-            let labels = labelNodes.map((label) => label.name);
-            const risk = labels.find((label) => ['risk:low', 'risk:med', 'risk:high'].includes(label));
+            let labels = await loadIssueLabelNames();
+            let risk = labels.find((label) => ['risk:low', 'risk:med', 'risk:high'].includes(label));
 
             // ── Gate 1: Branch freshness ─────────────────────────────────────────────
             // If the branch is behind and sync:needed is missing, apply it so p1-branch-sync can run.
@@ -484,6 +494,10 @@ jobs:
             }
 
             // ── Gate 4: Residual risk label ───────────────────────────────────────────
+            // Refresh labels: upstream workflows may have updated them during validate/reviewer waits.
+            labels = await loadIssueLabelNames();
+            risk = labels.find((label) => ['risk:low', 'risk:med', 'risk:high'].includes(label));
+
             // The residual risk engine (p1-residual-risk-engine) sets this automatically.
             // If it is not yet set, either the engine hasn't run or a race condition exists.
             let residual = labels.find((label) => ['residual:low', 'residual:med', 'residual:high'].includes(label));
@@ -572,10 +586,38 @@ jobs:
             }
 
             if (!residual) {
+              const residualWaitMaxMs =
+                Math.max(0, parseInt(process.env.P1_POLICY_RESIDUAL_LABEL_WAIT_SECONDS || '180', 10)) * 1000;
+              const residualPollMs =
+                Math.max(5, parseInt(process.env.P1_POLICY_RESIDUAL_LABEL_POLL_INTERVAL_SECONDS || '10', 10)) * 1000;
+              let waitedResidual = 0;
+              labels = await loadIssueLabelNames();
+              residual = labels.find((label) =>
+                ['residual:low', 'residual:med', 'residual:high'].includes(label),
+              );
+              while (!residual && waitedResidual < residualWaitMaxMs) {
+                core.info(
+                  `Residual risk label not on issue yet; waiting ${residualPollMs}ms (${Math.round(
+                    waitedResidual / 1000,
+                  )}s / ${Math.round(residualWaitMaxMs / 1000)}s max).`,
+                );
+                const sleepForMs = Math.min(residualPollMs, residualWaitMaxMs - waitedResidual);
+                await sleepMs(sleepForMs);
+                waitedResidual += sleepForMs;
+                labels = await loadIssueLabelNames();
+                residual = labels.find((label) =>
+                  ['residual:low', 'residual:med', 'residual:high'].includes(label),
+                );
+              }
+            }
+
+            if (!residual) {
               await upsertPolicyComment([
                 '**P1 policy:** blocked — residual risk pending',
                 '',
                 'Configured AI review evidence is present, but the residual risk engine has not yet set a `residual:*` label.',
+                '',
+                '`decide` refreshed labels and waited within `P1_POLICY_RESIDUAL_LABEL_WAIT_SECONDS`; increase that variable if the engine routinely lands later.',
                 '',
                 '`decide` fails closed until the residual risk engine updates the current head SHA.',
               ].join('\n'));
