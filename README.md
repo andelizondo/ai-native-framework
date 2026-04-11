@@ -12,7 +12,7 @@ The framework is designed for agents to execute structured work under explicit c
 - Event and governance policy
 - Provider-agnostic agent interface contracts
 - Playbooks for repository governance, pull-request automation, and agent runtime context
-- A repository-local context bundle for agents: `AGENTS.md`, `SKILLS.md`, and `MEMORY.md`
+- A repository-local context bundle for agents: `AGENTS.md`, `SKILLS.md`, `skills/`, and `MEMORY.md`
 
 ## Authority Ladder
 
@@ -23,7 +23,7 @@ Higher items override lower items:
 3. [`spec/policy/event-taxonomy.yaml`](spec/policy/event-taxonomy.yaml)
 4. [`agents/interfaces.yaml`](agents/interfaces.yaml)
 5. [`docs/AI_NATIVE_FRAMEWORK.md`](docs/AI_NATIVE_FRAMEWORK.md) and other `docs/*`
-6. [`AGENTS.md`](AGENTS.md), [`SKILLS.md`](SKILLS.md), [`MEMORY.md`](MEMORY.md)
+6. [`AGENTS.md`](AGENTS.md), [`SKILLS.md`](SKILLS.md), [`skills/`](skills/), [`MEMORY.md`](MEMORY.md)
 
 The root agent context bundle is operationally important, but it does not override schema, policy, or interface contracts.
 
@@ -66,7 +66,7 @@ The playbooks turn repeated operational work into reusable procedures:
 2. [`docs/P1_PR_EXECUTION_LOOP.md`](docs/P1_PR_EXECUTION_LOOP.md)  
    Automate pull request classification, review, residual-risk decisions, branch freshness, safe autofix, policy checks, and low-risk merge flow.
 3. [`docs/P2_AGENT_CONTEXT_BUNDLE.md`](docs/P2_AGENT_CONTEXT_BUNDLE.md)  
-   Install and maintain the repository-local runtime standard for agents using `AGENTS.md`, `SKILLS.md`, and `MEMORY.md`.
+   Install and maintain the repository-local runtime standard for agents using `AGENTS.md`, `SKILLS.md`, `skills/`, and `MEMORY.md`.
 
 Together:
 
@@ -79,7 +79,8 @@ Together:
 This repository adopts the modern agent runtime bundle explicitly:
 
 - [`AGENTS.md`](AGENTS.md) - bootstrap contract, authority map, commands, and escalation rules
-- [`SKILLS.md`](SKILLS.md) - reusable procedure registry for recurring work
+- [`SKILLS.md`](SKILLS.md) - low-cost discovery index for repository-local skills
+- [`skills/`](skills/) - on-demand skill bodies loaded only when selected from the index
 - [`MEMORY.md`](MEMORY.md) - durable repository memory, open loops, and recent decisions
 
 These files are for runtime coordination. Durable policy still belongs in schema, playbooks, interfaces, and other canonical artifacts.
@@ -104,7 +105,8 @@ CI runs the same validation via [`.github/workflows/validate.yml`](.github/workf
 | `agents/` | Provider-agnostic logical interfaces |
 | `scripts/` | Validation tooling |
 | `AGENTS.md` | Agent bootstrap contract |
-| `SKILLS.md` | Skill and procedure registry |
+| `SKILLS.md` | Skill discovery index |
+| `skills/` | On-demand skill bodies |
 | `MEMORY.md` | Durable operating memory |
 | `docs/AI_NATIVE_FRAMEWORK.md` | Full framework prose |
 | `docs/PLAYBOOKS.md` | Playbook index |
@@ -136,4 +138,5 @@ Today that validates example specs against the product schema. As the framework 
 4. The specific playbook or spec files relevant to the task
 5. [`AGENTS.md`](AGENTS.md)
 6. [`SKILLS.md`](SKILLS.md)
-7. [`MEMORY.md`](MEMORY.md)
+7. Only the specific files under [`skills/`](skills/) selected from the index
+8. [`MEMORY.md`](MEMORY.md)

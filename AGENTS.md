@@ -13,7 +13,8 @@ Read these in order before making non-trivial changes:
 3. `docs/PLAYBOOKS.md`
 4. The specific playbook or spec files relevant to the task
 5. `SKILLS.md`
-6. `MEMORY.md`
+6. Only the specific `skills/*.md` files selected from `SKILLS.md`
+7. `MEMORY.md`
 
 ## Authority Ladder
 
@@ -24,7 +25,7 @@ Higher items override lower items:
 3. `spec/policy/*`
 4. `agents/interfaces.yaml`
 5. Playbooks under `docs/*`
-6. `AGENTS.md`, `SKILLS.md`, `MEMORY.md`
+6. `AGENTS.md`, `SKILLS.md`, `skills/*.md`, `MEMORY.md`
 
 If two sources conflict, follow the higher source and update the lower one if that is within scope.
 
@@ -42,15 +43,17 @@ If you change schema, examples, policy, templates, or playbooks, run `npm run va
 - Prefer updating the framework and playbooks together when a process change affects repository behavior.
 - Keep repository-local agent instructions concise. Link outward instead of duplicating long prose.
 - Preserve the distinction between stable memory and temporary working notes.
+- Treat repository settings changes as separate control-plane work. Do not use settings changes as the default fix path for an ordinary task or PR blocker.
 - Do not merge a pull request in this repository until every configured merge gate on the current head SHA is complete and green. This rule still applies if GitHub branch protection is missing or misconfigured.
 - Configured AI review (CodeRabbit) is a **soft-mandatory** gate for substance, not only for a green status. Before merge, **every** open review thread **MUST** be closed with a code fix or a **visible** decision using the canonical outcomes in `.coderabbit.yaml` (**fix**, **accept as follow-up**, **won't change**). Full mappings, per-thread vs consolidated comments, GitHub thread-state rules, nit handling, and waiver requirements are normative in `docs/P1_PR_EXECUTION_LOOP.md` (finding closure before merge + §1.5)—do not resolve threads solely to clear “conversations resolved” without that accounting.
+- When addressing CodeRabbit findings, prefer replying directly in the review thread with the resolution details so the history stays attached to the finding itself.
 - Do not use admin merge, temporary removal of required checks, or other host bypasses to skip that review accounting unless the human operator has **explicitly** instructed you to use a documented control-plane exception (for example merging a workflow change that updates `p1-policy` itself).
 - Wait for CodeRabbit's automatic review run by default. If no CodeRabbit comment or status appears after roughly 15 seconds on a new head SHA, you may post `@coderabbitai review` without asking. If CodeRabbit has already posted a "review in progress" style comment or otherwise clearly started, poll for up to 5 minutes in 1-minute intervals and then ask the user before posting a manual `@coderabbitai review` recovery comment.
 - When publishing changes with a pull request in this repository, open the PR ready for review by default. Use a draft PR only when the user explicitly asks for draft state.
 
 ## Change Discipline
 
-- When adding a new recurring workflow, update `docs/PLAYBOOKS.md` and `SKILLS.md`.
+- When adding a new recurring workflow, update `docs/PLAYBOOKS.md`, `SKILLS.md`, and any corresponding `skills/*.md` files.
 - When changing repo operating rules, check whether `AGENTS.md` and `MEMORY.md` now need updates.
 - When introducing durable process knowledge, prefer a playbook or schema-backed artifact over burying it in memory.
 - Do not treat transient chat as the system of record.
@@ -75,6 +78,7 @@ Escalate or stop when any of these are true:
 - `docs/P0_REPOSITORY_FOUNDATION.md` - repository bootstrap
 - `docs/P1_PR_EXECUTION_LOOP.md` - PR automation policy
 - `docs/P2_AGENT_CONTEXT_BUNDLE.md` - agent runtime bundle standard
+- `skills/` - on-demand skill bodies selected from `SKILLS.md`
 
 ## Definition Of Done
 
