@@ -32,6 +32,7 @@ This file stores durable repository memory for agents. It is not a transcript an
 
 ## Recent Decisions
 
+- 2026-04-11: Pull request playbook and `AGENTS.md` now state explicitly that the **executing agent** owns **merge completion** (or verifying merge-queue merge) when gates are green and policy allows; bounded polling or operator signal preferred over endless waits.
 - 2026-04-11: Agent bundle consolidated under `ai/` (indices, `playbooks/`, `skills/`, `MEMORY.md`); root keeps only `AGENTS.md` as the common entry point for tools. P0/P1/P2 remain de-emphasized as playbook identity (workflows may still use `p1-*` / `P1_*` names for traceability).
 - 2026-04-10: Adopted a repository-local agent context bundle built around `AGENTS.md` and files under `ai/`.
 - 2026-04-10: Added the agent context bundle as a first-class playbook in the framework.

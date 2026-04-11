@@ -363,6 +363,14 @@ Merge must be blocked if required checks are pending, stale, or bypassed.
 Merge must also be blocked if the PR branch is behind the protected base branch.
 Visible success from GitHub's merge UI is not sufficient by itself; automation **MUST** independently verify that every configured merge gate for the current head SHA is complete and green before merging.
 
+#### 6.1 Agent merge ownership and coordination
+
+The **agent executing this PR loop** (for example the implementing agent following the Developer skill) **owns convergence through a merged result** when policy allows—it is not enough to open a PR and stop once checks are “probably” running.
+
+- **Merge responsibility:** When residual risk and review state authorize merge and every configured merge gate is green on the current head SHA, that agent **MUST** ensure the PR actually lands on the protected branch: either by **performing the merge** (host UI, `gh pr merge`, or equivalent) when no other executor will do it in a timely way, or by **confirming** the repository’s **configured merge executor** (for example a merge queue such as Mergify) has merged after its conditions are satisfied. If all conditions are met but the PR remains open, the agent **MUST** diagnose (missing `residual:low` label, queue stall, draft state, `sync:needed`, etc.) and fix or escalate—not hand off an “almost done” PR without explanation.
+- **Polling:** Agents **SHOULD NOT** rely on unbounded polling while waiting for checks. **MAY** use short, bounded waits consistent with repository recovery policy (for example the CodeRabbit windows in `AGENTS.md`). When a human operator **explicitly reports** that CI or review has finished on the current head, the agent **SHOULD** take that as the cue to re-verify checks and proceed with thread closure and merge steps rather than idling in a loop.
+- **Human still decides** when policy requires it (residual high, control-plane exceptions, explicit waiver paths). Those cases remain escalation—not silent merge.
+
 ### 6.5 Convergence rule
 
 Automation **MUST** converge without manual label toggling when the only blocker is timing between checks.

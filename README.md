@@ -93,7 +93,7 @@ This repository keeps **one agent file at the repo root** and groups the rest un
 - [`ai/SKILLS.md`](ai/SKILLS.md) — skill discovery index (`ai/skills/` bodies)
 - [`ai/MEMORY.md`](ai/MEMORY.md) — durable repository memory, open loops, and recent decisions
 
-These files coordinate how agents run. Durable policy still belongs in schema, `ai/playbooks/`, interfaces, and other canonical artifacts.
+These files coordinate how agents run. Durable policy still belongs in schema, `ai/playbooks/`, interfaces, and other canonical artifacts. For pull requests the agent that published the change is responsible for **converging to merge** when policy allows (see `ai/playbooks/pull-request-execution-loop.md` section 6 and `AGENTS.md`); humans still own decisions when policy requires escalation.
 
 ## Quick Start
 
