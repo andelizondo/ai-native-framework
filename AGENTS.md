@@ -43,6 +43,7 @@ If you change schema, examples, policy, templates, or playbooks, run `npm run va
 - Prefer updating the framework and playbooks together when a process change affects repository behavior.
 - Keep repository-local agent instructions concise. Link outward instead of duplicating long prose.
 - Preserve the distinction between stable memory and temporary working notes.
+- Before starting any non-trivial implementation task, match the task to the closest skill in `SKILLS.md` and load the corresponding `skills/*.md` file. Do not begin editing files until the skill's workflow, decision rules, and completion criteria are loaded.
 - After completing any non-trivial workflow, ask whether the work introduced durable learnings that should update `MEMORY.md`, `SKILLS.md`, a specific `skills/*.md`, `AGENTS.md`, or a playbook before considering the task fully closed.
 - Treat repository settings changes as separate control-plane work. Do not use settings changes as the default fix path for an ordinary task or PR blocker.
 - Do not merge a pull request in this repository until every configured merge gate on the current head SHA is complete and green. This rule still applies if GitHub branch protection is missing or misconfigured.
