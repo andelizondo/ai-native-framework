@@ -20,7 +20,7 @@
 4. `agents/interfaces.yaml`  
 5. This Markdown file and other `docs/*` (explanatory; **MUST NOT** override 1–4)
 
-Repository-local agent runtime files such as `AGENTS.md`, `SKILLS.md`, and `MEMORY.md` are explanatory operating artifacts unless promoted into machine-validated schema or policy. They **SHOULD** align with items 1–4 and **MUST NOT** contradict them.
+Repository-local agent runtime files such as `AGENTS.md`, `SKILLS.md`, `skills/`, and `MEMORY.md` are explanatory operating artifacts unless promoted into machine-validated schema or policy. They **SHOULD** align with items 1–4 and **MUST NOT** contradict them.
 
 ### 0.3 Conformance keywords
 
@@ -203,7 +203,8 @@ Typical layout for a framework-aligned repo:
 | `templates/` | Generators and empty templates (e.g. slice spec) |
 | `agents/interfaces.yaml` | Logical tool contracts |
 | `AGENTS.md` | Repository-local bootstrap instructions, authority map, and execution rules for agents |
-| `SKILLS.md` | Reusable capability registry; maps recurring work to procedures and artifacts |
+| `SKILLS.md` | Root discovery index; maps recurring work to skills, playbooks, and artifacts |
+| `skills/` | On-demand skill bodies loaded only when selected from `SKILLS.md` |
 | `MEMORY.md` | Durable working memory: current state, constraints, glossary, decisions, open loops |
 | `scripts/validate-spec.mjs` | Local and CI validation |
 | `.github/workflows/` | CI pipelines |
@@ -226,7 +227,8 @@ Strategist, Researcher, Product, Builder (engineering), Designer, Growth, Sales 
 Framework-aligned repositories **SHOULD** expose a lightweight agent context bundle at the repo root:
 
 - `AGENTS.md` — first-read bootstrap contract for agents entering the repository.
-- `SKILLS.md` — reusable procedures, capability definitions, and when-to-use guidance.
+- `SKILLS.md` — low-cost skill discovery index and routing surface.
+- `skills/` — on-demand skill bodies for workflows that need more than index-level guidance.
 - `MEMORY.md` — durable repository memory with update rules.
 
 This bundle is the provider-agnostic replacement for hidden system prompts or IDE-only conventions. It gives agents a shared, versioned operating surface while keeping the normative source of truth in schemas, policy, and interfaces.
@@ -234,7 +236,8 @@ This bundle is the provider-agnostic replacement for hidden system prompts or ID
 Minimum requirements:
 
 - `AGENTS.md` **MUST** define the repo authority ladder, canonical commands, change discipline, and escalation conditions.
-- `SKILLS.md` **SHOULD** map recurring workflows to named skills or procedures, each with triggers, inputs, outputs, and links to deeper docs or playbooks.
+- `SKILLS.md` **SHOULD** map recurring workflows to named skills or procedures, each with triggers, inputs, outputs, and links to deeper docs, playbooks, or `skills/*.md`.
+- `skills/` **SHOULD** hold the deeper workflow bodies so agents load only the skill they selected instead of the whole catalog.
 - `MEMORY.md` **MUST** distinguish stable facts from temporary working state and **MUST NOT** become an unbounded log dump.
 - Changes to these files **SHOULD** be reviewed whenever repo policy, architecture, workflows, or terminology changes.
 
@@ -325,7 +328,7 @@ The Process Library is the **encoded moat**: reusable, versioned procedures—tr
 | **Go-to-market** | Launch, landing pages, content, outbound |
 | **Operations** | Onboarding, support, reporting, pricing experiments, internal ops |
 
-The repository-local `SKILLS.md` file is the operator-facing index into this library. Process definitions may remain in Markdown initially, but the skill index **SHOULD** point to the canonical playbook or schema-backed process artifact for each recurring workflow.
+The repository-local `SKILLS.md` file is the operator-facing index into this library. Deeper workflow bodies may live under `skills/`, and process definitions may remain in Markdown initially, but the skill index **SHOULD** point to the canonical playbook or schema-backed process artifact for each recurring workflow.
 
 ### 11.3 Workflow record shape (each entry SHOULD declare)
 
@@ -365,7 +368,7 @@ For deployments targeting **solo founders or minimal teams** in **B2B SaaS**, th
 
 - **Objective:** Install and maintain the repository-local runtime standard that lets agents bootstrap correctly without relying on hidden prompt state.
 - **Inputs:** Repository purpose, authority ladder, canonical commands, playbooks, glossary, and current operating constraints.
-- **Outputs:** Versioned `AGENTS.md`, `SKILLS.md`, and `MEMORY.md` files linked to the framework and playbooks.
+- **Outputs:** Versioned `AGENTS.md`, `SKILLS.md`, optional `skills/`, and `MEMORY.md` artifacts linked to the framework and playbooks.
 - **Capabilities:** Builder, Product, Ops.
 - **Checkpoints:** Human review when the bundle changes agent authority, escalation rules, or durable memory policy.
 - **Playbook:** `docs/P2_AGENT_CONTEXT_BUNDLE.md`
