@@ -36,7 +36,7 @@ jobs:
       - uses: actions/github-script@v7
         env:
           REQUIRED_CHECK: validate
-          CONFIGURED_AI_REVIEWERS: ${{ vars.CONFIGURED_AI_REVIEWERS || 'copilot-pull-request-reviewer,copilot,coderabbitai,coderabbit' }}
+          CONFIGURED_AI_REVIEWERS: ${{ vars.CONFIGURED_AI_REVIEWERS || 'coderabbitai,coderabbit' }}
         with:
           script: |
             const owner = context.repo.owner;
@@ -279,7 +279,7 @@ jobs:
                 '',
                 'This `decide` job exits **success** so it does not race the AI reviewer on the same push. The `pull_request_review` trigger re-evaluates policy once a review is submitted.',
                 '',
-                'If automatic review did not trigger, request a follow-up review via the GitHub PR UI, mention `@copilot`, or comment `@coderabbitai review`.',
+                'If automatic review did not trigger, request a follow-up review via the GitHub PR UI or comment `@coderabbitai review`.',
               ].join('\n'));
               return;
             }

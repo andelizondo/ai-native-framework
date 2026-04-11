@@ -50,7 +50,7 @@ Agents executing P1 **MUST** run the following toolchain before any approval or 
 Required tools:
 
 - **Canonical validation** — `npm run validate` (lint + schema validation). Failing this is an unconditional blocker.
-- **Automated AI review** — Repository-configured AI reviewer set (currently GitHub Copilot via ruleset plus CodeRabbit via app configuration). Missing review evidence on the current head SHA is an unconditional blocker.
+- **Automated AI review** — Repository-configured AI reviewer set (currently CodeRabbit via app configuration). Missing review evidence on the current head SHA is an unconditional blocker.
 - **Branch freshness check** — Comparison of PR head ancestry against the protected base branch. Being behind is a blocker until resolved automatically or flagged with `sync:needed`.
 
 Optional tools (enable as repository matures):
@@ -204,19 +204,18 @@ Typical invalidation triggers:
 
 Automated review must leave an auditable artifact in the PR.
 
-Repository-specific reviewer guidance **SHOULD** live in versioned files such as `.github/copilot-instructions.md` so the AI backend can be swapped without changing the playbook's policy.
+Repository-specific reviewer guidance **SHOULD** live in versioned files such as `.coderabbit.yaml` or equivalent backend configuration so the AI backend can be swapped without changing the playbook's policy.
 
-For this repository, automated AI review is requested through a GitHub repository ruleset that enables GitHub Copilot code review on the default branch and on new pushes to matching pull requests, plus a root `.coderabbit.yaml` configuration that enables CodeRabbit auto-review for non-draft pull requests. `.github/copilot-instructions.md` controls Copilot-specific review behavior; `.coderabbit.yaml` controls CodeRabbit behavior. The policy check **MUST** verify that expected configured AI review output actually appeared on the PR for the current head SHA before it treats review as complete.
+For this repository, automated AI review is requested through the root `.coderabbit.yaml` configuration, which enables CodeRabbit auto-review for non-draft pull requests. The policy check **MUST** verify that expected configured AI review output actually appeared on the PR for the current head SHA before it treats review as complete.
 
 For this repository, the intended review order is:
 
-1. GitHub Copilot review is requested automatically by ruleset.
-2. CodeRabbit review is requested automatically by app configuration from `.coderabbit.yaml`.
-3. If the expected reviewer output does not appear or does not refresh on the latest head SHA, an authorized collaborator **MAY** explicitly request follow-up work by mentioning `@copilot`, commenting `@coderabbitai review`, or using the host platform's re-review UI.
-4. If either reviewer produces a new commit on the PR branch, automation **MUST** treat that commit like any other new head SHA: rerun required checks, require fresh review evidence where policy says so, and re-evaluate residual risk from the updated state.
-5. The policy layer waits until configured AI review output is observable on the PR timeline.
-6. The residual risk engine reads the latest active review state from the configured AI reviewer set together with all review thread resolution status and the initial risk label.
-7. The residual risk engine sets the `residual:*` label from the combined evidence.
+1. CodeRabbit review is requested automatically by app configuration from `.coderabbit.yaml`.
+2. If the expected reviewer output does not appear or does not refresh on the latest head SHA, an authorized collaborator **MAY** explicitly request follow-up work by commenting `@coderabbitai review` or using the host platform's re-review UI.
+3. If the reviewer produces a new commit on the PR branch, automation **MUST** treat that commit like any other new head SHA: rerun required checks, require fresh review evidence where policy says so, and re-evaluate residual risk from the updated state.
+4. The policy layer waits until configured AI review output is observable on the PR timeline.
+5. The residual risk engine reads the latest active review state from the configured AI reviewer set together with all review thread resolution status and the initial risk label.
+6. The residual risk engine sets the `residual:*` label from the combined evidence.
 
 **Review thread resolution ownership:**
 
@@ -232,7 +231,7 @@ Resolving threads without reviewer confirmation is not permitted. Thread resolut
 
 Host-platform note:
 
-- GitHub may allow `@copilot` comments or `@coderabbitai review` comments to trigger follow-up reviewer work even when there is no supported public REST or CLI endpoint for requesting a re-review directly.
+- GitHub may allow `@coderabbitai review` comments to trigger follow-up reviewer work even when there is no supported public REST or CLI endpoint for requesting a re-review directly.
 - When a bot or app pushes a commit to the PR branch, direct PR-scoped checks may still run normally while some downstream `workflow_run` automation can enter an approval-required or `action_required` state under GitHub's trust model. That host safeguard **MUST NOT** be misinterpreted as a PR policy failure by itself.
 
 ### 3.5 Agent resolution loop

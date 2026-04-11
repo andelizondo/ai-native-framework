@@ -217,7 +217,7 @@ jobs:
 
             // Residual labels are managed exclusively by p1-residual-risk-engine.
             // This workflow does NOT clear or set residual:* labels to avoid races.
-            // The engine re-evaluates whenever the Copilot review is refreshed on the new head SHA.
+            // The engine re-evaluates whenever configured AI review is refreshed on the new head SHA.
 
             if (isBehind && !currentLabels.has(syncLabel)) {
               await github.rest.issues.addLabels({
