@@ -20,9 +20,16 @@ type PhaseNavigatedPayload = {
   phase: "ideation" | "design" | "implementation";
 };
 
-type EventPayload = ShellViewedPayload | PhaseNavigatedPayload;
+/**
+ * Discriminated map — enforces name/payload pairing at compile time.
+ * Adding a new event requires updating this map; TypeScript will catch mismatches.
+ */
+type EventMap = {
+  "dashboard.shell_viewed": ShellViewedPayload;
+  "dashboard.phase_navigated": PhaseNavigatedPayload;
+};
 
-type EventName = "dashboard.shell_viewed" | "dashboard.phase_navigated";
+type EventName = keyof EventMap;
 
 /**
  * Emit a structured event to /api/events.
@@ -31,7 +38,7 @@ type EventName = "dashboard.shell_viewed" | "dashboard.phase_navigated";
  * The envelope includes required transport fields per spec/policy/event-taxonomy.yaml:
  * event_name, emitted_by, schema_version, correlation_id.
  */
-export function emitEvent(name: EventName, payload: EventPayload): void {
+export function emitEvent<T extends EventName>(name: T, payload: EventMap[T]): void {
   // Only runs in browser — no-op during SSR
   if (typeof window === "undefined") return;
 

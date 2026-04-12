@@ -89,7 +89,7 @@ Procedure bodies: `[ai/playbooks/](ai/playbooks/)`. Skill bodies: `[ai/skills/](
 
 ## Agent bundle (`ai/`)
 
-This repository keeps **one agent file at the repo root** and groups the rest under `**ai/`**:
+This repository keeps **one agent file at the repo root** and groups the rest under `ai/`:
 
 - `[AGENTS.md](AGENTS.md)` — bootstrap contract, authority map, commands, and escalation rules (root)
 - `[ai/PLAYBOOKS.md](ai/PLAYBOOKS.md)` — playbook discovery index (`ai/playbooks/` bodies)

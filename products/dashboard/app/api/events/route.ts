@@ -32,6 +32,24 @@ type EventBody = {
   };
 };
 
+/** Clamp a client-supplied string to a max length; reject non-strings and blanks. */
+function clampString(value: unknown, max = 64): string | null {
+  if (typeof value !== "string") return null;
+  const trimmed = value.trim();
+  if (!trimmed) return null;
+  return trimmed.slice(0, max);
+}
+
+/** Accept only well-formed UUID v1–v5; reject everything else. */
+function normalizeCorrelationId(value: unknown): string | null {
+  if (typeof value !== "string") return null;
+  return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(
+    value
+  )
+    ? value
+    : null;
+}
+
 function sanitizePayload(
   eventName: string,
   payload: Record<string, unknown>
@@ -76,9 +94,9 @@ export async function POST(req: NextRequest) {
     level: "info",
     event_name: body.event_name,
     payload: sanitizePayload(body.event_name, body.payload),
-    emitted_by: body.emitted_by ?? "client",
-    schema_version: body.schema_version ?? "1.0.0",
-    correlation_id: body.correlation_id ?? null,
+    emitted_by: clampString(body.emitted_by, 32) ?? "client",
+    schema_version: clampString(body.schema_version, 16) ?? "1.0.0",
+    correlation_id: normalizeCorrelationId(body.correlation_id),
     received_at: new Date().toISOString(),
     product_id: "dashboard",
   };
