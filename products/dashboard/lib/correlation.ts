@@ -44,6 +44,19 @@ function safeSessionSet(key: string, value: string): void {
 const CORRELATION_ID_MAX_LEN = 128;
 const CORRELATION_ID_PATTERN = /^[A-Za-z0-9._-]+$/;
 
+const UUID_V1_V5_RE =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+
+/**
+ * Accept only well-formed UUID v1–v5; return null for everything else.
+ * Use this on inbound server headers before binding to logger context or
+ * Sentry tags so malformed values never fragment correlation in Sentry Logs.
+ */
+export function normalizeCorrelationId(value: unknown): string | null {
+  if (typeof value !== "string") return null;
+  return UUID_V1_V5_RE.test(value) ? value : null;
+}
+
 /** Reject malformed persisted IDs so headers and Sentry tags stay safe and bounded. */
 function sanitizeCorrelationId(value: string | null): string | null {
   if (value == null) return null;

@@ -1,4 +1,4 @@
-import { captureError, startSpan } from "@/lib/monitoring";
+import { captureError, createLogger, startSpan } from "@/lib/monitoring";
 import {
   applyBrowserObservabilityContext,
   getBrowserCorrelationHeaders,
@@ -52,6 +52,9 @@ export function emitEvent<T extends EventName>(name: T, payload: EventMap[T]): v
   const correlationId = getBrowserCorrelationId();
   applyBrowserObservabilityContext(name);
 
+  // Client-side logger — correlation_id from the browser session, feature from the event name.
+  const logger = createLogger({ correlation_id: correlationId, feature: name });
+
   void startSpan(
     {
       name: `event.emit ${name}`,
@@ -84,14 +87,14 @@ export function emitEvent<T extends EventName>(name: T, payload: EventMap[T]): v
         if (!res.ok) {
           throw new Error(`HTTP ${res.status}`);
         }
+
+        logger.info("event.emitted", { event_name: name });
       } catch (err) {
+        logger.warn("event.emit_failed", { event_name: name });
         captureError(err, {
           feature: name,
           extra: { correlation_id: correlationId },
         });
-
-        // Non-blocking: telemetry must never break the UI
-        console.warn("[events] emit failed:", name, err);
       }
     }
   );
