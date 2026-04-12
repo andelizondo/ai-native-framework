@@ -39,7 +39,6 @@ export function Sidebar() {
   function handlePhaseClick(phaseId: string) {
     emitEvent("dashboard.phase_navigated", {
       phase: phaseId as "ideation" | "design" | "implementation",
-      occurred_at: new Date().toISOString(),
     });
   }
 

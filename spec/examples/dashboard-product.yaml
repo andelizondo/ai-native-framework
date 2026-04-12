@@ -166,12 +166,8 @@ events:
         type: object
         additionalProperties: false
         required:
-          - occurred_at
           - route
         properties:
-          occurred_at:
-            type: string
-            format: date-time
           route:
             type: string
     - name: "dashboard.phase_navigated"
@@ -188,12 +184,8 @@ events:
         type: object
         additionalProperties: false
         required:
-          - occurred_at
           - phase
         properties:
-          occurred_at:
-            type: string
-            format: date-time
           phase:
             type: string
             enum:

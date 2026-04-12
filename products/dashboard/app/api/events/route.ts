@@ -16,13 +16,11 @@ const ALLOWED_EVENTS = new Set([
 
 type EventBody = {
   event_name: string;
+  occurred_at?: string;
   emitted_by?: string;
   schema_version?: string;
   correlation_id?: string;
-  payload: {
-    occurred_at: string;
-    [key: string]: unknown;
-  };
+  payload: Record<string, unknown>;
 };
 
 /** Clamp a client-supplied string to a max length; reject non-strings and blanks. */
@@ -43,18 +41,15 @@ function normalizeCorrelationId(value: unknown): string | null {
     : null;
 }
 
-/** Validate and sanitize payload by event — checks keys, value types, and lengths. */
+/** Validate and sanitize catalog payload only (`occurred_at` lives on the envelope per policy). */
 function sanitizePayload(
   eventName: string,
   payload: Record<string, unknown>
 ): Record<string, unknown> | null {
-  const occurred_at = clampString(payload.occurred_at, 64);
-  if (!occurred_at) return null;
-
   if (eventName === "dashboard.shell_viewed") {
     const route = clampString(payload.route, 256);
     if (!route) return null;
-    return { occurred_at, route };
+    return { route };
   }
 
   if (eventName === "dashboard.phase_navigated") {
@@ -66,7 +61,7 @@ function sanitizePayload(
     ) {
       return null;
     }
-    return { occurred_at, phase };
+    return { phase };
   }
 
   return null;
@@ -107,9 +102,10 @@ export async function POST(req: NextRequest) {
     );
   }
 
-  if (!body.payload?.occurred_at) {
+  const occurredAt = clampString(body.occurred_at, 64);
+  if (!occurredAt) {
     return NextResponse.json(
-      { error: "payload.occurred_at is required" },
+      { error: "occurred_at is required on envelope" },
       { status: 400 }
     );
   }
@@ -123,6 +119,7 @@ export async function POST(req: NextRequest) {
   const entry = {
     level: "info",
     event_name: body.event_name,
+    occurred_at: occurredAt,
     payload: sanitizedPayload,
     emitted_by: clampString(body.emitted_by, 32) ?? "client",
     schema_version: clampString(body.schema_version, 16) ?? "1.0.0",

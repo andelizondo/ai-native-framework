@@ -11,12 +11,10 @@
  */
 
 type ShellViewedPayload = {
-  occurred_at: string;
   route: string;
 };
 
 type PhaseNavigatedPayload = {
-  occurred_at: string;
   phase: "ideation" | "design" | "implementation";
 };
 
@@ -36,7 +34,8 @@ type EventName = keyof EventMap;
  * Fire-and-forget: errors are logged to console, never thrown.
  *
  * The envelope includes required transport fields per spec/policy/event-taxonomy.yaml:
- * event_name, emitted_by, schema_version, correlation_id.
+ * event_name, occurred_at, emitted_by, correlation_id, schema_version.
+ * Catalog payload (route / phase only) is nested under `payload`.
  */
 export function emitEvent<T extends EventName>(name: T, payload: EventMap[T]): void {
   // Only runs in browser — no-op during SSR
@@ -47,6 +46,7 @@ export function emitEvent<T extends EventName>(name: T, payload: EventMap[T]): v
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
       event_name: name,
+      occurred_at: new Date().toISOString(),
       payload,
       emitted_by: "client",
       schema_version: "1.0.0",

@@ -12,10 +12,7 @@ import { emitEvent } from "@/lib/events";
 
 export function ShellEvents({ route }: { route: string }) {
   useEffect(() => {
-    emitEvent("dashboard.shell_viewed", {
-      route,
-      occurred_at: new Date().toISOString(),
-    });
+    emitEvent("dashboard.shell_viewed", { route });
   }, [route]);
 
   return null;
