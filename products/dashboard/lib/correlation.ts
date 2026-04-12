@@ -58,6 +58,17 @@ function sanitizeCorrelationId(value: string | null): string | null {
   return normalized;
 }
 
+const FEATURE_TAG_MAX_LEN = 64;
+
+/** Bound Sentry tag cardinality: allow safe chars, cap length, stable fallback. */
+function normalizeObservabilityFeature(feature: string): string {
+  const normalized = feature
+    .trim()
+    .replace(/[^A-Za-z0-9._-]/g, "_")
+    .slice(0, FEATURE_TAG_MAX_LEN);
+  return normalized || "unknown";
+}
+
 export function getBrowserCorrelationId(): string {
   if (typeof window === "undefined") {
     return createCorrelationId();
@@ -91,9 +102,10 @@ export function getBrowserCorrelationHeaders(): HeadersInit {
 
 export function applyBrowserObservabilityContext(feature: string): void {
   const correlationId = getBrowserCorrelationId();
+  const normalizedFeature = normalizeObservabilityFeature(feature);
 
   Sentry.setTag("product_id", PRODUCT_ID);
   Sentry.setTag("slice_id", SHELL_SLICE_ID);
-  Sentry.setTag("feature", feature);
+  Sentry.setTag("feature", normalizedFeature);
   Sentry.setTag("correlation_id", correlationId);
 }
