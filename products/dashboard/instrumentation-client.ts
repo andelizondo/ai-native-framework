@@ -6,6 +6,7 @@ import {
   SHELL_SLICE_ID,
   getClientSentryEnvironment,
   getClientSentryRelease,
+  isSentrySendDefaultPiiEnabled,
 } from "@/lib/sentry";
 
 Sentry.init({
@@ -13,7 +14,7 @@ Sentry.init({
   enabled: Boolean(process.env.NEXT_PUBLIC_SENTRY_DSN),
   environment: getClientSentryEnvironment(),
   release: getClientSentryRelease(),
-  sendDefaultPii: true,
+  sendDefaultPii: isSentrySendDefaultPiiEnabled(),
   tracesSampleRate: process.env.NODE_ENV === "development" ? 1 : 0.1,
   replaysSessionSampleRate: 0.1,
   replaysOnErrorSampleRate: 1,

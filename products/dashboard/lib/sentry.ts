@@ -2,6 +2,11 @@ export const PRODUCT_ID = "dashboard";
 export const SHELL_SLICE_ID = "dashboard-shell";
 export const CORRELATION_HEADER = "x-correlation-id";
 
+/** Sentry `sendDefaultPii` — only when explicitly opted in (see Sentry data-handling docs). */
+export function isSentrySendDefaultPiiEnabled(): boolean {
+  return process.env.NEXT_PUBLIC_SENTRY_SEND_DEFAULT_PII === "true";
+}
+
 function normalizeEnvironment(value: string | undefined): string {
   if (value === "preview") return "staging";
   return value ?? "development";
