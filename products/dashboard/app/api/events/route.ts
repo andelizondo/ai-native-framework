@@ -9,6 +9,7 @@
 
 import { NextRequest, NextResponse } from "next/server";
 import { captureError, createLogger, startSpan, setMonitoringTag } from "@/lib/monitoring";
+import { normalizeCorrelationId } from "@/lib/correlation";
 import {
   CORRELATION_HEADER,
   PRODUCT_ID,
@@ -35,16 +36,6 @@ function clampString(value: unknown, max = 64): string | null {
   const trimmed = value.trim();
   if (!trimmed) return null;
   return trimmed.slice(0, max);
-}
-
-/** Accept only well-formed UUID v1–v5; reject everything else. */
-function normalizeCorrelationId(value: unknown): string | null {
-  if (typeof value !== "string") return null;
-  return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(
-    value
-  )
-    ? value
-    : null;
 }
 
 /** Validate and sanitize catalog payload only (`occurred_at` lives on the envelope per policy). */
@@ -74,12 +65,14 @@ function sanitizePayload(
 }
 
 export async function POST(req: NextRequest) {
-  let correlationId: string | null = req.headers.get(CORRELATION_HEADER);
+  // Normalize the header once so every downstream use (logger, tags, response)
+  // shares a single validated value and the raw input never re-enters.
+  let correlationId: string | null = normalizeCorrelationId(
+    req.headers.get(CORRELATION_HEADER)
+  );
 
-  // Scoped logger — normalize the header before binding so malformed IDs
-  // never fragment correlation in Sentry Logs.
   const logger = createLogger({
-    correlation_id: normalizeCorrelationId(correlationId) ?? undefined,
+    correlation_id: correlationId ?? undefined,
     feature: "api.events",
   });
 
