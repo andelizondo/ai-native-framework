@@ -120,3 +120,20 @@ export const flush = Sentry.flush;
 // ─── Next.js instrumentation hook re-exports ─────────────────────────────────
 
 export const captureRequestError = Sentry.captureRequestError;
+
+// ─── Structured log pipeline ──────────────────────────────────────────────────
+//
+// Routed through Sentry Logs (enableLogs: true in all runtime configs).
+// All log lines are queryable in Sentry with correlation_id and product tags.
+//
+// createLogger(context) — bind correlation_id + feature to a request scope.
+// log                   — bare singleton for startup / build-time messages.
+
+export {
+  createLogger,
+  log,
+  type Logger,
+  type LogContext,
+  type LogAttributes,
+  type LogAttributeValue,
+} from "./logger";
