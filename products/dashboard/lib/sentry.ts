@@ -7,9 +7,16 @@ export function isSentrySendDefaultPiiEnabled(): boolean {
   return process.env.NEXT_PUBLIC_SENTRY_SEND_DEFAULT_PII === "true";
 }
 
+/** Server-only: local variable capture in stack traces — opt-in (can expose secrets). */
+export function isSentryIncludeLocalVariablesEnabled(): boolean {
+  return process.env.SENTRY_INCLUDE_LOCAL_VARIABLES === "true";
+}
+
 function normalizeEnvironment(value: string | undefined): string {
-  if (value === "preview") return "staging";
-  return value ?? "development";
+  const normalized = value?.trim();
+  if (!normalized) return "development";
+  if (normalized === "preview") return "staging";
+  return normalized;
 }
 
 export function getClientSentryEnvironment(): string {

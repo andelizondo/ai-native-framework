@@ -4,6 +4,7 @@ import {
   SHELL_SLICE_ID,
   getServerSentryEnvironment,
   getServerSentryRelease,
+  isSentryIncludeLocalVariablesEnabled,
   isSentrySendDefaultPiiEnabled,
 } from "@/lib/sentry";
 
@@ -14,7 +15,7 @@ Sentry.init({
   release: getServerSentryRelease(),
   sendDefaultPii: isSentrySendDefaultPiiEnabled(),
   tracesSampleRate: process.env.NODE_ENV === "development" ? 1 : 0.1,
-  includeLocalVariables: true,
+  includeLocalVariables: isSentryIncludeLocalVariablesEnabled(),
   enableLogs: true,
   initialScope: {
     tags: {

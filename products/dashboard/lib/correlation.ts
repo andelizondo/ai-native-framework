@@ -41,13 +41,31 @@ function safeSessionSet(key: string, value: string): void {
   }
 }
 
+const CORRELATION_ID_MAX_LEN = 128;
+const CORRELATION_ID_PATTERN = /^[A-Za-z0-9._-]+$/;
+
+/** Reject malformed persisted IDs so headers and Sentry tags stay safe and bounded. */
+function sanitizeCorrelationId(value: string | null): string | null {
+  if (value == null) return null;
+  const normalized = value.trim();
+  if (
+    !normalized ||
+    normalized.length > CORRELATION_ID_MAX_LEN ||
+    !CORRELATION_ID_PATTERN.test(normalized)
+  ) {
+    return null;
+  }
+  return normalized;
+}
+
 export function getBrowserCorrelationId(): string {
   if (typeof window === "undefined") {
     return createCorrelationId();
   }
 
-  const existing =
-    safeSessionGet(CORRELATION_STORAGE_KEY) ?? inMemoryCorrelationId;
+  const existing = sanitizeCorrelationId(
+    safeSessionGet(CORRELATION_STORAGE_KEY) ?? inMemoryCorrelationId
+  );
   if (existing) {
     inMemoryCorrelationId = existing;
     return existing;
