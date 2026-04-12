@@ -1,4 +1,4 @@
-import * as Sentry from "@sentry/nextjs";
+import { captureError, startSpan } from "@/lib/monitoring";
 import {
   applyBrowserObservabilityContext,
   getBrowserCorrelationHeaders,
@@ -52,7 +52,7 @@ export function emitEvent<T extends EventName>(name: T, payload: EventMap[T]): v
   const correlationId = getBrowserCorrelationId();
   applyBrowserObservabilityContext(name);
 
-  void Sentry.startSpan(
+  void startSpan(
     {
       name: `event.emit ${name}`,
       op: "feature.event.emit",
@@ -85,12 +85,9 @@ export function emitEvent<T extends EventName>(name: T, payload: EventMap[T]): v
           throw new Error(`HTTP ${res.status}`);
         }
       } catch (err) {
-        Sentry.withScope((scope) => {
-          scope.setTag("product_id", PRODUCT_ID);
-          scope.setTag("slice_id", SHELL_SLICE_ID);
-          scope.setTag("feature", name);
-          scope.setTag("correlation_id", correlationId);
-          Sentry.captureException(err);
+        captureError(err, {
+          feature: name,
+          extra: { correlation_id: correlationId },
         });
 
         // Non-blocking: telemetry must never break the UI

@@ -8,7 +8,7 @@
  */
 
 import { NextRequest, NextResponse } from "next/server";
-import * as Sentry from "@sentry/nextjs";
+import { captureError, startSpan, setMonitoringTag } from "@/lib/monitoring";
 import {
   CORRELATION_HEADER,
   PRODUCT_ID,
@@ -77,7 +77,7 @@ export async function POST(req: NextRequest) {
   let correlationId: string | null = req.headers.get(CORRELATION_HEADER);
 
   try {
-    return await Sentry.startSpan(
+    return await startSpan(
       {
         name: "POST /api/events",
         op: "http.server",
@@ -154,11 +154,11 @@ export async function POST(req: NextRequest) {
         };
 
         correlationId = entry.correlation_id;
-        Sentry.setTag("product_id", PRODUCT_ID);
-        Sentry.setTag("slice_id", SHELL_SLICE_ID);
-        Sentry.setTag("feature", body.event_name);
+        setMonitoringTag("product_id", PRODUCT_ID);
+        setMonitoringTag("slice_id", SHELL_SLICE_ID);
+        setMonitoringTag("feature", body.event_name);
         if (correlationId) {
-          Sentry.setTag("correlation_id", correlationId);
+          setMonitoringTag("correlation_id", correlationId);
         }
 
         console.log(JSON.stringify(entry));
@@ -170,14 +170,9 @@ export async function POST(req: NextRequest) {
       }
     );
   } catch (error) {
-    Sentry.withScope((scope) => {
-      scope.setTag("product_id", PRODUCT_ID);
-      scope.setTag("slice_id", SHELL_SLICE_ID);
-      scope.setTag("feature", "events_api");
-      if (correlationId) {
-        scope.setTag("correlation_id", correlationId);
-      }
-      Sentry.captureException(error);
+    captureError(error, {
+      feature: "events_api",
+      extra: { ...(correlationId ? { correlation_id: correlationId } : {}) },
     });
 
     return NextResponse.json(

@@ -1,6 +1,6 @@
 "use client";
 
-import * as Sentry from "@sentry/nextjs";
+import { startSpan, addBreadcrumb } from "@/lib/monitoring";
 import {
   applyBrowserObservabilityContext,
   getBrowserCorrelationHeaders,
@@ -28,7 +28,7 @@ export default function SentryTestPage() {
             className="rounded-lg bg-[#0f172a] px-4 py-2 text-sm font-medium text-white"
             onClick={() => {
               applyBrowserObservabilityContext("sentry_test_client");
-              Sentry.startSpan(
+              startSpan(
                 {
                   name: "ui.sentry_test.client",
                   op: "ui.action",
@@ -50,7 +50,7 @@ export default function SentryTestPage() {
             className="rounded-lg border border-[#cbd5e1] bg-white px-4 py-2 text-sm font-medium text-[#0f172a]"
             onClick={async () => {
               applyBrowserObservabilityContext("sentry_test_server");
-              await Sentry.startSpan(
+              await startSpan(
                 {
                   name: "ui.sentry_test.server",
                   op: "ui.action",
@@ -67,7 +67,7 @@ export default function SentryTestPage() {
                     message?: string;
                     correlation_id?: string;
                   };
-                  Sentry.addBreadcrumb({
+                  addBreadcrumb({
                     category: "sentry-test",
                     level: "info",
                     message: data.message ?? "Triggered server test route",

@@ -1,4 +1,5 @@
 import * as Sentry from "@sentry/nextjs";
+import posthog from "posthog-js";
 import { getBrowserCorrelationId } from "@/lib/correlation";
 import {
   CORRELATION_HEADER,
@@ -50,3 +51,22 @@ Sentry.init({
 });
 
 export const onRouterTransitionStart = Sentry.captureRouterTransitionStart;
+
+const posthogToken = process.env.NEXT_PUBLIC_POSTHOG_PROJECT_TOKEN;
+
+if (posthogToken) {
+  posthog.init(posthogToken, {
+    api_host: "/ingest",
+    ui_host: "https://eu.posthog.com",
+    capture_pageview: "history_change",
+    capture_pageleave: true,
+    person_profiles: "identified_only",
+    session_recording: {
+      maskAllInputs: true,
+      maskTextSelector: "[data-ph-mask]",
+    },
+    loaded: (ph) => {
+      if (process.env.NODE_ENV === "development") ph.opt_out_capturing();
+    },
+  });
+}
