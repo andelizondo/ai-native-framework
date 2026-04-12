@@ -73,6 +73,7 @@ export function getBrowserCorrelationId(): string {
 
   const cached = sanitizeCorrelationId(inMemoryCorrelationId);
   if (cached) {
+    safeSessionSet(CORRELATION_STORAGE_KEY, cached);
     return cached;
   }
 
