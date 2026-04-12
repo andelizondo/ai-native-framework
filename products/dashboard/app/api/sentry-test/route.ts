@@ -1,4 +1,4 @@
-import { captureError, startSpan, flush } from "@/lib/monitoring";
+import { captureError, createLogger, startSpan, flush } from "@/lib/monitoring";
 import { NextResponse } from "next/server";
 import {
   CORRELATION_HEADER,
@@ -8,6 +8,11 @@ import {
 
 export async function GET(req: Request) {
   const correlationId = req.headers.get(CORRELATION_HEADER);
+
+  const logger = createLogger({
+    correlation_id: correlationId ?? undefined,
+    feature: "api.sentry-test",
+  });
 
   return await startSpan(
     {
@@ -19,6 +24,8 @@ export async function GET(req: Request) {
       },
     },
     async () => {
+      logger.info("sentry.test.triggered", { route: "/api/sentry-test" });
+
       const error = new Error("Sentry server test");
       captureError(error, {
         feature: "sentry_test",
@@ -27,6 +34,8 @@ export async function GET(req: Request) {
           ...(correlationId ? { correlation_id: correlationId } : {}),
         },
       });
+
+      logger.error("sentry.test.error_captured", { route: "/api/sentry-test" });
 
       await flush(2000);
 

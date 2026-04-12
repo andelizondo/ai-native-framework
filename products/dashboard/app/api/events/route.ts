@@ -8,7 +8,7 @@
  */
 
 import { NextRequest, NextResponse } from "next/server";
-import { captureError, startSpan, setMonitoringTag } from "@/lib/monitoring";
+import { captureError, createLogger, startSpan, setMonitoringTag } from "@/lib/monitoring";
 import {
   CORRELATION_HEADER,
   PRODUCT_ID,
@@ -76,6 +76,13 @@ function sanitizePayload(
 export async function POST(req: NextRequest) {
   let correlationId: string | null = req.headers.get(CORRELATION_HEADER);
 
+  // Scoped logger — correlation_id bound from the inbound request header.
+  // All log lines for this request are queryable in Sentry Logs by correlation_id.
+  const logger = createLogger({
+    correlation_id: correlationId ?? undefined,
+    feature: "api.events",
+  });
+
   try {
     return await startSpan(
       {
@@ -92,10 +99,12 @@ export async function POST(req: NextRequest) {
         try {
           parsed = await req.json();
         } catch {
+          logger.warn("event.rejected", { reason: "invalid_json" });
           return NextResponse.json({ error: "invalid JSON" }, { status: 400 });
         }
 
         if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
+          logger.warn("event.rejected", { reason: "invalid_envelope" });
           return NextResponse.json(
             { error: "invalid event envelope" },
             { status: 400 }
@@ -109,10 +118,12 @@ export async function POST(req: NextRequest) {
           typeof body.payload !== "object" ||
           Array.isArray(body.payload)
         ) {
+          logger.warn("event.rejected", { reason: "invalid_payload" });
           return NextResponse.json({ error: "invalid payload" }, { status: 400 });
         }
 
         if (!body.event_name || typeof body.event_name !== "string") {
+          logger.warn("event.rejected", { reason: "missing_event_name" });
           return NextResponse.json(
             { error: "missing event_name" },
             { status: 400 }
@@ -120,6 +131,10 @@ export async function POST(req: NextRequest) {
         }
 
         if (!ALLOWED_EVENTS.has(body.event_name)) {
+          logger.warn("event.rejected", {
+            reason: "unknown_event",
+            event_name: body.event_name,
+          });
           return NextResponse.json(
             { error: `unknown event: ${body.event_name}` },
             { status: 422 }
@@ -128,6 +143,7 @@ export async function POST(req: NextRequest) {
 
         const occurredAt = clampString(body.occurred_at, 64);
         if (!occurredAt) {
+          logger.warn("event.rejected", { reason: "missing_occurred_at" });
           return NextResponse.json(
             { error: "occurred_at is required on envelope" },
             { status: 400 }
@@ -136,24 +152,19 @@ export async function POST(req: NextRequest) {
 
         const sanitizedPayload = sanitizePayload(body.event_name, body.payload);
         if (!sanitizedPayload) {
+          logger.warn("event.rejected", {
+            reason: "invalid_catalog_payload",
+            event_name: body.event_name,
+          });
           return NextResponse.json({ error: "invalid payload" }, { status: 400 });
         }
 
-        const entry = {
-          level: "info",
-          event_name: body.event_name,
-          occurred_at: occurredAt,
-          payload: sanitizedPayload,
-          emitted_by: clampString(body.emitted_by, 32) ?? "client",
-          schema_version: clampString(body.schema_version, 16) ?? "1.0.0",
-          correlation_id:
-            normalizeCorrelationId(body.correlation_id) ?? correlationId,
-          received_at: new Date().toISOString(),
-          product_id: PRODUCT_ID,
-          slice_id: SHELL_SLICE_ID,
-        };
+        const emittedBy = clampString(body.emitted_by, 32) ?? "client";
+        const schemaVersion = clampString(body.schema_version, 16) ?? "1.0.0";
+        const resolvedCorrelationId =
+          normalizeCorrelationId(body.correlation_id) ?? correlationId;
 
-        correlationId = entry.correlation_id;
+        correlationId = resolvedCorrelationId;
         setMonitoringTag("product_id", PRODUCT_ID);
         setMonitoringTag("slice_id", SHELL_SLICE_ID);
         setMonitoringTag("feature", body.event_name);
@@ -161,7 +172,13 @@ export async function POST(req: NextRequest) {
           setMonitoringTag("correlation_id", correlationId);
         }
 
-        console.log(JSON.stringify(entry));
+        logger.info("event.received", {
+          event_name: body.event_name,
+          occurred_at: occurredAt,
+          emitted_by: emittedBy,
+          schema_version: schemaVersion,
+          correlation_id: resolvedCorrelationId ?? undefined,
+        });
 
         return NextResponse.json(
           { ok: true, correlation_id: correlationId },
@@ -170,6 +187,9 @@ export async function POST(req: NextRequest) {
       }
     );
   } catch (error) {
+    logger.error("event.handler_error", {
+      correlation_id: correlationId ?? undefined,
+    });
     captureError(error, {
       feature: "events_api",
       extra: { ...(correlationId ? { correlation_id: correlationId } : {}) },
