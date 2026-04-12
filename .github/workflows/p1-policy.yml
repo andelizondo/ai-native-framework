@@ -510,6 +510,14 @@ jobs:
                     labels: ['autofix:pending'],
                   });
                 } else {
+                  await github.rest.issues.removeLabel({
+                    owner,
+                    repo,
+                    issue_number: prNumber,
+                    name: 'autofix:pending',
+                  }).catch((error) => {
+                    if (error.status !== 404) throw error;
+                  });
                   await github.rest.issues.addLabels({
                     owner,
                     repo,
@@ -519,6 +527,14 @@ jobs:
                   residual = 'residual:med';
                 }
               } else {
+                await github.rest.issues.removeLabel({
+                  owner,
+                  repo,
+                  issue_number: prNumber,
+                  name: 'autofix:pending',
+                }).catch((error) => {
+                  if (error.status !== 404) throw error;
+                });
                 await github.rest.issues.addLabels({
                   owner,
                   repo,
@@ -594,6 +610,14 @@ jobs:
                       labels: ['autofix:pending'],
                     });
                   } else {
+                    await github.rest.issues.removeLabel({
+                      owner,
+                      repo,
+                      issue_number: prNumber,
+                      name: 'autofix:pending',
+                    }).catch((error) => {
+                      if (error.status !== 404) throw error;
+                    });
                     await github.rest.issues.addLabels({
                       owner,
                       repo,
@@ -603,6 +627,14 @@ jobs:
                     residual = 'residual:med';
                   }
                 } else {
+                  await github.rest.issues.removeLabel({
+                    owner,
+                    repo,
+                    issue_number: prNumber,
+                    name: 'autofix:pending',
+                  }).catch((error) => {
+                    if (error.status !== 404) throw error;
+                  });
                   await github.rest.issues.addLabels({
                     owner,
                     repo,
