@@ -497,16 +497,27 @@ jobs:
               (r) => r.state === 'APPROVED' || r.state === 'COMMENTED',
             );
             const aiReviewerAllowsFallback = !hasChangesRequestedOnHead && hasApprovalLikeOnHead;
+            const autofixApplied = labels.includes('autofix:applied');
 
             if (!residual && risk === 'risk:low' && aiReviewerAllowsFallback) {
               const unresolved = await hasUnresolvedThreads();
               if (unresolved) {
-                await github.rest.issues.addLabels({
-                  owner,
-                  repo,
-                  issue_number: prNumber,
-                  labels: ['autofix:pending'],
-                });
+                if (!autofixApplied) {
+                  await github.rest.issues.addLabels({
+                    owner,
+                    repo,
+                    issue_number: prNumber,
+                    labels: ['autofix:pending'],
+                  });
+                } else {
+                  await github.rest.issues.addLabels({
+                    owner,
+                    repo,
+                    issue_number: prNumber,
+                    labels: ['residual:med'],
+                  });
+                  residual = 'residual:med';
+                }
               } else {
                 await github.rest.issues.addLabels({
                   owner,
@@ -524,7 +535,6 @@ jobs:
               aiOnHead.length === 0;
 
             if (!residual && statusOnlyEvidence && risk) {
-              const autofixApplied = labels.includes('autofix:applied');
               const isControlPlane = labels.includes('control-plane');
 
               if (risk === 'risk:high') {
@@ -576,12 +586,22 @@ jobs:
               } else if (risk === 'risk:low') {
                 const unresolved = await hasUnresolvedThreads();
                 if (unresolved) {
-                  await github.rest.issues.addLabels({
-                    owner,
-                    repo,
-                    issue_number: prNumber,
-                    labels: ['autofix:pending'],
-                  });
+                  if (!autofixApplied) {
+                    await github.rest.issues.addLabels({
+                      owner,
+                      repo,
+                      issue_number: prNumber,
+                      labels: ['autofix:pending'],
+                    });
+                  } else {
+                    await github.rest.issues.addLabels({
+                      owner,
+                      repo,
+                      issue_number: prNumber,
+                      labels: ['residual:med'],
+                    });
+                    residual = 'residual:med';
+                  }
                 } else {
                   await github.rest.issues.addLabels({
                     owner,
