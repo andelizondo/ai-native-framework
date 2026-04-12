@@ -52,6 +52,7 @@ This file stores durable repository memory for agents. It is not a transcript an
 - 2026-04-11: Added `Framework Keeper` as a repository-local skill and `ai/playbooks/framework-review.md` as the canonical procedure for auditing the framework itself for consistency, efficiency, and predictability.
 - 2026-04-12: Renamed `agents/` to `interfaces/` so provider-agnostic logical tool contracts are named for their actual role and remain distinct from the runtime bootstrap bundle under `ai/`.
 - 2026-04-12: When repository work is requested “via PR” or to “open a PR,” default execution should follow the pull request execution loop playbook rather than treating PR creation as a standalone publication step.
+- 2026-04-12: Tightened `docs/AI_NATIVE_FRAMEWORK.md` to prefer summary-level routing in large framework sections, keep detailed operating logic in canonical playbooks, pair `ai/SKILLS.md` with `ai/PLAYBOOKS.md` as adjacent but distinct surfaces, and use `skill layer` / `workflow library` terminology instead of the older `capability layer` / `process library` wording.
 
 ## Update Rules
 
