@@ -1,5 +1,6 @@
 @import "tailwindcss";
 
+/* stylelint-disable-next-line scss/at-rule-no-unknown -- Tailwind v4 @theme */
 @theme {
   --color-background: #ffffff;
   --color-foreground: #0f172a;

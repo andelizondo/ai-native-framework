@@ -14,13 +14,6 @@ const ALLOWED_EVENTS = new Set([
   "dashboard.phase_navigated",
 ]);
 
-// Whitelisted payload fields per event name — prevents PII/oversized fields
-// from untrusted clients reaching logs.
-const ALLOWED_PAYLOAD_FIELDS: Record<string, ReadonlySet<string>> = {
-  "dashboard.shell_viewed": new Set(["occurred_at", "route"]),
-  "dashboard.phase_navigated": new Set(["occurred_at", "phase"]),
-};
-
 type EventBody = {
   event_name: string;
   emitted_by?: string;
@@ -50,24 +43,56 @@ function normalizeCorrelationId(value: unknown): string | null {
     : null;
 }
 
+/** Validate and sanitize payload by event — checks keys, value types, and lengths. */
 function sanitizePayload(
   eventName: string,
   payload: Record<string, unknown>
-): Record<string, unknown> {
-  const allowed = ALLOWED_PAYLOAD_FIELDS[eventName];
-  if (!allowed) return {};
-  return Object.fromEntries(
-    Object.entries(payload).filter(([key]) => allowed.has(key))
-  );
+): Record<string, unknown> | null {
+  const occurred_at = clampString(payload.occurred_at, 64);
+  if (!occurred_at) return null;
+
+  if (eventName === "dashboard.shell_viewed") {
+    const route = clampString(payload.route, 256);
+    if (!route) return null;
+    return { occurred_at, route };
+  }
+
+  if (eventName === "dashboard.phase_navigated") {
+    const phase = payload.phase;
+    if (
+      phase !== "ideation" &&
+      phase !== "design" &&
+      phase !== "implementation"
+    ) {
+      return null;
+    }
+    return { occurred_at, phase };
+  }
+
+  return null;
 }
 
 export async function POST(req: NextRequest) {
-  let body: EventBody;
+  let parsed: unknown;
 
   try {
-    body = (await req.json()) as EventBody;
+    parsed = await req.json();
   } catch {
     return NextResponse.json({ error: "invalid JSON" }, { status: 400 });
+  }
+
+  if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
+    return NextResponse.json({ error: "invalid event envelope" }, { status: 400 });
+  }
+
+  const body = parsed as EventBody;
+
+  if (
+    body.payload == null ||
+    typeof body.payload !== "object" ||
+    Array.isArray(body.payload)
+  ) {
+    return NextResponse.json({ error: "invalid payload" }, { status: 400 });
   }
 
   // Minimal envelope validation
@@ -89,11 +114,16 @@ export async function POST(req: NextRequest) {
     );
   }
 
-  // V1: structured log to stdout — only log whitelisted payload fields
+  // V1: structured log to stdout — validate and sanitize payload before logging
+  const sanitizedPayload = sanitizePayload(body.event_name, body.payload);
+  if (!sanitizedPayload) {
+    return NextResponse.json({ error: "invalid payload" }, { status: 400 });
+  }
+
   const entry = {
     level: "info",
     event_name: body.event_name,
-    payload: sanitizePayload(body.event_name, body.payload),
+    payload: sanitizedPayload,
     emitted_by: clampString(body.emitted_by, 32) ?? "client",
     schema_version: clampString(body.schema_version, 16) ?? "1.0.0",
     correlation_id: normalizeCorrelationId(body.correlation_id),

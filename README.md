@@ -12,19 +12,19 @@ The framework is designed for agents to execute structured work under explicit c
 - Event and governance policy
 - Provider-agnostic agent interface contracts
 - Playbooks for repository governance, pull-request automation, and agent runtime context
-- A repository-local agent surface: root `[AGENTS.md](AGENTS.md)` (first read for most agent tools), plus `[ai/PLAYBOOKS.md](ai/PLAYBOOKS.md)`, `[ai/playbooks/](ai/playbooks/)`, `[ai/SKILLS.md](ai/SKILLS.md)`, `[ai/skills/](ai/skills/)`, and `[ai/MEMORY.md](ai/MEMORY.md)`
+- A repository-local agent surface: root [AGENTS.md](AGENTS.md) (first read for most agent tools), plus [ai/PLAYBOOKS.md](ai/PLAYBOOKS.md), [ai/playbooks/](ai/playbooks/), [ai/SKILLS.md](ai/SKILLS.md), [ai/skills/](ai/skills/), and [ai/MEMORY.md](ai/MEMORY.md)
 
 ## Authority Ladder
 
 Higher items override lower items:
 
-1. `[spec/schema/](spec/schema/)`
-2. Validated artifacts under `[spec/examples/](spec/examples/)` and future `spec/processes/`
-3. `[spec/policy/](spec/policy/)`
-4. `[interfaces/interfaces.yaml](interfaces/interfaces.yaml)`
-5. `[ai/playbooks/](ai/playbooks/)` (procedure bodies)
-6. `[docs/AI_NATIVE_FRAMEWORK.md](docs/AI_NATIVE_FRAMEWORK.md)` and other explanatory `docs/*`
-7. `[AGENTS.md](AGENTS.md)`, `[ai/PLAYBOOKS.md](ai/PLAYBOOKS.md)`, `[ai/SKILLS.md](ai/SKILLS.md)`, `[ai/skills/](ai/skills/)`, `[ai/MEMORY.md](ai/MEMORY.md)`
+1. [spec/schema/](spec/schema/)
+2. Validated artifacts under [spec/examples/](spec/examples/) and future `spec/processes/`
+3. [spec/policy/](spec/policy/)
+4. [interfaces/interfaces.yaml](interfaces/interfaces.yaml)
+5. [ai/playbooks/](ai/playbooks/) (procedure bodies)
+6. [docs/AI_NATIVE_FRAMEWORK.md](docs/AI_NATIVE_FRAMEWORK.md) and other explanatory `docs/*`
+7. [AGENTS.md](AGENTS.md), [ai/PLAYBOOKS.md](ai/PLAYBOOKS.md), [ai/SKILLS.md](ai/SKILLS.md), [ai/skills/](ai/skills/), [ai/MEMORY.md](ai/MEMORY.md)
 
 Root `AGENTS.md` and the `ai/` bundle are operationally important, but they do not override schema, policy, interface contracts, or playbook procedures.
 
@@ -69,32 +69,32 @@ The playbooks turn repeated operational work into reusable procedures:
 
 Together they cover governed collaboration, automatable PR policy, portable agent bootstrap, and framework self-review. None of them replaces schema or policy; each is written to stand alone, though **materializing a new repo** usually applies repository foundation first so later automation matches reality.
 
-See `[ai/PLAYBOOKS.md](ai/PLAYBOOKS.md)` for the full playbook discovery index.
+See [ai/PLAYBOOKS.md](ai/PLAYBOOKS.md) for the full playbook discovery index.
 
 ## Agent entry map
 
-Most agent tools default to **root `[AGENTS.md](AGENTS.md)`**. After that, the layout mirrors skills vs playbooks:
+Most agent tools default to **root [AGENTS.md](AGENTS.md)**. After that, the layout mirrors skills vs playbooks:
 
 
 | Location                                                     | Role                                                       |
 | ------------------------------------------------------------ | ---------------------------------------------------------- |
-| `[AGENTS.md](AGENTS.md)`                                     | First read: authority, commands, merge and review rules    |
-| `[docs/AI_NATIVE_FRAMEWORK.md](docs/AI_NATIVE_FRAMEWORK.md)` | Full framework narrative (human- and agent-oriented prose) |
-| `[ai/PLAYBOOKS.md](ai/PLAYBOOKS.md)`                         | Which **unitary procedure** to open under `ai/playbooks/`  |
-| `[ai/SKILLS.md](ai/SKILLS.md)`                               | Which **role/task skill** to open under `ai/skills/`       |
-| `[ai/MEMORY.md](ai/MEMORY.md)`                               | Durable repo facts and open loops                          |
+| [AGENTS.md](AGENTS.md)                                     | First read: authority, commands, merge and review rules    |
+| [docs/AI_NATIVE_FRAMEWORK.md](docs/AI_NATIVE_FRAMEWORK.md) | Full framework narrative (human- and agent-oriented prose) |
+| [ai/PLAYBOOKS.md](ai/PLAYBOOKS.md)                         | Which **unitary procedure** to open under `ai/playbooks/`  |
+| [ai/SKILLS.md](ai/SKILLS.md)                               | Which **role/task skill** to open under `ai/skills/`       |
+| [ai/MEMORY.md](ai/MEMORY.md)                               | Durable repo facts and open loops                          |
 
 
-Procedure bodies: `[ai/playbooks/](ai/playbooks/)`. Skill bodies: `[ai/skills/](ai/skills/)`. Normative machine rules: `spec/` and `interfaces/`.
+Procedure bodies: [ai/playbooks/](ai/playbooks/). Skill bodies: [ai/skills/](ai/skills/). Normative machine rules: `spec/` and `interfaces/`.
 
 ## Agent bundle (`ai/`)
 
 This repository keeps **one agent file at the repo root** and groups the rest under `ai/`:
 
-- `[AGENTS.md](AGENTS.md)` — bootstrap contract, authority map, commands, and escalation rules (root)
-- `[ai/PLAYBOOKS.md](ai/PLAYBOOKS.md)` — playbook discovery index (`ai/playbooks/` bodies)
-- `[ai/SKILLS.md](ai/SKILLS.md)` — skill discovery index (`ai/skills/` bodies)
-- `[ai/MEMORY.md](ai/MEMORY.md)` — durable repository memory, open loops, and recent decisions
+- [AGENTS.md](AGENTS.md) — bootstrap contract, authority map, commands, and escalation rules (root)
+- [ai/PLAYBOOKS.md](ai/PLAYBOOKS.md) — playbook discovery index (`ai/playbooks/` bodies)
+- [ai/SKILLS.md](ai/SKILLS.md) — skill discovery index (`ai/skills/` bodies)
+- [ai/MEMORY.md](ai/MEMORY.md) — durable repository memory, open loops, and recent decisions
 
 These files coordinate how agents run. Durable policy still belongs in schema, `ai/playbooks/`, interfaces, and other canonical artifacts. For pull requests the agent that published the change is responsible for **converging to merge** when policy allows (see `ai/playbooks/pull-request-execution-loop.md` section 6 and `AGENTS.md`); humans still own decisions when policy requires escalation.
 
@@ -105,7 +105,7 @@ npm install
 npm run validate
 ```
 
-CI runs the same validation via `[.github/workflows/validate.yml](.github/workflows/validate.yml)`.
+CI runs the same validation via [.github/workflows/validate.yml](.github/workflows/validate.yml).
 
 ## Repository Layout
 
@@ -149,12 +149,12 @@ Today that validates example specs against the product schema. As the framework 
 
 ## Recommended Reading Order
 
-**Agents:** start at `[AGENTS.md](AGENTS.md)`, then follow its read order (summarized here):
+**Agents:** start at [AGENTS.md](AGENTS.md), then follow its read order (summarized here):
 
-1. `[README.md](README.md)`
-2. `[docs/AI_NATIVE_FRAMEWORK.md](docs/AI_NATIVE_FRAMEWORK.md)`
-3. `[ai/PLAYBOOKS.md](ai/PLAYBOOKS.md)`
-4. The specific files under `[ai/playbooks/](ai/playbooks/)` or `spec/` relevant to the task
-5. `[ai/SKILLS.md](ai/SKILLS.md)`
-6. Only the specific files under `[ai/skills/](ai/skills/)` selected from the index
-7. `[ai/MEMORY.md](ai/MEMORY.md)`
+1. [README.md](README.md)
+2. [docs/AI_NATIVE_FRAMEWORK.md](docs/AI_NATIVE_FRAMEWORK.md)
+3. [ai/PLAYBOOKS.md](ai/PLAYBOOKS.md)
+4. The specific files under [ai/playbooks/](ai/playbooks/) or `spec/` relevant to the task
+5. [ai/SKILLS.md](ai/SKILLS.md)
+6. Only the specific files under [ai/skills/](ai/skills/) selected from the index
+7. [ai/MEMORY.md](ai/MEMORY.md)

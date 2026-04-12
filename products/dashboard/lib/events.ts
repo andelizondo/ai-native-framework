@@ -42,7 +42,7 @@ export function emitEvent<T extends EventName>(name: T, payload: EventMap[T]): v
   // Only runs in browser — no-op during SSR
   if (typeof window === "undefined") return;
 
-  fetch("/api/events", {
+  void fetch("/api/events", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
@@ -52,8 +52,14 @@ export function emitEvent<T extends EventName>(name: T, payload: EventMap[T]): v
       schema_version: "1.0.0",
       correlation_id: crypto.randomUUID(),
     }),
-  }).catch((err) => {
-    // Non-blocking: telemetry must never break the UI
-    console.warn("[events] emit failed:", name, err);
-  });
+  })
+    .then((res) => {
+      if (!res.ok) {
+        throw new Error(`HTTP ${res.status}`);
+      }
+    })
+    .catch((err) => {
+      // Non-blocking: telemetry must never break the UI
+      console.warn("[events] emit failed:", name, err);
+    });
 }
