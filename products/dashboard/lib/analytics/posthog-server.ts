@@ -13,3 +13,15 @@ export function getPostHogClient(): PostHog {
     flushInterval: 0,
   });
 }
+
+/** Run `fn` with a fresh PostHog client and shut it down in a finally block. */
+export async function withPostHogClient<T>(
+  fn: (client: PostHog) => Promise<T>,
+): Promise<T> {
+  const client = getPostHogClient();
+  try {
+    return await fn(client);
+  } finally {
+    await client.shutdown();
+  }
+}

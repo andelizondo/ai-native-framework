@@ -6,7 +6,7 @@
 // Usage:
 //   await captureServerEvent(userId, 'user.signed_in', {})
 
-import { getPostHogClient } from "./posthog-server";
+import { withPostHogClient } from "./posthog-server";
 import type { AnalyticsEvent } from "./events";
 
 export async function captureServerEvent<E extends AnalyticsEvent>(
@@ -14,7 +14,8 @@ export async function captureServerEvent<E extends AnalyticsEvent>(
   event: E["event"],
   properties: Extract<AnalyticsEvent, { event: E["event"] }>["properties"],
 ): Promise<void> {
-  const client = getPostHogClient();
-  client.capture({ distinctId, event, properties });
-  await client.shutdown();
+  await withPostHogClient((client) => {
+    client.capture({ distinctId, event, properties });
+    return Promise.resolve();
+  });
 }

@@ -4,7 +4,7 @@
 // Client-side flags: use posthog.isFeatureEnabled() via usePostHog() from posthog-js/react
 // only inside a dedicated useFlag hook — never inline in feature components.
 
-import { getPostHogClient } from "./posthog-server";
+import { withPostHogClient } from "./posthog-server";
 
 // Extend this union as flags are created in the PostHog dashboard.
 // Document flag intent and rollout plan in the decision log before creating the flag.
@@ -14,8 +14,8 @@ export async function getFlag(
   flag: FeatureFlag,
   distinctId: string,
 ): Promise<boolean> {
-  const client = getPostHogClient();
-  const value = await client.isFeatureEnabled(flag, distinctId);
-  await client.shutdown();
-  return value ?? false;
+  return withPostHogClient(async (client) => {
+    const value = await client.isFeatureEnabled(flag, distinctId);
+    return value ?? false;
+  });
 }
