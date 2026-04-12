@@ -20,6 +20,7 @@ This file stores durable repository memory for agents. It is not a transcript an
 - Agent runtime layout: root `AGENTS.md` only; `ai/SKILLS.md` and `ai/skills/` for skills; `ai/PLAYBOOKS.md` and `ai/playbooks/` for unitary procedures; `ai/MEMORY.md` for durable memory.
 - The top-level repository-local skills are `Designer`, `PM`, `Developer`, and `Framework Keeper`.
 - Keep `spec/policy/event-taxonomy.yaml` aligned with runtime emitters (event names, envelope fields, and payload shapes must stay consistent across policy, specs, and product code).
+- For product features in this repository, Sentry should be considered part of the default implementation surface for both frontend and backend work; detailed feature-level expectations live in `ai/skills/developer.md`.
 
 ## Current Bundle State
 
@@ -55,6 +56,7 @@ This file stores durable repository memory for agents. It is not a transcript an
 - 2026-04-12: When repository work is requested “via PR” or to “open a PR,” default execution should follow the pull request execution loop playbook rather than treating PR creation as a standalone publication step.
 - 2026-04-12: Tightened `docs/AI_NATIVE_FRAMEWORK.md` to prefer summary-level routing in large framework sections, keep detailed operating logic in canonical playbooks, pair `ai/SKILLS.md` with `ai/PLAYBOOKS.md` as adjacent but distinct surfaces, and use `skill layer` / `workflow library` terminology instead of the older `capability layer` / `process library` wording.
 - 2026-04-12: Recorded in Stable Facts that `spec/policy/event-taxonomy.yaml` must stay aligned with runtime emitters (PR #44 / dashboard product wiring).
+- 2026-04-12: Standardized repository-local developer guidance so Sentry is expected for frontend and backend feature work by default; the detailed required features and decision rules live in `ai/skills/developer.md`.
 
 ## Update Rules
 

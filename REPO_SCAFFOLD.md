@@ -396,7 +396,7 @@ observability:
     pii_policy: "No raw emails in info-level logs; use hashed identifiers where needed."
   errors:
     tool: "Sentry"
-    policy: "Capture unhandled exceptions; tag with product_id and slice_id."
+    policy: "Treat Sentry as part of the default implementation surface for frontend and backend work. At minimum, capture unhandled exceptions, set release and environment, tag events with product_id and slice_id, propagate correlation_id through request boundaries, and add explicit spans around the primary feature flow."
   metrics:
     tool: "PostHog"
     core_metrics:
@@ -472,9 +472,15 @@ events:
   catalog: []
 
 observability:
-  logs: {}
-  errors: {}
-  metrics: {}
+  logs:
+    strategy: "Structured logs; include correlation_id and trace ids when available."
+    pii_policy: "Do not log raw secrets or restricted PII at info level."
+  errors:
+    tool: "Sentry"
+    policy: "Treat Sentry as part of the default implementation surface for frontend and backend work. At minimum, capture unhandled exceptions, set release and environment, tag events with product_id and slice_id, propagate correlation_id through request boundaries, and add explicit spans around the primary feature flow."
+  metrics:
+    tool: "PostHog"
+    core_metrics: []
 
 context_recovery:
   canonical_summary: ""
@@ -1004,4 +1010,3 @@ Paste the following as valid JSON (single file):
 - **Slice specs** require `slice_id` and `parent_product_id` (enforced by `allOf` in schema).
 - Update `golden-product.yaml` when you add required fields to the schema.
 - Keep `spec/policy/event-taxonomy.yaml` aligned with runtime emitters.
-
