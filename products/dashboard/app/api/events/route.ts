@@ -76,10 +76,10 @@ function sanitizePayload(
 export async function POST(req: NextRequest) {
   let correlationId: string | null = req.headers.get(CORRELATION_HEADER);
 
-  // Scoped logger — correlation_id bound from the inbound request header.
-  // All log lines for this request are queryable in Sentry Logs by correlation_id.
+  // Scoped logger — normalize the header before binding so malformed IDs
+  // never fragment correlation in Sentry Logs.
   const logger = createLogger({
-    correlation_id: correlationId ?? undefined,
+    correlation_id: normalizeCorrelationId(correlationId) ?? undefined,
     feature: "api.events",
   });
 

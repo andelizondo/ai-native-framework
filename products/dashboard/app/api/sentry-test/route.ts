@@ -6,8 +6,17 @@ import {
   SHELL_SLICE_ID,
 } from "@/lib/sentry";
 
+const UUID_RE =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+
 export async function GET(req: Request) {
-  const correlationId = req.headers.get(CORRELATION_HEADER);
+  const rawCorrelationId = req.headers.get(CORRELATION_HEADER);
+  // Normalize before binding to the logger so malformed header values
+  // never fragment correlation in Sentry Logs.
+  const correlationId =
+    rawCorrelationId && UUID_RE.test(rawCorrelationId)
+      ? rawCorrelationId
+      : null;
 
   const logger = createLogger({
     correlation_id: correlationId ?? undefined,
