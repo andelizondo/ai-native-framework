@@ -69,7 +69,7 @@ That sequence is **practical**, not a ranking of importance: mature repos often 
 - **Inputs:** completed `templates/feature-request.md`; current `spec/examples/dashboard-product.yaml`; current `products/dashboard/lib/analytics/events.ts`.
 - **Outputs:** updated spec YAML, updated `AnalyticsEvent` type registry, feature component(s), dual-pipeline analytics wiring (PostHog + internal audit), passing `npm run validate`.
 - **Load:** [`playbooks/feature-implementation.md`](playbooks/feature-implementation.md)
-- **Constraints:** spec update and type registry entry are required before any component code; `npm run validate` must pass before the PR ships; no direct `posthog-js` imports outside `lib/analytics/`.
+- **Constraints:** spec update and type registry entry are required before any component code; `npm run validate` must pass before the PR ships; `posthog-js` may only be imported in the approved files listed in `docs/ANALYTICS_STANDARD.md` §3 — feature code must use `useAnalytics()` from `lib/analytics/events`.
 
 ---
 

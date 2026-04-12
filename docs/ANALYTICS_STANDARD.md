@@ -203,8 +203,6 @@ Navigate to **Insights → Events** and filter by `spec.exported`. The event wil
 
 ---
 
----
-
 ## 9. Error monitoring standard
 
 ### The rule: never import `@sentry/nextjs` in feature code
