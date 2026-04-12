@@ -161,7 +161,7 @@ Engine rules:
 2. If `risk:med` and the PR has the `control-plane` label: set `residual:med`. The owner-decision path applies for personal repositories; a second human approval applies otherwise.
 3. If `risk:med`, no configured AI reviewer still requests changes on the current head SHA, and the aggregated reviewer state across active configured reviewers is `APPROVED` or `COMMENTED` with all review threads resolved or outdated: set `residual:low`.
 4. If `risk:med` and any configured AI reviewer state is `CHANGES_REQUESTED`: set `autofix:pending` and leave `residual` unset until the resolution loop runs (see step 3.5).
-5. If `risk:low`, no configured AI reviewer still requests changes on the current head SHA, and the aggregated reviewer state across active configured reviewers is `APPROVED` or `COMMENTED`: set `residual:low`.
+5. If `risk:low`, no configured AI reviewer still requests changes on the current head SHA, the aggregated reviewer state across active configured reviewers is `APPROVED` or `COMMENTED`, and all review threads are resolved or outdated: set `residual:low`.
 6. If `risk:low` and any configured AI reviewer state is `CHANGES_REQUESTED`: set `autofix:pending`.
 
 If the PR head changes after residual risk is set, the engine **MUST** clear the existing `residual:*` label and re-evaluate from the new review evidence.
