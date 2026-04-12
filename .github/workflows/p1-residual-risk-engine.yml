@@ -324,7 +324,7 @@ jobs:
             if (aggregateReviewState === 'APPROVED' || aggregateReviewState === 'COMMENTED') {
               const unresolved = await hasUnresolvedThreads();
 
-              if (unresolved && initialRisk === 'risk:med') {
+              if (unresolved && (initialRisk === 'risk:med' || initialRisk === 'risk:low')) {
                 if (!autofixAlreadyApplied) {
                   await removeLabels([...residualLabels, 'autofix:pending']);
                   await setLabel('autofix:pending');
@@ -336,11 +336,11 @@ jobs:
                     '',
                     'Automation will re-evaluate after the resolution loop completes.',
                   ].join('\n'));
-                  core.info('Unresolved threads on risk:med — autofix:pending set.');
+                  core.info(`Unresolved threads on ${initialRisk} — autofix:pending set.`);
                 } else {
                   await removeLabels(residualLabels);
                   await setLabel('residual:med');
-                  core.info('Unresolved threads on risk:med after autofix — residual:med set.');
+                  core.info(`Unresolved threads on ${initialRisk} after autofix — residual:med set.`);
                 }
                 return;
               }

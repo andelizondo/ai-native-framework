@@ -25,11 +25,13 @@ interfaces:
   emit_event:
     description: "Emit a structured domain event with envelope fields."
     inputs:
-      name:
+      event_name:
         type: string
       payload:
         type: object
       correlation_id:
+        type: string
+      schema_version:
         type: string
       occurred_at:
         type: string
