@@ -63,6 +63,16 @@ That sequence is **practical**, not a ranking of importance: mature repos often 
 - **Load:** [`playbooks/framework-review.md`](playbooks/framework-review.md)
 - **Constraints:** audit the framework, not ordinary feature code; follow the authority ladder and do not weaken higher-order artifacts to satisfy lower-order drift.
 
+### Feature implementation (dashboard)
+
+- **When to use:** implementing any new feature in `products/dashboard/` from a completed feature request.
+- **Inputs:** completed `templates/feature-request.md`; current `spec/examples/dashboard-product.yaml`; current `lib/analytics/events.ts`.
+- **Outputs:** updated spec YAML, updated `AnalyticsEvent` type registry, feature component(s), dual-pipeline analytics wiring (PostHog + internal audit), passing `npm run validate`.
+- **Load:** [`playbooks/feature-implementation.md`](playbooks/feature-implementation.md)
+- **Constraints:** spec update and type registry entry are required before any component code; `npm run validate` must pass before the PR ships; no direct `posthog-js` imports outside `lib/analytics/`.
+
+---
+
 ## Adding A New Playbook
 
 Add a new playbook document under `ai/playbooks/` when all of these are true:

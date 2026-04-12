@@ -70,6 +70,57 @@ data_model:
 events:
   naming_convention: "domain.action_in_past_tense"
   catalog:
+    - name: "user.signed_up"
+      description: "A new user completed the sign-up flow."
+      version: "1.0.0"
+      schema_version: "1.0.0"
+      classification:
+        pii: high
+        idempotency: required
+        ordering: at_least_once
+      emitted_by:
+        - "api.auth"
+      payload:
+        type: object
+        additionalProperties: false
+        required:
+          - user_id
+          - occurred_at
+        properties:
+          user_id:
+            type: string
+            format: uuid
+          occurred_at:
+            type: string
+            format: date-time
+          plan:
+            type: string
+            enum:
+              - free
+              - pro
+    - name: "user.signed_in"
+      description: "An existing user successfully authenticated."
+      version: "1.0.0"
+      schema_version: "1.0.0"
+      classification:
+        pii: high
+        idempotency: none
+        ordering: at_least_once
+      emitted_by:
+        - "api.auth"
+      payload:
+        type: object
+        additionalProperties: false
+        required:
+          - user_id
+          - occurred_at
+        properties:
+          user_id:
+            type: string
+            format: uuid
+          occurred_at:
+            type: string
+            format: date-time
     - name: "auth.user_signed_up"
       description: "A new user completed signup."
       version: "1.0.0"
@@ -112,6 +163,12 @@ observability:
       - key: "activation_completed"
         description: "User completed primary activation funnel step."
         type: event
+      - key: "user.signed_in"
+        description: "Successful sign-in events; measures returning user engagement rate."
+        type: event
+      - key: "user.signed_up"
+        description: "New user registrations; primary acquisition funnel entry point."
+        type: event
 
 context_recovery:
   canonical_summary: |
@@ -135,3 +192,11 @@ decision_log:
       alternatives:
         - "Framework-first (rejected)"
         - "Product-only with backfill (escape hatch)"
+    - id: "DEC-002"
+      date: "2026-04-12"
+      decision: "Adopt PostHog for product analytics with typed abstraction layer."
+      reason: "Enables growth experimentation and feedback synthesis. Typed event registry in lib/analytics/events.ts enforces spec-first discipline at compile time; no feature code imports posthog-js directly."
+      alternatives:
+        - "Mixpanel"
+        - "Amplitude"
+        - "raw posthog-js without abstraction"
