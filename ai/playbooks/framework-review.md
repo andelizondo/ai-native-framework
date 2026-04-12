@@ -50,7 +50,7 @@ Read the relevant sources from highest to lowest authority:
 1. `spec/schema/*`
 2. validated artifacts under `spec/examples/*` and future `spec/processes/*`
 3. `spec/policy/*`
-4. `agents/interfaces.yaml`
+4. `interfaces/interfaces.yaml`
 5. `ai/playbooks/*.md`
 6. `docs/*`
 7. `AGENTS.md`, `ai/PLAYBOOKS.md`, `ai/SKILLS.md`, `ai/skills/*.md`, `ai/MEMORY.md`

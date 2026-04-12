@@ -487,7 +487,7 @@ decision_log:
 
 ---
 
-## File: `agents/interfaces.yaml`
+## File: `interfaces/interfaces.yaml`
 
 ```yaml
 # Provider-agnostic logical interfaces agents should implement or call via adapters.

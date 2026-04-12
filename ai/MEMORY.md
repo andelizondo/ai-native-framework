@@ -13,6 +13,7 @@ This file stores durable repository memory for agents. It is not a transcript an
   - `ai/playbooks/framework-review.md`
 - The canonical validation command is `npm run validate`.
 - The framework is explicitly provider-agnostic at the core layer.
+- Provider-agnostic logical tool contracts live under `interfaces/` (`interfaces/interfaces.yaml`), separate from the repository-local agent runtime bundle under `ai/`.
 - For this repository, pull requests should be opened ready for review by default unless the user explicitly asks for a draft PR.
 - For this repository, agents must wait for every configured merge gate on the current head SHA to complete successfully before merging, even if host branch protection is missing or misconfigured.
 - For this repository, CodeRabbit should be allowed to start automatically; manual `@coderabbitai review` comments are only for two cases: no reviewer signal appears after roughly 15 seconds on a new head SHA, or the reviewer is still in progress after 5 minutes and the user explicitly agrees to trigger recovery.
@@ -49,6 +50,8 @@ This file stores durable repository memory for agents. It is not a transcript an
 - 2026-04-11: `p1-policy` `decide` polls required reviewer commit statuses (shared wait budget across contexts; `P1_POLICY_REVIEWER_STATUS_*` vars) so the check stays in progress while CodeRabbit is pending instead of failing immediately.
 - 2026-04-11: `decide` refreshes issue labels after earlier gates and polls for a `residual:*` label (`P1_POLICY_RESIDUAL_LABEL_*` vars) so the residual risk engine can land slightly after `decide` starts without failing red on a stale label read.
 - 2026-04-11: Added `Framework Keeper` as a repository-local skill and `ai/playbooks/framework-review.md` as the canonical procedure for auditing the framework itself for consistency, efficiency, and predictability.
+- 2026-04-12: Renamed `agents/` to `interfaces/` so provider-agnostic logical tool contracts are named for their actual role and remain distinct from the runtime bootstrap bundle under `ai/`.
+- 2026-04-12: When repository work is requested “via PR” or to “open a PR,” default execution should follow the pull request execution loop playbook rather than treating PR creation as a standalone publication step.
 
 ## Update Rules
 
