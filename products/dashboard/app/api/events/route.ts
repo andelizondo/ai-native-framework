@@ -8,6 +8,12 @@
  */
 
 import { NextRequest, NextResponse } from "next/server";
+import * as Sentry from "@sentry/nextjs";
+import {
+  CORRELATION_HEADER,
+  PRODUCT_ID,
+  SHELL_SLICE_ID,
+} from "@/lib/sentry";
 
 const ALLOWED_EVENTS = new Set([
   "dashboard.shell_viewed",
@@ -68,67 +74,115 @@ function sanitizePayload(
 }
 
 export async function POST(req: NextRequest) {
-  let parsed: unknown;
+  let correlationId: string | null = req.headers.get(CORRELATION_HEADER);
 
   try {
-    parsed = await req.json();
-  } catch {
-    return NextResponse.json({ error: "invalid JSON" }, { status: 400 });
-  }
+    return await Sentry.startSpan(
+      {
+        name: "POST /api/events",
+        op: "http.server",
+        attributes: {
+          "app.product_id": PRODUCT_ID,
+          "app.slice_id": SHELL_SLICE_ID,
+        },
+      },
+      async () => {
+        let parsed: unknown;
 
-  if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
-    return NextResponse.json({ error: "invalid event envelope" }, { status: 400 });
-  }
+        try {
+          parsed = await req.json();
+        } catch {
+          return NextResponse.json({ error: "invalid JSON" }, { status: 400 });
+        }
 
-  const body = parsed as EventBody;
+        if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
+          return NextResponse.json(
+            { error: "invalid event envelope" },
+            { status: 400 }
+          );
+        }
 
-  if (
-    body.payload == null ||
-    typeof body.payload !== "object" ||
-    Array.isArray(body.payload)
-  ) {
-    return NextResponse.json({ error: "invalid payload" }, { status: 400 });
-  }
+        const body = parsed as EventBody;
 
-  // Minimal envelope validation
-  if (!body.event_name || typeof body.event_name !== "string") {
-    return NextResponse.json({ error: "missing event_name" }, { status: 400 });
-  }
+        if (
+          body.payload == null ||
+          typeof body.payload !== "object" ||
+          Array.isArray(body.payload)
+        ) {
+          return NextResponse.json({ error: "invalid payload" }, { status: 400 });
+        }
 
-  if (!ALLOWED_EVENTS.has(body.event_name)) {
+        if (!body.event_name || typeof body.event_name !== "string") {
+          return NextResponse.json(
+            { error: "missing event_name" },
+            { status: 400 }
+          );
+        }
+
+        if (!ALLOWED_EVENTS.has(body.event_name)) {
+          return NextResponse.json(
+            { error: `unknown event: ${body.event_name}` },
+            { status: 422 }
+          );
+        }
+
+        const occurredAt = clampString(body.occurred_at, 64);
+        if (!occurredAt) {
+          return NextResponse.json(
+            { error: "occurred_at is required on envelope" },
+            { status: 400 }
+          );
+        }
+
+        const sanitizedPayload = sanitizePayload(body.event_name, body.payload);
+        if (!sanitizedPayload) {
+          return NextResponse.json({ error: "invalid payload" }, { status: 400 });
+        }
+
+        const entry = {
+          level: "info",
+          event_name: body.event_name,
+          occurred_at: occurredAt,
+          payload: sanitizedPayload,
+          emitted_by: clampString(body.emitted_by, 32) ?? "client",
+          schema_version: clampString(body.schema_version, 16) ?? "1.0.0",
+          correlation_id:
+            normalizeCorrelationId(body.correlation_id) ?? correlationId,
+          received_at: new Date().toISOString(),
+          product_id: PRODUCT_ID,
+          slice_id: SHELL_SLICE_ID,
+        };
+
+        correlationId = entry.correlation_id;
+        Sentry.setTag("product_id", PRODUCT_ID);
+        Sentry.setTag("slice_id", SHELL_SLICE_ID);
+        Sentry.setTag("feature", body.event_name);
+        if (correlationId) {
+          Sentry.setTag("correlation_id", correlationId);
+        }
+
+        console.log(JSON.stringify(entry));
+
+        return NextResponse.json(
+          { ok: true, correlation_id: correlationId },
+          { status: 202 }
+        );
+      }
+    );
+  } catch (error) {
+    Sentry.withScope((scope) => {
+      scope.setTag("product_id", PRODUCT_ID);
+      scope.setTag("slice_id", SHELL_SLICE_ID);
+      scope.setTag("feature", "events_api");
+      if (correlationId) {
+        scope.setTag("correlation_id", correlationId);
+      }
+      Sentry.captureException(error);
+    });
+
     return NextResponse.json(
-      { error: `unknown event: ${body.event_name}` },
-      { status: 422 }
+      { error: "internal server error" },
+      { status: 500 }
     );
   }
-
-  const occurredAt = clampString(body.occurred_at, 64);
-  if (!occurredAt) {
-    return NextResponse.json(
-      { error: "occurred_at is required on envelope" },
-      { status: 400 }
-    );
-  }
-
-  // V1: structured log to stdout — validate and sanitize payload before logging
-  const sanitizedPayload = sanitizePayload(body.event_name, body.payload);
-  if (!sanitizedPayload) {
-    return NextResponse.json({ error: "invalid payload" }, { status: 400 });
-  }
-
-  const entry = {
-    level: "info",
-    event_name: body.event_name,
-    occurred_at: occurredAt,
-    payload: sanitizedPayload,
-    emitted_by: clampString(body.emitted_by, 32) ?? "client",
-    schema_version: clampString(body.schema_version, 16) ?? "1.0.0",
-    correlation_id: normalizeCorrelationId(body.correlation_id),
-    received_at: new Date().toISOString(),
-    product_id: "dashboard",
-  };
-
-  console.log(JSON.stringify(entry));
-
-  return NextResponse.json({ ok: true }, { status: 202 });
 }
