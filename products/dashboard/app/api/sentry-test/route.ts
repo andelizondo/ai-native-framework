@@ -1,4 +1,4 @@
-import * as Sentry from "@sentry/nextjs";
+import { captureError, startSpan, flush } from "@/lib/monitoring";
 import { NextResponse } from "next/server";
 import {
   CORRELATION_HEADER,
@@ -9,7 +9,7 @@ import {
 export async function GET(req: Request) {
   const correlationId = req.headers.get(CORRELATION_HEADER);
 
-  return await Sentry.startSpan(
+  return await startSpan(
     {
       name: "GET /api/sentry-test",
       op: "http.server",
@@ -20,18 +20,15 @@ export async function GET(req: Request) {
     },
     async () => {
       const error = new Error("Sentry server test");
-      Sentry.withScope((scope) => {
-        scope.setTag("product_id", PRODUCT_ID);
-        scope.setTag("slice_id", SHELL_SLICE_ID);
-        scope.setTag("feature", "sentry_test");
-        scope.setTag("route", "/api/sentry-test");
-        if (correlationId) {
-          scope.setTag("correlation_id", correlationId);
-        }
-        Sentry.captureException(error);
+      captureError(error, {
+        feature: "sentry_test",
+        extra: {
+          route: "/api/sentry-test",
+          ...(correlationId ? { correlation_id: correlationId } : {}),
+        },
       });
 
-      await Sentry.flush(2000);
+      await flush(2000);
 
       return NextResponse.json(
         {

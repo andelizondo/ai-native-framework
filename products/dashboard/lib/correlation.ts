@@ -1,4 +1,4 @@
-import * as Sentry from "@sentry/nextjs";
+import { setMonitoringTag } from "@/lib/monitoring";
 import { CORRELATION_HEADER, PRODUCT_ID, SHELL_SLICE_ID } from "@/lib/sentry";
 
 export const CORRELATION_STORAGE_KEY = "dashboard.correlation_id";
@@ -104,8 +104,8 @@ export function applyBrowserObservabilityContext(feature: string): void {
   const correlationId = getBrowserCorrelationId();
   const normalizedFeature = normalizeObservabilityFeature(feature);
 
-  Sentry.setTag("product_id", PRODUCT_ID);
-  Sentry.setTag("slice_id", SHELL_SLICE_ID);
-  Sentry.setTag("feature", normalizedFeature);
-  Sentry.setTag("correlation_id", correlationId);
+  setMonitoringTag("product_id", PRODUCT_ID);
+  setMonitoringTag("slice_id", SHELL_SLICE_ID);
+  setMonitoringTag("feature", normalizedFeature);
+  setMonitoringTag("correlation_id", correlationId);
 }

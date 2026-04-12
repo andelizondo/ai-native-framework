@@ -5,6 +5,7 @@ import { usePathname } from "next/navigation";
 import { Lightbulb, PenLine, Code2, LayoutDashboard } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { emitEvent } from "@/lib/events";
+import { useAnalytics } from "@/lib/analytics/events";
 
 const phases = [
   {
@@ -35,11 +36,12 @@ const phases = [
 
 export function Sidebar() {
   const pathname = usePathname();
+  const { capture } = useAnalytics();
 
   function handlePhaseClick(phaseId: string) {
-    emitEvent("dashboard.phase_navigated", {
-      phase: phaseId as "ideation" | "design" | "implementation",
-    });
+    const phase = phaseId as "ideation" | "design" | "implementation";
+    emitEvent("dashboard.phase_navigated", { phase }); // audit pipeline
+    capture("dashboard.phase_navigated", { phase });   // PostHog
   }
 
   return (
