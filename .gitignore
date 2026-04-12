@@ -3,3 +3,15 @@ node_modules/
 *.log
 .env
 .env.*
+
+# Next.js (products/dashboard/)
+.next/
+out/
+.vercel
+
+# Local env files — never commit values, only secret names in spec
+.env*.local
+
+# Build output
+dist/
+build/

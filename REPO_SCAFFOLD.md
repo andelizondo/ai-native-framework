@@ -1004,3 +1004,4 @@ Paste the following as valid JSON (single file):
 - **Slice specs** require `slice_id` and `parent_product_id` (enforced by `allOf` in schema).
 - Update `golden-product.yaml` when you add required fields to the schema.
 - Keep `spec/policy/event-taxonomy.yaml` aligned with runtime emitters.
+
