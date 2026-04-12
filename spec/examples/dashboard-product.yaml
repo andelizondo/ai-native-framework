@@ -1,0 +1,261 @@
+spec_version: "1.0.0"
+kind: product
+product_id: "dashboard"
+
+metadata:
+  title: "AI-Native Dashboard"
+  status: draft
+  owner: "platform@example.com"
+  created_at: "2026-04-12T00:00:00Z"
+  updated_at: "2026-04-12T00:00:00Z"
+  tags:
+    - "dashboard"
+    - "framework"
+    - "internal"
+
+ideation:
+  problem: |
+    Teams building with the AI-native framework have no visual control surface to monitor product
+    phases, navigate between concerns, and understand system state at a glance. Agent sessions
+    produce durable artifacts but there is no lightweight UI that surfaces them in one place.
+  user: "Solo founders and small product teams using the AI-native framework to build products."
+  goal: |
+    Ship a governed dashboard shell — left navigation, top bar, and a Hello World card — that
+    serves as the boilerplate UI host for all future product slices across the Ideation, Design,
+    and Implementation phases.
+  constraints:
+    - "Must use the framework-mandated frontend stack: Next.js + Tailwind + shadcn/ui."
+    - "Dashboard lives inside the existing ai-native-framework repository under products/dashboard/."
+    - "No external auth dependency for V1; shell only — no real data sources required."
+    - "All externally observable state changes must emit structured events per spec/policy."
+    - "Provider-agnostic: no vendor-specific assumptions in core business logic."
+  success_metrics:
+    - name: "shell_renders"
+      definition: "Dashboard shell loads with left menu, top bar, and Hello World card in under 2 seconds on localhost."
+      target: "100% of local dev runs"
+    - name: "phase_nav_reachable"
+      definition: "All three phase navigation items (Ideation, Design, Implementation) are rendered and clickable."
+      target: "100% of renders"
+  risks:
+    - description: "Scope creep into real data wiring before the shell is stable."
+      mitigation: "V1 is shell-only with static Hello World card; data wiring is a separate slice."
+    - description: "Tailwind and shadcn/ui version mismatches with future slices."
+      mitigation: "Pin versions in package.json and document in decision log."
+
+design:
+  objective: |
+    Build a governed Next.js + Tailwind + shadcn/ui dashboard shell with three navigation phases
+    (Ideation, Design, Implementation), a persistent left sidebar, a top bar, and a Hello World
+    card on the default route. The shell must be observable, spec-backed, and harness-ready.
+  requirements:
+    - id: "FR-001"
+      priority: must
+      statement: "The shell MUST render a persistent left sidebar with navigation items for Ideation, Design, and Implementation."
+    - id: "FR-002"
+      priority: must
+      statement: "The shell MUST render a top bar with the product name and a placeholder user/context area."
+    - id: "FR-003"
+      priority: must
+      statement: "The default route (/) MUST render a Hello World card using shadcn/ui Card component."
+    - id: "FR-004"
+      priority: must
+      statement: "The dashboard MUST emit a dashboard.shell_viewed event on every page load."
+    - id: "FR-005"
+      priority: must
+      statement: "The product spec MUST be schema-valid and pass npm run validate before any slice ships."
+    - id: "FR-006"
+      priority: should
+      statement: "Navigation active state SHOULD be visually indicated in the left sidebar."
+    - id: "FR-007"
+      priority: should
+      statement: "The shell SHOULD be responsive down to 1024px viewport width."
+  system_design: |
+    Stack: Next.js 15 (App Router) + Tailwind CSS 4 + shadcn/ui.
+    Layout: root layout.tsx wraps every page with a two-column shell:
+      - Left: <Sidebar /> — fixed width, phase navigation, brand mark.
+      - Right: <TopBar /> + <main> slot for page content.
+    Routing:
+      - /             → Hello World card (phase: none / home)
+      - /ideation     → Ideation phase placeholder
+      - /design       → Design phase placeholder
+      - /implementation → Implementation phase placeholder
+    Event emission: thin client-side event hook calls an /api/events route handler that
+    validates the payload and logs to stdout (V1); PostHog integration is a V2 concern.
+    No database required for V1. All data is static or in-memory.
+    Directory layout under products/dashboard/:
+      app/
+        layout.tsx          — shell with Sidebar + TopBar
+        page.tsx            — Hello World card
+        ideation/page.tsx   — Ideation placeholder
+        design/page.tsx     — Design placeholder
+        implementation/page.tsx — Implementation placeholder
+        api/events/route.ts — Event ingestion endpoint (V1: log only)
+      components/
+        sidebar.tsx         — Left navigation
+        top-bar.tsx         — Top bar
+        hello-world-card.tsx — Hello World card
+      lib/
+        events.ts           — Client-side emit helper
+      public/
+      package.json
+      tailwind.config.ts
+      next.config.ts
+      components.json       — shadcn/ui config
+  tooling_decisions:
+    - decision: "Next.js 15 with App Router"
+      reason: "Framework-mandated default stack (docs/AI_NATIVE_FRAMEWORK.md §6). App Router gives co-located server components and route handlers."
+      alternatives_considered:
+        - "Vite + React (rejected — framework spec calls Next.js)"
+        - "Remix (rejected — not in framework default stack)"
+    - decision: "Tailwind CSS 4"
+      reason: "Framework-mandated default stack. Utility-first CSS minimises context-switching between design and code."
+      alternatives_considered:
+        - "CSS Modules (rejected — framework default is Tailwind)"
+    - decision: "shadcn/ui"
+      reason: "Framework-mandated default stack. Provides accessible, copy-owned components; no black-box library lock-in."
+      alternatives_considered:
+        - "Radix UI primitives directly (too low-level for V1 speed)"
+        - "MUI (rejected — vendor-branded, not in framework stack)"
+    - decision: "Event emission via /api/events route handler"
+      reason: "Keeps event contract in the same repo as the spec; decouples client from PostHog until V2."
+      alternatives_considered:
+        - "Direct PostHog client in browser (deferred to V2)"
+  assumptions:
+    - text: "Node.js 20+ is available in the development and CI environment."
+      id: "A-001"
+    - text: "The dashboard runs at localhost:3000 in development; no custom port needed for V1."
+      id: "A-002"
+    - text: "No authentication is required for V1; the shell is local-only."
+      id: "A-003"
+  facts:
+    - text: "Framework default stack is Next.js + Tailwind + shadcn/ui per docs/AI_NATIVE_FRAMEWORK.md §6."
+      id: "F-001"
+    - text: "Repository validation runs npm run validate via GitHub Actions on every push."
+      id: "F-002"
+
+data_model:
+  entities:
+    - name: "NavigationPhase"
+      description: "A named phase in the product lifecycle surfaced as a sidebar navigation item."
+      fields:
+        - name: "id"
+          type: "string"
+          pk: true
+        - name: "label"
+          type: "string"
+        - name: "href"
+          type: "string"
+        - name: "icon"
+          type: "string"
+      relationships: []
+
+events:
+  naming_convention: "domain.action_in_past_tense"
+  catalog:
+    - name: "dashboard.shell_viewed"
+      description: "User loaded the dashboard shell (any page)."
+      version: "1.0.0"
+      schema_version: "1.0.0"
+      classification:
+        pii: none
+        idempotency: none
+        ordering: at_least_once
+      emitted_by:
+        - "app.layout"
+      payload:
+        type: object
+        additionalProperties: false
+        required:
+          - route
+        properties:
+          route:
+            type: string
+    - name: "dashboard.phase_navigated"
+      description: "User clicked a phase navigation item in the left sidebar."
+      version: "1.0.0"
+      schema_version: "1.0.0"
+      classification:
+        pii: none
+        idempotency: none
+        ordering: at_least_once
+      emitted_by:
+        - "components.sidebar"
+      payload:
+        type: object
+        additionalProperties: false
+        required:
+          - phase
+        properties:
+          phase:
+            type: string
+            enum:
+              - ideation
+              - design
+              - implementation
+
+observability:
+  logs:
+    strategy: "Structured JSON logs from the /api/events route handler; include correlation_id on every entry."
+    pii_policy: "No PII in V1 dashboard events; all payloads are pii: none."
+  errors:
+    tool: "Sentry (V2)"
+    policy: "V1 logs unhandled exceptions to stdout; Sentry integration deferred to V2 when the shell goes beyond localhost."
+  metrics:
+    tool: "PostHog (V2)"
+    core_metrics:
+      - key: "dashboard.shell_viewed"
+        description: "Total dashboard loads; baseline engagement signal."
+        type: event
+      - key: "dashboard.phase_navigated"
+        description: "Phase navigation clicks; indicates which phase receives attention."
+        type: event
+
+context_recovery:
+  canonical_summary: |
+    The Dashboard product is the UI shell for the ai-native-framework repository. It provides
+    a left sidebar with Ideation / Design / Implementation phase navigation, a top bar, and a
+    Hello World card on the default route. Stack: Next.js 15 + Tailwind 4 + shadcn/ui.
+    Lives under products/dashboard/. V1 is shell-only; no auth, no database, no external services.
+    Events are emitted via /api/events and logged to stdout. PostHog and Sentry are V2 concerns.
+    All slices extending this product must include slice_id and parent_product_id: "dashboard".
+  key_decisions:
+    - "Stack is Next.js + Tailwind + shadcn/ui per framework §6 — not a preference, a spec."
+    - "V1 is shell-only; data wiring, auth, and telemetry integrations are separate slices."
+    - "Dashboard lives inside the existing framework repo under products/dashboard/, not a new repo."
+    - "Event emission uses a local /api/events route in V1; PostHog deferred to V2."
+  domain_terms:
+    - term: "shell"
+      definition: "The persistent layout wrapper (Sidebar + TopBar + content slot) that hosts all dashboard pages."
+    - term: "phase"
+      definition: "One of the three product lifecycle stages — Ideation, Design, Implementation — surfaced as a sidebar nav item."
+    - term: "harness"
+      definition: "A Skill + Playbook pair that defines how a specific agent role (Feature Developer, QA Tester, DevOps Engineer) operates within this product."
+    - term: "Hello World card"
+      definition: "The shadcn/ui Card component rendered on the default route as the first observable UI artifact."
+
+decision_log:
+  entries:
+    - id: "DEC-001"
+      date: "2026-04-12"
+      decision: "Dashboard lives inside the existing ai-native-framework repo, not a new repo."
+      reason: "Keeps the framework and its first product in one governed place during the planning phase; avoids premature repo proliferation."
+      alternatives:
+        - "New standalone repo (deferred — add when the dashboard warrants its own governance boundary)"
+    - id: "DEC-002"
+      date: "2026-04-12"
+      decision: "V1 is shell-only with static Hello World card; no real data wiring."
+      reason: "Fastest path to a deployed, observable, spec-backed artifact. Proves the harness pattern before adding complexity."
+      alternatives:
+        - "Wire real data in V1 (rejected — scope creep risk before shell is validated)"
+    - id: "DEC-003"
+      date: "2026-04-12"
+      decision: "Three harnesses defined in Planning: Feature Developer, QA Tester, DevOps Engineer."
+      reason: "These three roles cover the full implementation cycle and recur on every future slice. Encoding them now makes the process library reusable immediately."
+      alternatives:
+        - "One generic Developer harness (rejected — too coarse; QA and DevOps have distinct trigger conditions and authority limits)"
+    - id: "DEC-004"
+      date: "2026-04-12"
+      decision: "Use Next.js + Tailwind + shadcn/ui as specified by framework §6."
+      reason: "Spec-mandated. Deviation would require a decision-log entry with alternatives and a waiver; no waiver warranted."
+      alternatives:
+        - "React + Vite + Tailwind (rejected — not the framework default; would require waiver)"

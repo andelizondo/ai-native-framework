@@ -3,3 +3,12 @@ node_modules/
 *.log
 .env
 .env.*
+
+# Next.js (products/dashboard/)
+products/dashboard/.next/
+products/dashboard/out/
+products/dashboard/.vercel
+
+# Build output
+dist/
+build/

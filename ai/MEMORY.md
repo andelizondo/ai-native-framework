@@ -19,6 +19,7 @@ This file stores durable repository memory for agents. It is not a transcript an
 - For this repository, CodeRabbit should be allowed to start automatically; manual `@coderabbitai review` comments are only for two cases: no reviewer signal appears after roughly 15 seconds on a new head SHA, or the reviewer is still in progress after 5 minutes and the user explicitly agrees to trigger recovery.
 - Agent runtime layout: root `AGENTS.md` only; `ai/SKILLS.md` and `ai/skills/` for skills; `ai/PLAYBOOKS.md` and `ai/playbooks/` for unitary procedures; `ai/MEMORY.md` for durable memory.
 - The top-level repository-local skills are `Designer`, `PM`, `Developer`, and `Framework Keeper`.
+- Keep `spec/policy/event-taxonomy.yaml` aligned with runtime emitters (event names, envelope fields, and payload shapes must stay consistent across policy, specs, and product code).
 
 ## Current Bundle State
 
@@ -53,6 +54,7 @@ This file stores durable repository memory for agents. It is not a transcript an
 - 2026-04-12: Renamed `agents/` to `interfaces/` so provider-agnostic logical tool contracts are named for their actual role and remain distinct from the runtime bootstrap bundle under `ai/`.
 - 2026-04-12: When repository work is requested “via PR” or to “open a PR,” default execution should follow the pull request execution loop playbook rather than treating PR creation as a standalone publication step.
 - 2026-04-12: Tightened `docs/AI_NATIVE_FRAMEWORK.md` to prefer summary-level routing in large framework sections, keep detailed operating logic in canonical playbooks, pair `ai/SKILLS.md` with `ai/PLAYBOOKS.md` as adjacent but distinct surfaces, and use `skill layer` / `workflow library` terminology instead of the older `capability layer` / `process library` wording.
+- 2026-04-12: Recorded in Stable Facts that `spec/policy/event-taxonomy.yaml` must stay aligned with runtime emitters (PR #44 / dashboard product wiring).
 
 ## Update Rules
 
