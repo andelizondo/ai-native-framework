@@ -61,7 +61,7 @@ function sanitizeCorrelationId(value: string | null): string | null {
 const FEATURE_TAG_MAX_LEN = 64;
 
 /** Bound Sentry tag cardinality: allow safe chars, cap length, stable fallback. */
-function normalizeObservabilityFeature(feature: string): string {
+export function normalizeObservabilityFeature(feature: string): string {
   const normalized = feature
     .trim()
     .replace(/[^A-Za-z0-9._-]/g, "_")

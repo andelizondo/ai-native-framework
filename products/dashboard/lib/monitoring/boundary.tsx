@@ -14,6 +14,7 @@
  */
 
 import * as Sentry from "@sentry/nextjs";
+import { normalizeObservabilityFeature } from "@/lib/correlation";
 
 type Props = {
   children: React.ReactNode;
@@ -26,7 +27,7 @@ export function MonitoringBoundary({ children, fallback, feature }: Props) {
     <Sentry.ErrorBoundary
       fallback={fallback}
       beforeCapture={(scope) => {
-        scope.setTag("feature", feature);
+        scope.setTag("feature", normalizeObservabilityFeature(feature));
       }}
     >
       {children}
