@@ -71,14 +71,14 @@ export function Sidebar() {
               className={cn(
                 "group flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-all",
                 isActive
-                  ? cn("bg-slate-900 text-white shadow-sm", activeBg)
+                  ? cn(activeBg, "text-slate-900 shadow-sm")
                   : "text-slate-600 hover:bg-slate-100 hover:text-slate-900"
               )}
             >
               <Icon
                 className={cn(
                   "h-4 w-4 shrink-0 transition-colors",
-                  isActive ? "text-white" : cn(accent, "group-hover:opacity-100")
+                  isActive ? accent : cn(accent, "group-hover:opacity-100")
                 )}
               />
               {label}

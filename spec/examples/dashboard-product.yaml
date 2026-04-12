@@ -5,7 +5,7 @@ product_id: "dashboard"
 metadata:
   title: "AI-Native Dashboard"
   status: draft
-  owner: "acesxx@gmail.com"
+  owner: "platform@example.com"
   created_at: "2026-04-12T00:00:00Z"
   updated_at: "2026-04-12T00:00:00Z"
   tags:
@@ -174,9 +174,6 @@ events:
             format: date-time
           route:
             type: string
-          correlation_id:
-            type: string
-            format: uuid
     - name: "dashboard.phase_navigated"
       description: "User clicked a phase navigation item in the left sidebar."
       version: "1.0.0"
@@ -203,9 +200,6 @@ events:
               - ideation
               - design
               - implementation
-          correlation_id:
-            type: string
-            format: uuid
 
 observability:
   logs:

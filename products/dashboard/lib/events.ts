@@ -13,13 +13,11 @@
 type ShellViewedPayload = {
   occurred_at: string;
   route: string;
-  correlation_id?: string;
 };
 
 type PhaseNavigatedPayload = {
   occurred_at: string;
   phase: "ideation" | "design" | "implementation";
-  correlation_id?: string;
 };
 
 type EventPayload = ShellViewedPayload | PhaseNavigatedPayload;
@@ -29,6 +27,9 @@ type EventName = "dashboard.shell_viewed" | "dashboard.phase_navigated";
 /**
  * Emit a structured event to /api/events.
  * Fire-and-forget: errors are logged to console, never thrown.
+ *
+ * The envelope includes required transport fields per spec/policy/event-taxonomy.yaml:
+ * event_name, emitted_by, schema_version, correlation_id.
  */
 export function emitEvent(name: EventName, payload: EventPayload): void {
   // Only runs in browser — no-op during SSR
@@ -37,7 +38,13 @@ export function emitEvent(name: EventName, payload: EventPayload): void {
   fetch("/api/events", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ name, payload }),
+    body: JSON.stringify({
+      event_name: name,
+      payload,
+      emitted_by: "client",
+      schema_version: "1.0.0",
+      correlation_id: crypto.randomUUID(),
+    }),
   }).catch((err) => {
     // Non-blocking: telemetry must never break the UI
     console.warn("[events] emit failed:", name, err);

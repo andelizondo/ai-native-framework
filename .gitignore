@@ -5,12 +5,9 @@ node_modules/
 .env.*
 
 # Next.js (products/dashboard/)
-.next/
-out/
-.vercel
-
-# Local env files — never commit values, only secret names in spec
-.env*.local
+products/dashboard/.next/
+products/dashboard/out/
+products/dashboard/.vercel
 
 # Build output
 dist/

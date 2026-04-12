@@ -126,6 +126,7 @@ CI runs the same validation via `[.github/workflows/validate.yml](.github/workfl
 | `ai/MEMORY.md`                | Durable operating memory                                              |
 | `docs/AI_NATIVE_FRAMEWORK.md` | Full framework prose                                                  |
 | `REPO_SCAFFOLD.md`            | Copy-paste scaffold for materializing framework-aligned repos         |
+| `products/`                   | Example product applications built on the framework                  |
 
 
 ## Current Validation Surface

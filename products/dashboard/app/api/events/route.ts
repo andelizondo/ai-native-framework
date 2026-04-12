@@ -14,13 +14,34 @@ const ALLOWED_EVENTS = new Set([
   "dashboard.phase_navigated",
 ]);
 
+// Whitelisted payload fields per event name — prevents PII/oversized fields
+// from untrusted clients reaching logs.
+const ALLOWED_PAYLOAD_FIELDS: Record<string, ReadonlySet<string>> = {
+  "dashboard.shell_viewed": new Set(["occurred_at", "route"]),
+  "dashboard.phase_navigated": new Set(["occurred_at", "phase"]),
+};
+
 type EventBody = {
-  name: string;
+  event_name: string;
+  emitted_by?: string;
+  schema_version?: string;
+  correlation_id?: string;
   payload: {
     occurred_at: string;
     [key: string]: unknown;
   };
 };
+
+function sanitizePayload(
+  eventName: string,
+  payload: Record<string, unknown>
+): Record<string, unknown> {
+  const allowed = ALLOWED_PAYLOAD_FIELDS[eventName];
+  if (!allowed) return {};
+  return Object.fromEntries(
+    Object.entries(payload).filter(([key]) => allowed.has(key))
+  );
+}
 
 export async function POST(req: NextRequest) {
   let body: EventBody;
@@ -32,13 +53,13 @@ export async function POST(req: NextRequest) {
   }
 
   // Minimal envelope validation
-  if (!body.name || typeof body.name !== "string") {
-    return NextResponse.json({ error: "missing event name" }, { status: 400 });
+  if (!body.event_name || typeof body.event_name !== "string") {
+    return NextResponse.json({ error: "missing event_name" }, { status: 400 });
   }
 
-  if (!ALLOWED_EVENTS.has(body.name)) {
+  if (!ALLOWED_EVENTS.has(body.event_name)) {
     return NextResponse.json(
-      { error: `unknown event: ${body.name}` },
+      { error: `unknown event: ${body.event_name}` },
       { status: 422 }
     );
   }
@@ -50,11 +71,14 @@ export async function POST(req: NextRequest) {
     );
   }
 
-  // V1: structured log to stdout
+  // V1: structured log to stdout — only log whitelisted payload fields
   const entry = {
     level: "info",
-    event: body.name,
-    payload: body.payload,
+    event_name: body.event_name,
+    payload: sanitizePayload(body.event_name, body.payload),
+    emitted_by: body.emitted_by ?? "client",
+    schema_version: body.schema_version ?? "1.0.0",
+    correlation_id: body.correlation_id ?? null,
     received_at: new Date().toISOString(),
     product_id: "dashboard",
   };
