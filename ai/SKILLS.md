@@ -42,6 +42,14 @@ Discovery should stay broad and cheap. Execution should stay narrow and deep.
 - **Outputs:** implementation, verification evidence, review closure, published PR state
 - **Load:** `skills/developer.md`
 
+### Feature implementation (dashboard product)
+
+- **When to use:** implementing a new feature in `products/dashboard/` from a completed `templates/feature-request.md`
+- **Inputs:** completed feature request, current spec YAML, current `AnalyticsEvent` type registry
+- **Outputs:** updated spec, updated type registry, wired component(s), passing validation, PR
+- **Load:** `playbooks/feature-implementation.md`
+- **Constraints:** spec-first; events required before code; `npm run validate` before PR
+
 ### Framework Keeper
 
 - **When to use:** auditing the framework itself for contradiction, duplication, unnecessary complexity, or underspecified decision paths
