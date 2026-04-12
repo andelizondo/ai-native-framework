@@ -58,6 +58,7 @@ This file stores durable repository memory for agents. It is not a transcript an
 - 2026-04-12: Recorded in Stable Facts that `spec/policy/event-taxonomy.yaml` must stay aligned with runtime emitters (PR #44 / dashboard product wiring).
 - 2026-04-12: Standardized repository-local developer guidance so Sentry is expected for frontend and backend feature work by default; the detailed required features and decision rules live in `ai/skills/developer.md`.
 - 2026-04-12: For review-finding closure, agents should reply directly on each CodeRabbit thread when they fix or disposition a finding; consolidated PR comments do not replace per-thread accounting, and agents should still post the direct reply even if CodeRabbit later auto-resolves the thread after re-review.
+- 2026-04-12 (PR #46 closure): **CodeRabbit rate limits** and **stale submitted reviews** can block merge even when the reviewer **status** is green. After rate-limit delays, retry `@coderabbitai review` on the current head; if **`CHANGES_REQUESTED`** remains only from older SHAs after thread closure, a maintainer may dismiss stale submissions per `ai/playbooks/pull-request-execution-loop.md` (finding closure, item 7). For **Mergify**, re-queue with `@mergifyio queue` plus the queue name in `.mergify.yml` (e.g. `low-risk`); clear a **`dequeued`** label if it blocks retry.
 
 ## Update Rules
 
