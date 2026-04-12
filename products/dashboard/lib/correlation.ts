@@ -21,7 +21,7 @@ function safeSessionSet(key: string, value: string): void {
   try {
     window.sessionStorage.setItem(key, value);
   } catch {
-    // Ignore storage failures and fall back to per-call correlation ids.
+    // Ignore storage failures; getBrowserCorrelationId will use in-memory fallback.
   }
 }
 
