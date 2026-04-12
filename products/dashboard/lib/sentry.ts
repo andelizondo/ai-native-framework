@@ -19,6 +19,11 @@ function normalizeEnvironment(value: string | undefined): string {
   return normalized;
 }
 
+function normalizeOptionalEnv(value: string | undefined): string | undefined {
+  const trimmed = value?.trim();
+  return trimmed ? trimmed : undefined;
+}
+
 export function getClientSentryEnvironment(): string {
   return normalizeEnvironment(
     process.env.NEXT_PUBLIC_SENTRY_ENVIRONMENT ?? process.env.NODE_ENV
@@ -35,15 +40,15 @@ export function getServerSentryEnvironment(): string {
 
 export function getClientSentryRelease(): string | undefined {
   return (
-    process.env.NEXT_PUBLIC_SENTRY_RELEASE ??
-    process.env.NEXT_PUBLIC_VERCEL_GIT_COMMIT_SHA
+    normalizeOptionalEnv(process.env.NEXT_PUBLIC_SENTRY_RELEASE) ??
+    normalizeOptionalEnv(process.env.NEXT_PUBLIC_VERCEL_GIT_COMMIT_SHA)
   );
 }
 
 export function getServerSentryRelease(): string | undefined {
   return (
-    process.env.SENTRY_RELEASE ??
-    process.env.VERCEL_GIT_COMMIT_SHA ??
-    process.env.NEXT_PUBLIC_SENTRY_RELEASE
+    normalizeOptionalEnv(process.env.SENTRY_RELEASE) ??
+    normalizeOptionalEnv(process.env.VERCEL_GIT_COMMIT_SHA) ??
+    normalizeOptionalEnv(process.env.NEXT_PUBLIC_SENTRY_RELEASE)
   );
 }

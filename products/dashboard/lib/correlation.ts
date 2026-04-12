@@ -63,12 +63,17 @@ export function getBrowserCorrelationId(): string {
     return createCorrelationId();
   }
 
-  const existing = sanitizeCorrelationId(
-    safeSessionGet(CORRELATION_STORAGE_KEY) ?? inMemoryCorrelationId
+  const persisted = sanitizeCorrelationId(
+    safeSessionGet(CORRELATION_STORAGE_KEY)
   );
-  if (existing) {
-    inMemoryCorrelationId = existing;
-    return existing;
+  if (persisted) {
+    inMemoryCorrelationId = persisted;
+    return persisted;
+  }
+
+  const cached = sanitizeCorrelationId(inMemoryCorrelationId);
+  if (cached) {
+    return cached;
   }
 
   const next = createCorrelationId();
