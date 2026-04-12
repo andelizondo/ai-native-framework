@@ -17,14 +17,14 @@ import * as Sentry from "@sentry/nextjs";
 
 type Props = {
   children: React.ReactNode;
-  fallback?: React.ReactNode;
+  fallback?: React.ComponentProps<typeof Sentry.ErrorBoundary>["fallback"];
   feature: string; // required — forces the caller to name the feature being bounded
 };
 
 export function MonitoringBoundary({ children, fallback, feature }: Props) {
   return (
     <Sentry.ErrorBoundary
-      fallback={fallback !== undefined ? (fallback as React.ReactElement) : undefined}
+      fallback={fallback}
       beforeCapture={(scope) => {
         scope.setTag("feature", feature);
       }}

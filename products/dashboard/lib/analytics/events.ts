@@ -39,11 +39,17 @@ export type AnalyticsEvent =
 import posthog from "posthog-js";
 import { useCallback } from "react";
 
+type AnalyticsEventName = AnalyticsEvent["event"];
+type AnalyticsEventProperties<TEvent extends AnalyticsEventName> = Extract<
+  AnalyticsEvent,
+  { event: TEvent }
+>["properties"];
+
 export function useAnalytics() {
   const capture = useCallback(
-    <E extends AnalyticsEvent>(
-      event: E["event"],
-      properties: E["properties"],
+    <TEvent extends AnalyticsEventName>(
+      event: TEvent,
+      properties: AnalyticsEventProperties<TEvent>,
     ) => {
       posthog.capture(event, properties as Record<string, unknown>);
     },

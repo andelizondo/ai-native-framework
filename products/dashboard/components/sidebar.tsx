@@ -38,8 +38,7 @@ export function Sidebar() {
   const pathname = usePathname();
   const { capture } = useAnalytics();
 
-  function handlePhaseClick(phaseId: string) {
-    const phase = phaseId as "ideation" | "design" | "implementation";
+  function handlePhaseClick(phase: (typeof phases)[number]["id"]) {
     emitEvent("dashboard.phase_navigated", { phase }); // audit pipeline
     capture("dashboard.phase_navigated", { phase });   // PostHog
   }
