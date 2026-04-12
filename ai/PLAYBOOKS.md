@@ -66,7 +66,7 @@ That sequence is **practical**, not a ranking of importance: mature repos often 
 ### Feature implementation (dashboard)
 
 - **When to use:** implementing any new feature in `products/dashboard/` from a completed feature request.
-- **Inputs:** completed `templates/feature-request.md`; current `spec/examples/dashboard-product.yaml`; current `lib/analytics/events.ts`.
+- **Inputs:** completed `templates/feature-request.md`; current `spec/examples/dashboard-product.yaml`; current `products/dashboard/lib/analytics/events.ts`.
 - **Outputs:** updated spec YAML, updated `AnalyticsEvent` type registry, feature component(s), dual-pipeline analytics wiring (PostHog + internal audit), passing `npm run validate`.
 - **Load:** [`playbooks/feature-implementation.md`](playbooks/feature-implementation.md)
 - **Constraints:** spec update and type registry entry are required before any component code; `npm run validate` must pass before the PR ships; no direct `posthog-js` imports outside `lib/analytics/`.

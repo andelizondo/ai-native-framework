@@ -60,7 +60,7 @@ The only files that may import them are:
 - Feature name (a string constant you defined, not user input)
 - Action name (a string constant)
 - Counts, booleans
-- ISO date strings (e.g. `created_at: "2026-04-12"` — no timestamp with time component that could be correlated to a specific user action)
+- ISO date strings (e.g. `created_at: "2026-04-12"`) and schema-defined RFC3339 timestamps for sanctioned fields (e.g. `occurred_at` in event payloads) — arbitrary user-supplied datetime values and free-form timestamps remain forbidden
 
 **Never allowed in event properties:**
 - Email address

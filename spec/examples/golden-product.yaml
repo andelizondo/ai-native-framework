@@ -121,35 +121,6 @@ events:
           occurred_at:
             type: string
             format: date-time
-    - name: "auth.user_signed_up"
-      description: "A new user completed signup."
-      version: "1.0.0"
-      schema_version: "1.0.0"
-      classification:
-        pii: high
-        idempotency: required
-        ordering: at_least_once
-      emitted_by:
-        - "api.auth"
-      payload:
-        type: object
-        additionalProperties: false
-        required:
-          - user_id
-          - occurred_at
-        properties:
-          user_id:
-            type: string
-            format: uuid
-          occurred_at:
-            type: string
-            format: date-time
-          plan:
-            type: string
-            enum:
-              - free
-              - pro
-
 observability:
   logs:
     strategy: "Structured JSON logs; include correlation_id and trace ids when available."

@@ -47,7 +47,7 @@ Discovery should stay broad and cheap. Execution should stay narrow and deep.
 - **When to use:** implementing a new feature in `products/dashboard/` from a completed `templates/feature-request.md`
 - **Inputs:** completed feature request, current spec YAML, current `AnalyticsEvent` type registry
 - **Outputs:** updated spec, updated type registry, wired component(s), passing validation, PR
-- **Load:** `ai/playbooks/feature-implementation.md`
+- **Load:** `playbooks/feature-implementation.md`
 - **Constraints:** spec-first; events required before code; `npm run validate` before PR
 
 ### Framework Keeper
