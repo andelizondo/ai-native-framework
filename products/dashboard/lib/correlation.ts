@@ -1,7 +1,7 @@
 import * as Sentry from "@sentry/nextjs";
 import { CORRELATION_HEADER, PRODUCT_ID, SHELL_SLICE_ID } from "@/lib/sentry";
 
-const STORAGE_KEY = "dashboard.correlation_id";
+export const CORRELATION_STORAGE_KEY = "dashboard.correlation_id";
 
 function createCorrelationId(): string {
   return crypto.randomUUID();
@@ -12,13 +12,13 @@ export function getBrowserCorrelationId(): string {
     return createCorrelationId();
   }
 
-  const existing = window.sessionStorage.getItem(STORAGE_KEY);
+  const existing = window.sessionStorage.getItem(CORRELATION_STORAGE_KEY);
   if (existing) {
     return existing;
   }
 
   const next = createCorrelationId();
-  window.sessionStorage.setItem(STORAGE_KEY, next);
+  window.sessionStorage.setItem(CORRELATION_STORAGE_KEY, next);
   return next;
 }
 

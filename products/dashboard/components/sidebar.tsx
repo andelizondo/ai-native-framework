@@ -4,7 +4,6 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { Lightbulb, PenLine, Code2, LayoutDashboard } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { applyBrowserObservabilityContext } from "@/lib/correlation";
 import { emitEvent } from "@/lib/events";
 
 const phases = [
@@ -38,7 +37,6 @@ export function Sidebar() {
   const pathname = usePathname();
 
   function handlePhaseClick(phaseId: string) {
-    applyBrowserObservabilityContext("dashboard.phase_navigated");
     emitEvent("dashboard.phase_navigated", {
       phase: phaseId as "ideation" | "design" | "implementation",
     });

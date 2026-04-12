@@ -1,4 +1,5 @@
 import * as Sentry from "@sentry/nextjs";
+import { CORRELATION_STORAGE_KEY } from "@/lib/correlation";
 import {
   CORRELATION_HEADER,
   PRODUCT_ID,
@@ -25,10 +26,12 @@ Sentry.init({
       runtime: "client",
     },
   },
-  tracePropagationTargets: ["localhost", /^https:\/\/.*$/, /^\/$/, /^\/api/],
+  tracePropagationTargets: ["localhost", /^\//],
   beforeSend(event) {
     if (typeof window !== "undefined") {
-      const correlationId = window.sessionStorage.getItem("dashboard.correlation_id");
+      const correlationId = window.sessionStorage.getItem(
+        CORRELATION_STORAGE_KEY
+      );
       if (correlationId) {
         event.tags = {
           ...event.tags,
@@ -43,7 +46,7 @@ Sentry.init({
 
     const correlationId =
       typeof window !== "undefined"
-        ? window.sessionStorage.getItem("dashboard.correlation_id")
+        ? window.sessionStorage.getItem(CORRELATION_STORAGE_KEY)
         : null;
 
     return {
