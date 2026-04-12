@@ -8,7 +8,7 @@ export function getPostHogClient(): PostHog {
     );
   }
   return new PostHog(token, {
-    host: "https://eu.i.posthog.com",
+    host: process.env.NEXT_PUBLIC_POSTHOG_HOST ?? "https://eu.i.posthog.com",
     flushAt: 1,
     flushInterval: 0,
   });
