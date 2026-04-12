@@ -42,18 +42,18 @@ Sentry.init({
     return event;
   },
   beforeBreadcrumb(breadcrumb) {
-    if (!breadcrumb.data) return breadcrumb;
-
     const correlationId =
       typeof window !== "undefined"
         ? window.sessionStorage.getItem(CORRELATION_STORAGE_KEY)
         : null;
 
+    if (!correlationId) return breadcrumb;
+
     return {
       ...breadcrumb,
       data: {
-        ...breadcrumb.data,
-        [CORRELATION_HEADER]: correlationId ?? undefined,
+        ...(breadcrumb.data ?? {}),
+        [CORRELATION_HEADER]: correlationId,
       },
     };
   },

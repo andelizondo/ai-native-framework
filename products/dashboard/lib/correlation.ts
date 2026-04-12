@@ -7,18 +7,34 @@ function createCorrelationId(): string {
   return crypto.randomUUID();
 }
 
+function safeSessionGet(key: string): string | null {
+  try {
+    return window.sessionStorage.getItem(key);
+  } catch {
+    return null;
+  }
+}
+
+function safeSessionSet(key: string, value: string): void {
+  try {
+    window.sessionStorage.setItem(key, value);
+  } catch {
+    // Ignore storage failures and fall back to per-call correlation ids.
+  }
+}
+
 export function getBrowserCorrelationId(): string {
   if (typeof window === "undefined") {
     return createCorrelationId();
   }
 
-  const existing = window.sessionStorage.getItem(CORRELATION_STORAGE_KEY);
+  const existing = safeSessionGet(CORRELATION_STORAGE_KEY);
   if (existing) {
     return existing;
   }
 
   const next = createCorrelationId();
-  window.sessionStorage.setItem(CORRELATION_STORAGE_KEY, next);
+  safeSessionSet(CORRELATION_STORAGE_KEY, next);
   return next;
 }
 
