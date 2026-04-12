@@ -1,5 +1,5 @@
 import * as Sentry from "@sentry/nextjs";
-import { CORRELATION_STORAGE_KEY } from "@/lib/correlation";
+import { getBrowserCorrelationId } from "@/lib/correlation";
 import {
   CORRELATION_HEADER,
   PRODUCT_ID,
@@ -28,26 +28,15 @@ Sentry.init({
   },
   tracePropagationTargets: ["localhost", /^\//],
   beforeSend(event) {
-    if (typeof window !== "undefined") {
-      const correlationId = window.sessionStorage.getItem(
-        CORRELATION_STORAGE_KEY
-      );
-      if (correlationId) {
-        event.tags = {
-          ...event.tags,
-          correlation_id: correlationId,
-        };
-      }
-    }
+    const correlationId = getBrowserCorrelationId();
+    event.tags = {
+      ...event.tags,
+      correlation_id: correlationId,
+    };
     return event;
   },
   beforeBreadcrumb(breadcrumb) {
-    const correlationId =
-      typeof window !== "undefined"
-        ? window.sessionStorage.getItem(CORRELATION_STORAGE_KEY)
-        : null;
-
-    if (!correlationId) return breadcrumb;
+    const correlationId = getBrowserCorrelationId();
 
     return {
       ...breadcrumb,

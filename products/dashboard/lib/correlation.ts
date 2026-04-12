@@ -3,6 +3,8 @@ import { CORRELATION_HEADER, PRODUCT_ID, SHELL_SLICE_ID } from "@/lib/sentry";
 
 export const CORRELATION_STORAGE_KEY = "dashboard.correlation_id";
 
+let inMemoryCorrelationId: string | null = null;
+
 function createCorrelationId(): string {
   return crypto.randomUUID();
 }
@@ -28,12 +30,15 @@ export function getBrowserCorrelationId(): string {
     return createCorrelationId();
   }
 
-  const existing = safeSessionGet(CORRELATION_STORAGE_KEY);
+  const existing =
+    safeSessionGet(CORRELATION_STORAGE_KEY) ?? inMemoryCorrelationId;
   if (existing) {
+    inMemoryCorrelationId = existing;
     return existing;
   }
 
   const next = createCorrelationId();
+  inMemoryCorrelationId = next;
   safeSessionSet(CORRELATION_STORAGE_KEY, next);
   return next;
 }
