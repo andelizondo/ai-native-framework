@@ -71,10 +71,7 @@ function buildAttrs(
   baseCtx: LogContext,
   callAttrs: LogAttributes | undefined,
 ): LogAttributes {
-  const merged: LogAttributes = {
-    product_id: PRODUCT_ID,
-    slice_id: SHELL_SLICE_ID,
-  };
+  const merged: LogAttributes = {};
 
   for (const [k, v] of Object.entries(baseCtx)) {
     if (v !== undefined) merged[k] = v;
@@ -85,6 +82,10 @@ function buildAttrs(
       if (v !== undefined) merged[k] = v;
     }
   }
+
+  // Always stamp routing tags last so callers cannot override them.
+  merged.product_id = PRODUCT_ID;
+  merged.slice_id = SHELL_SLICE_ID;
 
   return merged;
 }
@@ -97,17 +98,20 @@ function buildAttrs(
  * or a stable feature context (route handler, server action, component tree).
  */
 export function createLogger(context: LogContext = {}): Logger {
+  // Snapshot at creation time so external mutations to the passed object
+  // cannot affect log metadata after the logger is constructed.
+  const snapshot: LogContext = { ...context };
   return {
     trace: (msg, attrs) =>
-      Sentry.logger.trace(msg, buildAttrs(context, attrs)),
+      Sentry.logger.trace(msg, buildAttrs(snapshot, attrs)),
     debug: (msg, attrs) =>
-      Sentry.logger.debug(msg, buildAttrs(context, attrs)),
-    info: (msg, attrs) => Sentry.logger.info(msg, buildAttrs(context, attrs)),
-    warn: (msg, attrs) => Sentry.logger.warn(msg, buildAttrs(context, attrs)),
+      Sentry.logger.debug(msg, buildAttrs(snapshot, attrs)),
+    info: (msg, attrs) => Sentry.logger.info(msg, buildAttrs(snapshot, attrs)),
+    warn: (msg, attrs) => Sentry.logger.warn(msg, buildAttrs(snapshot, attrs)),
     error: (msg, attrs) =>
-      Sentry.logger.error(msg, buildAttrs(context, attrs)),
+      Sentry.logger.error(msg, buildAttrs(snapshot, attrs)),
     fatal: (msg, attrs) =>
-      Sentry.logger.fatal(msg, buildAttrs(context, attrs)),
+      Sentry.logger.fatal(msg, buildAttrs(snapshot, attrs)),
   };
 }
 
