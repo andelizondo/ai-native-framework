@@ -1,0 +1,38 @@
+import * as Sentry from "@sentry/nextjs";
+import { CORRELATION_HEADER, PRODUCT_ID, SHELL_SLICE_ID } from "@/lib/sentry";
+
+const STORAGE_KEY = "dashboard.correlation_id";
+
+function createCorrelationId(): string {
+  return crypto.randomUUID();
+}
+
+export function getBrowserCorrelationId(): string {
+  if (typeof window === "undefined") {
+    return createCorrelationId();
+  }
+
+  const existing = window.sessionStorage.getItem(STORAGE_KEY);
+  if (existing) {
+    return existing;
+  }
+
+  const next = createCorrelationId();
+  window.sessionStorage.setItem(STORAGE_KEY, next);
+  return next;
+}
+
+export function getBrowserCorrelationHeaders(): HeadersInit {
+  return {
+    [CORRELATION_HEADER]: getBrowserCorrelationId(),
+  };
+}
+
+export function applyBrowserObservabilityContext(feature: string): void {
+  const correlationId = getBrowserCorrelationId();
+
+  Sentry.setTag("product_id", PRODUCT_ID);
+  Sentry.setTag("slice_id", SHELL_SLICE_ID);
+  Sentry.setTag("feature", feature);
+  Sentry.setTag("correlation_id", correlationId);
+}

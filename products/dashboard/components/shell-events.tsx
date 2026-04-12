@@ -8,10 +8,12 @@
  */
 
 import { useEffect } from "react";
+import { applyBrowserObservabilityContext } from "@/lib/correlation";
 import { emitEvent } from "@/lib/events";
 
 export function ShellEvents({ route }: { route: string }) {
   useEffect(() => {
+    applyBrowserObservabilityContext("dashboard.shell_viewed");
     emitEvent("dashboard.shell_viewed", { route });
   }, [route]);
 

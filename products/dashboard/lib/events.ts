@@ -1,3 +1,11 @@
+import * as Sentry from "@sentry/nextjs";
+import {
+  applyBrowserObservabilityContext,
+  getBrowserCorrelationHeaders,
+  getBrowserCorrelationId,
+} from "@/lib/correlation";
+import { PRODUCT_ID, SHELL_SLICE_ID } from "@/lib/sentry";
+
 /**
  * Client-side event emission helper.
  *
@@ -41,25 +49,53 @@ export function emitEvent<T extends EventName>(name: T, payload: EventMap[T]): v
   // Only runs in browser — no-op during SSR
   if (typeof window === "undefined") return;
 
-  void fetch("/api/events", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      event_name: name,
-      occurred_at: new Date().toISOString(),
-      payload,
-      emitted_by: "client",
-      schema_version: "1.0.0",
-      correlation_id: crypto.randomUUID(),
-    }),
-  })
-    .then((res) => {
-      if (!res.ok) {
-        throw new Error(`HTTP ${res.status}`);
+  const correlationId = getBrowserCorrelationId();
+  applyBrowserObservabilityContext(name);
+
+  void Sentry.startSpan(
+    {
+      name: `event.emit ${name}`,
+      op: "feature.event.emit",
+      attributes: {
+        "app.event_name": name,
+        "app.product_id": PRODUCT_ID,
+        "app.slice_id": SHELL_SLICE_ID,
+        "app.correlation_id": correlationId,
+      },
+    },
+    async () => {
+      try {
+        const res = await fetch("/api/events", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            ...getBrowserCorrelationHeaders(),
+          },
+          body: JSON.stringify({
+            event_name: name,
+            occurred_at: new Date().toISOString(),
+            payload,
+            emitted_by: "client",
+            schema_version: "1.0.0",
+            correlation_id: correlationId,
+          }),
+        });
+
+        if (!res.ok) {
+          throw new Error(`HTTP ${res.status}`);
+        }
+      } catch (err) {
+        Sentry.withScope((scope) => {
+          scope.setTag("product_id", PRODUCT_ID);
+          scope.setTag("slice_id", SHELL_SLICE_ID);
+          scope.setTag("feature", name);
+          scope.setTag("correlation_id", correlationId);
+          Sentry.captureException(err);
+        });
+
+        // Non-blocking: telemetry must never break the UI
+        console.warn("[events] emit failed:", name, err);
       }
-    })
-    .catch((err) => {
-      // Non-blocking: telemetry must never break the UI
-      console.warn("[events] emit failed:", name, err);
-    });
+    }
+  );
 }

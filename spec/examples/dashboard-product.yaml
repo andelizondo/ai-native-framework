@@ -80,7 +80,9 @@ design:
       - /design       → Design phase placeholder
       - /implementation → Implementation phase placeholder
     Event emission: thin client-side event hook calls an /api/events route handler that
-    validates the payload and logs to stdout (V1); PostHog integration is a V2 concern.
+    validates the payload and logs to stdout (V1); the shell propagates a correlation id via
+    request headers and tags Sentry spans/events with product_id + shell slice metadata.
+    PostHog integration is a V2 concern.
     No database required for V1. All data is static or in-memory.
     Directory layout under products/dashboard/:
       app/
@@ -198,8 +200,8 @@ observability:
     strategy: "Structured JSON logs from the /api/events route handler; include correlation_id on every entry."
     pii_policy: "No PII in V1 dashboard events; all payloads are pii: none."
   errors:
-    tool: "Sentry (V2)"
-    policy: "V1 logs unhandled exceptions to stdout; Sentry integration deferred to V2 when the shell goes beyond localhost."
+    tool: "Sentry"
+    policy: "Dashboard app initializes Sentry for client, server, and edge runtimes. Baseline implementation includes release/environment support, default product_id + shell slice tagging, correlation-id propagation, and explicit spans around current shell flows. Enable reporting with NEXT_PUBLIC_SENTRY_DSN for browser events and SENTRY_DSN for server-side events."
   metrics:
     tool: "PostHog (V2)"
     core_metrics:
@@ -216,7 +218,9 @@ context_recovery:
     a left sidebar with Ideation / Design / Implementation phase navigation, a top bar, and a
     Hello World card on the default route. Stack: Next.js 15 + Tailwind 4 + shadcn/ui.
     Lives under products/dashboard/. V1 is shell-only; no auth, no database, no external services.
-    Events are emitted via /api/events and logged to stdout. PostHog and Sentry are V2 concerns.
+    Events are emitted via /api/events and logged to stdout. Sentry is configured through runtime
+    env vars, tags events with product_id/dashboard-shell, propagates correlation ids through the
+    shell request path, and traces the existing shell flows; PostHog remains a V2 concern.
     All slices extending this product must include slice_id and parent_product_id: "dashboard".
   key_decisions:
     - "Stack is Next.js + Tailwind + shadcn/ui per framework §6 — not a preference, a spec."
