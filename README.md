@@ -114,6 +114,7 @@ Repository releases are managed at the repo root with `release-please`, not from
 
 - Tags are SemVer-shaped: `vX.Y.Z`
 - Release PRs and changelog updates are driven by Conventional Commits
+- The canonical repo version lives in [version.txt](version.txt) and is the runtime release source for app telemetry on production builds
 - The workflow expects a `RELEASE_PLEASE_TOKEN` secret so release PRs and tags can trigger downstream GitHub workflows
 
 See [ai/playbooks/release-management.md](ai/playbooks/release-management.md) for the operating procedure and setup expectations.

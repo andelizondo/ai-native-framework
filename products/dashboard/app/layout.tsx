@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import "./globals.css";
 import { Sidebar } from "@/components/sidebar";
 import { TopBar } from "@/components/top-bar";
+import { getAppRelease, getReleaseChannel } from "@/lib/release";
 import { SpeedInsights } from "@vercel/speed-insights/next";
 import { Analytics } from "@vercel/analytics/next";
 
@@ -15,9 +16,15 @@ export default function RootLayout({
 }: {
   children: React.ReactNode;
 }) {
+  const appRelease = getAppRelease();
+
   return (
     <html lang="en">
-      <body className="h-screen flex overflow-hidden">
+      <body
+        className="h-screen flex overflow-hidden"
+        data-release={appRelease}
+        data-release-channel={getReleaseChannel()}
+      >
         {/* Left sidebar — fixed width, full height */}
         <Sidebar />
 

@@ -15,6 +15,7 @@ This file stores durable repository memory for agents. It is not a transcript an
 - The canonical validation command is `npm run validate`.
 - The framework is explicitly provider-agnostic at the core layer.
 - Provider-agnostic logical tool contracts live under `interfaces/` (`interfaces/interfaces.yaml`), separate from the repository-local agent runtime bundle under `ai/`.
+- Repository release versioning now uses root `version.txt` as the canonical repo-level runtime release source, with production telemetry expected to align to the GitHub tag form `vX.Y.Z`.
 - For this repository, pull requests should be opened ready for review by default unless the user explicitly asks for a draft PR.
 - For this repository, agents must wait for every configured merge gate on the current head SHA to complete successfully before merging, even if host branch protection is missing or misconfigured.
 - For this repository, CodeRabbit should be allowed to start automatically; manual `@coderabbitai review` comments are only for two cases: no reviewer signal appears after roughly 15 seconds on a new head SHA, or the reviewer is still in progress after 5 minutes and the user explicitly agrees to trigger recovery.
@@ -61,6 +62,7 @@ This file stores durable repository memory for agents. It is not a transcript an
 - 2026-04-12: For review-finding closure, agents should reply directly on each CodeRabbit thread when they fix or disposition a finding; consolidated PR comments do not replace per-thread accounting, and agents should still post the direct reply even if CodeRabbit later auto-resolves the thread after re-review.
 - 2026-04-12 (PR #46 closure): **CodeRabbit rate limits** and **stale submitted reviews** can block merge even when the reviewer **status** is green. After rate-limit delays, retry `@coderabbitai review` on the current head; if **`CHANGES_REQUESTED`** remains only from older SHAs after thread closure, a maintainer may dismiss stale submissions per `ai/playbooks/pull-request-execution-loop.md` (finding closure, item 7). For **Mergify**, re-queue with `@mergifyio queue` plus the queue name in `.mergify.yml` (e.g. `low-risk`); clear a **`dequeued`** label if it blocks retry.
 - 2026-04-13: Standardized repository-level release automation on `release-please` in manifest mode with repo-wide SemVer tags, a dedicated `RELEASE_PLEASE_TOKEN` requirement for triggering downstream workflows, and a canonical release-management playbook under `ai/playbooks/release-management.md`.
+- 2026-04-13: Standardized dashboard release telemetry on a single app-release value derived from root `version.txt` for production builds and commit SHA fallback elsewhere; Sentry release sync on GitHub `release.published` is optional and activates only when Sentry secrets/vars are configured.
 
 ## Update Rules
 

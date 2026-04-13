@@ -1,4 +1,5 @@
 import * as Sentry from "@sentry/nextjs";
+import { getAppRelease } from "@/lib/release";
 import {
   PRODUCT_ID,
   SHELL_SLICE_ID,
@@ -6,6 +7,8 @@ import {
   getServerSentryRelease,
   isSentrySendDefaultPiiEnabled,
 } from "@/lib/sentry";
+
+const appRelease = getAppRelease();
 
 Sentry.init({
   dsn: process.env.SENTRY_DSN ?? process.env.NEXT_PUBLIC_SENTRY_DSN,
@@ -20,6 +23,7 @@ Sentry.init({
       product_id: PRODUCT_ID,
       slice_id: SHELL_SLICE_ID,
       runtime: "edge",
+      ...(appRelease ? { app_release: appRelease } : {}),
     },
   },
 });

@@ -1,3 +1,5 @@
+import { getAppRelease } from "@/lib/release";
+
 export const PRODUCT_ID = "dashboard";
 export const SHELL_SLICE_ID = "dashboard-shell";
 export const CORRELATION_HEADER = "x-correlation-id";
@@ -41,14 +43,14 @@ export function getServerSentryEnvironment(): string {
 export function getClientSentryRelease(): string | undefined {
   return (
     normalizeOptionalEnv(process.env.NEXT_PUBLIC_SENTRY_RELEASE) ??
-    normalizeOptionalEnv(process.env.NEXT_PUBLIC_VERCEL_GIT_COMMIT_SHA)
+    getAppRelease()
   );
 }
 
 export function getServerSentryRelease(): string | undefined {
   return (
     normalizeOptionalEnv(process.env.SENTRY_RELEASE) ??
-    normalizeOptionalEnv(process.env.VERCEL_GIT_COMMIT_SHA) ??
-    normalizeOptionalEnv(process.env.NEXT_PUBLIC_SENTRY_RELEASE)
+    normalizeOptionalEnv(process.env.NEXT_PUBLIC_SENTRY_RELEASE) ??
+    getAppRelease()
   );
 }
