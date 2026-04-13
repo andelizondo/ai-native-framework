@@ -60,7 +60,7 @@ if (posthogToken) {
     ui_host: "https://eu.posthog.com",
     capture_pageview: "history_change",
     capture_pageleave: true,
-    person_profiles: "identified_only",
+    person_profiles: "always",
     session_recording: {
       maskAllInputs: true,
       maskTextSelector: "[data-ph-mask]",
