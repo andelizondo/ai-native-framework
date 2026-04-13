@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.4.0](https://github.com/andelizondo/ai-native-framework/compare/v0.3.0...v0.4.0) (2026-04-13)
+
+
+### Features
+
+* **dashboard:** change Design phase color from purple to blue ([#63](https://github.com/andelizondo/ai-native-framework/issues/63)) ([576dcd6](https://github.com/andelizondo/ai-native-framework/commit/576dcd6ef20d42b278f311b6dbf0f0b05d5446ee))
+
 ## [0.3.0](https://github.com/andelizondo/ai-native-framework/compare/v0.2.0...v0.3.0) (2026-04-13)
 
 
