@@ -46,14 +46,17 @@ export function Sidebar() {
   return (
     <aside className="flex w-60 flex-col border-r border-slate-200 bg-[#f8fafc]">
       {/* Brand */}
-      <div className="flex h-14 items-center gap-2.5 border-b border-slate-200 px-4">
+      <Link
+        href="/"
+        className="flex h-14 items-center gap-2.5 border-b border-slate-200 px-4 hover:bg-slate-100 transition-colors"
+      >
         <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-slate-900 text-white">
           <LayoutDashboard className="h-4 w-4" />
         </div>
         <span className="text-sm font-semibold tracking-tight text-slate-900">
           AI-Native
         </span>
-      </div>
+      </Link>
 
       {/* Navigation */}
       <nav className="flex flex-col gap-1 p-3">
