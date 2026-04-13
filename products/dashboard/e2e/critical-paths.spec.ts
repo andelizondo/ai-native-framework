@@ -119,10 +119,10 @@ test.describe("accessibility — critical flows (WCAG 2.1 AA)", () => {
 
   test("sidebar navigation links are keyboard-accessible", async ({ page }) => {
     await page.goto("/");
-    // Tab to the first navigation link and activate it
-    await page.keyboard.press("Tab");
-    // The first focusable element should be within the sidebar
-    const focusedElement = page.locator(":focus");
-    await expect(focusedElement).toBeVisible();
+    const ideationLink = page.getByRole("link", { name: /ideation/i });
+    await ideationLink.focus();
+    await expect(ideationLink).toBeFocused();
+    await page.keyboard.press("Enter");
+    await expect(page).toHaveURL(/\/ideation$/);
   });
 });

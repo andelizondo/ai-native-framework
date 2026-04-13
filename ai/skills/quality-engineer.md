@@ -46,7 +46,7 @@ Implement, maintain, and execute the verification system for framework-aligned p
 
 ### Layer decision tree
 
-```
+```text
 Is it a pure function / data transform / utility?
   → Unit test in __tests__/lib/
 

@@ -15,6 +15,19 @@ import { defineConfig, devices } from "@playwright/test";
 
 const baseURL = process.env.BASE_URL || "http://localhost:3000";
 
+// Vercel Protection Bypass for Automation.
+// Set VERCEL_AUTOMATION_BYPASS_SECRET in GitHub repo secrets (Actions).
+// Required when Vercel preview deployments have password or SSO protection.
+// x-vercel-set-bypass-cookie ensures the bypass persists across navigations
+// in headless/CI Chromium (SameSite=None required for third-party cookies).
+const bypassSecret = process.env.VERCEL_AUTOMATION_BYPASS_SECRET;
+const vercelBypassHeaders = bypassSecret
+  ? {
+      "x-vercel-protection-bypass": bypassSecret,
+      "x-vercel-set-bypass-cookie": "samesitenone",
+    }
+  : undefined;
+
 export default defineConfig({
   testDir: "./e2e",
   fullyParallel: true,
@@ -32,6 +45,7 @@ export default defineConfig({
     baseURL,
     trace: "on-first-retry",
     screenshot: "only-on-failure",
+    ...(vercelBypassHeaders ? { extraHTTPHeaders: vercelBypassHeaders } : {}),
   },
   projects: [
     {

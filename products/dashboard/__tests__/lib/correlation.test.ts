@@ -52,8 +52,8 @@ describe("normalizeCorrelationId", () => {
   });
 
   it("returns null for a UUID v6+ (version digit > 5)", () => {
-    // v6 has version digit 6 — rejected by the v1-v5 pattern
-    const v6 = "1ed6-d27c-6b4e-6000-8000-000000000000";
+    // Structurally valid UUID with version digit 6 — rejected by the v1-v5 pattern
+    const v6 = "550e8400-e29b-61d4-a716-446655440000";
     expect(normalizeCorrelationId(v6)).toBeNull();
   });
 });

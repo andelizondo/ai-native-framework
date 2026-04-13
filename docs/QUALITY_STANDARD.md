@@ -206,7 +206,7 @@ An agent **MUST** escalate to a human before merging when:
 
 PR CI is intentionally lean. The target total wall-clock time is under 10 minutes.
 
-```
+```text
 PR opened / updated
   └─ validate            (spec schema — fast, required)
   └─ test:unit           (Vitest — fast, required)
@@ -224,7 +224,7 @@ Blocking checks are configured as required status checks on the protected branch
 
 Nightly jobs run on a schedule (e.g. `0 3 * * *`) against the `main` branch:
 
-```
+```text
 nightly
   └─ test:e2e:full       (full Playwright suite)
   └─ test:a11y:full      (full accessibility audit)
@@ -239,7 +239,7 @@ Failures in nightly jobs open a tracking issue automatically (or post to an aler
 
 On release cut or release PR, run:
 
-```
+```text
 release
   └─ all PR CI checks
   └─ test:e2e:full
@@ -523,9 +523,9 @@ Add visual regression, cross-browser, and production feedback loops as the produ
 
 ## 16. Open loops and future work
 
+- `ai/playbooks/quality-standard-execution.md` is the canonical execution procedure for quality-gate operations (PR gate loop, nightly triage, incident-to-regression).
+- `ai/skills/quality-engineer.md` is the canonical skill for recurring quality engineering workflows.
 - A machine-readable `spec/processes/quality-standard-process.yaml` should formalize the phase criteria and blocking/non-blocking gate rules once process schemas are introduced.
-- A `ai/playbooks/quality-standard-execution.md` playbook should be added when the execution loop for managing quality gates across releases is stable enough to version as a procedure.
-- An `ai/skills/quality-engineer.md` skill should be added when agent-driven test authoring, eval management, or quality gate triage becomes a recurring workflow.
 
 See `ai/MEMORY.md` for the corresponding open loop entry.
 

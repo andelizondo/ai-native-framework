@@ -2,7 +2,7 @@
 
 **Version:** 0.1  
 **Normative reference:** `docs/QUALITY_STANDARD.md`  
-**Authority:** Procedure playbook — sits below schema and policy, above `docs/` prose.
+**Authority:** Procedure playbook — operationalizes `docs/QUALITY_STANDARD.md` and must not override normative requirements defined there. Sits below schema, policy, and `docs/QUALITY_STANDARD.md`.
 
 ---
 
@@ -62,11 +62,13 @@ Carry out the verification discipline defined in the Quality Standard across thr
    - Identify the failing spec and the specific assertion (navigation? accessibility? smoke?).
    - Fix the underlying issue. Accessibility violations on critical flows block merge — they are not deferrable.
 5. **Wait for `CodeRabbit` and `decide` checks** per `ai/playbooks/pull-request-execution-loop.md`.
+   - Every open CodeRabbit thread **MUST** be closed with a visible resolution before merge: `fix`, `accept as follow-up`, or `won't change` per `.coderabbit.yaml`. A green CodeRabbit status check alone is not sufficient — per-thread closure is required.
+   - Reply directly on each thread with the resolution details; do not use only a consolidated PR comment.
 6. Confirm all five gates are green: `validate`, `test`, `e2e`, `CodeRabbit`, `decide`.
 
 ### 1.3 Gate failure diagnosis order
 
-```
+```text
 1. Spec/schema failure → fix spec first, all else depends on it
 2. Unit/component failure → isolate the failing assertion; fix code or test
 3. Integration failure → check MSW handler coverage; confirm mock matches real API contract
@@ -128,7 +130,7 @@ Triggered when a production incident of severity P1 or P2 is opened.
 
 2. **Write a failing test first.** Choose the lowest applicable layer:
 
-   ```
+   ```text
    Is it a pure logic bug? → unit test in __tests__/lib/
    Is it a component rendering bug? → component test in __tests__/components/
    Is it an API contract bug? → integration test in __tests__/api/

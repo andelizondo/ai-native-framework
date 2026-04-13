@@ -78,13 +78,23 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      - name: Resolve BASE_URL (fail fast when no real target is configured)
+        run: |
+          TARGET_URL="${{ inputs.base_url || vars.PRODUCTION_URL }}"
+          if [ -z "$TARGET_URL" ]; then
+            echo "::error::No target URL configured. Set the 'base_url' workflow input or the 'PRODUCTION_URL' repository variable."
+            exit 1
+          fi
+          echo "BASE_URL=$TARGET_URL" >> "$GITHUB_ENV"
+
       - name: Install Playwright browsers (all)
         run: npx playwright install --with-deps
 
       - name: Run full E2E suite (Chromium + Firefox)
         run: npx playwright test
         env:
-          BASE_URL: ${{ inputs.base_url || vars.PRODUCTION_URL || 'http://localhost:3000' }}
+          BASE_URL: ${{ env.BASE_URL }}
+          VERCEL_AUTOMATION_BYPASS_SECRET: ${{ secrets.VERCEL_AUTOMATION_BYPASS_SECRET }}
           CI: "true"
 
       - name: Upload Playwright report

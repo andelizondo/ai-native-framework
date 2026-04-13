@@ -42,8 +42,8 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      - name: Run Vitest (unit + component + integration)
-        run: npm run test
+      - name: Run Vitest (unit + component + integration) with coverage
+        run: npm run test:coverage
 
       - name: Upload coverage report
         if: always()
