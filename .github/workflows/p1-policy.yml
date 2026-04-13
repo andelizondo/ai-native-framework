@@ -107,6 +107,7 @@ jobs:
                       isDraft
                       mergeStateStatus
                       headRefOid
+                      headRefName
                       author {
                         login
                       }
@@ -123,6 +124,8 @@ jobs:
               core.info('Pull request is not open and ready for policy evaluation.');
               return;
             }
+
+            const isReleasePleaseAutomation = (pr.headRefName ?? '').startsWith('release-please');
 
             const marker = '<!-- p1-policy-decision -->';
 
@@ -303,10 +306,13 @@ jobs:
               return;
             }
 
-            const reviewStatusContexts = (process.env.REQUIRED_AI_REVIEW_STATUS_CONTEXTS || '')
+            let reviewStatusContexts = (process.env.REQUIRED_AI_REVIEW_STATUS_CONTEXTS || '')
               .split(',')
               .map((s) => s.trim())
               .filter(Boolean);
+            if (isReleasePleaseAutomation) {
+              reviewStatusContexts = [];
+            }
 
             const reviewerStatusWaitMaxMs =
               Math.max(0, parseInt(process.env.P1_POLICY_REVIEWER_STATUS_WAIT_SECONDS || '900', 10)) * 1000;
@@ -457,6 +463,7 @@ jobs:
             const hasChangesRequestedOnHead = freshAiReviews.some((r) => r.state === 'CHANGES_REQUESTED');
 
             const hasFreshAiReview =
+              isReleasePleaseAutomation ||
               latestAiEvidence != null ||
               (reviewerStatusesSatisfied && reviewStatusContexts.length > 0 && !hasChangesRequestedOnHead);
 
@@ -485,6 +492,37 @@ jobs:
             // Refresh labels: upstream workflows may have updated them during validate/reviewer waits.
             labels = await loadIssueLabelNames();
             risk = labels.find((label) => ['risk:low', 'risk:med', 'risk:high'].includes(label));
+
+            if (isReleasePleaseAutomation) {
+              const existingResidual = labels.find((label) =>
+                ['residual:low', 'residual:med', 'residual:high'].includes(label),
+              );
+              if (
+                !existingResidual &&
+                risk &&
+                risk !== 'risk:high' &&
+                !labels.includes('control-plane') &&
+                !labels.includes('autofix:pending')
+              ) {
+                const unresolved = await hasUnresolvedThreads();
+                if (unresolved) {
+                  await upsertPolicyComment([
+                    '**P1 policy:** blocked — open review threads',
+                    '',
+                    'This release automation pull request has unresolved review threads. Resolve or dismiss them before merge.',
+                  ].join('\n'));
+                  core.setFailed('Release automation PR has unresolved review threads.');
+                  return;
+                }
+                await github.rest.issues.addLabels({
+                  owner,
+                  repo,
+                  issue_number: prNumber,
+                  labels: ['residual:low'],
+                });
+                labels = await loadIssueLabelNames();
+              }
+            }
 
             // The residual risk engine (p1-residual-risk-engine) sets this automatically.
             // If it is not yet set, either the engine hasn't run or a race condition exists.
@@ -693,7 +731,9 @@ jobs:
                 '',
                 `All gates satisfied. Residual risk: \`${residual}\`. Configured AI review evidence is present on \`${pr.headRefOid.slice(0, 7)}\`. No human approval required.`,
                 '',
-                'Mergify will queue and merge this PR automatically when all required checks pass.',
+                isReleasePleaseAutomation
+                  ? 'Mergify will queue and merge this PR when the `release-please` queue conditions pass (`validate` and `decide` only).'
+                  : 'Mergify will queue and merge this PR automatically when all required checks pass.',
               ].join('\n'));
               core.info('Residual risk is low; policy check passes without human approval.');
               return;

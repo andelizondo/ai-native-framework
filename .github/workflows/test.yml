@@ -1,6 +1,8 @@
 name: test
 
-# Runs Vitest (unit + component + integration) on every pull request.
+# Runs Vitest (unit + component + integration) when the PR touches the dashboard
+# (or this workflow). release-please version/changelog PRs skip this job; Mergify
+# merges those via the `release-please` queue without a `test` check.
 # This is a BLOCKING merge gate per docs/QUALITY_STANDARD.md §6.1.
 #
 # Job name "test" is the check name that Mergify requires.
