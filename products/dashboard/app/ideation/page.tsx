@@ -28,7 +28,7 @@ export default function IdeationPage() {
               needed before design begins. Exit criteria: a defined success metric and a
               bounded scope.
             </p>
-            <p className="mt-3 text-sm text-slate-400 italic">
+            <p className="mt-3 text-sm text-slate-600 italic">
               Slice implementation coming in a future sprint.
             </p>
           </CardContent>

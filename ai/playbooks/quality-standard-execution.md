@@ -109,7 +109,9 @@ Triggered when the `nightly` CI workflow reports a failure. A GitHub issue is au
    - Environment issue → fix within one business day.
    - Flaky test → fix within one sprint; do not let accumulate.
 
-5. Close the nightly issue only when the nightly run is green for at least one subsequent run after the fix is merged.
+5. Close the nightly issue only when the nightly run is green after the fix is merged.
+   - For flaky tests or isolated product regressions, one subsequent green nightly run is enough.
+   - For test environment or infrastructure issues, require two consecutive green nightly runs before closure.
 
 ### 2.2 Escalation
 

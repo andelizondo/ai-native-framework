@@ -12,8 +12,40 @@
  * keyboard navigation, screen reader semantics, and focus management.
  */
 
-import { test, expect } from "@playwright/test";
+import { test, expect, type Page } from "@playwright/test";
 import AxeBuilder from "@axe-core/playwright";
+
+const WCAG_TAGS = ["wcag2a", "wcag2aa", "wcag21aa"];
+
+async function expectNoA11yViolations(
+  path: string,
+  page: Page,
+) {
+  await page.goto(path);
+  const results = await new AxeBuilder({ page }).withTags(WCAG_TAGS).analyze();
+  expect(results.violations).toEqual([]);
+}
+
+function sidebarLink(page: Page, targetName: RegExp) {
+  return page.getByRole("navigation").getByRole("link", { name: targetName });
+}
+
+async function focusWithTab(
+  page: Page,
+  targetName: RegExp,
+  maxTabs = 8,
+) {
+  const target = sidebarLink(page, targetName);
+
+  for (let index = 0; index < maxTabs; index += 1) {
+    await page.keyboard.press("Tab");
+    if (await target.evaluate((element) => element === document.activeElement)) {
+      return target;
+    }
+  }
+
+  return target;
+}
 
 // ─── Navigation ───────────────────────────────────────────────────────────────
 
@@ -27,33 +59,41 @@ test.describe("critical-path navigation", () => {
 
   test("sidebar shows all three phase links", async ({ page }) => {
     await page.goto("/");
-    await expect(page.getByRole("link", { name: /ideation/i })).toBeVisible();
-    await expect(page.getByRole("link", { name: /design/i })).toBeVisible();
-    await expect(
-      page.getByRole("link", { name: /implementation/i }),
-    ).toBeVisible();
+    await expect(sidebarLink(page, /ideation/i)).toBeVisible();
+    await expect(sidebarLink(page, /design/i)).toBeVisible();
+    await expect(sidebarLink(page, /implementation/i)).toBeVisible();
   });
 
   test("navigating to /ideation renders the Ideation page", async ({ page }) => {
     await page.goto("/");
-    await page.getByRole("link", { name: /ideation/i }).click();
-    await expect(page).toHaveURL(/\/ideation/);
+    await Promise.all([
+      page.waitForURL(/\/ideation/),
+      sidebarLink(page, /ideation/i).click(),
+    ]);
     await expect(
       page.getByRole("heading", { name: /ideation/i }),
     ).toBeVisible();
   });
 
-  test("navigating to /design renders the Design page", async ({ page }) => {
-    await page.goto("/design");
-    await expect(page).toHaveURL(/\/design/);
+  test("sidebar link navigates to /design and renders the Design page", async ({
+    page,
+  }) => {
+    await page.goto("/");
+    await Promise.all([
+      page.waitForURL(/\/design/),
+      sidebarLink(page, /design/i).click(),
+    ]);
     await expect(page.getByRole("heading", { name: /design/i })).toBeVisible();
   });
 
-  test("navigating to /implementation renders the Implementation page", async ({
+  test("sidebar link navigates to /implementation and renders the Implementation page", async ({
     page,
   }) => {
-    await page.goto("/implementation");
-    await expect(page).toHaveURL(/\/implementation/);
+    await page.goto("/");
+    await Promise.all([
+      page.waitForURL(/\/implementation/),
+      sidebarLink(page, /implementation/i).click(),
+    ]);
     await expect(
       page.getByRole("heading", { name: /implementation/i }),
     ).toBeVisible();
@@ -76,51 +116,30 @@ test.describe("accessibility — critical flows (WCAG 2.1 AA)", () => {
   test("home page has no automatically detectable accessibility violations", async ({
     page,
   }) => {
-    await page.goto("/");
-    const results = await new AxeBuilder({ page })
-      .withTags(["wcag2a", "wcag2aa", "wcag21aa"])
-      .analyze();
-
-    expect(results.violations).toEqual([]);
+    await expectNoA11yViolations("/", page);
   });
 
   test("ideation page has no automatically detectable accessibility violations", async ({
     page,
   }) => {
-    await page.goto("/ideation");
-    const results = await new AxeBuilder({ page })
-      .withTags(["wcag2a", "wcag2aa", "wcag21aa"])
-      .analyze();
-
-    expect(results.violations).toEqual([]);
+    await expectNoA11yViolations("/ideation", page);
   });
 
   test("design page has no automatically detectable accessibility violations", async ({
     page,
   }) => {
-    await page.goto("/design");
-    const results = await new AxeBuilder({ page })
-      .withTags(["wcag2a", "wcag2aa", "wcag21aa"])
-      .analyze();
-
-    expect(results.violations).toEqual([]);
+    await expectNoA11yViolations("/design", page);
   });
 
   test("implementation page has no automatically detectable accessibility violations", async ({
     page,
   }) => {
-    await page.goto("/implementation");
-    const results = await new AxeBuilder({ page })
-      .withTags(["wcag2a", "wcag2aa", "wcag21aa"])
-      .analyze();
-
-    expect(results.violations).toEqual([]);
+    await expectNoA11yViolations("/implementation", page);
   });
 
   test("sidebar navigation links are keyboard-accessible", async ({ page }) => {
     await page.goto("/");
-    const ideationLink = page.getByRole("link", { name: /ideation/i });
-    await ideationLink.focus();
+    const ideationLink = await focusWithTab(page, /ideation/i);
     await expect(ideationLink).toBeFocused();
     await page.keyboard.press("Enter");
     await expect(page).toHaveURL(/\/ideation$/);

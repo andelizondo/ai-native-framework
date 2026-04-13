@@ -172,6 +172,8 @@ All of the following **MUST** pass before any PR merges:
 7. Preview smoke verification
 8. AI eval threshold check on golden set *(Phase 2+ only; skip in Phase 1)*
 
+In this repository, these conceptual gates map to the required CI checks as follows: `validate` enforces item 1; `test` aggregates items 2-4; `e2e` aggregates items 5-7 on the Vercel preview; and a future `ai-eval` check would enforce item 8 starting in Phase 2.
+
 ### 6.2 Non-blocking checks (run on PR, failures tracked but do not block)
 
 - Full integration suite (runs async or in a parallel non-required job)

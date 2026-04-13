@@ -27,7 +27,7 @@ export default function ImplementationPage() {
               Each implementation slice ships UI, API, data persistence, and telemetry together.
               Exit criteria: deployed, observable, and spec updated with implemented facts.
             </p>
-            <p className="mt-3 text-sm text-slate-400 italic">
+            <p className="mt-3 text-sm text-slate-600 italic">
               Slice implementation coming in a future sprint.
             </p>
           </CardContent>
