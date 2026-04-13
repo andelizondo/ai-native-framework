@@ -73,6 +73,14 @@ Discovery should stay broad and cheap. Execution should stay narrow and deep.
 - **Load:** `playbooks/pull-request-execution-loop.md`
 - **Constraints:** machines verify, humans decide; do not convert timing gaps into human-review work
 
+### Release management (playbook)
+
+- **When to use:** enabling or revising repository-level releases, semantic version tags, release PR behavior, or GitHub Release notes.
+- **Inputs:** release branch, version baseline, token strategy, and merge policy.
+- **Outputs:** release workflow, changelog/version config, and documented operator setup.
+- **Load:** `playbooks/release-management.md`
+- **Constraints:** release the whole repository, not `products/dashboard/` alone; prefer dedicated automation credentials over `GITHUB_TOKEN`
+
 ### Agent context bundle (playbook)
 
 - **When to use:** creating or updating root `AGENTS.md`, or files under `ai/` (`SKILLS.md`, `skills/*.md`, `MEMORY.md`, `PLAYBOOKS.md`, `playbooks/`), or making agent bootstrap behavior explicit in a repository

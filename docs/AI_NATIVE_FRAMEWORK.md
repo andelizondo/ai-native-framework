@@ -230,6 +230,8 @@ The Workflow Library is the **encoded moat**: reusable, versioned procedures—t
 
 The repository-local `ai/PLAYBOOKS.md` and `ai/playbooks/` files are the procedure side of this library; `ai/SKILLS.md` and `ai/skills/` are the adjacent routing side for agents. Both surfaces are operator-facing indices into the same operating system, but they serve different roles: playbooks hold canonical procedures, while skills help agents choose and execute the right workflow. Workflow definitions may remain in Markdown initially, but each index **SHOULD** point to the canonical playbook file or schema-backed process artifact for each recurring workflow.
 
+Common repository-local playbooks typically include governed repository setup, pull request execution, agent context maintenance, framework review, and release management.
+
 The canonical workflow inventory for a repository-local agent bundle **SHOULD** live in `ai/PLAYBOOKS.md`. This framework document defines what a workflow library is and how it fits the operating system; it should not duplicate the repository's playbook catalog.
 
 ### 7.3 Workflow record shape (each entry SHOULD declare)
