@@ -9,13 +9,22 @@ function normalizeOptionalEnv(value: string | undefined): string | undefined {
 }
 
 function readRepositoryVersion(): string | undefined {
-  try {
-    return readFileSync(path.resolve(process.cwd(), "../../version.txt"), "utf8")
-      .trim()
-      .replace(/^v/, "");
-  } catch {
-    return undefined;
+  // Resolve relative to this config file's directory so the lookup is stable
+  // regardless of where `next build` / `next dev` is invoked from.
+  const candidates = [
+    path.resolve(__dirname, "../../version.txt"), // invoked from products/dashboard/
+    path.resolve(__dirname, "version.txt"),        // invoked from repo root
+  ];
+
+  for (const candidate of candidates) {
+    try {
+      return readFileSync(candidate, "utf8").trim().replace(/^v/, "");
+    } catch {
+      // try next candidate
+    }
   }
+
+  return undefined;
 }
 
 const repositoryVersion = readRepositoryVersion();

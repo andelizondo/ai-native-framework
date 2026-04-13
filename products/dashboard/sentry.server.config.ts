@@ -1,5 +1,4 @@
 import * as Sentry from "@sentry/nextjs";
-import { getAppRelease } from "@/lib/release";
 import {
   PRODUCT_ID,
   SHELL_SLICE_ID,
@@ -9,13 +8,13 @@ import {
   isSentrySendDefaultPiiEnabled,
 } from "@/lib/sentry";
 
-const appRelease = getAppRelease();
+const release = getServerSentryRelease();
 
 Sentry.init({
   dsn: process.env.SENTRY_DSN ?? process.env.NEXT_PUBLIC_SENTRY_DSN,
   enabled: Boolean(process.env.SENTRY_DSN ?? process.env.NEXT_PUBLIC_SENTRY_DSN),
   environment: getServerSentryEnvironment(),
-  release: getServerSentryRelease(),
+  release,
   sendDefaultPii: isSentrySendDefaultPiiEnabled(),
   tracesSampleRate: process.env.NODE_ENV === "development" ? 1 : 0.1,
   includeLocalVariables: isSentryIncludeLocalVariablesEnabled(),
@@ -25,7 +24,7 @@ Sentry.init({
       product_id: PRODUCT_ID,
       slice_id: SHELL_SLICE_ID,
       runtime: "server",
-      ...(appRelease ? { app_release: appRelease } : {}),
+      ...(release ? { app_release: release } : {}),
     },
   },
 });
