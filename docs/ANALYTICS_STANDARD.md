@@ -84,7 +84,7 @@ If a property would allow you to identify a specific person without their UUID, 
 - Optional `traits`: only `plan` and `created_at` (ISO date string). Nothing else.
 - Call `resetIdentity()` on sign-out so the next anonymous session is not linked to the previous user.
 - **Never call `posthog.identify()` directly** in feature code. Use `identifyUser()`.
-- `person_profiles: 'identified_only'` is set at init time — PostHog will not create a profile for anonymous users. Identity only exists after `identifyUser()` is called.
+- `person_profiles: 'always'` is set at init time — PostHog may create profiles before `identifyUser()` is called, so anonymous sessions can still accumulate profile history before sign-in.
 
 ---
 
