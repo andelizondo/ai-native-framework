@@ -23,6 +23,8 @@ This file stores durable repository memory for agents. It is not a transcript an
 - The top-level repository-local skills are `Designer`, `PM`, `Developer`, and `Framework Keeper`.
 - Keep `spec/policy/event-taxonomy.yaml` aligned with runtime emitters (event names, envelope fields, and payload shapes must stay consistent across policy, specs, and product code).
 - For product features in this repository, Sentry should be considered part of the default implementation surface for both frontend and backend work; detailed feature-level expectations live in `ai/skills/developer.md`.
+- The framework defines two first-class governed documentation standards: `docs/ANALYTICS_STANDARD.md` (events, PII, error monitoring) and `docs/QUALITY_STANDARD.md` (verification, testing, evals, release confidence). They are separate surfaces that cross-reference each other; do not collapse them.
+- The Quality Standard defines 3 maturity phases for products: Phase 1 (Tooling Foundation), Phase 2 (AI Reliability), Phase 3 (Scaling Confidence). Phase advancement requires checking off the required list in the standard; agents must not self-advance a phase.
 
 ## Current Bundle State
 
@@ -35,6 +37,7 @@ This file stores durable repository memory for agents. It is not a transcript an
 ## Active Open Loops
 
 - Encode the current framework playbooks as machine-readable process artifacts under future `spec/processes/`.
+- Add `spec/processes/quality-standard-process.yaml` once process schemas exist, to machine-validate phase criteria and gate rules.
 
 ## Recent Decisions
 
@@ -66,6 +69,9 @@ This file stores durable repository memory for agents. It is not a transcript an
 - 2026-04-13: Established single-release-source principle for Sentry configurations: one `const release = getServerSentryRelease()` call drives both `Sentry.init({ release })` and `initialScope.tags.app_release` so the two values can never diverge when `SENTRY_RELEASE` is overridden externally. Never call `getAppRelease()` and a Sentry-specific resolver separately and assign them to different fields.
 - 2026-04-13: Standardized file-path resolution for repo-root artifacts consumed by nested packages: use `__dirname`-relative candidate paths (primary: `path.resolve(__dirname, "../../version.txt")`; fallback: `path.resolve(__dirname, "version.txt")`) rather than `process.cwd()`-relative paths so lookups are stable across build entrypoints regardless of invocation directory.
 - 2026-04-13: Configured CodeRabbit to skip automated review of release-please PRs via `ignore_title_patterns: ["^chore: release"]` in `.coderabbit.yaml` to eliminate review overhead on machine-generated release commits. Pattern matches the configured `pull-request-title-pattern` in `release-please-config.json` (`"chore: release ${version}"`).
+- 2026-04-13: Added `docs/QUALITY_STANDARD.md` as a first-class framework standard covering verification layers, merge-gate model, CI execution model, 3-phase maturity (Tooling Foundation → AI Reliability → Scaling Confidence), dashboard reference expectations, agent responsibilities, and incident-to-regression discipline. Default stack: Vitest, RTL, MSW, Playwright, Sentry, PostHog, Vercel previews. Keep Analytics Standard as a separate governed surface; the two cross-reference each other at observability and production feedback loop boundaries.
+- 2026-04-13: Implemented Phase 1 (Tooling Foundation) for products/dashboard: Vitest + RTL + MSW unit/component/integration tests, Playwright critical-path E2E + axe accessibility, `test.yml` and `e2e.yml` CI workflows (both added as blocking gates in `.mergify.yml`), nightly.yml for full suite. Framework artifacts: `ai/playbooks/quality-standard-execution.md` (PR gate loop, nightly triage, incident-to-regression), `ai/skills/quality-engineer.md` (skill body). Merge gate model now requires: validate + test + e2e + CodeRabbit + decide.
+- 2026-04-13: The `e2e` CI check triggers via GitHub `deployment_status` event (Vercel preview must be active). `BASE_URL` env var is passed from `github.event.deployment_status.environment_url`. If Vercel is not connected, the e2e check will not run — escalate to human operator rather than skipping the gate.
 
 ## Update Rules
 

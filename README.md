@@ -13,6 +13,7 @@ The framework is designed for agents to execute structured work under explicit c
 - Provider-agnostic agent interface contracts
 - Playbooks for repository governance, pull-request automation, and agent runtime context
 - A repository-local agent surface: root [AGENTS.md](AGENTS.md) (first read for most agent tools), plus [ai/PLAYBOOKS.md](ai/PLAYBOOKS.md), [ai/playbooks/](ai/playbooks/), [ai/SKILLS.md](ai/SKILLS.md), [ai/skills/](ai/skills/), and [ai/MEMORY.md](ai/MEMORY.md)
+- Governed documentation standards: [Analytics Standard](docs/ANALYTICS_STANDARD.md), [Quality Standard](docs/QUALITY_STANDARD.md)
 
 ## Authority Ladder
 
@@ -137,6 +138,8 @@ See [ai/playbooks/release-management.md](ai/playbooks/release-management.md) for
 | `ai/skills/`                  | On-demand skill bodies                                                |
 | `ai/MEMORY.md`                | Durable operating memory                                              |
 | `docs/AI_NATIVE_FRAMEWORK.md` | Full framework prose                                                  |
+| `docs/ANALYTICS_STANDARD.md` | Event capture, PII, and error monitoring standard                     |
+| `docs/QUALITY_STANDARD.md`   | Verification, testing, evals, and release confidence standard         |
 | `REPO_SCAFFOLD.md`            | Copy-paste scaffold for materializing framework-aligned repos         |
 | `products/`                   | Example product applications built on the framework                  |
 

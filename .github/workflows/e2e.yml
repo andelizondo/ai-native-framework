@@ -1,0 +1,75 @@
+name: e2e
+
+# Runs Playwright critical-path E2E + accessibility tests against the Vercel
+# preview deployment. Triggered by deployment_status so it fires automatically
+# after Vercel deploys the PR preview.
+#
+# This is a BLOCKING merge gate per docs/QUALITY_STANDARD.md §6.1.
+# Job name "e2e" is the check name that Mergify requires.
+#
+# The deployment_status event fires for every environment. We filter to only
+# Preview environments that are in a success state. The preview URL is read
+# from github.event.deployment_status.environment_url.
+
+on:
+  deployment_status:
+  workflow_dispatch:
+    inputs:
+      base_url:
+        description: "Target URL to run E2E tests against"
+        required: true
+        type: string
+
+concurrency:
+  group: e2e-${{ github.event.deployment.sha || github.sha }}
+  cancel-in-progress: true
+
+jobs:
+  e2e:
+    name: e2e
+    # Run only on successful Preview deployments (Vercel sets environment to "Preview - <branch>")
+    if: >
+      (github.event_name == 'deployment_status' &&
+       github.event.deployment_status.state == 'success' &&
+       startsWith(github.event.deployment.environment, 'Preview')) ||
+      github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: products/dashboard
+    permissions:
+      contents: read
+      # Needed to create deployment status check on the PR SHA
+      statuses: write
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          # Checkout the SHA that triggered the deployment, not the latest main
+          ref: ${{ github.event.deployment.sha || github.sha }}
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: "npm"
+          cache-dependency-path: products/dashboard/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Install Playwright browsers (Chromium only for PR gate)
+        run: npx playwright install --with-deps chromium
+
+      - name: Run E2E critical-path suite
+        run: npx playwright test --project=chromium
+        env:
+          BASE_URL: ${{ github.event.deployment_status.environment_url || inputs.base_url }}
+          CI: "true"
+
+      - name: Upload Playwright report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report-${{ github.event.deployment.sha || github.sha }}
+          path: products/dashboard/playwright-report/
+          retention-days: 14

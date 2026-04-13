@@ -316,6 +316,8 @@ Bindings below are **recommended defaults** for greenfield implementations; the 
 | **Errors** | Sentry (or equivalent) | Exceptions, regressions |
 | **Hosting** | Vercel + managed DB / Supabase | Deploy and scale |
 | **Validation CI** | Node + AJV + YAML parser | Schema validation on `spec/examples/*` |
+| **Unit / component tests** | Vitest + React Testing Library + MSW | Fast, spec-anchored verification in CI |
+| **E2E / browser** | Playwright | Critical-path and release E2E, accessibility, and visual regression |
 
 ### 10.1 Repository tooling (reference layout)
 
@@ -374,6 +376,8 @@ Before closing a slice or workflow tranche, agents **MUST**:
 - Preserve or strengthen validation (schema, automated tests where applicable).  
 - Ensure new external behavior is **observable** per spec.  
 - For AI-mediated user impact, maintain an **eval** artifact appropriate to risk (goldens, regressions, or defined human spot-check protocol).
+
+The normative operating procedure for verification layers, merge-gate model, CI structure, maturity phases, and incident-to-regression discipline is **[`docs/QUALITY_STANDARD.md`](QUALITY_STANDARD.md)**. This section states the invariant; that document states how to execute it.
 
 ---
 

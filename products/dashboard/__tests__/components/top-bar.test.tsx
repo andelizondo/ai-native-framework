@@ -1,0 +1,31 @@
+/**
+ * Component tests for components/top-bar.tsx
+ * Spec anchor: dashboard shell — TopBar renders status and user area.
+ */
+
+import { describe, it, expect } from "vitest";
+import { render, screen } from "@testing-library/react";
+import { TopBar } from "@/components/top-bar";
+
+describe("TopBar", () => {
+  it("renders the Dashboard page title", () => {
+    render(<TopBar />);
+    expect(screen.getByText("Dashboard")).toBeInTheDocument();
+  });
+
+  it("renders the Planning status badge", () => {
+    render(<TopBar />);
+    expect(screen.getByText("Planning")).toBeInTheDocument();
+  });
+
+  it("renders a header landmark", () => {
+    render(<TopBar />);
+    expect(screen.getByRole("banner")).toBeInTheDocument();
+  });
+
+  it("renders the user avatar placeholder", () => {
+    render(<TopBar />);
+    // Avatar is rendered as a div with the letter 'A'
+    expect(screen.getByText("A")).toBeInTheDocument();
+  });
+});
