@@ -66,6 +66,7 @@ The playbooks turn repeated operational work into reusable procedures:
 - [Pull request execution loop](ai/playbooks/pull-request-execution-loop.md) — classification, review, residual-risk decisions, branch freshness, safe autofix, policy checks, and low-risk merge flow.
 - [Agent context bundle](ai/playbooks/agent-context-bundle.md) — how to install and maintain root `AGENTS.md` and the `ai/` bundle (skills, playbooks, memory).
 - [Framework review](ai/playbooks/framework-review.md) — how to audit the framework itself for contradiction, duplication, unnecessary complexity, and missing decision rules.
+- [Release management](ai/playbooks/release-management.md) — how to automate repo-level SemVer tags and GitHub Releases through a reviewable release PR flow.
 
 Together they cover governed collaboration, automatable PR policy, portable agent bootstrap, and framework self-review. None of them replaces schema or policy; each is written to stand alone, though **materializing a new repo** usually applies repository foundation first so later automation matches reality.
 
@@ -106,6 +107,16 @@ npm run validate
 ```
 
 CI runs the same validation via [.github/workflows/validate.yml](.github/workflows/validate.yml).
+
+## Releases
+
+Repository releases are managed at the repo root with `release-please`, not from `products/dashboard/` alone.
+
+- Tags are SemVer-shaped: `vX.Y.Z`
+- Release PRs and changelog updates are driven by Conventional Commits
+- The workflow expects a `RELEASE_PLEASE_TOKEN` secret so release PRs and tags can trigger downstream GitHub workflows
+
+See [ai/playbooks/release-management.md](ai/playbooks/release-management.md) for the operating procedure and setup expectations.
 
 ## Repository Layout
 

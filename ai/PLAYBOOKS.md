@@ -71,6 +71,14 @@ That sequence is **practical**, not a ranking of importance: mature repos often 
 - **Load:** [`playbooks/feature-implementation.md`](playbooks/feature-implementation.md)
 - **Constraints:** spec update and type registry entry are required before any component code; `npm run validate` must pass before the PR ships; `posthog-js` may only be imported in the approved files listed in `docs/ANALYTICS_STANDARD.md` §3 — feature code must use `useAnalytics()` from `lib/analytics/events`.
 
+### Release management
+
+- **When to use:** enabling or changing repository-level release automation, tags, changelog generation, or GitHub Release behavior.
+- **Inputs:** release branch, release strategy, current version baseline, token configuration, and merge policy.
+- **Outputs:** governed release workflow, repo-level SemVer tags, release PRs, and GitHub Releases.
+- **Load:** [`playbooks/release-management.md`](playbooks/release-management.md)
+- **Constraints:** release the repository as a single unit; use a dedicated automation token when downstream workflows must trigger; route changes through the normal PR loop.
+
 ---
 
 ## Adding A New Playbook

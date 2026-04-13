@@ -1,0 +1,21 @@
+changelog:
+  exclude:
+    labels:
+      - ignore-for-release
+      - skip-changelog
+  categories:
+    - title: Dependencies
+      labels:
+        - dependencies
+        - dependabot
+    - title: Documentation
+      labels:
+        - documentation
+        - docs
+    - title: Internal
+      labels:
+        - chore
+        - ci
+    - title: Changes
+      labels:
+        - "*"
