@@ -57,6 +57,34 @@ Automate repository-level semantic version tags and GitHub Releases with a revie
 11. If release notes need category grouping for manual GitHub Releases, maintain `.github/release.yml`.
 12. Validate the repository after configuration changes with `npm run validate`.
 
+## Observability alignment for products
+
+When wiring a new product to the canonical release source, follow these rules so all services stay in sync:
+
+1. **Read `version.txt` at build time using `__dirname`-relative candidate paths**, not `process.cwd()`:
+   ```typescript
+   const candidates = [
+     path.resolve(__dirname, "../../version.txt"), // repo root version.txt
+     path.resolve(__dirname, "version.txt"),        // local fallback beside config file
+   ];
+   ```
+   This is stable across build entrypoints regardless of invocation directory.
+
+2. **Inject the resolved release at build time** (e.g., via `next.config.ts` `env` block) so client, server, and edge runtimes all receive the same baked-in value. Also set `SENTRY_RELEASE` / `NEXT_PUBLIC_SENTRY_RELEASE` from the same resolved value if not already set externally.
+
+3. **Production → named tag; all other environments → commit SHA fallback.** Never let a non-production build emit a named release version.
+
+4. **Use a single release resolver call per Sentry runtime.** Assign it once and use it for both `Sentry.init({ release })` and `initialScope.tags.app_release` so they are guaranteed to match even when `SENTRY_RELEASE` is overridden externally:
+   ```typescript
+   const release = getServerSentryRelease();
+   Sentry.init({ release, initialScope: { tags: { app_release: release } } });
+   ```
+   Never call `getAppRelease()` and `getServerSentryRelease()` separately and assign them to different fields — they can diverge.
+
+5. **For PostHog**, call `ph.register(getReleaseProperties())` in the client `loaded` callback, and spread `getReleaseProperties()` into every server-side capture call.
+
+6. **`lib/release.ts` is the shared resolution abstraction.** Do not re-implement release reading per-service; extend that module if new resolution logic is needed.
+
 ## Failure modes
 
 - No release PR appears after merge to `main`:
