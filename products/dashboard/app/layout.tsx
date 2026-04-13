@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import "./globals.css";
 import { Sidebar } from "@/components/sidebar";
 import { TopBar } from "@/components/top-bar";
+import { SpeedInsights } from "@vercel/speed-insights/next";
 
 export const metadata: Metadata = {
   title: "AI-Native Dashboard",
@@ -26,6 +27,7 @@ export default function RootLayout({
             {children}
           </main>
         </div>
+        <SpeedInsights />
       </body>
     </html>
   );
