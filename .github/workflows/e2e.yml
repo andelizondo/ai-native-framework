@@ -2,7 +2,9 @@ name: e2e
 
 # Runs Playwright critical-path E2E + accessibility tests against the Vercel
 # preview deployment. Triggered by deployment_status so it fires automatically
-# after Vercel deploys the PR preview.
+# after Vercel deploys the PR preview. Branches matching release-please* skip
+# Vercel builds (products/dashboard/vercel.json ignoreCommand), so this job
+# does not run for release-please automation PRs — Mergify uses a separate queue.
 #
 # This is a BLOCKING merge gate per docs/QUALITY_STANDARD.md §6.1.
 # Job name "e2e" is the check name that Mergify requires.
