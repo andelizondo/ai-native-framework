@@ -20,7 +20,7 @@ reviews:
   auto_review:
     enabled: true
     drafts: false
-    ignore_title_patterns:
-      - "^chore\\(main\\): release"
+    ignore_title_keywords:
+      - "chore: release"
 chat:
   auto_reply: true
