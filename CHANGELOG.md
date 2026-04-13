@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.3.0](https://github.com/andelizondo/ai-native-framework/compare/v0.2.0...v0.3.0) (2026-04-13)
+
+
+### Features
+
+* **dashboard:** make sidebar logo link to home page ([#61](https://github.com/andelizondo/ai-native-framework/issues/61)) ([d03f457](https://github.com/andelizondo/ai-native-framework/commit/d03f4577722c411622572f45da960eecffc0f653))
+
 ## [0.2.0](https://github.com/andelizondo/ai-native-framework/compare/v0.1.0...v0.2.0) (2026-04-13)
 
 
