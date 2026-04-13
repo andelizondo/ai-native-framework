@@ -8,6 +8,7 @@
 
 import { withPostHogClient } from "./posthog-server";
 import type { AnalyticsEvent } from "./events";
+import { getReleaseProperties } from "@/lib/release";
 
 export async function captureServerEvent<E extends AnalyticsEvent>(
   distinctId: string,
@@ -15,7 +16,11 @@ export async function captureServerEvent<E extends AnalyticsEvent>(
   properties: Extract<AnalyticsEvent, { event: E["event"] }>["properties"],
 ): Promise<void> {
   await withPostHogClient((client) => {
-    client.capture({ distinctId, event, properties });
+    client.capture({
+      distinctId,
+      event,
+      properties: { ...properties, ...getReleaseProperties() },
+    });
     return Promise.resolve();
   });
 }

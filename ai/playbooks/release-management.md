@@ -22,6 +22,7 @@ Automate repository-level semantic version tags and GitHub Releases with a revie
 
 - a release workflow under `.github/workflows/`
 - repository release configuration (`release-please-config.json`, `.release-please-manifest.json`, optional `.github/release.yml`)
+- a canonical repo release version file (`version.txt`) that runtime telemetry can consume without tool-specific boilerplate
 - documented operator setup requirements
 - deterministic repo tags and GitHub Releases
 
@@ -40,16 +41,21 @@ Automate repository-level semantic version tags and GitHub Releases with a revie
    - `fix:` => patch
    - `!` or `BREAKING CHANGE:` => major
 3. Configure `release-please` in manifest mode for repo-root releases.
-4. Seed `.release-please-manifest.json` with the current baseline version so the first automated release starts from an explicit point.
-5. Add a release workflow on `main` and `workflow_dispatch`.
-6. Require a dedicated `RELEASE_PLEASE_TOKEN` secret before automation runs:
+4. Keep root `version.txt` as the canonical repo release value for runtime consumers; `simple` release strategy updates this file automatically.
+5. Seed `.release-please-manifest.json` with the current baseline version so the first automated release starts from an explicit point.
+6. Add a release workflow on `main` and `workflow_dispatch`.
+7. Require a dedicated `RELEASE_PLEASE_TOKEN` secret before automation runs:
    - this token should belong to a GitHub App or PAT that is allowed to open PRs and create tags
    - skipping on missing token is preferable to silently creating release PRs that bypass downstream checks
-7. Keep changelog ownership with release automation:
+8. Keep changelog ownership with release automation:
    - `CHANGELOG.md` should be updated by the release PR
    - GitHub Release entries should be generated from the same release flow
-8. If release notes need category grouping for manual GitHub Releases, maintain `.github/release.yml`.
-9. Validate the repository after configuration changes with `npm run validate`.
+9. Derive runtime release metadata from the canonical repo version instead of duplicating per-tool version files:
+   - production builds should emit the GitHub-tag form (`vX.Y.Z`)
+   - non-production environments may fall back to commit SHA
+10. If Sentry release sync is enabled, publish a release on `release.published` using the same identifier the app emits at runtime.
+11. If release notes need category grouping for manual GitHub Releases, maintain `.github/release.yml`.
+12. Validate the repository after configuration changes with `npm run validate`.
 
 ## Failure modes
 
@@ -68,5 +74,7 @@ Automate repository-level semantic version tags and GitHub Releases with a revie
 - `.github/workflows/release-please.yml`
 - `release-please-config.json`
 - `.release-please-manifest.json`
+- `version.txt`
 - `.github/release.yml`
+- `.github/workflows/sentry-release.yml`
 - `ai/playbooks/pull-request-execution-loop.md`

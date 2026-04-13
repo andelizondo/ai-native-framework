@@ -5,10 +5,13 @@ import {
   CORRELATION_HEADER,
   PRODUCT_ID,
   SHELL_SLICE_ID,
-  getClientSentryEnvironment,
   getClientSentryRelease,
+  getClientSentryEnvironment,
   isSentrySendDefaultPiiEnabled,
 } from "@/lib/sentry";
+import { getAppRelease, getReleaseProperties } from "@/lib/release";
+
+const appRelease = getAppRelease();
 
 Sentry.init({
   dsn: process.env.NEXT_PUBLIC_SENTRY_DSN,
@@ -26,6 +29,7 @@ Sentry.init({
       product_id: PRODUCT_ID,
       slice_id: SHELL_SLICE_ID,
       runtime: "client",
+      ...(appRelease ? { app_release: appRelease } : {}),
     },
   },
   tracePropagationTargets: ["localhost", /^\//],
@@ -66,6 +70,7 @@ if (posthogToken) {
       maskTextSelector: "[data-ph-mask]",
     },
     loaded: (ph) => {
+      ph.register(getReleaseProperties());
       if (process.env.NODE_ENV === "development") ph.opt_out_capturing();
     },
   });
