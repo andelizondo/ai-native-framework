@@ -3,6 +3,7 @@ import "./globals.css";
 import { Sidebar } from "@/components/sidebar";
 import { TopBar } from "@/components/top-bar";
 import { SpeedInsights } from "@vercel/speed-insights/next";
+import { Analytics } from "@vercel/analytics/next";
 
 export const metadata: Metadata = {
   title: "AI-Native Dashboard",
@@ -28,6 +29,7 @@ export default function RootLayout({
           </main>
         </div>
         <SpeedInsights />
+        <Analytics />
       </body>
     </html>
   );
