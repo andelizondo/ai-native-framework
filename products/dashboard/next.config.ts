@@ -12,8 +12,8 @@ function readRepositoryVersion(): string | undefined {
   // Resolve relative to this config file's directory so the lookup is stable
   // regardless of where `next build` / `next dev` is invoked from.
   const candidates = [
-    path.resolve(__dirname, "../../version.txt"), // invoked from products/dashboard/
-    path.resolve(__dirname, "version.txt"),        // invoked from repo root
+    path.resolve(__dirname, "../../version.txt"), // repo root version.txt
+    path.resolve(__dirname, "version.txt"),        // local fallback beside next.config.ts
   ];
 
   for (const candidate of candidates) {
