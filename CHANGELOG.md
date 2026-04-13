@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.5.0](https://github.com/andelizondo/ai-native-framework/compare/v0.4.0...v0.5.0) (2026-04-13)
+
+
+### Features
+
+* **quality:** implement Quality Standard and Phase 1 test infrastructure ([#65](https://github.com/andelizondo/ai-native-framework/issues/65)) ([89f1f84](https://github.com/andelizondo/ai-native-framework/commit/89f1f8425e40c96d2668dd973312dabee43f626c))
+
 ## [0.4.0](https://github.com/andelizondo/ai-native-framework/compare/v0.3.0...v0.4.0) (2026-04-13)
 
 
