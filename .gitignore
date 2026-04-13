@@ -10,6 +10,7 @@ node_modules/
 products/dashboard/.next/
 products/dashboard/out/
 products/dashboard/.vercel
+products/dashboard/coverage/
 
 # Build output
 dist/

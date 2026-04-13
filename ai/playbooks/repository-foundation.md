@@ -47,6 +47,8 @@ At the end of this playbook, the repository should have:
 
 For this repository, the required validation command is `npm run validate` and the required check context is `validate`.
 
+When the golden dashboard (`products/dashboard`) is present, Vitest coverage may upload to **Codecov** from the `test` workflow. Store the repository upload token as the GitHub Actions secret `CODECOV_TOKEN`, and keep Codecov’s GitHub check **informational** unless branch protection intentionally requires it (this repository defaults to informational status in `codecov.yml`). For Dependabot pull requests, duplicate the secret under **Dependabot secrets** if uploads should run on those PRs.
+
 ## 3. Add repository governance files
 
 Create the following files before broader collaboration begins:
