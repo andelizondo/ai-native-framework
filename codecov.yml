@@ -1,0 +1,16 @@
+# Codecov configuration for products/dashboard Vitest (LCOV).
+# Upload token: GitHub Actions secret CODECOV_TOKEN (repository settings).
+# https://docs.codecov.com/docs/codecov-yaml
+#
+# Vitest writes SF: paths relative to products/dashboard; prefix so they match git.
+fixes:
+  - "::products/dashboard/"
+
+coverage:
+  status:
+    project:
+      default:
+        informational: true
+    patch:
+      default:
+        informational: true

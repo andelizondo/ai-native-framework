@@ -65,6 +65,7 @@ These are the blessed defaults for the golden product (`products/dashboard`). Do
 | Error monitoring | **Sentry** | See `docs/ANALYTICS_STANDARD.md §9`; already required; Sentry is the source of truth for production error rates |
 | Product analytics | **PostHog** | See `docs/ANALYTICS_STANDARD.md`; funnel and retention data drives the production verification loop |
 | Preview environments | **Vercel preview deployments** | Per-PR preview URLs enable smoke verification before merge and release |
+| Coverage aggregation | **Codecov** (optional) | LCOV from Vitest uploads on PR/main for trends and patch comments; configured as a non-blocking signal via `codecov.yml` unless the team tightens thresholds in Codecov |
 
 **AI evals** do not have a single default tool. Use a structured eval runner (custom scripts, LangSmith, or equivalent) that:
 
@@ -176,6 +177,7 @@ In this repository, these conceptual gates map to the required CI checks as foll
 
 ### 6.2 Non-blocking checks (run on PR, failures tracked but do not block)
 
+- Codecov coverage upload and PR comments (LCOV from `products/dashboard` Vitest; project/patch status is **informational** in `codecov.yml` unless changed in Codecov settings)
 - Full integration suite (runs async or in a parallel non-required job)
 - Full E2E suite
 - Non-critical accessibility scan

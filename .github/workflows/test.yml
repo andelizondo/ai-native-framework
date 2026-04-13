@@ -4,6 +4,8 @@ name: test
 # (or this workflow). release-please version/changelog PRs skip this job; Mergify
 # merges those via the `release-please` queue without a `test` check.
 # This is a BLOCKING merge gate per docs/QUALITY_STANDARD.md §6.1.
+# Coverage uploads to Codecov when CODECOV_TOKEN is set (see codecov.yml);
+# Codecov status is informational by default and does not add a merge gate.
 #
 # Job name "test" is the check name that Mergify requires.
 
@@ -12,10 +14,12 @@ on:
     branches: [main]
     paths:
       - "products/dashboard/**"
+      - "codecov.yml"
   pull_request:
     paths:
       - "products/dashboard/**"
       - ".github/workflows/test.yml"
+      - "codecov.yml"
   workflow_dispatch:
 
 concurrency:
@@ -46,6 +50,15 @@ jobs:
 
       - name: Run Vitest (unit + component + integration) with coverage
         run: npm run test:coverage
+
+      - name: Upload coverage to Codecov
+        uses: codecov/codecov-action@v5
+        with:
+          token: ${{ secrets.CODECOV_TOKEN }}
+          files: products/dashboard/coverage/lcov.info
+          flags: dashboard
+          name: dashboard-vitest
+          fail_ci_if_error: false
 
       - name: Upload coverage report
         if: always()
