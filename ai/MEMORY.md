@@ -65,7 +65,7 @@ This file stores durable repository memory for agents. It is not a transcript an
 - 2026-04-13: Standardized dashboard release telemetry on a single app-release value derived from root `version.txt` for production builds and commit SHA fallback elsewhere; Sentry release sync on GitHub `release.published` is optional and activates only when Sentry secrets/vars are configured.
 - 2026-04-13: Established single-release-source principle for Sentry configurations: one `const release = getServerSentryRelease()` call drives both `Sentry.init({ release })` and `initialScope.tags.app_release` so the two values can never diverge when `SENTRY_RELEASE` is overridden externally. Never call `getAppRelease()` and a Sentry-specific resolver separately and assign them to different fields.
 - 2026-04-13: Standardized file-path resolution for repo-root artifacts consumed by nested packages: use `__dirname`-relative candidate paths (primary: `path.resolve(__dirname, "../../version.txt")`; fallback: `path.resolve(__dirname, "version.txt")`) rather than `process.cwd()`-relative paths so lookups are stable across build entrypoints regardless of invocation directory.
-- 2026-04-13: Configured CodeRabbit to skip automated review of release-please PRs via `ignore_title_patterns: ["^chore\\(main\\): release"]` in `.coderabbit.yaml` to eliminate review overhead on machine-generated release commits.
+- 2026-04-13: Configured CodeRabbit to skip automated review of release-please PRs via `ignore_title_patterns: ["^chore: release"]` in `.coderabbit.yaml` to eliminate review overhead on machine-generated release commits. Pattern matches the configured `pull-request-title-pattern` in `release-please-config.json` (`"chore: release ${version}"`).
 
 ## Update Rules
 
