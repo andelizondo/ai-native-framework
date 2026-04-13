@@ -21,8 +21,8 @@ const phases = [
     label: "Design",
     href: "/design",
     icon: PenLine,
-    accent: "text-violet-500",
-    activeBg: "bg-violet-50",
+    accent: "text-blue-500",
+    activeBg: "bg-blue-50",
   },
   {
     id: "implementation",

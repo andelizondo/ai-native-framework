@@ -11,7 +11,7 @@ export default function DesignPage() {
         <Card>
           <CardHeader>
             <div className="flex items-center gap-3">
-              <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-violet-100 text-violet-600">
+              <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-blue-100 text-blue-600">
                 <PenLine className="h-5 w-5" />
               </div>
               <div>
