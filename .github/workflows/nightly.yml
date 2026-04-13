@@ -1,0 +1,155 @@
+name: nightly
+
+# Nightly confidence suite. Runs the full test suite including cross-browser E2E,
+# full integration suite, and accessibility audit.
+#
+# Failures open a GitHub issue automatically so they are triaged before the next
+# release cut. Non-blocking on PRs — this is the early-warning layer.
+#
+# See docs/QUALITY_STANDARD.md §7.2 and §12.
+
+on:
+  schedule:
+    # 03:00 UTC daily
+    - cron: "0 3 * * *"
+  workflow_dispatch:
+    inputs:
+      base_url:
+        description: "Target URL for E2E tests (defaults to production)"
+        required: false
+        type: string
+
+concurrency:
+  group: nightly
+  cancel-in-progress: false
+
+jobs:
+  # ── Vitest full suite ────────────────────────────────────────────────────────
+  test-full:
+    name: test (full)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: products/dashboard
+    permissions:
+      contents: read
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: "npm"
+          cache-dependency-path: products/dashboard/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run full Vitest suite with coverage
+        run: npm run test:coverage
+
+      - name: Upload coverage report
+        uses: actions/upload-artifact@v4
+        with:
+          name: nightly-coverage
+          path: products/dashboard/coverage/
+          retention-days: 30
+
+  # ── Playwright full suite (Chromium + Firefox) ────────────────────────────────
+  e2e-full:
+    name: e2e (full, cross-browser)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: products/dashboard
+    permissions:
+      contents: read
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: "npm"
+          cache-dependency-path: products/dashboard/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Resolve BASE_URL (fail fast when no real target is configured)
+        run: |
+          TARGET_URL="${{ inputs.base_url || vars.PRODUCTION_URL }}"
+          if [ -z "$TARGET_URL" ]; then
+            echo "::error::No target URL configured. Set the 'base_url' workflow input or the 'PRODUCTION_URL' repository variable."
+            exit 1
+          fi
+          echo "BASE_URL=$TARGET_URL" >> "$GITHUB_ENV"
+
+      - name: Install Playwright browsers (all)
+        run: npx playwright install --with-deps
+
+      - name: Run full E2E suite (Chromium + Firefox)
+        run: npx playwright test
+        env:
+          BASE_URL: ${{ env.BASE_URL }}
+          VERCEL_AUTOMATION_BYPASS_SECRET: ${{ secrets.VERCEL_AUTOMATION_BYPASS_SECRET }}
+          CI: "true"
+
+      - name: Upload Playwright report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: nightly-playwright-report
+          path: products/dashboard/playwright-report/
+          retention-days: 30
+
+  # ── Open issue on failure ─────────────────────────────────────────────────────
+  report-failure:
+    name: open issue on failure
+    needs: [test-full, e2e-full]
+    if: failure()
+    runs-on: ubuntu-latest
+    permissions:
+      issues: write
+
+    steps:
+      - uses: actions/github-script@v7
+        with:
+          script: |
+            const today = new Date().toISOString().split('T')[0];
+            const title = `[nightly] CI failure — ${today}`;
+
+            // Check for an existing open issue with the same title pattern to avoid dupes
+            const existing = await github.rest.issues.listForRepo({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              state: 'open',
+              labels: 'nightly-failure',
+            });
+
+            const alreadyOpen = existing.data.some(i => i.title.includes(today));
+            if (alreadyOpen) return;
+
+            await github.rest.issues.create({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              title,
+              body: [
+                '## Nightly CI failure',
+                '',
+                `**Date:** ${today}`,
+                `**Run:** ${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}`,
+                '',
+                '### Triage checklist',
+                '- [ ] Identify which job(s) failed',
+                '- [ ] Determine if failure is a product regression or a test environment issue',
+                '- [ ] If product regression: create a fix PR with a regression test (see docs/QUALITY_STANDARD.md §13)',
+                '- [ ] If test environment issue: fix the test setup and close this issue',
+                '- [ ] Confirm fix or close before next release cut',
+                '',
+                '_Auto-opened by nightly workflow. Do not close without triaging._',
+              ].join('\n'),
+              labels: ['nightly-failure'],
+            });

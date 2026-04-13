@@ -60,7 +60,7 @@ export function Sidebar() {
 
       {/* Navigation */}
       <nav className="flex flex-col gap-1 p-3">
-        <p className="mb-1 px-2 text-[10px] font-semibold uppercase tracking-widest text-slate-400">
+        <p className="mb-1 px-2 text-[10px] font-semibold uppercase tracking-widest text-slate-600">
           Phases
         </p>
 
@@ -92,7 +92,7 @@ export function Sidebar() {
 
       {/* Footer */}
       <div className="mt-auto border-t border-slate-200 p-4">
-        <p className="text-[11px] text-slate-400">
+        <p className="text-[11px] text-slate-600">
           v0.1 · Planning phase
         </p>
       </div>

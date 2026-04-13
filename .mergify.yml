@@ -13,6 +13,8 @@ queue_rules:
       - -draft
       - -label = sync:needed
       - check-success = validate
+      - check-success = test
+      - check-success = e2e
       - check-success = CodeRabbit
       - check-success = decide
     merge_conditions:
@@ -21,6 +23,8 @@ queue_rules:
       - -draft
       - -label = sync:needed
       - check-success = validate
+      - check-success = test
+      - check-success = e2e
       - check-success = CodeRabbit
       - check-success = decide
 merge_protections_settings:

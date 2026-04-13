@@ -89,6 +89,14 @@ Discovery should stay broad and cheap. Execution should stay narrow and deep.
 - **Load:** `playbooks/agent-context-bundle.md`
 - **Constraints:** keep the bundle concise, index-shaped inside `ai/`, and subordinate to schema and policy
 
+### Quality Engineer
+
+- **When to use:** writing or reviewing tests, triaging `test` or `e2e` CI failures, executing the incident-to-regression loop, auditing phase readiness, or setting up the test stack for a new product
+- **Inputs:** spec entry or incident ID, current test suite state, phase level, failing check output or Playwright report
+- **Outputs:** tests at the correct layer, passing `test` and `e2e` gates, regression coverage, phase evidence bundle
+- **Load:** `skills/quality-engineer.md`
+- **Notes:** for operational procedures (PR gate loop, nightly triage, incident closure), also load `playbooks/quality-standard-execution.md`.
+
 ### Spec Evolution
 
 - **When to use:** changing framework structure, required fields, or examples under `spec/`

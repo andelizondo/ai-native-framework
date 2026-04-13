@@ -26,12 +26,12 @@ export default function DesignPage() {
             <p className="text-sm text-slate-500">
               This phase produces a schema-valid product spec, a stubbed event catalog, and an
               observability plan. Exit criteria: a spec that passes{" "}
-              <code className="rounded bg-slate-100 px-1 py-0.5 text-xs font-mono">
+              <code className="rounded bg-slate-100 px-1 py-0.5 text-xs font-mono text-slate-800">
                 npm run validate
               </code>{" "}
               and an approved design brief.
             </p>
-            <p className="mt-3 text-sm text-slate-400 italic">
+            <p className="mt-3 text-sm text-slate-600 italic">
               Slice implementation coming in a future sprint.
             </p>
           </CardContent>

@@ -53,13 +53,13 @@ export function HelloWorldCard() {
       </CardContent>
 
       <CardFooter className="border-t border-slate-100 pt-4">
-        <p className="text-xs text-slate-400">
+        <p className="text-xs text-slate-600">
           Spec:{" "}
-          <code className="rounded bg-slate-100 px-1 py-0.5 font-mono text-[11px]">
+          <code className="rounded bg-slate-100 px-1 py-0.5 font-mono text-[11px] text-slate-800">
             spec/examples/dashboard-product.yaml
           </code>
           {" · "}
-          Events: <code className="rounded bg-slate-100 px-1 py-0.5 font-mono text-[11px]">dashboard.shell_viewed</code>
+          Events: <code className="rounded bg-slate-100 px-1 py-0.5 font-mono text-[11px] text-slate-800">dashboard.shell_viewed</code>
         </p>
       </CardFooter>
     </Card>

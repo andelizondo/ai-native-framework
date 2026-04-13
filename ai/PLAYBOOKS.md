@@ -79,6 +79,14 @@ That sequence is **practical**, not a ranking of importance: mature repos often 
 - **Load:** [`playbooks/release-management.md`](playbooks/release-management.md)
 - **Constraints:** release the repository as a single unit; use a dedicated automation token when downstream workflows must trigger; route changes through the normal PR loop.
 
+### Quality standard execution
+
+- **When to use:** PR gate failures, nightly CI triage, incident-to-regression loop, phase readiness audit.
+- **Inputs:** current phase, blocking gate state (check names and statuses), incident ID, eval results.
+- **Outputs:** all blocking gates green; regression test merged and incident closed; phase readiness evidence bundle.
+- **Load:** [`playbooks/quality-standard-execution.md`](playbooks/quality-standard-execution.md)
+- **Constraints:** follow the merge-gate model in `docs/QUALITY_STANDARD.md §6`; do not advance phase without checking off the required list; accessibility violations on critical flows are non-deferrable.
+
 ---
 
 ## Adding A New Playbook
