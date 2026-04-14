@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.5.1](https://github.com/andelizondo/ai-native-framework/compare/v0.5.0...v0.5.1) (2026-04-14)
+
+
+### Bug Fixes
+
+* **codecov:** remove duplicate products/dashboard path prefix ([#69](https://github.com/andelizondo/ai-native-framework/issues/69)) ([92940bd](https://github.com/andelizondo/ai-native-framework/commit/92940bde0225bdcb9b20692f35989455c1413aab))
+
 ## [0.5.0](https://github.com/andelizondo/ai-native-framework/compare/v0.4.0...v0.5.0) (2026-04-13)
 
 
