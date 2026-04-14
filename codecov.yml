@@ -2,9 +2,9 @@
 # Upload token: GitHub Actions secret CODECOV_TOKEN (repository settings).
 # https://docs.codecov.com/docs/codecov-yaml
 #
-# Vitest writes SF: paths relative to products/dashboard; prefix so they match git.
-fixes:
-  - "::products/dashboard/"
+# Do not add `fixes` to prefix `products/dashboard/` here: CI LCOV uses absolute paths
+# under the repo checkout, and Codecov already normalizes them to the git tree. A
+# `::products/dashboard/` fix duplicates the segment in the Codecov UI.
 
 coverage:
   status:
