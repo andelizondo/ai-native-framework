@@ -397,7 +397,7 @@ context_recovery:
     The platform solves a real problem for solo founders: there is no single place to see and
     operate all of a company's AI-driven processes. Existing tools are either disconnected
     (Notion, Slack, Linear) or sales-only (Relevance AI). The platform connects the spec layer
-    (agents/interfaces.yaml, spec/examples/) to the execution layer (OpenClaw runtime) and
+    (interfaces/interfaces.yaml, spec/examples/) to the execution layer (OpenClaw runtime) and
     surfaces that execution in a dashboard.
 
     V1 scope is deliberately narrow: one company, one founder, four workflows (W1–W4), no
