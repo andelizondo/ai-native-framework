@@ -64,3 +64,41 @@ policies:
       - "Breaking schema migrations"
       - "PII policy changes"
       - "Security-sensitive tool grants"
+
+adapters:
+  openclaw:
+    description: >
+      OpenClaw gateway adapter. Recommended default for maturity 1-2.
+      Open-source and self-hostable. Swap for LangGraph or equivalent
+      at maturity 3+ when stateful graph orchestration is needed.
+    status: recommended_default
+    maturity_levels: [1, 2]
+    open_source: true
+    repository: "https://github.com/openclaw/openclaw"
+    gateway:
+      protocol: websocket
+      default_bind: "ws://127.0.0.1:18789"
+    implements:
+      - emit_event
+      - record_error
+      - capture_metric
+    notes: >
+      Business logic MUST be written against the interfaces above,
+      not against OpenClaw directly. This adapter is swappable
+      without changing orchestration semantics per §5.1 Layer 1.
+
+  langgraph:
+    description: >
+      LangGraph stateful workflow adapter. Recommended at maturity 3+
+      when durable, graph-based orchestration is needed.
+    status: optional
+    maturity_levels: [3, 4]
+    open_source: true
+    repository: "https://github.com/langchain-ai/langgraph"
+    implements:
+      - emit_event
+      - record_error
+      - capture_metric
+    notes: >
+      Introduce only with decision-log rationale per §8.2.
+      Do not use V3 patterns without documented justification.

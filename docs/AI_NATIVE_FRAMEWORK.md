@@ -318,6 +318,9 @@ Bindings below are **recommended defaults** for greenfield implementations; the 
 | **Validation CI** | Node + AJV + YAML parser | Schema validation on `spec/examples/*` |
 | **Unit / component tests** | Vitest + React Testing Library + MSW | Fast, spec-anchored verification in CI |
 | **E2E / browser** | Playwright | Critical-path and release E2E, accessibility, and visual regression |
+| **Agent execution runtime** | OpenClaw (or equivalent) | Local gateway for agent execution, multi-channel messaging, and skills ecosystem. Open-source and self-hostable. Recommended default at maturity 1–2. Swap for LangGraph or equivalent at maturity 3+ when stateful orchestration is needed. Business logic MUST be written against `agents/interfaces.yaml`, not against OpenClaw directly. |
+
+> **Runtime note:** OpenClaw is the recommended default agent execution runtime for maturity 1–2 implementations. It is open-source and self-hostable, which preserves the provider-agnostic principle — business logic is written against `agents/interfaces.yaml`, not against OpenClaw directly. At maturity 3+, swap to LangGraph or equivalent for stateful graph-based orchestration. The adapter definitions live in `agents/interfaces.yaml` under the `adapters` key.
 
 ### 10.1 Repository tooling (reference layout)
 
