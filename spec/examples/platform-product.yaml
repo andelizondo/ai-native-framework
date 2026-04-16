@@ -16,12 +16,12 @@ metadata:
 
 ideation:
   problem: >
-    Solo founders and small teams (2–10 people) building AI-native startups have no way to see
+    Solo founders and small teams (1–10 people) building AI-native startups have no way to see
     and operate their entire company's processes in one place. They either use disconnected tools
     (Notion, Slack, Linear) or sales-only agent platforms (Relevance AI). Nobody connects the
     spec layer to the execution layer — ideas, specs, and running agents live in separate worlds.
   user: >
-    Solo founders and small startup teams (2–10 people) building product-led companies who want
+    Solo founders and small startup teams (1–10 people) building product-led companies who want
     agents doing execution work while they focus on strategy and taste.
   goal: >
     A dashboard where a founder sees their company's active processes, pending human checkpoints,
