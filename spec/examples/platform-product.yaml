@@ -6,8 +6,8 @@ metadata:
   title: "AI-Native Platform Dashboard"
   status: draft
   owner: "founder@ai-native.local"
-  created_at: "2026-04-17T00:00:00Z"
-  updated_at: "2026-04-17T00:00:00Z"
+  created_at: "2026-04-16T22:55:13Z"
+  updated_at: "2026-04-16T22:55:13Z"
   tags:
     - "platform"
     - "dashboard"
@@ -436,7 +436,7 @@ context_recovery:
 decision_log:
   entries:
     - id: "DEC-001"
-      date: "2026-04-17"
+      date: "2026-04-16"
       decision: "Adopt OpenClaw as the recommended default agent execution runtime for maturity 1-2."
       reason: "OpenClaw is open-source and self-hostable (aligns with provider-agnostic principle). It provides a working runtime with multi-channel messaging, skills ecosystem, and gateway architecture today. It fills the gap the framework has — a framework without a runtime — while keeping business logic written against interfaces/interfaces.yaml, not OpenClaw directly. The platform dashboard becomes the governance and observability layer on top of OpenClaw, which is exactly the gap OpenClaw has (no governance, no spec system). Swappable for LangGraph at maturity 3+ when stateful graph orchestration is needed."
       alternatives:
@@ -446,7 +446,7 @@ decision_log:
         - "n8n (workflow automation, not agent-native)"
         - "Dust (knowledge/Q&A layer — helps humans, does not replace agent execution)"
     - id: "DEC-002"
-      date: "2026-04-17"
+      date: "2026-04-16"
       decision: "V1 scope is one company, one founder, four workflows (W1-W4). No multi-tenancy, no billing, no team features."
       reason: "Scope discipline is where V1 lives or dies. The platform must prove the framework works before it proves it scales. Multi-tenancy and billing add infrastructure, auth, and product complexity that would delay the proof-of-concept. A solo founder running their own company on the platform is the minimum viable proof. Once W1-W4 are running end-to-end for one founder, scope can expand with evidence."
       alternatives:
