@@ -12,6 +12,14 @@ import type { AuthProvider } from "@/lib/auth/types";
 
 const LAST_IDENTIFIED_USER_KEY = "dashboard:last_identified_user";
 
+const SIGN_OUT_ERROR_MESSAGES: Partial<Record<string, string>> = {
+  sign_out_failed: "We could not sign you out. Try again.",
+};
+
+function getUserSafeSignOutError(code: string): string {
+  return SIGN_OUT_ERROR_MESSAGES[code] ?? "We could not sign you out. Try again.";
+}
+
 export function SignOutButton({ provider }: { provider: AuthProvider }) {
   const router = useRouter();
   const { capture } = useAnalytics();
@@ -26,7 +34,7 @@ export function SignOutButton({ provider }: { provider: AuthProvider }) {
       const result = await signOut();
 
       if (!result.ok) {
-        setError(result.error.message);
+        setError(getUserSafeSignOutError(result.error.code));
         captureMessage("Sign-out failed in UI", "warning", {
           feature: "auth.sign_out",
           extra: { reason: result.error.code },

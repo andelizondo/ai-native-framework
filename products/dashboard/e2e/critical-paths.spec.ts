@@ -15,8 +15,15 @@ const hasSupabaseRuntime =
   !!process.env.NEXT_PUBLIC_SUPABASE_URL &&
   !!process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 
-async function expectNoA11yViolations(path: string, page: Page) {
+async function expectNoA11yViolations(
+  path: string,
+  page: Page,
+  assertReady?: (page: Page) => Promise<void>,
+) {
   await page.goto(path);
+  if (assertReady) {
+    await assertReady(page);
+  }
   const results = await new AxeBuilder({ page }).withTags(WCAG_TAGS).analyze();
   expect(results.violations).toEqual([]);
 }
@@ -99,6 +106,9 @@ test.describe("accessibility — critical flows (WCAG 2.1 AA)", () => {
     page,
   }) => {
     await authenticateWithBypass(page);
-    await expectNoA11yViolations("/", page);
+    await expectNoA11yViolations("/", page, async (p) => {
+      await expect(p).toHaveURL(/\/$/);
+      await expect(p.getByRole("heading", { name: /hello, world/i })).toBeVisible();
+    });
   });
 });

@@ -101,7 +101,7 @@ describe("SignOutButton", () => {
     fireEvent.click(screen.getByRole("button", { name: /sign out/i }));
 
     await waitFor(() =>
-      expect(screen.getByText(/try again later/i)).toBeInTheDocument(),
+      expect(screen.getByText(/we could not sign you out/i)).toBeInTheDocument(),
     );
     expect(mockResetIdentity).not.toHaveBeenCalled();
     expect(mockReplace).not.toHaveBeenCalled();

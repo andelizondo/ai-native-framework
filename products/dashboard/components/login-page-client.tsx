@@ -69,8 +69,14 @@ export function LoginPageClient({ urlError }: { urlError?: string }) {
         return;
       }
 
-      emitEvent("auth.requested_magic_link", { provider: "magic_link" });
-      capture("auth.requested_magic_link", { provider: "magic_link" });
+      try {
+        emitEvent("auth.requested_magic_link", { provider: "magic_link" });
+        capture("auth.requested_magic_link", { provider: "magic_link" });
+      } catch {
+        captureMessage("Magic-link telemetry failed", "warning", {
+          feature: "auth.login",
+        });
+      }
       setSubmitted(true);
     } finally {
       setLoadingAction(null);
@@ -151,7 +157,11 @@ export function LoginPageClient({ urlError }: { urlError?: string }) {
               </form>
             )}
 
-            {error && <p className="text-sm text-red-600">{error}</p>}
+            {error && (
+              <p role="alert" aria-live="polite" className="text-sm text-red-600">
+                {error}
+              </p>
+            )}
 
             {isGoogleEnabled && (
               <button
