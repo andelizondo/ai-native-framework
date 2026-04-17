@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.6.0](https://github.com/andelizondo/ai-native-framework/compare/v0.5.1...v0.6.0) (2026-04-17)
+
+
+### Features
+
+* platform product spec, OpenClaw adapter, and process library foundation ([#75](https://github.com/andelizondo/ai-native-framework/issues/75)) ([28d3689](https://github.com/andelizondo/ai-native-framework/commit/28d3689f39d25c27a806a90b5d2ca1e7182ca14c))
+
 ## [0.5.1](https://github.com/andelizondo/ai-native-framework/compare/v0.5.0...v0.5.1) (2026-04-14)
 
 
