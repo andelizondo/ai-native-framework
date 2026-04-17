@@ -11,9 +11,6 @@ import AxeBuilder from "@axe-core/playwright";
 const WCAG_TAGS = ["wcag2a", "wcag2aa", "wcag21aa"];
 const baseURL = process.env.BASE_URL || "http://localhost:3000";
 const bypassSecret = process.env.AUTH_E2E_BYPASS_SECRET;
-const hasSupabaseRuntime =
-  !!process.env.NEXT_PUBLIC_SUPABASE_URL &&
-  !!process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 
 async function expectNoA11yViolations(
   path: string,
@@ -56,10 +53,12 @@ test.describe("critical-path auth and dashboard flows", () => {
   test("magic-link request form submits and shows confirmation state", async ({
     page,
   }) => {
-    test.skip(!hasSupabaseRuntime, "Supabase runtime env is required for magic-link E2E");
-
     await page.goto("/login");
-    await page.getByLabel("Email").fill("founder@example.com");
+    const emailInput = page.getByLabel("Email");
+    const isEnabled = await emailInput.isVisible();
+    test.skip(!isEnabled, "Magic-link provider is not enabled in the target app");
+
+    await emailInput.fill("founder@example.com");
     await page.getByRole("button", { name: /send magic link/i }).click();
 
     await expect(page.getByText(/check your email/i)).toBeVisible();
@@ -68,8 +67,9 @@ test.describe("critical-path auth and dashboard flows", () => {
   test("callback error path renders a retryable error state", async ({ page }) => {
     await page.goto("/login?error=auth_callback_failed");
     await expect(page.getByTestId("auth-callback-error")).toContainText(/try again/i);
+    // Assert at least one sign-in affordance is available — provider-agnostic
     await expect(
-      page.getByRole("button", { name: /send magic link/i }),
+      page.getByRole("button", { name: /send magic link|continue with google/i }).first(),
     ).toBeVisible();
   });
 

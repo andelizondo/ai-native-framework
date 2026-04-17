@@ -72,7 +72,9 @@ export async function getMiddlewareUserWithSupabase({
       },
       setAll(cookiesToSet) {
         cookiesToSet.forEach(({ name, value }) => req.cookies.set(name, value));
-        response = NextResponse.next({ request: { headers: requestHeaders } });
+        const nextHeaders = new Headers(requestHeaders);
+        nextHeaders.set("cookie", req.cookies.toString());
+        response = NextResponse.next({ request: { headers: nextHeaders } });
         cookiesToSet.forEach(({ name, value, options }) =>
           response.cookies.set(name, value, options),
         );

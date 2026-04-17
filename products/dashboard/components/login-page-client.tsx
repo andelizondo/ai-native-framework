@@ -111,7 +111,7 @@ export function LoginPageClient({ urlError }: { urlError?: string }) {
         <h1 className="text-xl font-semibold text-[#0f172a]">AI-Native Dashboard</h1>
         <p className="mt-1 text-sm text-[#64748b]">Sign in to your workspace</p>
 
-        {callbackErrorMessage && (
+        {!submitted && callbackErrorMessage && (
           <div
             role="alert"
             data-testid="auth-callback-error"
