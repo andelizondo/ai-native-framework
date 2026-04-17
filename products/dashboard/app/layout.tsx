@@ -1,7 +1,5 @@
 import type { Metadata } from "next";
 import "./globals.css";
-import { Sidebar } from "@/components/sidebar";
-import { TopBar } from "@/components/top-bar";
 import { getAppRelease, getReleaseChannel } from "@/lib/release";
 import { SpeedInsights } from "@vercel/speed-insights/next";
 import { Analytics } from "@vercel/analytics/next";
@@ -25,16 +23,7 @@ export default function RootLayout({
         data-release={appRelease}
         data-release-channel={getReleaseChannel()}
       >
-        {/* Left sidebar — fixed width, full height */}
-        <Sidebar />
-
-        {/* Right column — top bar + scrollable content */}
-        <div className="flex flex-col flex-1 min-w-0 overflow-hidden">
-          <TopBar />
-          <main className="flex-1 overflow-y-auto bg-[#f8fafc] p-6">
-            {children}
-          </main>
-        </div>
+        {children}
         <SpeedInsights />
         <Analytics />
       </body>

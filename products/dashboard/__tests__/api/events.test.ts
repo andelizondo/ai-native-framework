@@ -8,7 +8,7 @@
  */
 
 import { describe, it, expect } from "vitest";
-import { POST } from "@/app/api/events/route";
+import { POST } from "@/app/(dashboard)/api/events/route";
 import type { NextRequest } from "next/server";
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────

@@ -19,6 +19,9 @@ import {
 const ALLOWED_EVENTS = new Set([
   "dashboard.shell_viewed",
   "dashboard.phase_navigated",
+  "auth.requested_magic_link",
+  "user.signed_in",
+  "user.signed_out",
 ]);
 
 type EventBody = {
@@ -59,6 +62,22 @@ function sanitizePayload(
       return null;
     }
     return { phase };
+  }
+
+  if (eventName === "auth.requested_magic_link") {
+    if (payload.provider !== "magic_link") {
+      return null;
+    }
+
+    return { provider: "magic_link" };
+  }
+
+  if (eventName === "user.signed_in" || eventName === "user.signed_out") {
+    if (payload.provider !== "magic_link" && payload.provider !== "google") {
+      return null;
+    }
+
+    return { provider: payload.provider };
   }
 
   return null;

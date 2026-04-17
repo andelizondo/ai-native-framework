@@ -7,7 +7,7 @@ metadata:
   status: draft
   owner: "platform@example.com"
   created_at: "2026-04-12T00:00:00Z"
-  updated_at: "2026-04-12T00:00:00Z"
+  updated_at: "2026-04-17T00:00:00Z"
   tags:
     - "dashboard"
     - "framework"
@@ -20,13 +20,14 @@ ideation:
     produce durable artifacts but there is no lightweight UI that surfaces them in one place.
   user: "Solo founders and small product teams using the AI-native framework to build products."
   goal: |
-    Ship a governed dashboard shell — left navigation, top bar, and a Hello World card — that
-    serves as the boilerplate UI host for all future product slices across the Ideation, Design,
-    and Implementation phases.
+    Ship a governed dashboard shell with canonical authentication — left navigation, top bar,
+    sign-in entrypoint, and a Hello World card behind a protected session — that serves as the
+    boilerplate UI host for all future product slices across the Ideation, Design, and
+    Implementation phases.
   constraints:
     - "Must use the framework-mandated frontend stack: Next.js + Tailwind + shadcn/ui."
     - "Dashboard lives inside the existing ai-native-framework repository under products/dashboard/."
-    - "No external auth dependency for V1; shell only — no real data sources required."
+    - "Authentication is a canonical dashboard slice and must stay behind a repo-owned auth abstraction."
     - "All externally observable state changes must emit structured events per spec/policy."
     - "Provider-agnostic: no vendor-specific assumptions in core business logic."
   success_metrics:
@@ -36,24 +37,28 @@ ideation:
     - name: "phase_nav_reachable"
       definition: "All three phase navigation items (Ideation, Design, Implementation) are rendered and clickable."
       target: "100% of renders"
+    - name: "auth_login_reachable"
+      definition: "Unauthenticated users are redirected to /login and can request a magic link."
+      target: "100% of protected-route visits without a session"
   risks:
     - description: "Scope creep into real data wiring before the shell is stable."
-      mitigation: "V1 is shell-only with static Hello World card; data wiring is a separate slice."
-    - description: "Tailwind and shadcn/ui version mismatches with future slices."
-      mitigation: "Pin versions in package.json and document in decision log."
+      mitigation: "Keep the product surface shell-first; auth is the only new Phase 1 dependency."
+    - description: "Provider-specific auth logic leaks into product code."
+      mitigation: "Keep Supabase details behind lib/auth/ and reserve provider expansion in config."
 
 design:
   objective: |
     Build a governed Next.js + Tailwind + shadcn/ui dashboard shell with three navigation phases
-    (Ideation, Design, Implementation), a persistent left sidebar, a top bar, and a Hello World
-    card on the default route. The shell must be observable, spec-backed, and harness-ready.
+    (Ideation, Design, Implementation), a persistent left sidebar, a top bar, a canonical login
+    flow, and a Hello World card on the default protected route. The shell must be observable,
+    spec-backed, and harness-ready.
   requirements:
     - id: "FR-001"
       priority: must
       statement: "The shell MUST render a persistent left sidebar with navigation items for Ideation, Design, and Implementation."
     - id: "FR-002"
       priority: must
-      statement: "The shell MUST render a top bar with the product name and a placeholder user/context area."
+      statement: "The shell MUST render a top bar with the product name, a lightweight user/context area, and an explicit sign-out action."
     - id: "FR-003"
       priority: must
       statement: "The default route (/) MUST render a Hello World card using shadcn/ui Card component."
@@ -64,45 +69,73 @@ design:
       priority: must
       statement: "The product spec MUST be schema-valid and pass npm run validate before any slice ships."
     - id: "FR-006"
+      priority: must
+      statement: "The dashboard MUST expose a public /login route with magic-link authentication as the default sign-in method."
+    - id: "FR-007"
+      priority: must
+      statement: "The dashboard MUST gate /, /ideation, /design, and /implementation behind an authenticated session."
+    - id: "FR-008"
+      priority: must
+      statement: "The dashboard MUST handle auth callback completion and return the user to the protected shell on success or back to /login with a governed error state on failure."
+    - id: "FR-009"
+      priority: must
+      statement: "The dashboard MUST provide a sign-out action that clears product analytics and monitoring identity state before redirecting to /login."
+    - id: "FR-010"
+      priority: should
+      statement: "The auth abstraction SHOULD reserve provider expansion for Google OAuth without requiring page or middleware rewrites."
+    - id: "FR-011"
       priority: should
       statement: "Navigation active state SHOULD be visually indicated in the left sidebar."
-    - id: "FR-007"
+    - id: "FR-012"
       priority: should
       statement: "The shell SHOULD be responsive down to 1024px viewport width."
   system_design: |
     Stack: Next.js 15 (App Router) + Tailwind CSS 4 + shadcn/ui.
-    Layout: root layout.tsx wraps every page with a two-column shell:
+    Layout: root layout.tsx wraps every page. Route groups split public auth UI from the
+    authenticated shell:
+      - /(auth)/login → magic-link login screen
+      - /auth/callback → auth callback exchange route
+      - /(dashboard)/* → authenticated shell
+    Auth:
+      - Product code depends on a repo-owned auth service under lib/auth/.
+      - Supabase is the initial provider adapter for magic-link auth.
+      - Provider expansion is explicit in config so Google OAuth can be added later without
+        rewriting routes, middleware, or monitoring logic.
+    Authenticated shell:
       - Left: <Sidebar /> — fixed width, phase navigation, brand mark.
       - Right: <TopBar /> + <main> slot for page content.
+      - Layout-level identity sync tags PostHog and Sentry with the authenticated user UUID.
     Routing:
-      - /             → Hello World card (phase: none / home)
-      - /ideation     → Ideation phase placeholder
-      - /design       → Design phase placeholder
-      - /implementation → Implementation phase placeholder
+      - /             → Hello World card (phase: none / home; protected)
+      - /ideation     → Ideation phase placeholder (protected)
+      - /design       → Design phase placeholder (protected)
+      - /implementation → Implementation phase placeholder (protected)
     Event emission: thin client-side event hook calls an /api/events route handler that
-    validates the payload and logs to stdout (V1); the shell propagates a correlation id via
-    request headers and tags Sentry spans/events with product_id + shell slice metadata.
-    PostHog integration is a V2 concern.
-    No database required for V1. All data is static or in-memory.
+    validates the payload and logs to stdout. PostHog capture uses the typed analytics
+    abstraction. Auth emits spec-backed events for magic-link requests and sign-in/sign-out.
+    The shell propagates a correlation id via request headers and tags Sentry spans/events
+    with product_id + shell slice metadata.
+    No application database is required for Phase 1 auth beyond the managed auth provider.
     Directory layout under products/dashboard/:
       app/
-        layout.tsx          — shell with Sidebar + TopBar
-        page.tsx            — Hello World card
-        ideation/page.tsx   — Ideation placeholder
-        design/page.tsx     — Design placeholder
-        implementation/page.tsx — Implementation placeholder
-        api/events/route.ts — Event ingestion endpoint (V1: log only)
+        layout.tsx                         — root layout
+        (auth)/login/page.tsx              — login screen
+        auth/callback/route.ts             — auth callback handler
+        (dashboard)/layout.tsx             — protected shell with Sidebar + TopBar
+        (dashboard)/page.tsx               — Hello World card
+        (dashboard)/ideation/page.tsx      — Ideation placeholder
+        (dashboard)/design/page.tsx        — Design placeholder
+        (dashboard)/implementation/page.tsx — Implementation placeholder
+        (dashboard)/api/events/route.ts    — Event ingestion endpoint
       components/
-        sidebar.tsx         — Left navigation
-        top-bar.tsx         — Top bar
-        hello-world-card.tsx — Hello World card
+        sidebar.tsx                — Left navigation
+        top-bar.tsx                — Top bar
+        auth-identity-sync.tsx     — Analytics and monitoring identity sync
+        sign-out-button.tsx        — Explicit sign-out action
+        hello-world-card.tsx       — Hello World card
       lib/
-        events.ts           — Client-side emit helper
-      public/
-      package.json
-      tailwind.config.ts
-      next.config.ts
-      components.json       — shadcn/ui config
+        auth/                      — app-owned auth service + provider adapter
+        events.ts                  — Client-side audit event helper
   tooling_decisions:
     - decision: "Next.js 15 with App Router"
       reason: "Framework-mandated default stack (docs/AI_NATIVE_FRAMEWORK.md §6). App Router gives co-located server components and route handlers."
@@ -118,17 +151,23 @@ design:
       alternatives_considered:
         - "Radix UI primitives directly (too low-level for V1 speed)"
         - "MUI (rejected — vendor-branded, not in framework stack)"
-    - decision: "Event emission via /api/events route handler"
-      reason: "Keeps event contract in the same repo as the spec; decouples client from PostHog until V2."
+    - decision: "Event emission via /api/events route handler plus typed PostHog abstraction"
+      reason: "Keeps the event contract in the same repo as the spec while preserving a provider-agnostic product surface and a single typed analytics registry."
       alternatives_considered:
-        - "Direct PostHog client in browser (deferred to V2)"
+        - "Direct PostHog client in browser (rejected — bypasses the abstraction policy)"
+    - decision: "Use Supabase as the initial auth provider behind a repo-owned auth service"
+      reason: "Supabase provides a fast Phase 1 auth path while keeping provider details isolated to an adapter so Google OAuth can be added later without page or middleware rewrites."
+      alternatives_considered:
+        - "Provider-specific auth calls inside pages and middleware (rejected — too tightly coupled for the golden product)"
   assumptions:
     - text: "Node.js 20+ is available in the development and CI environment."
       id: "A-001"
     - text: "The dashboard runs at localhost:3000 in development; no custom port needed for V1."
       id: "A-002"
-    - text: "No authentication is required for V1; the shell is local-only."
+    - text: "Magic-link auth is the canonical Phase 1 auth method; first-time and returning users share the same request path."
       id: "A-003"
+    - text: "Google OAuth is a planned follow-up and must fit the same auth service contract."
+      id: "A-004"
   facts:
     - text: "Framework default stack is Next.js + Tailwind + shadcn/ui per docs/AI_NATIVE_FRAMEWORK.md §6."
       id: "F-001"
@@ -194,16 +233,78 @@ events:
               - ideation
               - design
               - implementation
+    - name: "auth.requested_magic_link"
+      description: "User successfully requested a magic-link sign-in email."
+      version: "1.0.0"
+      schema_version: "1.0.0"
+      classification:
+        pii: none
+        idempotency: none
+        ordering: at_least_once
+      emitted_by:
+        - "app.auth.login"
+      payload:
+        type: object
+        additionalProperties: false
+        required:
+          - provider
+        properties:
+          provider:
+            type: string
+            enum:
+              - magic_link
+    - name: "user.signed_in"
+      description: "Authenticated user session became active in the dashboard shell."
+      version: "1.0.0"
+      schema_version: "1.0.0"
+      classification:
+        pii: none
+        idempotency: recommended
+        ordering: at_least_once
+      emitted_by:
+        - "components.auth-identity-sync"
+      payload:
+        type: object
+        additionalProperties: false
+        required:
+          - provider
+        properties:
+          provider:
+            type: string
+            enum:
+              - magic_link
+              - google
+    - name: "user.signed_out"
+      description: "Authenticated user explicitly signed out of the dashboard."
+      version: "1.0.0"
+      schema_version: "1.0.0"
+      classification:
+        pii: none
+        idempotency: recommended
+        ordering: at_least_once
+      emitted_by:
+        - "components.sign-out-button"
+      payload:
+        type: object
+        additionalProperties: false
+        required:
+          - provider
+        properties:
+          provider:
+            type: string
+            enum:
+              - magic_link
+              - google
 
 observability:
   logs:
     strategy: "Structured JSON logs from the /api/events route handler; include correlation_id on every entry."
-    pii_policy: "No PII in V1 dashboard events; all payloads are pii: none."
+    pii_policy: "No PII in dashboard events; all payloads are pii: none."
   errors:
     tool: "Sentry"
-    policy: "Dashboard app initializes Sentry for client, server, and edge runtimes. Baseline implementation includes release/environment support, default product_id + shell slice tagging, correlation-id propagation, and explicit spans around current shell flows. Enable reporting with NEXT_PUBLIC_SENTRY_DSN for browser events and SENTRY_DSN for server-side events."
+    policy: "Dashboard app initializes Sentry for client, server, and edge runtimes. Auth failures, callback degradation, and sign-out failures must go through lib/monitoring. Baseline implementation includes release/environment support, default product_id + shell slice tagging, correlation-id propagation, explicit spans around current shell flows, and monitoring user context set from the authenticated UUID only."
   metrics:
-    tool: "PostHog (V2)"
+    tool: "PostHog"
     core_metrics:
       - key: "dashboard.shell_viewed"
         description: "Total dashboard loads; baseline engagement signal."
@@ -211,22 +312,33 @@ observability:
       - key: "dashboard.phase_navigated"
         description: "Phase navigation clicks; indicates which phase receives attention."
         type: event
+      - key: "auth.requested_magic_link"
+        description: "Successful magic-link requests from the login surface."
+        type: event
+      - key: "user.signed_in"
+        description: "Authenticated dashboard entries by provider."
+        type: event
+      - key: "user.signed_out"
+        description: "Explicit dashboard sign-outs."
+        type: event
 
 context_recovery:
   canonical_summary: |
     The Dashboard product is the UI shell for the ai-native-framework repository. It provides
-    a left sidebar with Ideation / Design / Implementation phase navigation, a top bar, and a
-    Hello World card on the default route. Stack: Next.js 15 + Tailwind 4 + shadcn/ui.
-    Lives under products/dashboard/. V1 is shell-only; no auth, no database, no external services.
-    Events are emitted via /api/events and logged to stdout. Sentry is configured through runtime
-    env vars, tags events with product_id/dashboard-shell, propagates correlation ids through the
-    shell request path, and traces the existing shell flows; PostHog remains a V2 concern.
+    a left sidebar with Ideation / Design / Implementation phase navigation, a top bar, a
+    canonical /login experience, and a Hello World card on the default protected route.
+    Stack: Next.js 15 + Tailwind 4 + shadcn/ui. Lives under products/dashboard/.
+    Auth is a first-class Phase 1 slice implemented behind lib/auth/ with Supabase as the
+    initial provider adapter for magic-link auth. Events are emitted via /api/events and
+    PostHog through typed abstractions. Sentry is configured through runtime env vars, tags
+    events with product_id/dashboard-shell, propagates correlation ids through the request
+    path, and sets monitoring user context from the authenticated UUID only.
     All slices extending this product must include slice_id and parent_product_id: "dashboard".
   key_decisions:
     - "Stack is Next.js + Tailwind + shadcn/ui per framework §6 — not a preference, a spec."
-    - "V1 is shell-only; data wiring, auth, and telemetry integrations are separate slices."
+    - "Auth is a canonical dashboard slice; product code depends on a repo-owned auth abstraction rather than provider-specific calls."
     - "Dashboard lives inside the existing framework repo under products/dashboard/, not a new repo."
-    - "Event emission uses a local /api/events route in V1; PostHog deferred to V2."
+    - "Magic-link auth is the initial method; Google OAuth is planned against the same auth contract."
   domain_terms:
     - term: "shell"
       definition: "The persistent layout wrapper (Sidebar + TopBar + content slot) that hosts all dashboard pages."
@@ -263,3 +375,10 @@ decision_log:
       reason: "Spec-mandated. Deviation would require a decision-log entry with alternatives and a waiver; no waiver warranted."
       alternatives:
         - "React + Vite + Tailwind (rejected — not the framework default; would require waiver)"
+    - id: "DEC-005"
+      date: "2026-04-17"
+      decision: "Dashboard auth is a canonical Phase 1 slice implemented behind lib/auth/ with Supabase as the initial provider adapter."
+      reason: "The golden product must model authentication as a governed slice rather than as app-local wiring so provider expansion, monitoring, analytics, and route protection stay consistent."
+      alternatives:
+        - "Keep auth out of scope (rejected — no longer aligned with the intended golden product)"
+        - "Call Supabase directly from pages and middleware (rejected — too provider-coupled for the framework standard)"

@@ -120,7 +120,7 @@ Each layer has a defined scope, default tooling, when it runs, and its merge-gat
 **Tool:** Playwright.  
 **When:** Critical-path subset runs on every PR (against Vercel preview); full E2E suite runs nightly and on release.  
 **Gate status:** Critical-path E2E subset is **BLOCKING on PR** (requires Vercel preview URL to be available). Full suite is **non-blocking on PR**.  
-**Notes:** The critical-path E2E suite should cover fewer than 10 scenarios—only the paths where failure is immediately user-visible and non-recoverable. Keep the PR suite under 5 minutes.
+**Notes:** The critical-path E2E suite should cover fewer than 10 scenarios—only the paths where failure is immediately user-visible and non-recoverable. Keep the PR suite under 5 minutes. When an external auth provider makes deterministic authenticated browser setup impractical on preview environments, a product MAY use a dedicated **test-only authenticated-session bypass** for E2E. That bypass must be explicitly gated by a secret, unavailable in normal runtime behavior, and used only to reach the post-authenticated state for browser verification; it must not replace coverage of the public login and callback error paths.
 
 ### 5.6 Accessibility checks
 
@@ -154,6 +154,15 @@ Each layer has a defined scope, default tooling, when it runs, and its merge-gat
 **Gate status:** Preview smoke is **BLOCKING on PR merge** (the preview must exist and core health checks must pass). Production smoke result feeds the production feedback loop (§12) but does not roll back automatically without human decision.  
 **Notes:** Smoke verification is distinct from the full E2E suite. It covers app boot, auth, and one load of the primary surface—enough to confirm the deployment is not broken.
 
+### 5.10 Authentication-specific verification rules
+
+For products with authentication as a canonical slice:
+
+- the public sign-in route is part of the critical accessibility surface
+- protected-route redirect behavior is part of the PR E2E critical path
+- sign-in identity lifecycle must be covered at the unit/integration layer: analytics identity set on sign-in, reset on sign-out, monitoring user context updated in lockstep
+- provider-specific auth logic should be tested behind a repo-owned auth service boundary; pages, layouts, and middleware should be verified against the service contract, not the provider SDK directly
+
 ---
 
 ## 6. Merge-gate model
@@ -182,6 +191,7 @@ In this repository, these conceptual gates map to the required CI checks as foll
 - Full E2E suite
 - Non-critical accessibility scan
 - Visual regression on PR *(blocking only on release cut)*
+- Auth-provider-specific deep browser flows that require external inboxes or third-party consoles, if the product already has a guarded deterministic bypass for the authenticated state and the public login surface remains covered in the blocking suite
 
 ### 6.3 Nightly / release-only checks
 

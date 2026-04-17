@@ -19,6 +19,9 @@ Implement a dashboard feature from a completed feature request (`templates/featu
 - Current state of `products/dashboard/lib/analytics/events.ts`
 - Current state of the relevant components under `products/dashboard/`
 
+If the feature introduces or changes authentication behavior, also read the current auth surface
+under `products/dashboard/lib/auth/` before editing any routes, layouts, or client flows.
+
 ## Outputs
 
 - Updated `spec/examples/dashboard-product.yaml` (events + metrics)
@@ -96,6 +99,12 @@ Component conventions in this codebase:
 - Route handlers: `app/api/<resource>/route.ts`
 - Styles: Tailwind utility classes; use `cn()` from `@/lib/utils` for conditional classes
 - UI primitives: `components/ui/` (shadcn/ui) — do not re-implement what's already there
+
+If the feature touches authentication:
+- product code outside `lib/auth/` must depend on the repo-owned auth service, not provider APIs
+- provider-specific SDK calls belong only in the auth adapter layer
+- layouts, middleware, route handlers, and pages must import the auth service boundary instead of
+  reaching into Supabase or another provider directly
 
 ### Step 5 — Wire the dual pipeline
 
@@ -204,10 +213,14 @@ PR description must include:
 
 - If the feature request's events table is blank, stop and ask. Events are required, not optional.
 - If a property the feature naturally produces would require PII (email, name, user input), use `user_id` (UUID) instead and note the substitution in the PR.
+- If the feature introduces auth, keep provider details isolated to `lib/auth/` and treat auth as a
+  product slice with spec, tests, observability, and analytics — not as app-local wiring.
 - If the feature needs a new API route, it needs its own internal event and Sentry span — do not skip either.
 - If a new event concept would apply to multiple future features, prefer a generic form (`feature.viewed`, `feature.action_taken`) with a discriminating property over a narrow, one-off name.
 - If a feature has no user-facing action that warrants a PostHog event, document why in the spec under `observability` and leave a comment in the component. This is a legitimate decision, not a skip.
 - Never import `@sentry/nextjs` or `posthog-js` directly in feature code. Both have abstraction layers — use them.
+- For auth identity lifecycle, use `lib/analytics/identity.ts` and `lib/monitoring` instead of
+  duplicating provider-specific identify/reset behavior in components.
 
 ---
 
