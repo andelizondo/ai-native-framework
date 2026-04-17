@@ -11,6 +11,9 @@ import AxeBuilder from "@axe-core/playwright";
 const WCAG_TAGS = ["wcag2a", "wcag2aa", "wcag21aa"];
 const baseURL = process.env.BASE_URL || "http://localhost:3000";
 const bypassSecret = process.env.AUTH_E2E_BYPASS_SECRET;
+const hasSupabaseRuntime =
+  !!process.env.NEXT_PUBLIC_SUPABASE_URL &&
+  !!process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 
 async function expectNoA11yViolations(
   path: string,
@@ -55,8 +58,10 @@ test.describe("critical-path auth and dashboard flows", () => {
   }) => {
     await page.goto("/login");
     const emailInput = page.getByLabel("Email");
-    const isEnabled = await emailInput.isVisible();
-    test.skip(!isEnabled, "Magic-link provider is not enabled in the target app");
+    // Skip if the target app hasn't enabled magic-link in its provider config
+    test.skip(!(await emailInput.isVisible()), "Magic-link provider is not enabled in the target app");
+    // Skip if the runner has no Supabase credentials — the form renders but the API call would fail
+    test.skip(!hasSupabaseRuntime, "Supabase runtime credentials required to send real magic-link requests");
 
     await emailInput.fill("founder@example.com");
     await page.getByRole("button", { name: /send magic link/i }).click();
