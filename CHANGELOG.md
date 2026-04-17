@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.7.0](https://github.com/andelizondo/ai-native-framework/compare/v0.6.0...v0.7.0) (2026-04-17)
+
+
+### Features
+
+* **dashboard:** canonicalize auth slice ([#79](https://github.com/andelizondo/ai-native-framework/issues/79)) ([4b1621b](https://github.com/andelizondo/ai-native-framework/commit/4b1621bf4aa8f904fc45d47c0dd0b053a24e7b80))
+
 ## [0.6.0](https://github.com/andelizondo/ai-native-framework/compare/v0.5.1...v0.6.0) (2026-04-17)
 
 
