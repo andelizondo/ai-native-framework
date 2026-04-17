@@ -34,11 +34,25 @@ export function SignOutButton({ provider }: { provider: AuthProvider }) {
         return;
       }
 
-      emitEvent("user.signed_out", { provider });
-      capture("user.signed_out", { provider });
-      resetIdentity();
-      clearBypassCookieInBrowser();
-      window.sessionStorage.removeItem(LAST_IDENTIFIED_USER_KEY);
+      try {
+        emitEvent("user.signed_out", { provider });
+        capture("user.signed_out", { provider });
+      } catch {
+        captureMessage("Sign-out telemetry failed in UI", "warning", {
+          feature: "auth.sign_out",
+        });
+      }
+
+      try {
+        resetIdentity();
+        clearBypassCookieInBrowser();
+        window.sessionStorage.removeItem(LAST_IDENTIFIED_USER_KEY);
+      } catch {
+        captureMessage("Sign-out cleanup failed in UI", "warning", {
+          feature: "auth.sign_out",
+        });
+      }
+
       router.replace("/login");
       router.refresh();
     } finally {
@@ -48,11 +62,21 @@ export function SignOutButton({ provider }: { provider: AuthProvider }) {
 
   return (
     <div className="flex items-center gap-2">
-      {error && <span className="text-xs text-red-600">{error}</span>}
+      {error && (
+        <span
+          id="signout-error"
+          role="alert"
+          aria-live="polite"
+          className="text-xs text-red-600"
+        >
+          {error}
+        </span>
+      )}
       <button
         type="button"
         onClick={handleSignOut}
         disabled={loading}
+        aria-describedby={error ? "signout-error" : undefined}
         className="rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-xs font-medium text-slate-700 disabled:opacity-50"
       >
         {loading ? "Signing out…" : "Sign out"}

@@ -1,14 +1,29 @@
 "use client";
 
-import { useState } from "react";
+import { useState, type FormEvent } from "react";
 import { captureMessage } from "@/lib/monitoring";
 import { useAnalytics } from "@/lib/analytics/events";
 import { emitEvent } from "@/lib/events";
 import { getAuthConfig, requestMagicLink, signInWithOAuth } from "@/lib/auth/service";
+import type { AuthErrorCode } from "@/lib/auth/types";
 
 const CALLBACK_ERROR_MESSAGES: Record<string, string> = {
   auth_callback_failed: "That sign-in link was invalid or has expired. Try again.",
 };
+
+const AUTH_ERROR_MESSAGES: Record<AuthErrorCode, string> = {
+  auth_not_configured:
+    "Sign-in is temporarily unavailable in this environment. Try again later.",
+  provider_not_enabled: "That sign-in option is currently unavailable.",
+  magic_link_request_failed: "We could not send that magic link. Try again.",
+  oauth_sign_in_failed: "We could not start that sign-in flow. Try again.",
+  callback_failed: "We could not complete sign-in. Try again.",
+  sign_out_failed: "We could not sign you out. Try again.",
+};
+
+function getUserSafeAuthError(code: AuthErrorCode): string {
+  return AUTH_ERROR_MESSAGES[code];
+}
 
 export function LoginPageClient({ urlError }: { urlError?: string }) {
   const authConfig = getAuthConfig();
@@ -28,7 +43,7 @@ export function LoginPageClient({ urlError }: { urlError?: string }) {
     null,
   );
 
-  async function handleSubmit(e: React.FormEvent) {
+  async function handleSubmit(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
     setLoadingAction("magic_link");
     setError(null);
@@ -40,7 +55,11 @@ export function LoginPageClient({ urlError }: { urlError?: string }) {
       );
 
       if (!result.ok) {
-        setError(result.error.message);
+        setError(getUserSafeAuthError(result.error.code));
+        captureMessage("Magic-link sign-in unavailable", "warning", {
+          feature: "auth.login",
+          extra: { reason: result.error.code, detail: result.error.message },
+        });
         return;
       }
 
@@ -63,10 +82,10 @@ export function LoginPageClient({ urlError }: { urlError?: string }) {
       );
 
       if (!result.ok) {
-        setError(result.error.message);
+        setError(getUserSafeAuthError(result.error.code));
         captureMessage("Google sign-in unavailable", "warning", {
           feature: "auth.login",
-          extra: { reason: result.error.code },
+          extra: { reason: result.error.code, detail: result.error.message },
         });
       }
     } finally {

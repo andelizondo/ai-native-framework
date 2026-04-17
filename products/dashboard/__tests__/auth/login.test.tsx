@@ -232,7 +232,9 @@ describe("LoginPage — error handling", () => {
     fireEvent.click(submitButton());
 
     await waitFor(() =>
-      expect(screen.getByText(/email rate limit exceeded/i)).toBeInTheDocument()
+      expect(
+        screen.getByText(/we could not send that magic link\. try again\./i),
+      ).toBeInTheDocument()
     );
   });
 
@@ -251,6 +253,32 @@ describe("LoginPage — error handling", () => {
 
     await waitFor(() => expect(submitButton()).not.toBeDisabled());
     expect(submitButton()).toHaveTextContent(/send magic link/i);
+  });
+
+  it("shows a sanitized error for Google sign-in failures", async () => {
+    mockGetAuthConfig.mockReturnValue({
+      enabledProviders: ["magic_link", "google"],
+      providers: [
+        { id: "magic_link", label: "Magic link", enabled: true },
+        { id: "google", label: "Google", enabled: true },
+      ],
+    });
+    mockSignInWithOAuth.mockResolvedValue({
+      ok: false,
+      error: {
+        code: "oauth_sign_in_failed",
+        message: "provider said no",
+      },
+    });
+
+    setup();
+    fireEvent.click(screen.getByRole("button", { name: /continue with google/i }));
+
+    await waitFor(() =>
+      expect(
+        screen.getByText(/we could not start that sign-in flow\. try again\./i),
+      ).toBeInTheDocument(),
+    );
   });
 
   it("displays an error banner when ?error=auth_callback_failed is in the URL", () => {

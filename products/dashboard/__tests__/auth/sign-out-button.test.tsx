@@ -108,4 +108,42 @@ describe("SignOutButton", () => {
     expect(mockClearBypassCookieInBrowser).not.toHaveBeenCalled();
     expect(mockCaptureMessage).toHaveBeenCalledOnce();
   });
+
+  it("navigates even when sign-out cleanup throws", async () => {
+    mockSignOut.mockResolvedValue({
+      ok: true,
+      data: { success: true },
+    });
+    mockEmitEvent.mockImplementation(() => {
+      throw new Error("telemetry failed");
+    });
+
+    render(<SignOutButton provider="magic_link" />);
+    fireEvent.click(screen.getByRole("button", { name: /sign out/i }));
+
+    await waitFor(() => expect(mockReplace).toHaveBeenCalledWith("/login"));
+    expect(mockRefresh).toHaveBeenCalledOnce();
+    expect(mockCaptureMessage).toHaveBeenCalledWith(
+      "Sign-out telemetry failed in UI",
+      "warning",
+      { feature: "auth.sign_out" },
+    );
+  });
+
+  it("announces inline sign-out errors to assistive tech", async () => {
+    mockSignOut.mockResolvedValue({
+      ok: false,
+      error: { code: "sign_out_failed", message: "Try again later" },
+    });
+
+    render(<SignOutButton provider="magic_link" />);
+    fireEvent.click(screen.getByRole("button", { name: /sign out/i }));
+
+    const alert = await screen.findByRole("alert");
+    expect(alert).toHaveAttribute("aria-live", "polite");
+    expect(screen.getByRole("button", { name: /sign out/i })).toHaveAttribute(
+      "aria-describedby",
+      "signout-error",
+    );
+  });
 });
