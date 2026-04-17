@@ -109,7 +109,7 @@ describe("SignOutButton", () => {
     expect(mockCaptureMessage).toHaveBeenCalledOnce();
   });
 
-  it("navigates even when sign-out cleanup throws", async () => {
+  it("navigates even when telemetry (emitEvent) throws", async () => {
     mockSignOut.mockResolvedValue({
       ok: true,
       data: { success: true },

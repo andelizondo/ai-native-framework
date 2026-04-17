@@ -7,10 +7,6 @@ import { emitEvent } from "@/lib/events";
 import { getAuthConfig, requestMagicLink, signInWithOAuth } from "@/lib/auth/service";
 import type { AuthErrorCode } from "@/lib/auth/types";
 
-const CALLBACK_ERROR_MESSAGES: Record<string, string> = {
-  auth_callback_failed: "That sign-in link was invalid or has expired. Try again.",
-};
-
 const AUTH_ERROR_MESSAGES: Record<AuthErrorCode, string> = {
   auth_not_configured:
     "Sign-in is temporarily unavailable in this environment. Try again later.",
@@ -21,14 +17,24 @@ const AUTH_ERROR_MESSAGES: Record<AuthErrorCode, string> = {
   sign_out_failed: "We could not sign you out. Try again.",
 };
 
+/** Maps `?error=` query values from the auth callback route to user-facing copy. */
+const CALLBACK_URL_ERROR_MESSAGES: Record<string, string> = {
+  auth_callback_failed: "That sign-in link was invalid or has expired. Try again.",
+  callback_failed: AUTH_ERROR_MESSAGES.callback_failed,
+};
+
 function getUserSafeAuthError(code: AuthErrorCode): string {
   return AUTH_ERROR_MESSAGES[code];
+}
+
+function messageForCallbackUrlError(urlError: string): string {
+  return CALLBACK_URL_ERROR_MESSAGES[urlError] ?? AUTH_ERROR_MESSAGES.callback_failed;
 }
 
 export function LoginPageClient({ urlError }: { urlError?: string }) {
   const authConfig = getAuthConfig();
   const { capture } = useAnalytics();
-  const callbackErrorMessage = urlError ? CALLBACK_ERROR_MESSAGES[urlError] : null;
+  const callbackErrorMessage = urlError ? messageForCallbackUrlError(urlError) : null;
   const isMagicLinkEnabled = authConfig.providers.some(
     (provider) => provider.id === "magic_link" && provider.enabled,
   );
@@ -58,7 +64,7 @@ export function LoginPageClient({ urlError }: { urlError?: string }) {
         setError(getUserSafeAuthError(result.error.code));
         captureMessage("Magic-link sign-in unavailable", "warning", {
           feature: "auth.login",
-          extra: { reason: result.error.code, detail: result.error.message },
+          extra: { reason: result.error.code },
         });
         return;
       }
@@ -85,7 +91,7 @@ export function LoginPageClient({ urlError }: { urlError?: string }) {
         setError(getUserSafeAuthError(result.error.code));
         captureMessage("Google sign-in unavailable", "warning", {
           feature: "auth.login",
-          extra: { reason: result.error.code, detail: result.error.message },
+          extra: { reason: result.error.code },
         });
       }
     } finally {

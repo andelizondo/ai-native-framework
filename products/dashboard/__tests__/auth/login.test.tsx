@@ -289,6 +289,14 @@ describe("LoginPage — error handling", () => {
     ).toBeInTheDocument();
   });
 
+  it("displays an error banner when ?error=callback_failed is in the URL", () => {
+    setup("callback_failed");
+
+    expect(screen.getByTestId("auth-callback-error")).toHaveTextContent(
+      /we could not complete sign-in/i,
+    );
+  });
+
   it("does not show an error banner when no ?error= param is present", () => {
     setup();
 

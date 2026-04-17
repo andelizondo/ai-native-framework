@@ -12,7 +12,8 @@
 import { test, expect } from "@playwright/test";
 
 function isIgnorablePreviewPageError(message: string) {
-  return message === "Unexpected token '<'";
+  // Match the core parse error even when runtimes append extra context.
+  return message.includes("Unexpected token '<'");
 }
 
 test.describe("smoke — boot verification", () => {
