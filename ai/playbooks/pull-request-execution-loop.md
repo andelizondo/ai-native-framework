@@ -222,11 +222,11 @@ For this repository, the intended review order is:
 3. If no CodeRabbit signal appears at all on a new head SHA after roughly 15 seconds, an authorized collaborator **MAY** explicitly request follow-up work by commenting `@coderabbitai review` or using the host platform's re-review UI without additional approval, because the automatic trigger likely did not fire.
 4. If CodeRabbit has already posted a "review in progress" style comment or otherwise clearly started on the current head SHA, poll for up to 5 minutes in 1-minute intervals before taking recovery action.
 5. If CodeRabbit is still not finished after that 5-minute wait window, ask the user whether to keep waiting or trigger recovery with `@coderabbitai review`. Do not post the manual trigger automatically once the reviewer has clearly started.
-6. **Clear pending request-changes without a full re-review:** When the implementing agent has pushed fixes or posted per-thread outcomes (`fix`, `accept as follow-up`, `won't change`) and confirmed they apply, but **`CHANGES_REQUESTED`** remains or CodeRabbit still needs to acknowledge closure on the **current** head, an authorized collaborator **SHOULD** post **one** PR comment using the **canonical CodeRabbit approval prompt** (blockquote below). **Do not** post `@coderabbitai review` for this—that command triggers a **slow full re-review** and is reserved for steps 3 and 5. Respect step 4 first (do not interrupt while a review is clearly in progress). This supplements step 2: it is not for skipping thread closure.
+6. When per-thread outcomes are posted and confirmed on the current head but **`CHANGES_REQUESTED`** persists, post **one** PR comment asking CodeRabbit to approve or clear the pending request-changes. Do **not** post `@coderabbitai review`—that triggers a full re-review and is reserved for steps 3 and 5.
 
-   > @coderabbitai Requested changes are addressed on the current head (per-thread outcomes on the review threads). Please approve or clear the pending request-changes when satisfied.
+   Canonical prompt:
 
-   (Operatively similar to older phrasing such as “requested changes pending approval,” but explicit for the bot.)
+   > @coderabbitai Requested changes are addressed on the current head. Please approve or clear the pending request-changes when satisfied.
 
 7. If the reviewer produces a new commit on the PR branch, automation **MUST** treat that commit like any other new head SHA: rerun required checks, require fresh review evidence where policy says so, and re-evaluate residual risk from the updated state.
 8. The policy layer waits until configured AI review output is observable on the PR timeline for the current head SHA.
@@ -257,7 +257,7 @@ Resolving threads without reviewer confirmation is not permitted. Thread resolut
 
 Host-platform note:
 
-- GitHub may allow `@coderabbitai` PR comments to trigger follow-up reviewer behavior even when there is no supported public REST or CLI endpoint for requesting a re-review directly. Treat `@coderabbitai review` as a **recovery** tool for a stalled automatic run (section 3 steps 3 and 5), not for clearing satisfied request-changes after fixes—use the **canonical approval prompt** in section 3 item 6 when you only need the bot to **approve or clear** pending request-changes without a slow full re-review.
+- `@coderabbitai review` triggers a full re-review; use it only for stalled automatic runs (steps 3 and 5 above). When threads are already addressed, use the canonical prompt in step 6 instead.
 - **Configured reviewer rate limits:** When delayed by the reviewer backend’s rate limits, if per-thread outcomes are already complete on the **current** head, prefer the **canonical approval prompt** in section 3 item 6 before another `@coderabbitai review`. Use dismissal of stale **CHANGES_REQUESTED** submissions only after thread substance is closed and the dismissal message records why a fresh submission is unavailable.
 - **Mergify merge queue:** If a pull request was removed from the queue or shows a failed “embarked” check while `queue_conditions` on `.mergify.yml` are satisfied again, a collaborator may comment `@mergifyio queue` with the **queue rule name** when the config defines one (for example `@mergifyio queue low-risk`). If the repository applies a `dequeued` (or similar) label when a run fails, remove it when re-attempting so labels and host state stay consistent.
 - When a bot or app pushes a commit to the PR branch, direct PR-scoped checks may still run normally while some downstream `workflow_run` automation can enter an approval-required or `action_required` state under GitHub's trust model. That host safeguard **MUST NOT** be misinterpreted as a PR policy failure by itself.
