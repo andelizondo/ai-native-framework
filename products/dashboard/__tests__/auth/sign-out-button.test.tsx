@@ -9,6 +9,7 @@ const {
   mockEmitEvent,
   mockResetIdentity,
   mockCaptureMessage,
+  mockClearBypassCookieInBrowser,
 } = vi.hoisted(() => ({
   mockReplace: vi.fn(),
   mockRefresh: vi.fn(),
@@ -17,6 +18,7 @@ const {
   mockEmitEvent: vi.fn(),
   mockResetIdentity: vi.fn(),
   mockCaptureMessage: vi.fn(),
+  mockClearBypassCookieInBrowser: vi.fn(),
 }));
 
 vi.mock("next/navigation", () => ({
@@ -46,6 +48,10 @@ vi.mock("@/lib/monitoring", () => ({
   captureMessage: mockCaptureMessage,
 }));
 
+vi.mock("@/lib/auth/test-bypass.client", () => ({
+  clearBypassCookieInBrowser: mockClearBypassCookieInBrowser,
+}));
+
 import { SignOutButton } from "@/components/sign-out-button";
 
 describe("SignOutButton", () => {
@@ -57,6 +63,7 @@ describe("SignOutButton", () => {
     mockEmitEvent.mockReset();
     mockResetIdentity.mockReset();
     mockCaptureMessage.mockReset();
+    mockClearBypassCookieInBrowser.mockReset();
     window.sessionStorage.clear();
     window.sessionStorage.setItem("dashboard:last_identified_user", "user-123");
   });
@@ -64,10 +71,10 @@ describe("SignOutButton", () => {
   it("signs out, clears identity, and redirects to /login", async () => {
     mockSignOut.mockResolvedValue({
       ok: true,
-      data: { provider: "magic_link" },
+      data: { success: true },
     });
 
-    render(<SignOutButton />);
+    render(<SignOutButton provider="magic_link" />);
     fireEvent.click(screen.getByRole("button", { name: /sign out/i }));
 
     await waitFor(() => expect(mockSignOut).toHaveBeenCalledOnce());
@@ -78,6 +85,7 @@ describe("SignOutButton", () => {
       provider: "magic_link",
     });
     expect(mockResetIdentity).toHaveBeenCalledOnce();
+    expect(mockClearBypassCookieInBrowser).toHaveBeenCalledOnce();
     expect(window.sessionStorage.getItem("dashboard:last_identified_user")).toBeNull();
     expect(mockReplace).toHaveBeenCalledWith("/login");
     expect(mockRefresh).toHaveBeenCalledOnce();
@@ -89,7 +97,7 @@ describe("SignOutButton", () => {
       error: { code: "sign_out_failed", message: "Try again later" },
     });
 
-    render(<SignOutButton />);
+    render(<SignOutButton provider="magic_link" />);
     fireEvent.click(screen.getByRole("button", { name: /sign out/i }));
 
     await waitFor(() =>
@@ -97,6 +105,7 @@ describe("SignOutButton", () => {
     );
     expect(mockResetIdentity).not.toHaveBeenCalled();
     expect(mockReplace).not.toHaveBeenCalled();
+    expect(mockClearBypassCookieInBrowser).not.toHaveBeenCalled();
     expect(mockCaptureMessage).toHaveBeenCalledOnce();
   });
 });

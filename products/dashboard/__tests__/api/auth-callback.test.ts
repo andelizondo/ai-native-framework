@@ -45,7 +45,10 @@ describe("GET /auth/callback — happy path", () => {
   it("exchanges the code and redirects to /", async () => {
     mockExchangeCallback.mockResolvedValue({
       ok: true,
-      data: { provider: "magic_link", user: { id: "user-123", email: null } },
+      data: {
+        provider: "magic_link",
+        user: { id: "user-123", email: null, provider: "magic_link" },
+      },
     });
 
     const res = await GET(makeCallbackRequest({ code: "abc123" }));

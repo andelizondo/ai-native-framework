@@ -1,11 +1,13 @@
 import { captureError, captureMessage } from "@/lib/monitoring";
-import { AuthConfigError, getAuthPublicConfig, isAuthProviderEnabled } from "./config";
+import { AuthConfigError, isAuthProviderEnabled } from "./config";
 import {
   requestMagicLinkWithSupabase,
   signInWithOAuthWithSupabase,
   signOutWithSupabase,
 } from "./supabase-browser-adapter";
-import type { AuthProvider, AuthPublicConfig, AuthResult } from "./types";
+import type { AuthProvider, AuthResult, OAuthProvider } from "./types";
+
+export { getAuthPublicConfig as getAuthConfig } from "./config";
 
 function configErrorResult<T>(): AuthResult<T> {
   return {
@@ -26,10 +28,6 @@ function providerDisabledResult<T>(provider: AuthProvider): AuthResult<T> {
       message: `${provider} authentication is not enabled for this environment.`,
     },
   };
-}
-
-export function getAuthConfig(): AuthPublicConfig {
-  return getAuthPublicConfig();
 }
 
 export async function requestMagicLink(
@@ -80,9 +78,9 @@ export async function requestMagicLink(
 }
 
 export async function signInWithOAuth(
-  provider: AuthProvider,
+  provider: OAuthProvider,
   redirectTo: string,
-): Promise<AuthResult<{ provider: AuthProvider }>> {
+): Promise<AuthResult<{ provider: OAuthProvider }>> {
   if (!isAuthProviderEnabled(provider)) {
     return providerDisabledResult(provider);
   }
@@ -126,7 +124,7 @@ export async function signInWithOAuth(
   }
 }
 
-export async function signOut(): Promise<AuthResult<{ provider: "magic_link" }>> {
+export async function signOut(): Promise<AuthResult<{ success: true }>> {
   try {
     const { error } = await signOutWithSupabase();
 
@@ -145,7 +143,7 @@ export async function signOut(): Promise<AuthResult<{ provider: "magic_link" }>>
       };
     }
 
-    return { ok: true, data: { provider: "magic_link" } };
+    return { ok: true, data: { success: true } };
   } catch (error) {
     if (error instanceof AuthConfigError) {
       return configErrorResult();

@@ -1,10 +1,12 @@
 import type { NextRequest, NextResponse } from "next/server";
 
 export type AuthProvider = "magic_link" | "google";
+export type OAuthProvider = Exclude<AuthProvider, "magic_link">;
 
 export type AuthUser = {
   id: string;
   email: string | null;
+  provider: AuthProvider;
 };
 
 export type AuthErrorCode =

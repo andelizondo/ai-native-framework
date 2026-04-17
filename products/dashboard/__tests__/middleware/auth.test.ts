@@ -33,7 +33,11 @@ function makeReq(path: string, headers: Record<string, string> = {}) {
   return new NextRequest(`http://localhost${path}`, { headers });
 }
 
-const AUTHENTICATED_USER = { id: "user-123", email: "founder@example.com" };
+const AUTHENTICATED_USER = {
+  id: "user-123",
+  email: "founder@example.com",
+  provider: "magic_link",
+};
 const CORRELATION_HEADER = "x-correlation-id";
 const UUID_RE =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;

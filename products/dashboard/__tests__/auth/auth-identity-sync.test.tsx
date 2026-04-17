@@ -32,7 +32,7 @@ describe("AuthIdentitySync", () => {
   it("identifies the user and emits signed_in once per session", () => {
     render(
       <AuthIdentitySync
-        user={{ id: "user-123", email: "founder@example.com" }}
+        user={{ id: "user-123", email: "founder@example.com", provider: "magic_link" }}
         provider="magic_link"
       />,
     );
@@ -51,7 +51,7 @@ describe("AuthIdentitySync", () => {
 
     render(
       <AuthIdentitySync
-        user={{ id: "user-123", email: "founder@example.com" }}
+        user={{ id: "user-123", email: "founder@example.com", provider: "magic_link" }}
         provider="magic_link"
       />,
     );

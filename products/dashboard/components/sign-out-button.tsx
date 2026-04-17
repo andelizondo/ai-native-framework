@@ -8,10 +8,11 @@ import { resetIdentity } from "@/lib/analytics/identity";
 import { captureMessage } from "@/lib/monitoring";
 import { signOut } from "@/lib/auth/service";
 import { clearBypassCookieInBrowser } from "@/lib/auth/test-bypass.client";
+import type { AuthProvider } from "@/lib/auth/types";
 
 const LAST_IDENTIFIED_USER_KEY = "dashboard:last_identified_user";
 
-export function SignOutButton() {
+export function SignOutButton({ provider }: { provider: AuthProvider }) {
   const router = useRouter();
   const { capture } = useAnalytics();
   const [loading, setLoading] = useState(false);
@@ -33,8 +34,8 @@ export function SignOutButton() {
       return;
     }
 
-    emitEvent("user.signed_out", { provider: result.data.provider });
-    capture("user.signed_out", { provider: result.data.provider });
+    emitEvent("user.signed_out", { provider });
+    capture("user.signed_out", { provider });
     resetIdentity();
     clearBypassCookieInBrowser();
     window.sessionStorage.removeItem(LAST_IDENTIFIED_USER_KEY);

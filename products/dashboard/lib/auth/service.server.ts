@@ -86,26 +86,61 @@ export async function exchangeCallback(
 }
 
 export async function getCurrentUser(): Promise<AuthUser | null> {
-  const bypassUser = await getServerBypassUser();
-  if (bypassUser) {
-    return bypassUser;
-  }
+  try {
+    const bypassUser = await getServerBypassUser();
+    if (bypassUser) {
+      return bypassUser;
+    }
 
-  return getServerUserWithSupabase();
+    return await getServerUserWithSupabase();
+  } catch (error) {
+    if (error instanceof AuthConfigError) {
+      captureMessage("Auth runtime is not configured on the server", "warning", {
+        feature: "auth.server",
+      });
+      return null;
+    }
+
+    captureError(error, {
+      feature: "auth.server",
+      action: "get_current_user",
+    });
+    return null;
+  }
 }
 
 export async function getCurrentUserForRequest(
   context: MiddlewareContext,
 ): Promise<MiddlewareAuthState> {
-  const bypassUser = getRequestBypassUser(context.req);
-  if (bypassUser) {
+  try {
+    const bypassUser = getRequestBypassUser(context.req);
+    if (bypassUser) {
+      return {
+        user: bypassUser,
+        response: NextResponse.next({
+          request: { headers: context.requestHeaders },
+        }),
+      };
+    }
+
+    return await getMiddlewareUserWithSupabase(context);
+  } catch (error) {
+    if (error instanceof AuthConfigError) {
+      captureMessage("Auth runtime is not configured in middleware", "warning", {
+        feature: "auth.middleware",
+      });
+    } else {
+      captureError(error, {
+        feature: "auth.middleware",
+        action: "get_current_user_for_request",
+      });
+    }
+
     return {
-      user: bypassUser,
+      user: null,
       response: NextResponse.next({
         request: { headers: context.requestHeaders },
       }),
     };
   }
-
-  return getMiddlewareUserWithSupabase(context);
 }

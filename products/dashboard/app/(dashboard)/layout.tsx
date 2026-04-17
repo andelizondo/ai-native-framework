@@ -19,7 +19,7 @@ export default async function DashboardLayout({
     <>
       <Sidebar />
       <div className="flex flex-col flex-1 min-w-0 overflow-hidden">
-        <AuthIdentitySync user={user} provider="magic_link" />
+        <AuthIdentitySync user={user} provider={user.provider} />
         <TopBar user={user} />
         <main className="flex-1 overflow-y-auto bg-[#f8fafc] p-6">{children}</main>
       </div>

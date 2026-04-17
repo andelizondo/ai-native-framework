@@ -14,15 +14,23 @@ export function LoginPageClient({ urlError }: { urlError?: string }) {
   const authConfig = getAuthConfig();
   const { capture } = useAnalytics();
   const callbackErrorMessage = urlError ? CALLBACK_ERROR_MESSAGES[urlError] : null;
+  const isMagicLinkEnabled = authConfig.providers.some(
+    (provider) => provider.id === "magic_link" && provider.enabled,
+  );
+  const isGoogleEnabled = authConfig.providers.some(
+    (provider) => provider.id === "google" && provider.enabled,
+  );
 
   const [email, setEmail] = useState("");
   const [submitted, setSubmitted] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [loading, setLoading] = useState(false);
+  const [loadingAction, setLoadingAction] = useState<"magic_link" | "google" | null>(
+    null,
+  );
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
-    setLoading(true);
+    setLoadingAction("magic_link");
     setError(null);
 
     const result = await requestMagicLink(
@@ -30,7 +38,7 @@ export function LoginPageClient({ urlError }: { urlError?: string }) {
       `${window.location.origin}/auth/callback?provider=magic_link`,
     );
 
-    setLoading(false);
+    setLoadingAction(null);
 
     if (!result.ok) {
       setError(result.error.message);
@@ -43,7 +51,7 @@ export function LoginPageClient({ urlError }: { urlError?: string }) {
   }
 
   async function handleGoogleSignIn() {
-    setLoading(true);
+    setLoadingAction("google");
     setError(null);
 
     const result = await signInWithOAuth(
@@ -51,7 +59,7 @@ export function LoginPageClient({ urlError }: { urlError?: string }) {
       `${window.location.origin}/auth/callback?provider=google`,
     );
 
-    setLoading(false);
+    setLoadingAction(null);
 
     if (!result.ok) {
       setError(result.error.message);
@@ -71,6 +79,7 @@ export function LoginPageClient({ urlError }: { urlError?: string }) {
         {callbackErrorMessage && (
           <div
             role="alert"
+            data-testid="auth-callback-error"
             className="mt-4 rounded-lg bg-red-50 p-3 text-sm text-red-700"
           >
             {callbackErrorMessage}
@@ -82,48 +91,56 @@ export function LoginPageClient({ urlError }: { urlError?: string }) {
             Check your email — a sign-in link is on its way.
           </div>
         ) : (
-          <form aria-label="Sign in" onSubmit={handleSubmit} className="mt-6 space-y-4">
-            <div>
-              <label
-                htmlFor="email"
-                className="block text-sm font-medium text-[#374151]"
-              >
-                Email
-              </label>
-              <input
-                id="email"
-                type="email"
-                required
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                placeholder="you@example.com"
-                className="mt-1 w-full rounded-lg border border-[#d1d5db] px-3 py-2 text-sm text-[#0f172a] outline-none focus:border-[#6366f1] focus:ring-2 focus:ring-[#6366f1]/20"
-              />
-            </div>
+          <div className="mt-6 space-y-4">
+            {isMagicLinkEnabled && (
+              <form aria-label="Sign in" onSubmit={handleSubmit} className="space-y-4">
+                <div>
+                  <label
+                    htmlFor="email"
+                    className="block text-sm font-medium text-[#374151]"
+                  >
+                    Email
+                  </label>
+                  <input
+                    id="email"
+                    type="email"
+                    required
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    placeholder="you@example.com"
+                    className="mt-1 w-full rounded-lg border border-[#d1d5db] px-3 py-2 text-sm text-[#0f172a] outline-none focus:border-[#6366f1] focus:ring-2 focus:ring-[#6366f1]/20"
+                  />
+                </div>
+
+                <button
+                  type="submit"
+                  disabled={loadingAction !== null}
+                  className="w-full rounded-lg bg-[#0f172a] px-4 py-2 text-sm font-medium text-white disabled:opacity-50"
+                >
+                  {loadingAction === "magic_link" ? "Sending…" : "Send magic link"}
+                </button>
+              </form>
+            )}
 
             {error && <p className="text-sm text-red-600">{error}</p>}
 
-            <button
-              type="submit"
-              disabled={loading}
-              className="w-full rounded-lg bg-[#0f172a] px-4 py-2 text-sm font-medium text-white disabled:opacity-50"
-            >
-              {loading ? "Sending…" : "Send magic link"}
-            </button>
-
-            {authConfig.providers.some(
-              (provider) => provider.id === "google" && provider.enabled,
-            ) && (
+            {isGoogleEnabled && (
               <button
                 type="button"
-                disabled={loading}
+                disabled={loadingAction !== null}
                 onClick={handleGoogleSignIn}
                 className="w-full rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-900 disabled:opacity-50"
               >
-                Continue with Google
+                {loadingAction === "google" ? "Redirecting…" : "Continue with Google"}
               </button>
             )}
-          </form>
+
+            {!isMagicLinkEnabled && !isGoogleEnabled && (
+              <p className="rounded-lg bg-slate-50 p-3 text-sm text-slate-600">
+                Sign-in is currently unavailable in this environment.
+              </p>
+            )}
+          </div>
         )}
       </div>
     </div>

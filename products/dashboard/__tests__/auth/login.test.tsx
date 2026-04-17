@@ -193,6 +193,26 @@ describe("LoginPage — happy path", () => {
       screen.getByRole("button", { name: /continue with google/i }),
     ).toBeInTheDocument();
   });
+
+  it("shows a Google-specific loading state during OAuth sign-in", async () => {
+    mockGetAuthConfig.mockReturnValue({
+      enabledProviders: ["magic_link", "google"],
+      providers: [
+        { id: "magic_link", label: "Magic link", enabled: true },
+        { id: "google", label: "Google", enabled: true },
+      ],
+    });
+    mockSignInWithOAuth.mockReturnValue(new Promise(() => {}));
+
+    setup();
+
+    fireEvent.click(screen.getByRole("button", { name: /continue with google/i }));
+
+    await waitFor(() => {
+      expect(screen.getByRole("button", { name: /redirecting/i })).toBeDisabled();
+      expect(screen.getByRole("button", { name: /send magic link/i })).toBeDisabled();
+    });
+  });
 });
 
 describe("LoginPage — error handling", () => {
@@ -254,5 +274,36 @@ describe("LoginPage — error handling", () => {
     expect(
       screen.queryByRole("button", { name: /continue with google/i }),
     ).not.toBeInTheDocument();
+  });
+
+  it("hides the magic-link form when magic-link auth is disabled", () => {
+    mockGetAuthConfig.mockReturnValue({
+      enabledProviders: ["google"],
+      providers: [
+        { id: "magic_link", label: "Magic link", enabled: false },
+        { id: "google", label: "Google", enabled: true },
+      ],
+    });
+
+    setup();
+
+    expect(screen.queryByRole("form", { name: /sign in/i })).not.toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: /continue with google/i }),
+    ).toBeInTheDocument();
+  });
+
+  it("shows an unavailable message when no auth providers are enabled", () => {
+    mockGetAuthConfig.mockReturnValue({
+      enabledProviders: [],
+      providers: [
+        { id: "magic_link", label: "Magic link", enabled: false },
+        { id: "google", label: "Google", enabled: false },
+      ],
+    });
+
+    setup();
+
+    expect(screen.getByText(/sign-in is currently unavailable/i)).toBeInTheDocument();
   });
 });

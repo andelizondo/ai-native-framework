@@ -108,7 +108,7 @@ describe("auth service", () => {
 
     await expect(signOut()).resolves.toEqual({
       ok: true,
-      data: { provider: "magic_link" },
+      data: { success: true },
     });
   });
 

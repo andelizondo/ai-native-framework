@@ -60,7 +60,7 @@ test.describe("critical-path auth and dashboard flows", () => {
 
   test("callback error path renders a retryable error state", async ({ page }) => {
     await page.goto("/login?error=auth_callback_failed");
-    await expect(page.getByRole("alert")).toContainText(/try again/i);
+    await expect(page.getByTestId("auth-callback-error")).toContainText(/try again/i);
     await expect(
       page.getByRole("button", { name: /send magic link/i }),
     ).toBeVisible();

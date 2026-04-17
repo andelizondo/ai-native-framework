@@ -3,7 +3,8 @@ import type { AuthUser } from "@/lib/auth/types";
 import { SignOutButton } from "@/components/sign-out-button";
 
 export function TopBar({ user }: { user: AuthUser }) {
-  const initials = (user.email ?? "A").slice(0, 1).toUpperCase();
+  const normalizedEmail = user.email?.trim() || null;
+  const initials = (normalizedEmail ?? "A").slice(0, 1).toUpperCase();
 
   return (
     <header className="flex h-14 items-center justify-between border-b border-slate-200 bg-white px-6">
@@ -23,10 +24,10 @@ export function TopBar({ user }: { user: AuthUser }) {
         </div>
 
         <div className="hidden text-xs text-slate-500 sm:block">
-          {user.email ?? "Authenticated"}
+          {normalizedEmail ?? "Authenticated"}
         </div>
 
-        <SignOutButton />
+        <SignOutButton provider={user.provider} />
 
         {/* Avatar placeholder */}
         <div className="flex h-8 w-8 items-center justify-center rounded-full bg-slate-900 text-xs font-semibold text-white">

@@ -6,7 +6,7 @@ export const AUTH_TEST_BYPASS_COOKIE = "dashboard_e2e_auth";
 
 function decodeBypassValue(value: string): AuthUser | null {
   const secret = process.env.AUTH_E2E_BYPASS_SECRET;
-  if (!secret) {
+  if (!secret || process.env.NODE_ENV === "production") {
     return null;
   }
 
@@ -18,6 +18,7 @@ function decodeBypassValue(value: string): AuthUser | null {
   return {
     id: userId,
     email: encodedEmail ? decodeURIComponent(encodedEmail) : null,
+    provider: "magic_link",
   };
 }
 

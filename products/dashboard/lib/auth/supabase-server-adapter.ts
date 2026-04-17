@@ -10,9 +10,12 @@ function mapUser(user: User | null): AuthUser | null {
     return null;
   }
 
+  const provider = user.app_metadata?.provider === "google" ? "google" : "magic_link";
+
   return {
     id: user.id,
     email: user.email ?? null,
+    provider,
   };
 }
 
@@ -50,11 +53,9 @@ export async function exchangeCallbackWithSupabase(code: string) {
 
 export async function getServerUserWithSupabase(): Promise<AuthUser | null> {
   const client = await createSupabaseServerClient();
-  const {
-    data: { user },
-  } = await client.auth.getUser();
+  const { data } = await client.auth.getUser();
 
-  return mapUser(user);
+  return mapUser(data?.user ?? null);
 }
 
 export async function getMiddlewareUserWithSupabase({

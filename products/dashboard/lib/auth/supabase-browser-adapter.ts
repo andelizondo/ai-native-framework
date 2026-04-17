@@ -1,8 +1,8 @@
 import { createBrowserClient } from "@supabase/ssr";
 import { getSupabaseRuntimeConfig } from "./config";
-import type { AuthProvider } from "./types";
+import type { OAuthProvider } from "./types";
 
-function mapOAuthProvider(provider: AuthProvider): "google" {
+function mapOAuthProvider(provider: OAuthProvider): "google" {
   return "google";
 }
 
@@ -23,7 +23,7 @@ export async function requestMagicLinkWithSupabase(
 }
 
 export async function signInWithOAuthWithSupabase(
-  provider: AuthProvider,
+  provider: OAuthProvider,
   redirectTo: string,
 ) {
   const client = createSupabaseBrowserClient();
