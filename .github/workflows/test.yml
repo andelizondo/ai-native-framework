@@ -1,8 +1,10 @@
 name: test
 
-# Runs Vitest (unit + component + integration) when the PR touches the dashboard
-# (or this workflow). release-please version/changelog PRs skip this job; Mergify
-# merges those via the `release-please` queue without a `test` check.
+# Runs Vitest (unit + component + integration). PRs always receive a `test`
+# check so merge automation has a stable signal; the job no-ops when the PR does
+# not touch `products/dashboard/**`. release-please version/changelog PRs skip
+# this job; Mergify merges those via the `release-please` queue without a `test`
+# check.
 # This is a BLOCKING merge gate per docs/QUALITY_STANDARD.md §6.1.
 # Coverage uploads to Codecov when CODECOV_TOKEN is set (see codecov.yml);
 # Codecov status is informational by default and does not add a merge gate.
@@ -16,10 +18,6 @@ on:
       - "products/dashboard/**"
       - "codecov.yml"
   pull_request:
-    paths:
-      - "products/dashboard/**"
-      - ".github/workflows/test.yml"
-      - "codecov.yml"
   workflow_dispatch:
 
 concurrency:
@@ -38,20 +36,45 @@ jobs:
 
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Detect dashboard changes
+        id: changes
+        run: |
+          if [ "${{ github.event_name }}" != "pull_request" ]; then
+            echo "run_tests=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          changed_files="$(git diff --name-only "${{ github.event.pull_request.base.sha }}" "${{ github.event.pull_request.head.sha }}")"
+          if printf '%s\n' "$changed_files" | grep -q '^products/dashboard/'; then
+            echo "run_tests=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "run_tests=false" >> "$GITHUB_OUTPUT"
+          fi
 
       - uses: actions/setup-node@v4
+        if: steps.changes.outputs.run_tests == 'true'
         with:
           node-version: "20"
           cache: "npm"
           cache-dependency-path: products/dashboard/package-lock.json
 
       - name: Install dependencies
+        if: steps.changes.outputs.run_tests == 'true'
         run: npm ci
 
       - name: Run Vitest (unit + component + integration) with coverage
+        if: steps.changes.outputs.run_tests == 'true'
         run: npm run test:coverage
 
+      - name: Skip dashboard tests
+        if: steps.changes.outputs.run_tests != 'true'
+        run: echo "No products/dashboard changes detected on this PR; passing test gate without running Vitest."
+
       - name: Upload coverage to Codecov
+        if: steps.changes.outputs.run_tests == 'true'
         uses: codecov/codecov-action@v5
         with:
           token: ${{ secrets.CODECOV_TOKEN }}
@@ -61,7 +84,7 @@ jobs:
           fail_ci_if_error: false
 
       - name: Upload coverage report
-        if: always()
+        if: always() && steps.changes.outputs.run_tests == 'true'
         uses: actions/upload-artifact@v4
         with:
           name: coverage-report

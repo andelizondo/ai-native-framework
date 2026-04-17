@@ -1,0 +1,455 @@
+spec_version: "1.0.0"
+kind: product
+product_id: "ai_native_platform"
+
+metadata:
+  title: "AI-Native Platform Dashboard"
+  status: draft
+  owner: "founder@ai-native.local"
+  created_at: "2026-04-16T22:55:13Z"
+  updated_at: "2026-04-16T22:55:13Z"
+  tags:
+    - "platform"
+    - "dashboard"
+    - "framework-dogfood"
+    - "v1"
+
+ideation:
+  problem: >
+    Solo founders and small teams (1–10 people) building AI-native startups have no way to see
+    and operate their entire company's processes in one place. They either use disconnected tools
+    (Notion, Slack, Linear) or sales-only agent platforms (Relevance AI). Nobody connects the
+    spec layer to the execution layer — ideas, specs, and running agents live in separate worlds.
+  user: >
+    Solo founders and small startup teams (1–10 people) building product-led companies who want
+    agents doing execution work while they focus on strategy and taste.
+  goal: >
+    A dashboard where a founder sees their company's active processes, pending human checkpoints,
+    and emitted events — with agents executing autonomously in the background.
+  constraints:
+    - "Provider-agnostic at the execution layer — business logic written against interfaces/interfaces.yaml, not against any runtime directly."
+    - "Framework governs its own development — the platform is built using the framework (dogfood)."
+    - "V1 scope: one company, one founder, four workflows (W1–W4), no clients yet."
+    - "Open-source framework, monetized hosted platform."
+    - "No multi-tenancy, no billing, no team features in V1."
+  success_metrics:
+    - name: "w1_end_to_end_no_code"
+      definition: "A solo founder can run W1 (opportunity research) end-to-end without writing a line of code."
+      target: "true by V1 launch"
+    - name: "checkpoints_surface_in_dashboard"
+      definition: "Human checkpoints surface in the dashboard without the founder having to check anywhere else."
+      target: "100% of checkpoints visible"
+    - name: "workflow_status_at_a_glance"
+      definition: "The founder can see all four workflow statuses (W1–W4) at a glance on the company overview."
+      target: "single view, no navigation required"
+  risks:
+    - description: "Building the platform before the process library is machine-readable."
+      mitigation: "Encode W1–W4 in spec/processes/ before building the canvas."
+    - description: "Over-engineering V1 with multi-tenant, billing, or team features."
+      mitigation: "V1 is one founder, one company, four workflows only. Scope is enforced by this spec."
+
+design:
+  objective: >
+    Build the first slice of the platform dashboard — a company overview view that shows process
+    status, pending checkpoints, and recent events for a single company workspace.
+  requirements:
+    - id: "FR-001"
+      priority: must
+      statement: "Company workspace: a single workspace representing one company, owned by one founder, with no multi-tenancy in V1."
+    - id: "FR-002"
+      priority: must
+      statement: "Process canvas: a view showing W1–W4 workflow cards with current status (not_started | active | blocked | complete) for the company workspace."
+    - id: "FR-003"
+      priority: must
+      statement: "Human checkpoint UI: a surface where pending checkpoints appear and the founder can approve or reject them with a visible audit record."
+    - id: "FR-004"
+      priority: must
+      statement: "Event feed: a chronological list of domain events emitted by running workflows, including event name, payload summary, and correlation_id."
+  system_design: |
+    Frontend: Next.js + Tailwind + shadcn/ui → company overview, process canvas, checkpoint panel, event feed.
+    API: Next.js route handlers → business logic and Supabase integration.
+    Auth + DB: Supabase → auth, company/workflow/checkpoint/event tables, RLS for single-tenant isolation.
+    Agent execution: OpenClaw (via adapters in interfaces/interfaces.yaml) → agent runtime, gateway, skills.
+    Analytics: PostHog → product funnels, workflow activation, checkpoint resolution rates.
+    Errors: Sentry → unhandled exceptions, tagged with product_id and workflow_id.
+    Hosting: Vercel → frontend and route handlers; Supabase managed for DB.
+  tooling_decisions:
+    - decision: "OpenClaw as agent execution runtime for maturity 1–2"
+      reason: "Open-source and self-hostable (preserves provider-agnostic principle). Working runtime with multi-channel messaging, skills ecosystem, and gateway architecture today. Fills the execution gap the framework has without requiring LangGraph's stateful graph complexity at V1 scope. Business logic is written against interfaces/interfaces.yaml adapters, not OpenClaw directly, so it is swappable."
+      alternatives_considered:
+        - "LangGraph (deferred to maturity 3+ — stateful graph overhead not justified for V1 four-workflow scope)"
+        - "Relevance AI (hosted-only, GTM-focused, not framework-aligned)"
+        - "CrewAI (less provider-agnostic, heavier dependency surface)"
+        - "n8n (workflow automation, not agent-native)"
+    - decision: "Supabase over plain Postgres for V1"
+      reason: "Auth, storage, and managed API surface included. Reduces V1 infrastructure footprint for a solo founder. RLS provides row-level isolation without custom middleware. Swappable to plain Postgres at maturity 3+ if needed."
+      alternatives_considered:
+        - "Plain Postgres + Auth.js (more control, more setup — not justified for V1)"
+        - "Firebase (not SQL-native, schema-validation story weaker)"
+    - decision: "Next.js route handlers over a separate API service"
+      reason: "Single deployment unit for V1. Reduces ops burden for a solo founder. Colocation of frontend and API simplifies Vercel deployment. Extractable to a separate service at maturity 3+ without business logic changes."
+      alternatives_considered:
+        - "FastAPI (better for Python-native ML pipelines — not the V1 stack)"
+        - "Express.js standalone (adds deployment complexity with no V1 benefit)"
+  assumptions:
+    - id: "A-001"
+      text: "One company per workspace in V1. Multi-tenancy is explicitly out of scope."
+    - id: "A-002"
+      text: "No billing or payment integration in V1. The platform is the proof-of-concept, not the revenue engine yet."
+    - id: "A-003"
+      text: "No team or collaborator features in V1. Solo founder is the only user."
+    - id: "A-004"
+      text: "W1–W4 are the only workflows surfaced in V1. W5–W6 are deferred."
+  facts:
+    - id: "F-001"
+      text: "Framework spec is validated and green. npm run validate passes on golden-product.yaml."
+    - id: "F-002"
+      text: "CI is running on the repository. GitHub Actions validate.yml runs on every push."
+    - id: "F-003"
+      text: "P0 and P1 playbooks are in place under ai/playbooks/."
+    - id: "F-004"
+      text: "OpenClaw is open-source and self-hostable at https://github.com/openclaw/openclaw."
+
+data_model:
+  entities:
+    - name: "Company"
+      description: "The single company workspace. One per V1 installation."
+      fields:
+        - name: "id"
+          type: "uuid"
+          pk: true
+        - name: "name"
+          type: "string"
+        - name: "spec_id"
+          type: "string"
+        - name: "created_at"
+          type: "timestamp"
+      relationships:
+        - target: "Workflow"
+          cardinality: "1:N"
+        - target: "Event"
+          cardinality: "1:N"
+
+    - name: "Workflow"
+      description: "A running instance of one of the four V1 workflows (W1–W4)."
+      fields:
+        - name: "id"
+          type: "uuid"
+          pk: true
+        - name: "company_id"
+          type: "uuid"
+        - name: "type"
+          type: "enum(W1,W2,W3,W4)"
+        - name: "status"
+          type: "enum(not_started,active,blocked,complete)"
+        - name: "started_at"
+          type: "timestamp"
+        - name: "completed_at"
+          type: "timestamp"
+      relationships:
+        - target: "Checkpoint"
+          cardinality: "1:N"
+        - target: "Event"
+          cardinality: "1:N"
+
+    - name: "Checkpoint"
+      description: "A human judgment gate bound to a workflow step. Requires founder approval or rejection."
+      fields:
+        - name: "id"
+          type: "uuid"
+          pk: true
+        - name: "workflow_id"
+          type: "uuid"
+        - name: "description"
+          type: "string"
+        - name: "status"
+          type: "enum(pending,approved,rejected)"
+        - name: "created_at"
+          type: "timestamp"
+        - name: "resolved_at"
+          type: "timestamp"
+        - name: "resolved_by"
+          type: "string"
+          pii: low
+      relationships: []
+
+    - name: "Event"
+      description: "A structured domain event emitted by a workflow or platform action."
+      fields:
+        - name: "id"
+          type: "uuid"
+          pk: true
+        - name: "company_id"
+          type: "uuid"
+        - name: "workflow_id"
+          type: "uuid"
+        - name: "name"
+          type: "string"
+        - name: "payload"
+          type: "jsonb"
+        - name: "occurred_at"
+          type: "timestamp"
+        - name: "emitted_by"
+          type: "string"
+        - name: "correlation_id"
+          type: "string"
+      relationships: []
+
+events:
+  naming_convention: "domain.action_in_past_tense"
+  catalog:
+    - name: "platform.company_created"
+      description: "A new company workspace was created in the platform."
+      version: "1.0.0"
+      schema_version: "1.0.0"
+      classification:
+        pii: none
+        idempotency: required
+        ordering: at_least_once
+      emitted_by:
+        - "api.company"
+      payload:
+        type: object
+        additionalProperties: false
+        required:
+          - company_id
+          - occurred_at
+        properties:
+          company_id:
+            type: string
+            format: uuid
+          occurred_at:
+            type: string
+            format: date-time
+
+    - name: "workflow.started"
+      description: "A workflow instance was started for a company."
+      version: "1.0.0"
+      schema_version: "1.0.0"
+      classification:
+        pii: none
+        idempotency: required
+        ordering: at_least_once
+      emitted_by:
+        - "api.workflow"
+      payload:
+        type: object
+        additionalProperties: false
+        required:
+          - workflow_id
+          - company_id
+          - workflow_type
+          - occurred_at
+        properties:
+          workflow_id:
+            type: string
+            format: uuid
+          company_id:
+            type: string
+            format: uuid
+          workflow_type:
+            type: string
+            enum:
+              - W1
+              - W2
+              - W3
+              - W4
+          occurred_at:
+            type: string
+            format: date-time
+
+    - name: "workflow.completed"
+      description: "A workflow instance reached the complete state."
+      version: "1.0.0"
+      schema_version: "1.0.0"
+      classification:
+        pii: none
+        idempotency: required
+        ordering: at_least_once
+      emitted_by:
+        - "api.workflow"
+      payload:
+        type: object
+        additionalProperties: false
+        required:
+          - workflow_id
+          - company_id
+          - workflow_type
+          - occurred_at
+        properties:
+          workflow_id:
+            type: string
+            format: uuid
+          company_id:
+            type: string
+            format: uuid
+          workflow_type:
+            type: string
+            enum:
+              - W1
+              - W2
+              - W3
+              - W4
+          occurred_at:
+            type: string
+            format: date-time
+
+    - name: "checkpoint.created"
+      description: "A human checkpoint was created and is pending founder approval."
+      version: "1.0.0"
+      schema_version: "1.0.0"
+      classification:
+        pii: none
+        idempotency: required
+        ordering: at_least_once
+      emitted_by:
+        - "api.checkpoint"
+      payload:
+        type: object
+        additionalProperties: false
+        required:
+          - checkpoint_id
+          - workflow_id
+          - description
+          - occurred_at
+        properties:
+          checkpoint_id:
+            type: string
+            format: uuid
+          workflow_id:
+            type: string
+            format: uuid
+          description:
+            type: string
+          occurred_at:
+            type: string
+            format: date-time
+
+    - name: "checkpoint.resolved"
+      description: "A human checkpoint was resolved by the founder (approved or rejected)."
+      version: "1.0.0"
+      schema_version: "1.0.0"
+      classification:
+        pii: low
+        idempotency: required
+        ordering: at_least_once
+      emitted_by:
+        - "api.checkpoint"
+      payload:
+        type: object
+        additionalProperties: false
+        required:
+          - checkpoint_id
+          - workflow_id
+          - resolution
+          - resolved_by
+          - occurred_at
+        properties:
+          checkpoint_id:
+            type: string
+            format: uuid
+          workflow_id:
+            type: string
+            format: uuid
+          resolution:
+            type: string
+            enum:
+              - approved
+              - rejected
+          resolved_by:
+            type: string
+          occurred_at:
+            type: string
+            format: date-time
+
+observability:
+  logs:
+    strategy: "Structured JSON logs on all API route handlers and agent adapter calls. Include correlation_id, workflow_id, and company_id on every log line where available."
+    pii_policy: "No founder email or PII in info-level logs. Use company_id and workflow_id as identifiers. resolved_by in checkpoint events uses a handle or identifier, not raw email."
+  errors:
+    tool: "Sentry"
+    policy: "Capture all unhandled exceptions in route handlers and agent adapter calls. Tag with product_id=ai_native_platform, workflow_id, and correlation_id. Replay enabled for critical-path UI flows."
+  metrics:
+    tool: "PostHog"
+    core_metrics:
+      - key: "workflow.started"
+        description: "A workflow was started. Primary activation signal."
+        type: event
+      - key: "workflow.completed"
+        description: "A workflow reached the complete state. Primary success signal."
+        type: event
+      - key: "checkpoint.created"
+        description: "A human checkpoint surfaced. Measures agent autonomy rate."
+        type: event
+      - key: "checkpoint.resolved"
+        description: "A checkpoint was resolved. Measures founder response rate and loop closure."
+        type: event
+      - key: "platform.company_created"
+        description: "A company workspace was created. Top-of-funnel activation metric."
+        type: event
+
+context_recovery:
+  canonical_summary: |
+    The AI-Native Platform Dashboard is the hosted SaaS product built on top of the AI-native
+    framework. It is simultaneously the proof that the framework works and the product that
+    monetizes its adoption.
+
+    The platform solves a real problem for solo founders: there is no single place to see and
+    operate all of a company's AI-driven processes. Existing tools are either disconnected
+    (Notion, Slack, Linear) or sales-only (Relevance AI). The platform connects the spec layer
+    (interfaces/interfaces.yaml, spec/examples/) to the execution layer (OpenClaw runtime) and
+    surfaces that execution in a dashboard.
+
+    V1 scope is deliberately narrow: one company, one founder, four workflows (W1–W4), no
+    multi-tenancy, no billing, no team features. The framework governs the platform's own
+    development — this spec file is the proof.
+
+    Key decisions made:
+    - OpenClaw is the agent execution runtime for maturity 1–2 (DEC-001)
+    - V1 scope is one company, four workflows only (DEC-002)
+    - Supabase for auth + DB (avoids infrastructure overhead for a solo founder)
+    - Next.js route handlers (single deployment unit on Vercel)
+
+    Any agent reading this spec cold has enough context to continue work without a human
+    briefing. Start with this file, then read interfaces/interfaces.yaml for adapter contracts,
+    then spec/processes/ (when available) for workflow instances.
+  key_decisions:
+    - "OpenClaw is the recommended default agent execution runtime for maturity 1-2. Business logic is written against interfaces/interfaces.yaml, not OpenClaw directly."
+    - "V1 scope: one company, one founder, W1-W4 only. No multi-tenancy, billing, or team features."
+    - "Supabase over plain Postgres for V1 — auth, storage, and managed API reduce solo founder ops burden."
+    - "Next.js route handlers over a separate API service — single Vercel deployment unit for V1."
+    - "The platform is the framework eating its own tail: it is built using the spec system it implements."
+  domain_terms:
+    - term: "company workspace"
+      definition: "The single-tenant unit of the platform in V1. One company, one founder, four workflows."
+    - term: "checkpoint"
+      definition: "A human judgment gate bound to a workflow step. Requires founder approval or rejection before the workflow continues."
+    - term: "event feed"
+      definition: "A chronological list of domain events emitted by running workflows, visible in the dashboard."
+    - term: "process canvas"
+      definition: "The dashboard view showing W1-W4 workflow cards with current status at a glance."
+    - term: "W1-W4"
+      definition: "The four V1 workflows: opportunity research (W1), product design (W2), build (W3), launch (W4)."
+    - term: "adapter"
+      definition: "A machine-readable binding in interfaces/interfaces.yaml that maps a logical interface to a specific runtime (OpenClaw, LangGraph). Business logic targets the interface; adapters are swappable."
+
+decision_log:
+  entries:
+    - id: "DEC-001"
+      date: "2026-04-16"
+      decision: "Adopt OpenClaw as the recommended default agent execution runtime for maturity 1-2."
+      reason: "OpenClaw is open-source and self-hostable (aligns with provider-agnostic principle). It provides a working runtime with multi-channel messaging, skills ecosystem, and gateway architecture today. It fills the gap the framework has — a framework without a runtime — while keeping business logic written against interfaces/interfaces.yaml, not OpenClaw directly. The platform dashboard becomes the governance and observability layer on top of OpenClaw, which is exactly the gap OpenClaw has (no governance, no spec system). Swappable for LangGraph at maturity 3+ when stateful graph orchestration is needed."
+      alternatives:
+        - "LangGraph (deferred to maturity 3+ — stateful graph overhead not justified for V1 scope)"
+        - "Relevance AI (hosted-only, GTM-focused, not framework-aligned)"
+        - "CrewAI (less provider-agnostic, heavier dependency)"
+        - "n8n (workflow automation, not agent-native)"
+        - "Dust (knowledge/Q&A layer — helps humans, does not replace agent execution)"
+    - id: "DEC-002"
+      date: "2026-04-16"
+      decision: "V1 scope is one company, one founder, four workflows (W1-W4). No multi-tenancy, no billing, no team features."
+      reason: "Scope discipline is where V1 lives or dies. The platform must prove the framework works before it proves it scales. Multi-tenancy and billing add infrastructure, auth, and product complexity that would delay the proof-of-concept. A solo founder running their own company on the platform is the minimum viable proof. Once W1-W4 are running end-to-end for one founder, scope can expand with evidence."
+      alternatives:
+        - "Multi-tenant from day one (rejected — premature complexity, delays proof-of-concept)"
+        - "Billing and monetization in V1 (rejected — revenue before proof adds pressure that obscures signal)"
+        - "All six workflows (W1-W6) in V1 (rejected — W5-W6 require W1-W4 to be stable first)"
