@@ -1,7 +1,7 @@
 import type { AuthProvider, AuthPublicConfig } from "./types";
 
-const ALL_PROVIDERS: AuthProvider[] = ["magic_link", "google"];
-const DEFAULT_PROVIDERS: AuthProvider[] = ["magic_link"];
+const ALL_PROVIDERS: readonly AuthProvider[] = ["magic_link", "google"];
+const DEFAULT_PROVIDERS: readonly AuthProvider[] = ["magic_link"];
 
 export class AuthConfigError extends Error {
   constructor(message: string) {
@@ -12,7 +12,7 @@ export class AuthConfigError extends Error {
 
 function parseEnabledProviders(raw: string | undefined): AuthProvider[] {
   if (!raw) {
-    return DEFAULT_PROVIDERS;
+    return [...DEFAULT_PROVIDERS];
   }
 
   const providers = raw
@@ -22,7 +22,7 @@ function parseEnabledProviders(raw: string | undefined): AuthProvider[] {
       ALL_PROVIDERS.includes(value as AuthProvider),
     );
 
-  return providers.length > 0 ? providers : DEFAULT_PROVIDERS;
+  return providers.length > 0 ? providers : [...DEFAULT_PROVIDERS];
 }
 
 export function getEnabledAuthProviders(): AuthProvider[] {
@@ -54,8 +54,8 @@ export function getAuthPublicConfig(): AuthPublicConfig {
 }
 
 export function getSupabaseRuntimeConfig() {
-  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const anonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+  const url = process.env.NEXT_PUBLIC_SUPABASE_URL?.trim();
+  const anonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY?.trim();
 
   if (!url || !anonKey) {
     throw new AuthConfigError(
