@@ -46,7 +46,7 @@ export async function exchangeCallbackWithSupabase(code: string) {
   const { data, error } = await client.auth.exchangeCodeForSession(code);
 
   return {
-    user: mapUser(data.user),
+    user: mapUser(data?.user ?? null),
     error,
   };
 }
