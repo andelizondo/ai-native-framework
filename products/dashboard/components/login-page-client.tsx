@@ -33,40 +33,44 @@ export function LoginPageClient({ urlError }: { urlError?: string }) {
     setLoadingAction("magic_link");
     setError(null);
 
-    const result = await requestMagicLink(
-      email,
-      `${window.location.origin}/auth/callback?provider=magic_link`,
-    );
+    try {
+      const result = await requestMagicLink(
+        email,
+        `${window.location.origin}/auth/callback?provider=magic_link`,
+      );
 
-    setLoadingAction(null);
+      if (!result.ok) {
+        setError(result.error.message);
+        return;
+      }
 
-    if (!result.ok) {
-      setError(result.error.message);
-      return;
+      emitEvent("auth.requested_magic_link", { provider: "magic_link" });
+      capture("auth.requested_magic_link", { provider: "magic_link" });
+      setSubmitted(true);
+    } finally {
+      setLoadingAction(null);
     }
-
-    emitEvent("auth.requested_magic_link", { provider: "magic_link" });
-    capture("auth.requested_magic_link", { provider: "magic_link" });
-    setSubmitted(true);
   }
 
   async function handleGoogleSignIn() {
     setLoadingAction("google");
     setError(null);
 
-    const result = await signInWithOAuth(
-      "google",
-      `${window.location.origin}/auth/callback?provider=google`,
-    );
+    try {
+      const result = await signInWithOAuth(
+        "google",
+        `${window.location.origin}/auth/callback?provider=google`,
+      );
 
-    setLoadingAction(null);
-
-    if (!result.ok) {
-      setError(result.error.message);
-      captureMessage("Google sign-in unavailable", "warning", {
-        feature: "auth.login",
-        extra: { reason: result.error.code },
-      });
+      if (!result.ok) {
+        setError(result.error.message);
+        captureMessage("Google sign-in unavailable", "warning", {
+          feature: "auth.login",
+          extra: { reason: result.error.code },
+        });
+      }
+    } finally {
+      setLoadingAction(null);
     }
   }
 

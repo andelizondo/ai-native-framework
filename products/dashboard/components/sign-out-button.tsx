@@ -22,25 +22,28 @@ export function SignOutButton({ provider }: { provider: AuthProvider }) {
     setLoading(true);
     setError(null);
 
-    const result = await signOut();
-    setLoading(false);
+    try {
+      const result = await signOut();
 
-    if (!result.ok) {
-      setError(result.error.message);
-      captureMessage("Sign-out failed in UI", "warning", {
-        feature: "auth.sign_out",
-        extra: { reason: result.error.code },
-      });
-      return;
+      if (!result.ok) {
+        setError(result.error.message);
+        captureMessage("Sign-out failed in UI", "warning", {
+          feature: "auth.sign_out",
+          extra: { reason: result.error.code },
+        });
+        return;
+      }
+
+      emitEvent("user.signed_out", { provider });
+      capture("user.signed_out", { provider });
+      resetIdentity();
+      clearBypassCookieInBrowser();
+      window.sessionStorage.removeItem(LAST_IDENTIFIED_USER_KEY);
+      router.replace("/login");
+      router.refresh();
+    } finally {
+      setLoading(false);
     }
-
-    emitEvent("user.signed_out", { provider });
-    capture("user.signed_out", { provider });
-    resetIdentity();
-    clearBypassCookieInBrowser();
-    window.sessionStorage.removeItem(LAST_IDENTIFIED_USER_KEY);
-    router.replace("/login");
-    router.refresh();
   }
 
   return (

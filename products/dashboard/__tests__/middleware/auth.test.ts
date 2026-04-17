@@ -61,7 +61,7 @@ describe("middleware — public paths bypass auth", () => {
     expect(res.status).not.toBe(307);
   });
 
-  it("passes /login/extra-path through without calling getUser", async () => {
+  it("passes /login with auth_callback_failed query through without calling getUser", async () => {
     const res = await middleware(makeReq("/login?error=auth_callback_failed"));
     expect(mockGetCurrentUserForRequest).not.toHaveBeenCalled();
   });
@@ -162,7 +162,7 @@ describe("middleware — correlation ID", () => {
     expect(res.headers.get(CORRELATION_HEADER)).toMatch(UUID_RE);
   });
 
-  it("attaches correlation ID to redirect responses for unauthenticated requests", async () => {
+  it("redirects unauthenticated requests to /login without asserting correlation headers", async () => {
     mockGetCurrentUserForRequest.mockResolvedValue({
       user: null,
       response: new Response() as never,
