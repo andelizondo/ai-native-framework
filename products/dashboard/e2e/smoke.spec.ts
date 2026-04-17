@@ -12,8 +12,8 @@
 import { test, expect } from "@playwright/test";
 
 test.describe("smoke — boot verification", () => {
-  test("home page responds with 200", async ({ page }) => {
-    const response = await page.goto("/");
+  test("login page responds with 200", async ({ page }) => {
+    const response = await page.goto("/login");
     expect(response?.status()).toBe(200);
   });
 
@@ -22,25 +22,20 @@ test.describe("smoke — boot verification", () => {
     await expect(page).toHaveTitle(/AI-Native Dashboard/i);
   });
 
-  test("sidebar landmark is present", async ({ page }) => {
-    await page.goto("/");
-    await expect(page.getByRole("complementary")).toBeVisible();
+  test("login form is present", async ({ page }) => {
+    await page.goto("/login");
+    await expect(page.getByRole("form", { name: /sign in/i })).toBeVisible();
   });
 
-  test("header landmark is present", async ({ page }) => {
+  test("redirect from / to /login is healthy", async ({ page }) => {
     await page.goto("/");
-    await expect(page.getByRole("banner")).toBeVisible();
+    await expect(page).toHaveURL(/\/login$/);
   });
 
-  test("main content area is present", async ({ page }) => {
-    await page.goto("/");
-    await expect(page.getByRole("main")).toBeVisible();
-  });
-
-  test("health — no unhandled JS errors on home page load", async ({ page }) => {
+  test("health — no unhandled JS errors on login page load", async ({ page }) => {
     const errors: string[] = [];
     page.on("pageerror", (err) => errors.push(err.message));
-    await page.goto("/");
+    await page.goto("/login");
     // Allow a brief moment for any async errors to surface
     await page.waitForTimeout(500);
     expect(errors).toHaveLength(0);

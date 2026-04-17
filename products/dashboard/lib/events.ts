@@ -16,6 +16,9 @@ import { PRODUCT_ID, SHELL_SLICE_ID } from "@/lib/sentry";
  * Event names must match the catalog exactly:
  *   - dashboard.shell_viewed
  *   - dashboard.phase_navigated
+ *   - auth.requested_magic_link
+ *   - user.signed_in
+ *   - user.signed_out
  */
 
 type ShellViewedPayload = {
@@ -26,6 +29,10 @@ type PhaseNavigatedPayload = {
   phase: "ideation" | "design" | "implementation";
 };
 
+type AuthProviderPayload = {
+  provider: "magic_link" | "google";
+};
+
 /**
  * Discriminated map — enforces name/payload pairing at compile time.
  * Adding a new event requires updating this map; TypeScript will catch mismatches.
@@ -33,6 +40,9 @@ type PhaseNavigatedPayload = {
 type EventMap = {
   "dashboard.shell_viewed": ShellViewedPayload;
   "dashboard.phase_navigated": PhaseNavigatedPayload;
+  "auth.requested_magic_link": { provider: "magic_link" };
+  "user.signed_in": AuthProviderPayload;
+  "user.signed_out": AuthProviderPayload;
 };
 
 type EventName = keyof EventMap;

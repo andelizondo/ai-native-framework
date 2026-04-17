@@ -10,9 +10,15 @@
 // Each entry here should correspond to a catalog entry in spec/examples/*.yaml
 export type AnalyticsEvent =
   // ── Auth ──────────────────────────────────────────────────────────────────
-  | { event: "user.signed_up"; properties: { plan: "free" | "pro" } }
-  | { event: "user.signed_in"; properties: Record<string, never> }
-  | { event: "user.signed_out"; properties: Record<string, never> }
+  | { event: "auth.requested_magic_link"; properties: { provider: "magic_link" } }
+  | {
+      event: "user.signed_in";
+      properties: { provider: "magic_link" | "google" };
+    }
+  | {
+      event: "user.signed_out";
+      properties: { provider: "magic_link" | "google" };
+    }
   // ── Generic feature primitives (use when no specific event exists yet) ────
   | { event: "feature.viewed"; properties: { feature_name: string } }
   | {

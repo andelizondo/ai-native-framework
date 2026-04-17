@@ -9,22 +9,22 @@ import { TopBar } from "@/components/top-bar";
 
 describe("TopBar", () => {
   it("renders the Dashboard page title", () => {
-    render(<TopBar />);
+    render(<TopBar user={{ id: "user-123", email: "andres@example.com" }} />);
     expect(screen.getByText("Dashboard")).toBeInTheDocument();
   });
 
   it("renders the Planning status badge", () => {
-    render(<TopBar />);
+    render(<TopBar user={{ id: "user-123", email: "andres@example.com" }} />);
     expect(screen.getByText("Planning")).toBeInTheDocument();
   });
 
   it("renders a header landmark", () => {
-    render(<TopBar />);
+    render(<TopBar user={{ id: "user-123", email: "andres@example.com" }} />);
     expect(screen.getByRole("banner")).toBeInTheDocument();
   });
 
   it("renders the user avatar placeholder", () => {
-    render(<TopBar />);
+    render(<TopBar user={{ id: "user-123", email: "andres@example.com" }} />);
     // Avatar is rendered as a div with the letter 'A'
     expect(screen.getByText("A")).toBeInTheDocument();
   });
