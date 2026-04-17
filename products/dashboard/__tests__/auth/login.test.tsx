@@ -1,5 +1,5 @@
 /**
- * Tests for app/(auth)/login/page.tsx
+ * Tests for components/login-page-client.tsx
  *
  * Covers:
  * - Rendering the email form
@@ -21,7 +21,6 @@ const {
   mockRequestMagicLink,
   mockSignInWithOAuth,
   mockGetAuthConfig,
-  mockUseSearchParams,
   mockCapture,
   mockEmitEvent,
 } = vi.hoisted(() => ({
@@ -34,7 +33,6 @@ const {
       { id: "google", label: "Google", enabled: false },
     ],
   })),
-  mockUseSearchParams: vi.fn(() => new URLSearchParams()),
   mockCapture: vi.fn(),
   mockEmitEvent: vi.fn(),
 }));
@@ -59,28 +57,14 @@ vi.mock("@/lib/monitoring", () => ({
   captureMessage: vi.fn(),
 }));
 
-vi.mock("next/navigation", () => ({
-  usePathname: vi.fn(() => "/login"),
-  useRouter: vi.fn(() => ({
-    push: vi.fn(),
-    replace: vi.fn(),
-    back: vi.fn(),
-    forward: vi.fn(),
-    refresh: vi.fn(),
-    prefetch: vi.fn(),
-  })),
-  useSearchParams: mockUseSearchParams,
-  useParams: vi.fn(() => ({})),
-}));
-
 // ─── Component under test ─────────────────────────────────────────────────────
 
-import LoginPage from "@/app/(auth)/login/page";
+import { LoginPageClient } from "@/components/login-page-client";
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
-function setup() {
-  return render(<LoginPage />);
+function setup(urlError?: string) {
+  return render(<LoginPageClient urlError={urlError} />);
 }
 
 function emailInput() {
@@ -98,7 +82,6 @@ function resetMocks() {
   mockSignInWithOAuth.mockReset();
   mockCapture.mockReset();
   mockEmitEvent.mockReset();
-  mockUseSearchParams.mockReturnValue(new URLSearchParams());
   mockGetAuthConfig.mockReturnValue({
     enabledProviders: ["magic_link"],
     providers: [
@@ -251,10 +234,7 @@ describe("LoginPage — error handling", () => {
   });
 
   it("displays an error banner when ?error=auth_callback_failed is in the URL", () => {
-    mockUseSearchParams.mockReturnValue(
-      new URLSearchParams("error=auth_callback_failed")
-    );
-    setup();
+    setup("auth_callback_failed");
 
     expect(
       screen.getByText(/sign-in link (was )?invalid|link expired|try again/i)
@@ -262,7 +242,6 @@ describe("LoginPage — error handling", () => {
   });
 
   it("does not show an error banner when no ?error= param is present", () => {
-    mockUseSearchParams.mockReturnValue(new URLSearchParams());
     setup();
 
     // No error banner on clean load
