@@ -51,6 +51,7 @@ export function LoginPageClient({ urlError }: { urlError?: string }) {
 
   async function handleSubmit(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
+    if (loadingAction !== null) return;
     setLoadingAction("magic_link");
     setError(null);
 
@@ -84,6 +85,7 @@ export function LoginPageClient({ urlError }: { urlError?: string }) {
   }
 
   async function handleGoogleSignIn() {
+    if (loadingAction !== null) return;
     setLoadingAction("google");
     setError(null);
 
@@ -137,10 +139,11 @@ export function LoginPageClient({ urlError }: { urlError?: string }) {
                     Email
                   </label>
                   <input
-                    id="email"
-                    type="email"
-                    required
-                    value={email}
+                  id="email"
+                  type="email"
+                  required
+                  disabled={loadingAction !== null}
+                  value={email}
                     onChange={(e) => setEmail(e.target.value)}
                     placeholder="you@example.com"
                     className="mt-1 w-full rounded-lg border border-[#d1d5db] px-3 py-2 text-sm text-[#0f172a] outline-none focus:border-[#6366f1] focus:ring-2 focus:ring-[#6366f1]/20"
