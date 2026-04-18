@@ -3,7 +3,8 @@ import type { NextRequest } from "next/server";
 import { CORRELATION_HEADER } from "@/lib/sentry";
 import { getCurrentUserForRequest } from "@/lib/auth/service.server";
 
-const PUBLIC_PATH_PREFIXES = ["/login", "/auth/callback", "/ingest", "/monitoring"];
+const EXACT_PUBLIC_PATHS = new Set(["/login", "/auth/callback"]);
+const PUBLIC_PATH_PREFIXES = ["/ingest", "/monitoring"];
 
 export async function middleware(req: NextRequest) {
   // Inject / propagate correlation ID
@@ -12,9 +13,15 @@ export async function middleware(req: NextRequest) {
     requestHeaders.get(CORRELATION_HEADER) ?? crypto.randomUUID();
   requestHeaders.set(CORRELATION_HEADER, correlationId);
 
-  // Skip auth check for public paths
+  // Skip auth checks for exact public routes and observability endpoints.
   const { pathname } = req.nextUrl;
-  if (PUBLIC_PATH_PREFIXES.some((p) => pathname.startsWith(p))) {
+  const isPublicPath =
+    EXACT_PUBLIC_PATHS.has(pathname) ||
+    PUBLIC_PATH_PREFIXES.some(
+      (prefix) => pathname === prefix || pathname.startsWith(`${prefix}/`),
+    );
+
+  if (isPublicPath) {
     const response = NextResponse.next({ request: { headers: requestHeaders } });
     response.headers.set(CORRELATION_HEADER, correlationId);
     return response;
@@ -36,5 +43,7 @@ export async function middleware(req: NextRequest) {
 }
 
 export const config = {
-  matcher: ["/((?!_next/static|_next/image|favicon.ico|ingest|monitoring).*)"],
+  matcher: [
+    "/((?!_next/static|_next/image|favicon.ico|ingest(?:/|$)|monitoring(?:/|$)).*)",
+  ],
 };

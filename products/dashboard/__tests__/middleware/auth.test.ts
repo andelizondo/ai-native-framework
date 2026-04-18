@@ -73,6 +73,32 @@ describe("middleware — public paths bypass auth", () => {
     expect(res.status).not.toBe(307);
   });
 
+  it("does not treat /ingestion as a public ingest route", async () => {
+    mockGetCurrentUserForRequest.mockResolvedValue({
+      user: null,
+      response: new Response() as never,
+    });
+
+    const res = await middleware(makeReq("/ingestion"));
+
+    expect(mockGetCurrentUserForRequest).toHaveBeenCalled();
+    expect(res.status).toBe(307);
+    expect(res.headers.get("location")).toContain("/login");
+  });
+
+  it("does not treat /monitoring-tools as a public monitoring route", async () => {
+    mockGetCurrentUserForRequest.mockResolvedValue({
+      user: null,
+      response: new Response() as never,
+    });
+
+    const res = await middleware(makeReq("/monitoring-tools"));
+
+    expect(mockGetCurrentUserForRequest).toHaveBeenCalled();
+    expect(res.status).toBe(307);
+    expect(res.headers.get("location")).toContain("/login");
+  });
+
   it("passes /login with auth_callback_failed query through without calling getUser", async () => {
     const res = await middleware(makeReq("/login?error=auth_callback_failed"));
     expect(mockGetCurrentUserForRequest).not.toHaveBeenCalled();
