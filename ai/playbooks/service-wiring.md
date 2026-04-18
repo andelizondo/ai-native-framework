@@ -92,7 +92,7 @@ Three coordinated steps are required. All three must be complete before Google s
 
 Add `google` to `NEXT_PUBLIC_AUTH_PROVIDERS`:
 
-```
+```dotenv
 NEXT_PUBLIC_AUTH_PROVIDERS=magic_link,google
 ```
 
