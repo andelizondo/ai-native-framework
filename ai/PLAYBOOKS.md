@@ -87,6 +87,22 @@ That sequence is **practical**, not a ranking of importance: mature repos often 
 - **Load:** [`playbooks/quality-standard-execution.md`](playbooks/quality-standard-execution.md)
 - **Constraints:** follow the merge-gate model in `docs/QUALITY_STANDARD.md §6`; do not advance phase without checking off the required list; accessibility violations on critical flows are non-deferrable.
 
+### Resolve GitHub issues
+
+- **When to use:** triaging and fixing open GitHub issues, especially recurring nightly or operational issues that may batch into one fix.
+- **Inputs:** open issue set, labels, comments, current `main` HEAD, relevant failing workflow evidence, validation command, PR execution policy.
+- **Outputs:** grouped issue plan, pre-change comments on every in-scope issue, one PR per fix group, and post-PR issue updates with next action.
+- **Load:** [`playbooks/resolve-github-issues.md`](playbooks/resolve-github-issues.md)
+- **Constraints:** batch only when issues share the same failing step, file, or root cause; comment intent on every issue before editing; drive the fix through the PR execution loop.
+
+### Resolve Sentry issues
+
+- **When to use:** triaging and closing live Sentry incidents, especially unresolved or `escalating` production issues.
+- **Inputs:** Sentry org/project, issue ID, write-capable token, linked PR, recent event data, release and deploy evidence.
+- **Outputs:** assigned issue, triage note, evidence-based closure decision, resolution note, and final Sentry state.
+- **Load:** [`playbooks/resolve-sentry-issues.md`](playbooks/resolve-sentry-issues.md)
+- **Constraints:** keep issues `unresolved` while the fix is in flight; close only with explicit evidence from merge timing and post-merge Sentry data.
+
 ### Service wiring
 
 - **When to use:** configuring external services (Supabase auth, Vercel env vars, OAuth providers) for a new environment, or debugging auth failures caused by misconfigured redirect URLs or missing env vars.

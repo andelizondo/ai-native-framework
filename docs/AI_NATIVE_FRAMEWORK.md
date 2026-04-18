@@ -23,6 +23,8 @@
 
 Repository-local agent files: root `AGENTS.md` plus `ai/PLAYBOOKS.md`, `ai/SKILLS.md`, `ai/skills/`, `ai/MEMORY.md`, and related indices are routing and bootstrap surfaces unless promoted into machine-validated schema or policy. They **SHOULD** align with items 1–5 and **MUST NOT** contradict them (including normative procedure playbooks under `ai/playbooks/*.md`).
 
+When a repository defines recurring operational issue loops, those procedures **SHOULD** live as explicit playbooks under `ai/playbooks/` rather than as ad hoc chat habits. Typical examples include repository issue-resolution loops and observability-incident closure loops.
+
 ### 0.3 Conformance keywords
 
 - **MUST / MUST NOT:** Hard requirement. Violation blocks release unless a human waiver is recorded in the decision log.  

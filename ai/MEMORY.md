@@ -12,6 +12,8 @@ This file stores durable repository memory for agents. It is not a transcript an
   - `ai/playbooks/agent-context-bundle.md`
   - `ai/playbooks/framework-review.md`
   - `ai/playbooks/release-management.md`
+  - `ai/playbooks/resolve-github-issues.md`
+  - `ai/playbooks/resolve-sentry-issues.md`
 - The canonical validation command is `npm run validate`.
 - The framework is explicitly provider-agnostic at the core layer.
 - Provider-agnostic logical tool contracts live under `interfaces/` (`interfaces/interfaces.yaml`), separate from the repository-local agent runtime bundle under `ai/`.
@@ -28,6 +30,9 @@ This file stores durable repository memory for agents. It is not a transcript an
 - For `products/dashboard`, authentication is now a canonical product slice. Product code should depend on the repo-owned auth boundary under `products/dashboard/lib/auth/`; provider-specific Supabase calls belong only inside that adapter layer.
 - For dashboard auth flows, identity lifecycle is part of the canonical implementation surface: successful sign-in should flow through `lib/analytics/identity.ts` and `lib/monitoring`, and sign-out should clear both analytics and monitoring identity state.
 - The Quality Standard allows a guarded E2E-only authenticated-session bypass when external auth providers make deterministic preview-browser setup impractical, but the public login flow, callback error state, and protected-route redirect behavior must still remain in the blocking browser suite.
+- GitHub issue triage in this repository now has a governed batching pattern: when multiple open issues share the same failing workflow step, file, or root cause, they should be treated as one fix group, with intent commented on every issue before editing and outcome commented on every issue after the PR exists.
+- Sentry issues in this repository are treated as active governed work items, not passive observability artifacts: assign the issue, keep it `unresolved` while the fix is in flight, leave a triage note linked to the PR, and leave a resolution note before marking it `resolved`.
+- Closing a Sentry issue requires explicit evidence: the linked PR merge timestamp, the issue `lastSeen` timestamp, and the recent issue events and releases must support closure.
 
 ## Current Bundle State
 
@@ -79,6 +84,7 @@ This file stores durable repository memory for agents. It is not a transcript an
 - 2026-04-17: Canonicalized dashboard auth as a governed product slice. Durable rules: keep provider-specific auth logic inside `products/dashboard/lib/auth/`, use shared analytics/monitoring identity helpers for sign-in and sign-out lifecycle, and allow only a secret-gated E2E authenticated-session bypass for deterministic browser verification when external auth setup is otherwise unstable on previews.
 - 2026-04-17: When rebasing a PR branch that conflicts in `ai/playbooks/` or `ai/skills/`, prefer the HEAD (main) version — those files were already user-reviewed and merged; the branch copy is stale.
 - 2026-04-17: E2E tests that require an external backend need two independent skip guards: app-config visibility (e.g. `isVisible()` on the form) to check whether the feature is enabled in the deployed app, and runner env vars (e.g. `NEXT_PUBLIC_SUPABASE_URL`) to check whether the backend is reachable from the test runner. Neither guard alone is sufficient.
+- 2026-04-18: Added first-class issue-resolution playbooks for GitHub and Sentry. GitHub issue work now standardizes batching by shared root cause with required pre-edit and post-PR comments on every issue; Sentry issue work now standardizes assignment, unresolved-in-flight status, triage and resolution notes, and evidence-based closure using PR merge time plus `lastSeen` and recent event data.
 
 ## Update Rules
 
