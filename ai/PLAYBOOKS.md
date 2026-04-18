@@ -87,6 +87,14 @@ That sequence is **practical**, not a ranking of importance: mature repos often 
 - **Load:** [`playbooks/quality-standard-execution.md`](playbooks/quality-standard-execution.md)
 - **Constraints:** follow the merge-gate model in `docs/QUALITY_STANDARD.md §6`; do not advance phase without checking off the required list; accessibility violations on critical flows are non-deferrable.
 
+### Service wiring
+
+- **When to use:** configuring external services (Supabase auth, Vercel env vars, OAuth providers) for a new environment, or debugging auth failures caused by misconfigured redirect URLs or missing env vars.
+- **Inputs:** target environment domain, list of auth providers to enable, Supabase project ref, Vercel project and team IDs.
+- **Outputs:** Supabase auth configured (Site URL, Redirect URLs, email confirmation toggle), environment variables set in `.env.local` and Vercel, provider list consistent across code and dashboard.
+- **Load:** [`playbooks/service-wiring.md`](playbooks/service-wiring.md)
+- **Constraints:** Supabase auth config and Vercel env vars cannot be updated via MCP or code — both require dashboard steps documented in the playbook. Do not search for tools that do not exist; go directly to the dashboard.
+
 ---
 
 ## Adding A New Playbook
