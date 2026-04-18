@@ -86,6 +86,8 @@ Escalate or stop when any of these are true:
 - `ai/playbooks/agent-context-bundle.md` - how to install and maintain the `ai/` bundle alongside root `AGENTS.md`
 - `ai/playbooks/framework-review.md` - how to audit the framework itself for consistency, efficiency, and predictability
 - `ai/playbooks/release-management.md` - how to automate repository-level tags and GitHub Releases with a governed release PR flow
+- `ai/playbooks/resolve-github-issues.md` - how to batch and resolve open GitHub issues with per-issue audit comments and one PR per fix group
+- `ai/playbooks/resolve-sentry-issues.md` - how to manage Sentry issues as governed incidents with assignment, notes, and evidence-based closure
 - `ai/SKILLS.md` - skill discovery index (role- and task-oriented harnesses)
 - `ai/skills/` - on-demand skill bodies selected from `ai/SKILLS.md`
 - `ai/MEMORY.md` - durable operating memory and open loops

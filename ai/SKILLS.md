@@ -97,6 +97,22 @@ Discovery should stay broad and cheap. Execution should stay narrow and deep.
 - **Load:** `skills/quality-engineer.md`
 - **Notes:** for operational procedures (PR gate loop, nightly triage, incident closure), also load `playbooks/quality-standard-execution.md`.
 
+### Resolve GitHub issues (playbook)
+
+- **When to use:** triaging and resolving open GitHub issues, especially when several issues appear to share the same workflow failure, file, or root cause
+- **Inputs:** open issue set, issue metadata, workflow evidence, validation command, branch and PR policy
+- **Outputs:** grouped issue plan, required issue comments, one fix PR per group, and explicit issue outcome updates
+- **Load:** `playbooks/resolve-github-issues.md`
+- **Constraints:** comment intent on every issue before editing; batch only when one fix really serves the same root cause
+
+### Resolve Sentry issues (playbook)
+
+- **When to use:** triaging and resolving Sentry issues that need assignment, incident notes, linked PR tracking, and evidence-based closure
+- **Inputs:** Sentry issue metadata, write-capable token, linked PR, recent events, releases, and merge timing
+- **Outputs:** assigned issue, triage note, resolution note, and final `resolved` or continued `unresolved` state
+- **Load:** `playbooks/resolve-sentry-issues.md`
+- **Constraints:** do not resolve from intuition; use merge time, `lastSeen`, and recent events/releases to justify closure
+
 ### Service wiring (playbook)
 
 - **When to use:** configuring Supabase auth, Vercel environment variables, or OAuth providers for a new or existing deployment environment; or debugging auth failures that originate from external service misconfiguration rather than code
