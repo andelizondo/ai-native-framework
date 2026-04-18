@@ -70,7 +70,7 @@ This playbook is the canonical procedure for recurring issue-resolution work suc
    | Tier | Paths |
    |------|-------|
    | Low | `docs/**`, `README.md`, `CONTRIBUTING.md`, `.github/ISSUE_TEMPLATE/**` |
-   | Med | `spec/**`, `scripts/**`, `agents/**`, `.github/workflows/**`, `package.json` |
+   | Med | `spec/**`, `scripts/**`, `interfaces/**`, `.github/workflows/**`, `package.json` |
    | High | auth, billing, secrets, migrations, infra |
 
 5. Escalate immediately if a grouped fix touches a high-risk path or needs a human decision before code changes.
