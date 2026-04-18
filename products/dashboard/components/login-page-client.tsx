@@ -108,24 +108,26 @@ export function LoginPageClient({ urlError }: { urlError?: string }) {
   }
 
   return (
-    <div className="relative flex min-h-screen w-full flex-col items-center justify-center overflow-hidden bg-[#0f172a]">
-      {/* Radial glow */}
-      <div
-        className="pointer-events-none absolute inset-0"
-        style={{
-          backgroundImage:
-            "radial-gradient(ellipse 90% 60% at 50% -10%, rgba(99,102,241,0.18) 0%, transparent 70%)",
-        }}
-      />
-      {/* Dot grid */}
-      <div
-        className="pointer-events-none absolute inset-0 opacity-20"
-        style={{
-          backgroundImage:
-            "radial-gradient(circle, rgba(255,255,255,0.25) 1px, transparent 1px)",
-          backgroundSize: "28px 28px",
-        }}
-      />
+    <div className="relative flex min-h-dvh w-full flex-col items-center justify-center overflow-x-hidden overflow-y-auto bg-[#0f172a] px-4 py-8">
+      <div className="pointer-events-none absolute inset-0 overflow-hidden">
+        {/* Radial glow */}
+        <div
+          className="absolute inset-0"
+          style={{
+            backgroundImage:
+              "radial-gradient(ellipse 90% 60% at 50% -10%, rgba(99,102,241,0.18) 0%, transparent 70%)",
+          }}
+        />
+        {/* Dot grid */}
+        <div
+          className="absolute inset-0 opacity-20"
+          style={{
+            backgroundImage:
+              "radial-gradient(circle, rgba(255,255,255,0.25) 1px, transparent 1px)",
+            backgroundSize: "28px 28px",
+          }}
+        />
+      </div>
 
       {/* Card */}
       <div className="relative z-10 w-full max-w-sm">
@@ -159,10 +161,10 @@ export function LoginPageClient({ urlError }: { urlError?: string }) {
           <div className="rounded-2xl bg-white px-8 py-8">
             <div className="mb-6">
               <h1 className="text-xl font-semibold tracking-tight text-slate-900">
-                Welcome back
+                AI-Native Dashboard
               </h1>
               <p className="mt-1 text-sm text-slate-500">
-                Sign in to continue to your workspace
+                Welcome back. Sign in to continue to your workspace.
               </p>
             </div>
 
@@ -222,7 +224,7 @@ export function LoginPageClient({ urlError }: { urlError?: string }) {
                 {isMagicLinkEnabled && isGoogleEnabled && (
                   <div className="relative my-1 flex items-center gap-3">
                     <div className="h-px flex-1 bg-slate-200" />
-                    <span className="text-xs text-slate-400">or</span>
+                    <span className="text-xs text-slate-600">or</span>
                     <div className="h-px flex-1 bg-slate-200" />
                   </div>
                 )}
@@ -266,7 +268,7 @@ export function LoginPageClient({ urlError }: { urlError?: string }) {
           </div>
         </div>
 
-        <p className="mt-6 text-center text-xs text-slate-600">
+        <p className="mt-6 text-center text-xs text-slate-300">
           Spec-first · Agent-driven · Human-approved
         </p>
       </div>
