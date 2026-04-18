@@ -108,82 +108,167 @@ export function LoginPageClient({ urlError }: { urlError?: string }) {
   }
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-[#f8fafc]">
-      <div className="w-full max-w-sm rounded-2xl border border-[#e2e8f0] bg-white p-8 shadow-sm">
-        <h1 className="text-xl font-semibold text-[#0f172a]">AI-Native Dashboard</h1>
-        <p className="mt-1 text-sm text-[#64748b]">Sign in to your workspace</p>
+    <div className="relative flex min-h-screen w-full flex-col items-center justify-center overflow-hidden bg-[#0f172a]">
+      {/* Radial glow */}
+      <div
+        className="pointer-events-none absolute inset-0"
+        style={{
+          backgroundImage:
+            "radial-gradient(ellipse 90% 60% at 50% -10%, rgba(99,102,241,0.18) 0%, transparent 70%)",
+        }}
+      />
+      {/* Dot grid */}
+      <div
+        className="pointer-events-none absolute inset-0 opacity-20"
+        style={{
+          backgroundImage:
+            "radial-gradient(circle, rgba(255,255,255,0.25) 1px, transparent 1px)",
+          backgroundSize: "28px 28px",
+        }}
+      />
 
-        {!submitted && callbackErrorMessage && (
-          <div
-            role="alert"
-            data-testid="auth-callback-error"
-            className="mt-4 rounded-lg bg-red-50 p-3 text-sm text-red-700"
-          >
-            {callbackErrorMessage}
+      {/* Card */}
+      <div className="relative z-10 w-full max-w-sm">
+        {/* Brand lockup above card */}
+        <div className="mb-8 flex flex-col items-center gap-3 text-center">
+          <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-white shadow-lg shadow-black/30">
+            <svg
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="1.75"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              className="h-6 w-6 text-slate-900"
+              aria-hidden="true"
+            >
+              <rect x="3" y="3" width="7" height="9" rx="1" />
+              <rect x="14" y="3" width="7" height="5" rx="1" />
+              <rect x="14" y="12" width="7" height="9" rx="1" />
+              <rect x="3" y="16" width="7" height="5" rx="1" />
+            </svg>
           </div>
-        )}
-
-        {submitted ? (
-          <div className="mt-6 rounded-lg bg-emerald-50 p-4 text-sm text-emerald-700">
-            Check your email — a sign-in link is on its way.
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-widest text-indigo-400">
+              AI-Native Framework
+            </p>
           </div>
-        ) : (
-          <div className="mt-6 space-y-4">
-            {isMagicLinkEnabled && (
-              <form aria-label="Sign in" onSubmit={handleSubmit} className="space-y-4">
-                <div>
-                  <label
-                    htmlFor="email"
-                    className="block text-sm font-medium text-[#374151]"
-                  >
-                    Email
-                  </label>
-                  <input
-                  id="email"
-                  type="email"
-                  required
-                  disabled={loadingAction !== null}
-                  value={email}
-                    onChange={(e) => setEmail(e.target.value)}
-                    placeholder="you@example.com"
-                    className="mt-1 w-full rounded-lg border border-[#d1d5db] px-3 py-2 text-sm text-[#0f172a] outline-none focus:border-[#6366f1] focus:ring-2 focus:ring-[#6366f1]/20"
-                  />
-                </div>
+        </div>
 
-                <button
-                  type="submit"
-                  disabled={loadingAction !== null}
-                  className="w-full rounded-lg bg-[#0f172a] px-4 py-2 text-sm font-medium text-white disabled:opacity-50"
-                >
-                  {loadingAction === "magic_link" ? "Sending…" : "Send magic link"}
-                </button>
-              </form>
-            )}
-
-            {error && (
-              <p role="alert" aria-live="polite" className="text-sm text-red-600">
-                {error}
+        <div className="rounded-2xl bg-gradient-to-b from-white/20 to-white/5 p-px shadow-2xl shadow-black/50">
+          <div className="rounded-2xl bg-white px-8 py-8">
+            <div className="mb-6">
+              <h1 className="text-xl font-semibold tracking-tight text-slate-900">
+                Welcome back
+              </h1>
+              <p className="mt-1 text-sm text-slate-500">
+                Sign in to continue to your workspace
               </p>
-            )}
+            </div>
 
-            {isGoogleEnabled && (
-              <button
-                type="button"
-                disabled={loadingAction !== null}
-                onClick={handleGoogleSignIn}
-                className="w-full rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-900 disabled:opacity-50"
+            {!submitted && callbackErrorMessage && (
+              <div
+                role="alert"
+                data-testid="auth-callback-error"
+                className="mb-4 rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700"
               >
-                {loadingAction === "google" ? "Redirecting…" : "Continue with Google"}
-              </button>
+                {callbackErrorMessage}
+              </div>
             )}
 
-            {!isMagicLinkEnabled && !isGoogleEnabled && (
-              <p className="rounded-lg bg-slate-50 p-3 text-sm text-slate-600">
-                Sign-in is currently unavailable in this environment.
-              </p>
+            {submitted ? (
+              <div className="rounded-lg border border-emerald-200 bg-emerald-50 p-4 text-sm text-emerald-700">
+                Check your email — a sign-in link is on its way.
+              </div>
+            ) : (
+              <div className="space-y-3">
+                {isMagicLinkEnabled && (
+                  <form aria-label="Sign in" onSubmit={handleSubmit} className="space-y-3">
+                    <div>
+                      <label
+                        htmlFor="email"
+                        className="block text-sm font-medium text-slate-700"
+                      >
+                        Email address
+                      </label>
+                      <input
+                        id="email"
+                        type="email"
+                        required
+                        disabled={loadingAction !== null}
+                        value={email}
+                        onChange={(e) => setEmail(e.target.value)}
+                        placeholder="you@example.com"
+                        className="mt-1.5 w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm text-slate-900 outline-none transition-all placeholder:text-slate-400 focus:border-indigo-500 focus:bg-white focus:ring-2 focus:ring-indigo-500/15 disabled:opacity-50"
+                      />
+                    </div>
+
+                    <button
+                      type="submit"
+                      disabled={loadingAction !== null}
+                      className="w-full rounded-lg bg-slate-900 px-4 py-2.5 text-sm font-medium text-white transition-colors hover:bg-slate-800 disabled:opacity-50"
+                    >
+                      {loadingAction === "magic_link" ? "Sending…" : "Send magic link"}
+                    </button>
+                  </form>
+                )}
+
+                {error && (
+                  <p role="alert" aria-live="polite" className="text-sm text-red-600">
+                    {error}
+                  </p>
+                )}
+
+                {isMagicLinkEnabled && isGoogleEnabled && (
+                  <div className="relative my-1 flex items-center gap-3">
+                    <div className="h-px flex-1 bg-slate-200" />
+                    <span className="text-xs text-slate-400">or</span>
+                    <div className="h-px flex-1 bg-slate-200" />
+                  </div>
+                )}
+
+                {isGoogleEnabled && (
+                  <button
+                    type="button"
+                    disabled={loadingAction !== null}
+                    onClick={handleGoogleSignIn}
+                    className="flex w-full items-center justify-center gap-2.5 rounded-lg border border-slate-200 bg-white px-4 py-2.5 text-sm font-medium text-slate-700 transition-colors hover:bg-slate-50 disabled:opacity-50"
+                  >
+                    <svg viewBox="0 0 24 24" className="h-4 w-4 shrink-0" aria-hidden="true">
+                      <path
+                        d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"
+                        fill="#4285F4"
+                      />
+                      <path
+                        d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"
+                        fill="#34A853"
+                      />
+                      <path
+                        d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"
+                        fill="#FBBC05"
+                      />
+                      <path
+                        d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"
+                        fill="#EA4335"
+                      />
+                    </svg>
+                    {loadingAction === "google" ? "Redirecting…" : "Continue with Google"}
+                  </button>
+                )}
+
+                {!isMagicLinkEnabled && !isGoogleEnabled && (
+                  <p className="rounded-lg border border-slate-200 bg-slate-50 p-3 text-sm text-slate-500">
+                    Sign-in is currently unavailable in this environment.
+                  </p>
+                )}
+              </div>
             )}
           </div>
-        )}
+        </div>
+
+        <p className="mt-6 text-center text-xs text-slate-600">
+          Spec-first · Agent-driven · Human-approved
+        </p>
       </div>
     </div>
   );
