@@ -103,6 +103,14 @@ That sequence is **practical**, not a ranking of importance: mature repos often 
 - **Load:** [`playbooks/resolve-sentry-issues.md`](playbooks/resolve-sentry-issues.md)
 - **Constraints:** keep issues `unresolved` while the fix is in flight; close only with explicit evidence from merge timing and post-merge Sentry data.
 
+### Environment separation
+
+- **When to use:** establishing or auditing the 3-tier deployment environment model (production / staging / development) for a repository or product; when automated test traffic is polluting production analytics or error dashboards; when adding a new observability tool that needs environment-scoped tokens.
+- **Inputs:** repository owner and name, production domain, staging domain, Vercel project access, GitHub admin access, GitHub token.
+- **Outputs:** `staging` branch with identical protection to `main`; nightly CI retargeted to staging; PostHog token scoped to Production Vercel environment only; Sentry active on staging with environment tags; Mergify staging-integration and staging-promotion queues; updated framework docs.
+- **Load:** [`playbooks/environment-separation.md`](playbooks/environment-separation.md)
+- **Constraints:** never target production from nightly CI; do not use a separate PostHog project for non-production; `staging` → `main` must use regular merge to preserve conventional commit history; Vercel integration-managed variables require removal and manual re-addition to scope by environment.
+
 ### Service wiring
 
 - **When to use:** configuring external services (Supabase auth, Vercel env vars, OAuth providers) for a new environment, or debugging auth failures caused by misconfigured redirect URLs or missing env vars.

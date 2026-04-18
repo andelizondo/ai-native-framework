@@ -85,6 +85,16 @@ When wiring a new product to the canonical release source, follow these rules so
 
 6. **`lib/release.ts` is the shared resolution abstraction.** Do not re-implement release reading per-service; extend that module if new resolution logic is needed.
 
+## Staging → main promotion
+
+When the repository uses a 3-tier environment model (`staging` as the integration branch):
+
+1. **Do not squash** when merging `staging` → `main`. Squashing collapses conventional commit history and breaks release-please version detection. Use a regular merge commit.
+2. **No separate code review required** for the promotion PR when CI is green on `staging`. The code was already reviewed when it landed on `staging`.
+3. **release-please monitors `main`**. Conventional commits that land on `main` via the `staging` promotion trigger release PR creation or updates automatically.
+4. **Mergify staging-promotion queue** (if configured) handles the merge with `merge_method: merge`. See `.mergify.yml` for the `staging-promotion` queue rule.
+5. If the promotion PR is created manually, ensure the PR title is descriptive but does not need to follow conventional commit format — the individual feature commits on `staging` already carry the semantic version signals.
+
 ## Failure modes
 
 - No release PR appears after merge to `main`:
