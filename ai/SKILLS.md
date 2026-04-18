@@ -97,6 +97,14 @@ Discovery should stay broad and cheap. Execution should stay narrow and deep.
 - **Load:** `skills/quality-engineer.md`
 - **Notes:** for operational procedures (PR gate loop, nightly triage, incident closure), also load `playbooks/quality-standard-execution.md`.
 
+### Service wiring (playbook)
+
+- **When to use:** configuring Supabase auth, Vercel environment variables, or OAuth providers for a new or existing deployment environment; or debugging auth failures that originate from external service misconfiguration rather than code
+- **Inputs:** target domain, auth providers to enable, Supabase project ref, Vercel project details
+- **Outputs:** correct Supabase URL config and provider settings, aligned env vars in `.env.local` and Vercel, working auth flow
+- **Load:** `playbooks/service-wiring.md`
+- **Constraints:** Supabase auth config and Vercel env vars require dashboard steps — no MCP tool covers them; the playbook's tooling coverage map lists exactly what is and is not automatable
+
 ### Spec Evolution
 
 - **When to use:** changing framework structure, required fields, or examples under `spec/`
