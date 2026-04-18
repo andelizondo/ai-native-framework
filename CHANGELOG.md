@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.8.2](https://github.com/andelizondo/ai-native-framework/compare/v0.8.1...v0.8.2) (2026-04-18)
+
+
+### Bug Fixes
+
+* **dashboard:** bypass ingest and monitoring auth middleware ([#89](https://github.com/andelizondo/ai-native-framework/issues/89)) ([12cbb03](https://github.com/andelizondo/ai-native-framework/commit/12cbb0334980e70b7391f11192281e9fcd3e1d77))
+
 ## [0.8.1](https://github.com/andelizondo/ai-native-framework/compare/v0.8.0...v0.8.1) (2026-04-18)
 
 
