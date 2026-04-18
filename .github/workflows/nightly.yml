@@ -80,7 +80,10 @@ jobs:
 
       - name: Resolve BASE_URL (fail fast when no real target is configured)
         run: |
-          TARGET_URL="${{ inputs.base_url || vars.PRODUCTION_URL }}"
+          # Nightly runs need a real deployment target even when the repository
+          # variable has not been configured yet. Fall back to the canonical
+          # production origin for this repository.
+          TARGET_URL="${{ inputs.base_url || vars.PRODUCTION_URL || 'https://ai-native-framework.app' }}"
           if [ -z "$TARGET_URL" ]; then
             echo "::error::No target URL configured. Set the 'base_url' workflow input or the 'PRODUCTION_URL' repository variable."
             exit 1
