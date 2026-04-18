@@ -20,6 +20,9 @@ reviews:
   auto_review:
     enabled: true
     drafts: false
+    base_branches:
+      - main
+      - staging
     ignore_title_keywords:
       - "chore: release"
 chat:
