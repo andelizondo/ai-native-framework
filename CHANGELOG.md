@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.8.0](https://github.com/andelizondo/ai-native-framework/compare/v0.7.0...v0.8.0) (2026-04-18)
+
+
+### Features
+
+* **dashboard:** refresh login page presentation ([#87](https://github.com/andelizondo/ai-native-framework/issues/87)) ([ccbcadb](https://github.com/andelizondo/ai-native-framework/commit/ccbcadbefb0f4a37534e71d050fd2d78a2546cb3))
+
 ## [0.7.0](https://github.com/andelizondo/ai-native-framework/compare/v0.6.0...v0.7.0) (2026-04-17)
 
 
