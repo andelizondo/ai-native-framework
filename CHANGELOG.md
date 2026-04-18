@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.8.1](https://github.com/andelizondo/ai-native-framework/compare/v0.8.0...v0.8.1) (2026-04-18)
+
+
+### Bug Fixes
+
+* **ci:** add nightly BASE_URL fallback ([#90](https://github.com/andelizondo/ai-native-framework/issues/90)) ([49c533e](https://github.com/andelizondo/ai-native-framework/commit/49c533ea5dce36593911b0e1d12e776e650ca621))
+
 ## [0.8.0](https://github.com/andelizondo/ai-native-framework/compare/v0.7.0...v0.8.0) (2026-04-18)
 
 
