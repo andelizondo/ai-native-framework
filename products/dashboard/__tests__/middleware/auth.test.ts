@@ -3,7 +3,7 @@
  * Tests for middleware.ts — auth and correlation-ID behavior
  *
  * Covers:
- * - Public paths (/login, /auth/callback) bypass auth entirely
+ * - Public paths (/login, /auth/callback, /ingest, /monitoring) bypass auth entirely
  * - Unauthenticated requests → redirect to /login
  * - Authenticated requests → pass through with correlation ID
  * - Session refresh: middleware forwards new cookies when Supabase refreshes a token
@@ -59,6 +59,44 @@ describe("middleware — public paths bypass auth", () => {
     const res = await middleware(makeReq("/auth/callback"));
     expect(mockGetCurrentUserForRequest).not.toHaveBeenCalled();
     expect(res.status).not.toBe(307);
+  });
+
+  it("passes /ingest static proxy requests through without calling getUser", async () => {
+    const res = await middleware(makeReq("/ingest/array/test/config.js"));
+    expect(mockGetCurrentUserForRequest).not.toHaveBeenCalled();
+    expect(res.status).not.toBe(307);
+  });
+
+  it("passes /monitoring tunnel requests through without calling getUser", async () => {
+    const res = await middleware(makeReq("/monitoring"));
+    expect(mockGetCurrentUserForRequest).not.toHaveBeenCalled();
+    expect(res.status).not.toBe(307);
+  });
+
+  it("does not treat /ingestion as a public ingest route", async () => {
+    mockGetCurrentUserForRequest.mockResolvedValue({
+      user: null,
+      response: new Response() as never,
+    });
+
+    const res = await middleware(makeReq("/ingestion"));
+
+    expect(mockGetCurrentUserForRequest).toHaveBeenCalled();
+    expect(res.status).toBe(307);
+    expect(res.headers.get("location")).toContain("/login");
+  });
+
+  it("does not treat /monitoring-tools as a public monitoring route", async () => {
+    mockGetCurrentUserForRequest.mockResolvedValue({
+      user: null,
+      response: new Response() as never,
+    });
+
+    const res = await middleware(makeReq("/monitoring-tools"));
+
+    expect(mockGetCurrentUserForRequest).toHaveBeenCalled();
+    expect(res.status).toBe(307);
+    expect(res.headers.get("location")).toContain("/login");
   });
 
   it("passes /login with auth_callback_failed query through without calling getUser", async () => {
