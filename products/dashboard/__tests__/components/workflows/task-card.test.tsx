@@ -51,13 +51,13 @@ describe("TaskCard", () => {
     expect(
       within(card).getByText("Define objective, identify PDR need"),
     ).toBeInTheDocument();
-    expect(within(card).getByText("Active")).toBeInTheDocument();
+    expect(within(card).getByText("In progress")).toBeInTheDocument();
     expect(within(card).getByText("Sales Ops")).toBeInTheDocument();
   });
 
   it.each<[WorkflowTask["status"], TaskBarState, string]>([
     ["complete", "bar-complete", "Complete"],
-    ["active", "bar-active", "Active"],
+    ["active", "bar-active", "In progress"],
     ["pending_approval", "bar-pending", "Pending approval"],
     ["blocked", "bar-blocked", "Blocked"],
     ["not_started", "bar-ready", "Not started"],

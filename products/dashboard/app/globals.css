@@ -63,9 +63,10 @@
   --pill-complete-t: #34d399;
   --pill-complete-d: #10b981;
 
-  --pill-active-bg: rgba(99, 102, 241, 0.12);
-  --pill-active-t: #818cf8;
-  --pill-active-d: #6366f1;
+  /* In-progress task — sky (complete stays emerald / “done”). */
+  --pill-active-bg: rgba(14, 165, 233, 0.14);
+  --pill-active-t: #7dd3fc;
+  --pill-active-d: #0ea5e9;
 
   --pill-pending-bg: rgba(245, 158, 11, 0.12);
   --pill-pending-t: #fbbf24;
@@ -108,9 +109,9 @@
   --pill-complete-t: #059669;
   --pill-complete-d: #10b981;
 
-  --pill-active-bg: #eef2ff;
-  --pill-active-t: #4f46e5;
-  --pill-active-d: #6366f1;
+  --pill-active-bg: #f0f9ff;
+  --pill-active-t: #0369a1;
+  --pill-active-d: #0ea5e9;
 
   --pill-pending-bg: #fffbeb;
   --pill-pending-t: #d97706;
@@ -931,7 +932,7 @@ body {
   color: #34d399;
   margin-bottom: 16px;
 }
-/* Skill card — name only, no min-height needed */
+/* Skill card — name only (paired row with status sets min-height via `.td-status-skill-row`) */
 .td-agent-profile {
   display: flex;
   align-items: center;
@@ -970,7 +971,8 @@ body {
   min-width: 0;
 }
 .td-agent-profile-name,
-.td-pb-name {
+.td-pb-name,
+.td-status-label {
   font-size: 13px;
   font-weight: 600;
   font-family: "JetBrains Mono", monospace;
@@ -1171,29 +1173,120 @@ body {
   color: var(--t3);
   padding-top: 4px;
 }
-/* Status + Skill two-column row */
+/* Status + Skill two-column row — columns stretch; cards share one height */
 .td-status-skill-row {
   display: grid;
   grid-template-columns: 1fr 1fr;
   gap: 12px;
+  align-items: stretch;
 }
-.td-status-pill-xl {
-  height: 32px;
-  padding: 0 14px;
-  gap: 8px;
+.td-status-skill-row .td-status-col,
+.td-status-skill-row .td-skill-col {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  min-height: 0;
 }
-.td-status-pill-xl .s-dot {
+.td-status-skill-row .td-status-col .td-status-card,
+.td-status-skill-row .td-skill-col .td-agent-profile {
+  flex: 1 1 auto;
+  min-height: 54px;
+}
+/* Task drawer — status (one surface; dot + left copy, vertically centered in card) */
+.td-status-card {
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  padding: 11px 13px;
+  border-radius: 9px;
+  border: 1px solid var(--border);
+  background: var(--bg-3);
+}
+.td-status-copy {
+  flex: 1;
+  min-width: 0;
+}
+.td-status-indicator {
   width: 9px;
   height: 9px;
+  border-radius: 50%;
+  flex-shrink: 0;
 }
-.td-status-pill-xl .s-text {
-  font-size: 14px;
-  font-weight: 700;
-  letter-spacing: -0.01em;
+.td-status-card--complete {
+  background: color-mix(in srgb, var(--pill-complete-bg) 55%, var(--bg-3));
+  border-color: color-mix(in srgb, var(--pill-complete-d) 32%, var(--border));
+}
+.td-status-card--complete .td-status-indicator {
+  background: var(--pill-complete-d);
+  box-shadow: 0 0 0 3px var(--pill-complete-bg);
+}
+.td-status-card--complete .td-status-label {
+  color: var(--pill-complete-t);
+}
+.td-status-card--active {
+  background: color-mix(in srgb, var(--pill-active-bg) 55%, var(--bg-3));
+  border-color: color-mix(in srgb, var(--pill-active-d) 30%, var(--border));
+}
+.td-status-card--active .td-status-indicator {
+  background: var(--pill-active-d);
+  box-shadow: 0 0 0 3px var(--pill-active-bg);
+}
+.td-status-card--active .td-status-label {
+  color: var(--pill-active-t);
+}
+@media (prefers-reduced-motion: no-preference) {
+  .td-status-card--active .td-status-indicator {
+    animation: td-status-pulse 2.5s ease-in-out infinite;
+  }
+}
+@keyframes td-status-pulse {
+  0%,
+  100% {
+    box-shadow: 0 0 0 3px var(--pill-active-bg);
+  }
+  50% {
+    box-shadow:
+      0 0 0 3px var(--pill-active-bg),
+      0 0 0 6px color-mix(in srgb, var(--pill-active-d) 18%, transparent);
+  }
+}
+.td-status-card--pending_approval {
+  background: color-mix(in srgb, var(--pill-pending-bg) 55%, var(--bg-3));
+  border-color: color-mix(in srgb, var(--pill-pending-d) 32%, var(--border));
+}
+.td-status-card--pending_approval .td-status-indicator {
+  background: var(--pill-pending-d);
+  box-shadow: 0 0 0 3px var(--pill-pending-bg);
+}
+.td-status-card--pending_approval .td-status-label {
+  color: var(--pill-pending-t);
+}
+.td-status-card--blocked {
+  background: color-mix(in srgb, var(--pill-blocked-bg) 55%, var(--bg-3));
+  border-color: color-mix(in srgb, var(--pill-blocked-d) 30%, var(--border));
+}
+.td-status-card--blocked .td-status-indicator {
+  background: var(--pill-blocked-d);
+  box-shadow: 0 0 0 3px var(--pill-blocked-bg);
+}
+.td-status-card--blocked .td-status-label {
+  color: var(--pill-blocked-t);
+}
+.td-status-card--not_started {
+  background: color-mix(in srgb, var(--pill-ns-bg) 70%, var(--bg-3));
+  border-color: var(--border);
+}
+.td-status-card--not_started .td-status-indicator {
+  background: var(--pill-ns-d);
+  box-shadow: 0 0 0 3px var(--pill-ns-bg);
+}
+.td-status-card--not_started .td-status-label {
+  color: var(--t2);
 }
 .td-substatus {
   margin-top: 5px;
-  font-size: 10.5px;
+  font-size: 12px;
+  line-height: 1.4;
   color: var(--t3);
 }
 /* Playbook inline run state */

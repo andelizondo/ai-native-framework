@@ -30,7 +30,7 @@ import type { WorkflowTask } from "@/lib/workflows/types";
 
 const STATUS_LABEL: Record<WorkflowTask["status"], string> = {
   complete: "Complete",
-  active: "Active",
+  active: "In progress",
   pending_approval: "Pending approval",
   blocked: "Blocked",
   not_started: "Not started",

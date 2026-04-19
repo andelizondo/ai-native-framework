@@ -153,18 +153,10 @@ function TriggerGateEditor({ items, kind, disabled, onChange }: TriggerGateEdito
 
 const STATUS_LABELS: Record<WorkflowTask["status"], string> = {
   complete: "Complete",
-  active: "Active",
+  active: "In progress",
   pending_approval: "Pending approval",
   blocked: "Blocked",
   not_started: "Not started",
-};
-
-const STATUS_PILL_CLASS: Record<WorkflowTask["status"], string> = {
-  complete: "s-complete",
-  active: "s-active",
-  pending_approval: "s-pending",
-  blocked: "s-blocked",
-  not_started: "s-not_started",
 };
 
 interface DetailsTabProps {
@@ -211,21 +203,24 @@ function DetailsTab({
     <>
       {/* 1. Status + Skill — two columns */}
       <div className="td-status-skill-row td-sec">
-        <div className="td-status-col" data-testid="td-status-card">
+        <div className="td-status-col">
           <div className="td-sec-lbl">Status</div>
-          <div className={STATUS_PILL_CLASS[task.status]}>
-            <div className="s-pill td-status-pill-xl">
-              <div className="s-dot" aria-hidden />
-              <div className="s-text">{STATUS_LABELS[task.status]}</div>
+          <div
+            className={cn("td-status-card", `td-status-card--${task.status}`)}
+            data-testid="td-status-card"
+          >
+            <span className="td-status-indicator" aria-hidden />
+            <div className="td-status-copy">
+              <div className="td-status-label">{STATUS_LABELS[task.status]}</div>
+              {task.substatus ? (
+                <div className="td-substatus">{task.substatus}</div>
+              ) : null}
             </div>
           </div>
-          {task.substatus && (
-            <div className="td-substatus">{task.substatus}</div>
-          )}
         </div>
 
         {(task.agent ?? task.skill) && (
-          <div>
+          <div className="td-skill-col">
             <div className="td-sec-lbl">Skill</div>
             <div className="td-agent-profile">
               <div className="td-agent-profile-icon">{skillIcon}</div>
