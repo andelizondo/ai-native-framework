@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.11.1](https://github.com/andelizondo/ai-native-framework/compare/v0.11.0...v0.11.1) (2026-04-19)
+
+
+### Bug Fixes
+
+* **mergify:** quote condition string with colon to keep back-merge queue valid ([#113](https://github.com/andelizondo/ai-native-framework/issues/113)) ([7774349](https://github.com/andelizondo/ai-native-framework/commit/7774349d34723632a010d8c0d0f6c71c18e95cb8))
+
 ## [0.11.0](https://github.com/andelizondo/ai-native-framework/compare/v0.10.0...v0.11.0) (2026-04-19)
 
 
