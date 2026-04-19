@@ -147,6 +147,15 @@ export interface WorkflowEventInput {
 export interface WorkflowRepository {
   getTemplates(): Promise<WorkflowTemplate[]>;
   getInstance(id: string): Promise<WorkflowInstanceDetail | null>;
+  /**
+   * Single-task lookup. Returns `null` when the row is missing or RLS
+   * hides it. Callers that mutate a task (e.g. `resolveCheckpointAction`)
+   * use this to enforce business preconditions — `checkpoint === true`
+   * and `status === "pending_approval"` — before issuing the write,
+   * since RLS only gates *who* can update, not *which states* may be
+   * transitioned.
+   */
+  getTask(taskId: string): Promise<WorkflowTask | null>;
   listInstances(templateId?: string): Promise<WorkflowInstance[]>;
   /**
    * All tasks across every instance the caller can read (RLS still

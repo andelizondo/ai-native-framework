@@ -95,8 +95,34 @@ export async function resolveCheckpointAction(
   }
 
   const repo = await getServerWorkflowRepository();
+  const trimmedTaskId = taskId.trim();
+
+  // Business-level precondition: only tasks that are *checkpoints*
+  // currently *awaiting approval* may be resolved through this path.
+  // RLS gates *who* may write to the row; it does not encode workflow
+  // semantics. Without this check, a crafted client payload could flip
+  // any reachable task — including ones that are not checkpoints, or
+  // checkpoints that have already been resolved — into `complete` /
+  // `blocked` and emit a misleading domain event. We refuse early and
+  // do not call `updateTask` / `addEvent` so the database state and
+  // event feed both stay truthful.
+  const existing = await repo.getTask(trimmedTaskId);
+  if (!existing) {
+    throw new Error("resolveCheckpointAction: task not found");
+  }
+  if (!existing.checkpoint) {
+    throw new Error(
+      "resolveCheckpointAction: task is not a checkpoint and cannot be resolved here",
+    );
+  }
+  if (existing.status !== "pending_approval") {
+    throw new Error(
+      `resolveCheckpointAction: task is in status "${existing.status}", expected "pending_approval"`,
+    );
+  }
+
   const nextStatus = resolution === "approved" ? "complete" : "blocked";
-  const task = await repo.updateTask(taskId.trim(), { status: nextStatus });
+  const task = await repo.updateTask(trimmedTaskId, { status: nextStatus });
 
   // The status mutation already committed. If the audit-event write fails
   // we MUST NOT swallow that silently — but we also can't let the throw

@@ -257,6 +257,22 @@ export function createWorkflowRepository(
       };
     },
 
+    async getTask(taskId: string): Promise<WorkflowTask | null> {
+      const { data, error } = await client
+        .from("workflow_tasks")
+        .select("*")
+        .eq("id", taskId)
+        .maybeSingle();
+
+      if (error) {
+        throw new WorkflowRepositoryError("getTask failed", error);
+      }
+      if (!data) {
+        return null;
+      }
+      return mapTask(data as WorkflowTaskRow);
+    },
+
     async listInstances(templateId?: string): Promise<WorkflowInstance[]> {
       let query = client
         .from("workflow_instances")

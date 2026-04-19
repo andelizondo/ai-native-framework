@@ -53,7 +53,13 @@ export function RecentEventsCard({
       ) : (
         <ul className="divide-y divide-border-2">
           {events.map((event) => {
+            // `event.createdAt` is typed as a string but actually
+            // arrives as JSON from Supabase, so a malformed timestamp
+            // (or a future field-rename mishap) could yield an Invalid
+            // Date here. Guard once so `formatRelative` never receives
+            // `NaN` and the whole card never throws on render.
             const ts = new Date(event.createdAt);
+            const tsValid = !Number.isNaN(ts.getTime());
             return (
               <li
                 key={event.id}
@@ -74,9 +80,13 @@ export function RecentEventsCard({
                     </div>
                   )}
                   <div className="font-mono text-[10px] text-t3">
-                    <time dateTime={event.createdAt}>
-                      {formatRelative(ts, now)}
-                    </time>
+                    {tsValid ? (
+                      <time dateTime={event.createdAt}>
+                        {formatRelative(ts, now)}
+                      </time>
+                    ) : (
+                      <span aria-label="Unknown event time">—</span>
+                    )}
                   </div>
                 </div>
               </li>

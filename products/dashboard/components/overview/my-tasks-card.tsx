@@ -84,7 +84,7 @@ export function MyTasksCard({ checkpoints }: MyTasksCardProps) {
       {error && (
         <p
           role="alert"
-          className="border-b border-border bg-[color:var(--pill-blocked-bg)] px-4 py-2 text-[11px] text-[color:var(--pill-blocked-t)]"
+          className="border-b border-border bg-(--pill-blocked-bg) px-4 py-2 text-[11px] text-(color:--pill-blocked-t)"
         >
           {error}
         </p>

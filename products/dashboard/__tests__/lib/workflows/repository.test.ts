@@ -368,6 +368,30 @@ describe("workflow repository", () => {
     });
   });
 
+  describe("getTask", () => {
+    it("returns a single task mapped to camelCase shape", async () => {
+      const repo = createWorkflowRepository(makeFakeClient(store));
+      const instance = await repo.createInstance("client-delivery", "Acme Corp");
+      const checkpoint = instance.tasks.find((t) => t.checkpoint)!;
+
+      const fetched = await repo.getTask(checkpoint.id);
+
+      expect(fetched).not.toBeNull();
+      expect(fetched!.id).toBe(checkpoint.id);
+      expect(fetched!.checkpoint).toBe(true);
+      expect(fetched!.title).toBe("PDR Review");
+      expect(fetched!.instanceId).toBe(instance.id);
+    });
+
+    it("returns null when the task id is unknown (RLS-hidden or missing)", async () => {
+      const repo = createWorkflowRepository(makeFakeClient(store));
+
+      const fetched = await repo.getTask("does-not-exist");
+
+      expect(fetched).toBeNull();
+    });
+  });
+
   describe("addEvent + getInstance", () => {
     it("appends an event and surfaces it via getInstance", async () => {
       const repo = createWorkflowRepository(makeFakeClient(store));

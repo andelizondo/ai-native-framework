@@ -37,60 +37,67 @@ export function ProcessHealthCard({ health }: ProcessHealthCardProps) {
         </p>
       ) : (
         <ul className="divide-y divide-border-2">
-          {health.map(({ template, instances, completionPct }) => (
-            <li
-              key={template.id}
-              data-testid={`overview-process-health-row-${template.id}`}
-              className="flex items-center gap-3 px-4 py-3"
-            >
-              <span
-                aria-hidden
-                className="block h-2 w-2 shrink-0 rounded-full"
-                style={{ backgroundColor: template.color }}
-              />
-              <div className="min-w-0 flex-1">
-                <div className="text-[13px] font-semibold text-t1">
-                  {template.label}
-                </div>
-                {instances.length === 0 ? (
-                  <p className="mt-1 font-mono text-[10px] text-t3">
-                    No instances yet
-                  </p>
-                ) : (
-                  <ul className="mt-1 flex flex-wrap gap-1">
-                    {instances.map((instance) => (
-                      <li key={instance.id}>
-                        <Link
-                          href={`/workflows/${instance.id}`}
-                          data-testid={`overview-instance-chip-${instance.id}`}
-                          className="inline-flex items-center rounded-[5px] border border-border bg-bg-3 px-1.5 py-[2px] text-[10px] text-t2 transition-colors hover:border-primary hover:bg-primary-bg hover:text-accent"
-                        >
-                          {instance.label}
-                        </Link>
-                      </li>
-                    ))}
-                  </ul>
-                )}
-              </div>
-              <div className="flex shrink-0 flex-col items-end gap-1">
-                <span className="font-mono text-[10px] text-t3">
-                  {completionPct}%
-                </span>
+          {health.map(({ template, instances, completionPct }) => {
+            // `percentComplete` already clamps at the source; we re-clamp
+            // here so any future non-aggregate caller (or a stale cached
+            // payload from an older deploy) cannot paint an overflowing
+            // progress bar or a `>100%` / negative percentage.
+            const safePct = Math.max(0, Math.min(100, completionPct));
+            return (
+              <li
+                key={template.id}
+                data-testid={`overview-process-health-row-${template.id}`}
+                className="flex items-center gap-3 px-4 py-3"
+              >
                 <span
                   aria-hidden
-                  className="block h-[3px] w-20 overflow-hidden rounded-[2px] bg-bg-4"
-                >
+                  className="block h-2 w-2 shrink-0 rounded-full"
+                  style={{ backgroundColor: template.color }}
+                />
+                <div className="min-w-0 flex-1">
+                  <div className="text-[13px] font-semibold text-t1">
+                    {template.label}
+                  </div>
+                  {instances.length === 0 ? (
+                    <p className="mt-1 font-mono text-[10px] text-t3">
+                      No instances yet
+                    </p>
+                  ) : (
+                    <ul className="mt-1 flex flex-wrap gap-1">
+                      {instances.map((instance) => (
+                        <li key={instance.id}>
+                          <Link
+                            href={`/workflows/${instance.id}`}
+                            data-testid={`overview-instance-chip-${instance.id}`}
+                            className="inline-flex items-center rounded-[5px] border border-border bg-bg-3 px-1.5 py-[2px] text-[10px] text-t2 transition-colors hover:border-primary hover:bg-primary-bg hover:text-accent"
+                          >
+                            {instance.label}
+                          </Link>
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                </div>
+                <div className="flex shrink-0 flex-col items-end gap-1">
+                  <span className="font-mono text-[10px] text-t3">
+                    {safePct}%
+                  </span>
                   <span
-                    className="block h-full rounded-[2px]"
-                    style={{
-                      width: `${completionPct}%`,
-                      backgroundColor: template.color,
-                    }}
-                  />
-                </span>
-              </div>
-            </li>
-          ))}
+                    aria-hidden
+                    className="block h-[3px] w-20 overflow-hidden rounded-[2px] bg-bg-4"
+                  >
+                    <span
+                      className="block h-full rounded-[2px]"
+                      style={{
+                        width: `${safePct}%`,
+                        backgroundColor: template.color,
+                      }}
+                    />
+                  </span>
+                </div>
+              </li>
+            );
+          })}
         </ul>
       )}
     </section>

@@ -60,12 +60,20 @@ export interface TemplateHealth {
  * The Overview screen uses these numbers to drive both copy ("3 / 12 tasks")
  * and progress bars; a NaN slipping through here would render as `NaN%` and
  * break the bar fill — keeping the floor at 0 protects both surfaces.
+ *
+ * The result is also clamped to `[0, 100]` even when the inputs are finite:
+ * upstream drift (e.g. `complete > total` due to a buggy filter, or a
+ * negative `complete` from a partial deletion) would otherwise paint a
+ * progress bar that overflows its track or shows a negative percentage.
+ * Defense-in-depth here keeps every consumer from having to re-clamp.
  */
 export function percentComplete(complete: number, total: number): number {
   if (!Number.isFinite(complete) || !Number.isFinite(total) || total <= 0) {
     return 0;
   }
-  return Math.round((complete / total) * 100);
+  const raw = Math.round((complete / total) * 100);
+  if (!Number.isFinite(raw)) return 0;
+  return Math.max(0, Math.min(100, raw));
 }
 
 /**
@@ -112,10 +120,19 @@ export function computeTemplateHealth(snapshot: OverviewSnapshot): TemplateHealt
     tasksByInstance.set(task.instanceId, bucket);
   }
 
+  // Index instances by template once instead of re-filtering the full
+  // instance list per template inside `.map()`. The naive O(N*M) loop
+  // becomes O(N+M) and the per-render cost stays flat as a workspace
+  // grows past the early-stage handful of templates / instances.
+  const instancesByTemplate = new Map<string, WorkflowInstance[]>();
+  for (const instance of snapshot.instances) {
+    const bucket = instancesByTemplate.get(instance.templateId) ?? [];
+    bucket.push(instance);
+    instancesByTemplate.set(instance.templateId, bucket);
+  }
+
   return snapshot.templates.map((template) => {
-    const instances = snapshot.instances.filter(
-      (i) => i.templateId === template.id,
-    );
+    const instances = instancesByTemplate.get(template.id) ?? [];
     let completedTasks = 0;
     let totalTasks = 0;
     for (const instance of instances) {

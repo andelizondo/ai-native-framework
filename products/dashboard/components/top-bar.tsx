@@ -26,7 +26,15 @@ const ROUTE_LABELS: ReadonlyArray<{ test: (path: string) => boolean; crumbs: str
   // so the breadcrumb stays generic until per-instance metadata is wired.
   // Match exactly one segment after `/workflows/` so sub-routes like
   // `/workflows/templates/new` (PR12 stub) don't pick up the instance crumb.
-  { test: (p) => /^\/workflows\/[^/]+\/?$/.test(p), crumbs: ["Workflows", "Instance"] },
+  // The negative lookahead excludes known reserved roots (currently just
+  // `templates`) so future top-level workflow sections — added before
+  // they get their own ROUTE_LABELS entry — don't get mis-labelled as
+  // an instance crumb.
+  {
+    test: (p) =>
+      /^\/workflows\/(?!templates(?:\/|$))[^/]+\/?$/.test(p),
+    crumbs: ["Workflows", "Instance"],
+  },
 ];
 
 function deriveCrumbs(pathname: string | null): string[] {
