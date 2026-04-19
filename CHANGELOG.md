@@ -1,5 +1,21 @@
 # Changelog
 
+## [0.12.0](https://github.com/andelizondo/ai-native-framework/compare/v0.11.1...v0.12.0) (2026-04-19)
+
+
+### Features
+
+* **ci:** wire Supabase data tier into 3-tier environment model ([273a301](https://github.com/andelizondo/ai-native-framework/commit/273a301fc16b068b591d041333840faac50765b2))
+* **ci:** wire Supabase data tier into 3-tier environment model ([0c3fb7c](https://github.com/andelizondo/ai-native-framework/commit/0c3fb7c086e9605b6c862523d713660d3d3ccfa2))
+* **dashboard:** workflow persistence layer + repository (AEL-47) ([#119](https://github.com/andelizondo/ai-native-framework/issues/119)) ([59fa5f7](https://github.com/andelizondo/ai-native-framework/commit/59fa5f7815c821a5d6f8cf2b4180f0edc6849d6d))
+
+
+### Bug Fixes
+
+* **ci/supabase-migrate:** drop path filters that would starve required checks ([01126a2](https://github.com/andelizondo/ai-native-framework/commit/01126a2a411948497a056fad46b65f1ccf609e1e))
+* **ci/supabase-migrate:** pin CLI version + constrain manual dispatch to canonical refs ([2a1657f](https://github.com/andelizondo/ai-native-framework/commit/2a1657fdb637e4fa19c1d1d881bfac7005200122))
+* **supabase/config:** drop magic_link template ref until file exists ([5343ac9](https://github.com/andelizondo/ai-native-framework/commit/5343ac97cb8bcba0b2de582b0a32f757af208f68))
+
 ## [0.11.1](https://github.com/andelizondo/ai-native-framework/compare/v0.11.0...v0.11.1) (2026-04-19)
 
 
