@@ -49,13 +49,20 @@ name: supabase-migrate
 # enforces the tier boundary.
 
 on:
+  # No `paths:` filter on `push`. `migrate-staging` is a required check on
+  # the `staging-promotion` Mergify queue, and the queue evaluates the head
+  # SHA of `staging`. If we filtered by path, any non-Supabase commit landing
+  # on `staging` would advance HEAD without producing a `migrate-staging`
+  # check, and the next promotion PR would wait forever for a check that
+  # never runs. `supabase db push` is idempotent against
+  # `supabase_migrations.schema_migrations`, so running on every push to
+  # `main`/`staging` is a fast no-op when there are no new migrations.
   push:
     branches: [main, staging]
-    paths:
-      - "products/dashboard/supabase/**"
-      - ".github/workflows/supabase-migrate.yml"
+  # Run on every PR so `migrate-validate` is a stable check name on the
+  # `staging-integration` Mergify queue. The job itself diffs the PR and
+  # no-ops with a passing check when the migrations folder did not change.
   pull_request:
-    paths-ignore: []
   workflow_dispatch:
     inputs:
       target:
