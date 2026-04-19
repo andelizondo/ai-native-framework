@@ -1,0 +1,202 @@
+name: back-merge-to-staging
+
+# Automated back-merge of `main` into `staging` after every release publish.
+#
+# Why this exists:
+#   When the staging-promotion PR (`staging` → `main`) merges and release-please
+#   publishes a new tag, `main` advances by two commits (the promotion merge
+#   commit and `chore: release X.Y.Z`). If we do not merge those commits back
+#   into `staging`, the next promotion PR opens in a `BEHIND` state with the
+#   `sync:needed` label, blocking the merge queue. Worse, if the back-merge
+#   itself goes through the squash-based `staging-integration` queue, the
+#   `main`-side parent is dropped and `staging` ends up content-equal but
+#   history-divergent — exactly the failure mode we hit before adding this
+#   workflow.
+#
+# What this workflow does:
+#   1. Triggers on `release: published` (release-please cuts the tag) and
+#      `workflow_dispatch` (manual fallback / first-time bootstrap).
+#   2. Creates `chore/back-merge-main-after-<tag>` from `staging`.
+#   3. Performs `git merge --no-ff origin/main` so the resulting commit has
+#      both `staging`'s previous head and `main` as parents — preserving
+#      ancestry so the next promotion PR is not `BEHIND`.
+#   4. Opens a PR (`base = staging`, `head = chore/back-merge-main-after-<tag>`)
+#      with the `residual:low` label so policy auto-clears it.
+#   5. Merges the PR with `gh pr merge --merge --admin`, bypassing required
+#      checks. The back-merge carries no new code — only commits already
+#      reviewed and merged through the normal `staging` → `main` flow plus
+#      release-please's metadata commit. Re-running `validate` / `test` / `e2e`
+#      / `CodeRabbit` here would only delay synchronization and burn CI minutes.
+#
+# Token requirements:
+#   `--admin` requires a token whose owner can bypass branch protection on
+#   `staging`. We reuse `RELEASE_PLEASE_TOKEN` (already a maintainer PAT used
+#   by release-please for the same reason). If that secret is unset, the
+#   workflow degrades to opening the PR only and posts a maintainer ping to
+#   complete the merge manually with `gh pr merge <n> --merge --admin`.
+
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+    inputs:
+      reason:
+        description: "Why are you running this manually? (audit trail)"
+        required: false
+        default: "manual back-merge"
+
+concurrency:
+  group: back-merge-to-staging
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  back-merge:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Resolve token
+        id: token
+        env:
+          RELEASE_PLEASE_TOKEN: ${{ secrets.RELEASE_PLEASE_TOKEN }}
+        run: |
+          if [ -n "$RELEASE_PLEASE_TOKEN" ]; then
+            echo "configured=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "configured=false" >> "$GITHUB_OUTPUT"
+            echo "::warning title=Admin merge degraded::RELEASE_PLEASE_TOKEN is not configured. Workflow will open the back-merge PR but cannot --admin merge it. A maintainer must merge it manually with the merge method (not squash)."
+          fi
+
+      - name: Checkout repository
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.RELEASE_PLEASE_TOKEN || secrets.GITHUB_TOKEN }}
+
+      - name: Configure git identity
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+      - name: Fetch refs
+        run: git fetch origin main staging --tags
+
+      - name: Decide whether back-merge is needed
+        id: check
+        run: |
+          set -euo pipefail
+          ahead=$(git rev-list --count origin/staging..origin/main)
+          echo "ahead=$ahead" >> "$GITHUB_OUTPUT"
+          if [ "$ahead" -eq 0 ]; then
+            echo "needed=false" >> "$GITHUB_OUTPUT"
+            echo "::notice title=Back-merge skipped::staging already contains every commit on main; nothing to merge."
+          else
+            echo "needed=true" >> "$GITHUB_OUTPUT"
+            main_short=$(git rev-parse --short=8 origin/main)
+            echo "main_short=$main_short" >> "$GITHUB_OUTPUT"
+            tag="${{ github.event.release.tag_name }}"
+            if [ -z "$tag" ]; then
+              tag="manual-${main_short}"
+            fi
+            sanitized_tag="${tag//\//-}"
+            branch="chore/back-merge-main-after-${sanitized_tag}"
+            echo "branch=$branch" >> "$GITHUB_OUTPUT"
+            echo "tag=$tag" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Create or reuse back-merge branch
+        if: steps.check.outputs.needed == 'true'
+        run: |
+          set -euo pipefail
+          branch="${{ steps.check.outputs.branch }}"
+          tag="${{ steps.check.outputs.tag }}"
+          # Idempotent for retries (common when --admin merge fails on the
+          # first attempt and the workflow is re-dispatched). If the remote
+          # branch already exists with a valid back-merge commit, reuse it
+          # rather than failing on `git push` rejection or creating a divergent
+          # second branch.
+          if git ls-remote --exit-code --heads origin "$branch" >/dev/null 2>&1; then
+            echo "::notice title=Reusing branch::$branch already exists on origin; reusing it."
+            git fetch origin "$branch"
+            git checkout -B "$branch" "origin/$branch"
+          else
+            git checkout -b "$branch" origin/staging
+            git merge --no-ff origin/main \
+              -m "chore: back-merge main into staging after release ${tag}" \
+              -m "Automated by back-merge-to-staging.yml. See ai/playbooks/publish-to-production.md §8."
+            git push -u origin "$branch"
+          fi
+
+      - name: Open or reuse back-merge PR
+        if: steps.check.outputs.needed == 'true'
+        id: pr
+        env:
+          GH_TOKEN: ${{ secrets.RELEASE_PLEASE_TOKEN || secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          branch="${{ steps.check.outputs.branch }}"
+          tag="${{ steps.check.outputs.tag }}"
+          ahead="${{ steps.check.outputs.ahead }}"
+          body=$(cat <<EOF
+          ## Summary
+
+          Automated back-merge of \`main\` into \`staging\` after release \`${tag}\`.
+          Brings ${ahead} commit(s) from \`main\` (the promotion merge + release-please's \`chore: release\` commit) back into \`staging\` so the next promotion PR is not \`BEHIND\`.
+
+          ## Why this skips checks
+
+          - Diff vs \`staging\` is content-equivalent to commits already merged through their own reviewed PRs (the \`staging\` → \`main\` promotion + the \`release-please\` PR on \`main\`).
+          - Re-running \`validate\` / \`test\` / \`e2e\` / \`CodeRabbit\` would only delay synchronization without adding evidence.
+          - Merge method **must** be \`merge\` (not squash) so the second parent is preserved; otherwise the next promotion PR ends up content-equal but history-divergent.
+
+          ## Source
+
+          \`.github/workflows/back-merge-to-staging.yml\` — see \`ai/playbooks/publish-to-production.md\` §8.
+          EOF
+          )
+          # Reuse an existing open PR if one is already attached to this branch
+          # (typical for workflow_dispatch retries or partial-failure recovery).
+          existing=$(gh pr list --state open --base staging --head "$branch" --json number,url --jq '.[0]')
+          if [ -n "$existing" ] && [ "$existing" != "null" ]; then
+            pr_url=$(echo "$existing" | python3 -c "import json,sys; print(json.load(sys.stdin)['url'])")
+            echo "::notice title=Reusing PR::$pr_url already open for $branch."
+          else
+            pr_url=$(gh pr create \
+              --base staging \
+              --head "$branch" \
+              --title "chore: back-merge main into staging after release ${tag}" \
+              --body "$body" \
+              --label "residual:low")
+          fi
+          echo "pr_url=$pr_url" >> "$GITHUB_OUTPUT"
+          pr_number="${pr_url##*/}"
+          echo "pr_number=$pr_number" >> "$GITHUB_OUTPUT"
+
+      - name: Admin-merge the PR
+        if: steps.check.outputs.needed == 'true' && steps.token.outputs.configured == 'true'
+        env:
+          GH_TOKEN: ${{ secrets.RELEASE_PLEASE_TOKEN }}
+        run: |
+          set -euo pipefail
+          pr_number="${{ steps.pr.outputs.pr_number }}"
+          # Skip if a previous run already merged the PR (idempotent retry).
+          pr_state=$(gh pr view "$pr_number" --json state --jq '.state')
+          if [ "$pr_state" = "MERGED" ]; then
+            echo "::notice title=Already merged::PR #${pr_number} is already MERGED; nothing to do."
+            exit 0
+          fi
+          # `--admin` bypasses required status checks. Justified for back-merge
+          # branches because every commit being merged was already reviewed
+          # and merged through its own PR (promotion or release-please).
+          gh pr merge "$pr_number" --merge --admin --delete-branch
+
+      - name: Post manual-merge instruction (token missing)
+        if: steps.check.outputs.needed == 'true' && steps.token.outputs.configured != 'true'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          pr_number="${{ steps.pr.outputs.pr_number }}"
+          gh pr comment "$pr_number" --body "RELEASE_PLEASE_TOKEN is not configured, so this workflow could not run \`gh pr merge --admin\`. A maintainer must merge with the merge method (not squash): \`gh pr merge $pr_number --merge --admin --delete-branch\`."
