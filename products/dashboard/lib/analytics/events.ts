@@ -26,7 +26,17 @@ export type AnalyticsEvent =
       properties: { feature_name: string; action: string };
     }
   // ── Dashboard shell ───────────────────────────────────────────────────────
-  | { event: "dashboard.shell_viewed"; properties: { route: string } };
+  | { event: "dashboard.shell_viewed"; properties: { route: string } }
+  // ── Workflows ─────────────────────────────────────────────────────────────
+  // Catalog source of truth: spec/examples/platform-product.yaml → events
+  // catalog → workflow.instance_created. The PostHog payload intentionally
+  // drops `company_id` (DEC-002 — single tenant) and `occurred_at` (the
+  // structured /api/events envelope owns timestamping); both can rejoin the
+  // catalog ingestion path without changing this surface.
+  | {
+      event: "workflow.instance_created";
+      properties: { instance_id: string; template_id: string };
+    };
 
 // ─── PART B — Client-side capture hook ───────────────────────────────────────
 //

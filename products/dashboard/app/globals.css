@@ -225,3 +225,26 @@ body {
   padding: 8px;
   justify-content: center;
 }
+
+/*
+ * Tooltip enter animation. Used by the collapsed-mode workflow dots
+ * (`SidebarWorkflowTree.CollapsedInstanceDot`) which render their
+ * tooltip via a portal, so the keyframe lives in global CSS rather
+ * than inline. Cubic curve matches the prototype's general "settle"
+ * easing; honors `prefers-reduced-motion`.
+ */
+@keyframes ainative-tooltip-in {
+  from {
+    opacity: 0;
+    transform: translate(-4px, -50%);
+  }
+  to {
+    opacity: 1;
+    transform: translate(0, -50%);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  [role="tooltip"] {
+    animation: none !important;
+  }
+}
