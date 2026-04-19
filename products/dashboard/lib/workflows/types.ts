@@ -16,6 +16,19 @@ export type WorkflowTaskStatus =
   | "blocked"
   | "complete";
 
+/**
+ * Legal terminal states for `WorkflowRepository.transitionPendingCheckpoint`.
+ * The atomic checkpoint resolution path only ever flips a
+ * `pending_approval` row to one of these two statuses — `complete`
+ * for approve, `blocked` for reject — so the parameter type is
+ * narrowed to keep callers from accidentally requesting (e.g.)
+ * `active` or `not_started`, which would silently corrupt the
+ * approval audit trail.
+ */
+export type WorkflowCheckpointTransitionStatus =
+  | Extract<WorkflowTaskStatus, "complete">
+  | Extract<WorkflowTaskStatus, "blocked">;
+
 export type FrameworkItemType = "skill" | "playbook";
 
 export interface WorkflowStage {

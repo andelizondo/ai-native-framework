@@ -7,11 +7,11 @@ import type {
   WorkflowEventInput,
   WorkflowInstance,
   WorkflowInstanceDetail,
+  WorkflowCheckpointTransitionStatus,
   WorkflowRepository,
   WorkflowRole,
   WorkflowTask,
   WorkflowTaskPatch,
-  WorkflowTaskStatus,
   WorkflowTaskTemplate,
   WorkflowTemplate,
 } from "./types";
@@ -276,7 +276,7 @@ export function createWorkflowRepository(
 
     async transitionPendingCheckpoint(
       taskId: string,
-      nextStatus: WorkflowTaskStatus,
+      nextStatus: WorkflowCheckpointTransitionStatus,
     ): Promise<WorkflowTask | null> {
       // Single atomic UPDATE … WHERE id = ? AND checkpoint = TRUE
       // AND status = 'pending_approval' RETURNING *. This avoids the

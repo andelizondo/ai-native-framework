@@ -28,10 +28,10 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 
 import type {
+  WorkflowCheckpointTransitionStatus,
   WorkflowEvent,
   WorkflowRepository,
   WorkflowTask,
-  WorkflowTaskStatus,
 } from "@/lib/workflows/types";
 
 const { mockGetRepo, mockRevalidatePath, mockCaptureError } = vi.hoisted(() => ({
@@ -101,7 +101,7 @@ function setupRepo(transitioned: WorkflowTask | null): RepoMocks {
   const mocks: RepoMocks = {
     transitionPendingCheckpoint: vi
       .fn()
-      .mockImplementation(async (_id: string, nextStatus: WorkflowTaskStatus) =>
+      .mockImplementation(async (_id: string, nextStatus: WorkflowCheckpointTransitionStatus) =>
         transitioned ? makeTask({ ...transitioned, status: nextStatus }) : null,
       ),
     addEvent: vi.fn().mockResolvedValue(event),
