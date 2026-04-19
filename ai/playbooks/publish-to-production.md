@@ -188,7 +188,7 @@ If the workflow's admin merge step fails or is skipped, `.mergify.yml` defines a
 
 **Manual fallback.**
 
-If both the workflow and the queue are unavailable (token missing, workflow disabled, branch protection mid-change), do the back-merge by hand:
+If both the workflow and the queue are unavailable (token missing, workflow disabled, branch protection mid-change, or this is the bootstrap run before the workflow exists on `main`), do the back-merge by hand. **Open the PR as a draft** so the `staging-integration` queue cannot race in and squash it before all checks settle and you `--admin` merge:
 
 ```bash
 git fetch origin
@@ -199,16 +199,22 @@ git merge --no-ff origin/main \
   -m "chore: back-merge main into staging after release <tag>"
 git push -u origin HEAD
 
-gh pr create \
+# Draft prevents Mergify from queueing this PR while checks run.
+gh pr create --draft \
   --base staging \
   --head "chore/back-merge-main-after-<tag>" \
   --title "chore: back-merge main into staging after release <tag>" \
   --body "Manual back-merge per ai/playbooks/publish-to-production.md §8." \
   --label "residual:low"
 
+# Wait for validate / test / e2e / decide to be green on the PR head.
+# Then mark ready and admin-merge in one motion.
+gh pr ready <pr-number>
 # IMPORTANT: must be --merge (not --squash) so main stays an ancestor of staging.
-gh pr merge --merge --admin --delete-branch
+gh pr merge <pr-number> --merge --admin --delete-branch
 ```
+
+Why draft: the `back-merge-to-staging` queue accepts the PR without checks, but Mergify's queue selection between two matching queues is not deterministic across versions. If `staging-integration` ever admits the back-merge branch (a Mergify-config bug, a change in matching semantics, or a typo in the negation guard), the PR is squashed and ancestry is silently broken. Drafting locks Mergify out until you take it ready and merge in the same step.
 
 **Verification.**
 
