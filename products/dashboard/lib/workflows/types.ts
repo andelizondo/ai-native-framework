@@ -159,6 +159,12 @@ export interface WorkflowEventInput {
 
 export interface WorkflowRepository {
   getTemplates(): Promise<WorkflowTemplate[]>;
+  /**
+   * Fetch a single template by id. Returns `null` when the template
+   * has been removed; the matrix route renders a graceful banner in
+   * that case rather than 404'ing the whole instance.
+   */
+  getTemplate(id: string): Promise<WorkflowTemplate | null>;
   getInstance(id: string): Promise<WorkflowInstanceDetail | null>;
   /**
    * Single-task lookup. Returns `null` when the row is missing or RLS
