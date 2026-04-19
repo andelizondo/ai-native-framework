@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.10.0](https://github.com/andelizondo/ai-native-framework/compare/v0.9.0...v0.10.0) (2026-04-19)
+
+
+### Features
+
+* **dashboard:** theme tokens + dark-first globals (AEL-45) ([#100](https://github.com/andelizondo/ai-native-framework/issues/100)) ([2f77c1c](https://github.com/andelizondo/ai-native-framework/commit/2f77c1c7117ea0332345da43adae73e53bb65630))
+
 ## [0.9.0](https://github.com/andelizondo/ai-native-framework/compare/v0.8.2...v0.9.0) (2026-04-19)
 
 
