@@ -397,9 +397,13 @@ export function SidebarWorkflowTree({ templates, instancesByTemplate }: Props) {
                               aria-label="Pending checkpoints"
                               title="Pending checkpoints"
                               className="inline-block h-1.5 w-1.5 shrink-0 rounded-full"
+                              // Same design token as the template-level
+                              // pending dot above, so changing the
+                              // pending hue in `globals.css` updates
+                              // both surfaces in one place.
                               style={{
-                                backgroundColor: "#f59e0b",
-                                boxShadow: "0 0 5px rgba(245,158,11,0.5)",
+                                backgroundColor: "var(--pill-pending-d)",
+                                boxShadow: "0 0 5px var(--pill-pending-d)",
                               }}
                             />
                           )}
