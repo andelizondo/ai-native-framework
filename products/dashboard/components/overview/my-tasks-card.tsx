@@ -27,35 +27,42 @@ export interface MyTasksCardProps {
   checkpoints: PendingCheckpoint[];
 }
 
+interface PendingAction {
+  taskId: string;
+  resolution: "approved" | "rejected";
+}
+
 export function MyTasksCard({ checkpoints }: MyTasksCardProps) {
   const [isPending, startTransition] = useTransition();
-  const [pendingId, setPendingId] = useState<string | null>(null);
+  const [pendingAction, setPendingAction] = useState<PendingAction | null>(
+    null,
+  );
   const [error, setError] = useState<string | null>(null);
 
   function resolve(taskId: string, resolution: "approved" | "rejected") {
     // Guard against double-fires while a previous action is still in
     // flight. Without this, clicking Approve on row A then Reject on
     // row B would start a second transition; when A finished it would
-    // reset `pendingId` to null and re-enable B's controls before B's
-    // server action returned.
+    // reset `pendingAction` to null and re-enable B's controls before
+    // B's server action returned.
     if (isPending) return;
     setError(null);
-    setPendingId(taskId);
+    setPendingAction({ taskId, resolution });
     startTransition(async () => {
       try {
         await resolveCheckpointAction(taskId, resolution);
       } catch (err) {
+        // Always log the real error to Sentry so we can diagnose it,
+        // but never surface raw server-action error messages to the
+        // user — they can leak repository/RLS details. The user gets a
+        // generic, actionable message instead.
         captureError(err, {
           feature: "overview.my_tasks",
           action: `checkpoint.${resolution}`,
         });
-        setError(
-          err instanceof Error
-            ? err.message
-            : "Could not resolve this checkpoint. Try again.",
-        );
+        setError("Could not resolve this checkpoint. Try again.");
       } finally {
-        setPendingId(null);
+        setPendingAction(null);
       }
     });
   }
@@ -89,9 +96,15 @@ export function MyTasksCard({ checkpoints }: MyTasksCardProps) {
         <ul className="divide-y divide-border-2">
           {checkpoints.map(({ task, instance, template }) => {
             // Disable every row while ANY resolve is pending so a second
-            // click can't race the in-flight action; highlight the row
-            // that's actually doing the work with the `…` label.
-            const rowBusy = isPending && pendingId === task.id;
+            // click can't race the in-flight action; the busy `…` label
+            // is shown only on the specific button the user clicked
+            // (Approve OR Reject), not both, so the indicator can't
+            // mislead about which action is executing.
+            const rowBusy = isPending && pendingAction?.taskId === task.id;
+            const approveBusy =
+              rowBusy && pendingAction?.resolution === "approved";
+            const rejectBusy =
+              rowBusy && pendingAction?.resolution === "rejected";
             const disabled = isPending;
             return (
               <li
@@ -122,7 +135,7 @@ export function MyTasksCard({ checkpoints }: MyTasksCardProps) {
                       "hover:opacity-85 disabled:opacity-60",
                     )}
                   >
-                    {rowBusy ? "…" : "Approve"}
+                    {approveBusy ? "…" : "Approve"}
                   </button>
                   <button
                     type="button"
@@ -134,7 +147,7 @@ export function MyTasksCard({ checkpoints }: MyTasksCardProps) {
                       "hover:bg-bg-4 hover:text-t1 disabled:opacity-60",
                     )}
                   >
-                    Reject
+                    {rejectBusy ? "…" : "Reject"}
                   </button>
                 </div>
               </li>
