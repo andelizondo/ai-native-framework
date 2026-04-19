@@ -22,6 +22,9 @@ const ROUTE_LABELS: ReadonlyArray<{ test: (path: string) => boolean; crumbs: str
   { test: (p) => p === "/framework/playbooks" || p.startsWith("/framework/playbooks/"), crumbs: ["Playbooks"] },
   { test: (p) => p === "/events" || p.startsWith("/events/"), crumbs: ["Event Feed"] },
   { test: (p) => p === "/settings" || p.startsWith("/settings/"), crumbs: ["Settings"] },
+  // Workflow instance routes carry the instance label in the page itself,
+  // so the breadcrumb stays generic until per-instance metadata is wired.
+  { test: (p) => p.startsWith("/workflows/"), crumbs: ["Workflows", "Instance"] },
 ];
 
 function deriveCrumbs(pathname: string | null): string[] {
