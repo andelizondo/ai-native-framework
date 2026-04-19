@@ -190,6 +190,7 @@ Add two queue rules to `.mergify.yml`:
 
 - `ai/playbooks/repository-foundation.md` — full baseline including staging setup
 - `ai/playbooks/release-management.md` — staging → main promotion and release-please flow
+- `ai/playbooks/publish-to-production.md` — canonical operating loop for the governed `staging` -> `main` promotion PR
 - `ai/playbooks/service-wiring.md` — Vercel env var scoping and staging alias setup
 - `docs/QUALITY_STANDARD.md` — 3-tier environment model in §4 default stack
 - `.github/workflows/nightly.yml` — nightly CI targeting staging

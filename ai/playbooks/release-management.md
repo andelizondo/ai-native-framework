@@ -87,6 +87,8 @@ When wiring a new product to the canonical release source, follow these rules so
 
 ## Staging → main promotion
 
+The detailed operating loop for opening and merging the production-publish PR now lives in `ai/playbooks/publish-to-production.md`. This section keeps only the release-specific constraints that promotion must preserve.
+
 When the repository uses a 3-tier environment model (`staging` as the integration branch):
 
 1. **Do not squash** when merging `staging` → `main`. Squashing collapses conventional commit history and breaks release-please version detection. Use a regular merge commit.
@@ -116,3 +118,4 @@ When the repository uses a 3-tier environment model (`staging` as the integratio
 - `.github/release.yml`
 - `.github/workflows/sentry-release.yml`
 - `ai/playbooks/pull-request-execution-loop.md`
+- `ai/playbooks/publish-to-production.md`

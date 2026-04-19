@@ -45,6 +45,7 @@ Implement the selected change in the repository and carry it through validation,
 12. When the task is an operational issue loop rather than a feature PR, load the matching procedure playbook instead of improvising:
    - GitHub issues or nightly-failure batching → `ai/playbooks/resolve-github-issues.md`
    - Sentry production incident triage and closure → `ai/playbooks/resolve-sentry-issues.md`
+   - Production publish / `staging` -> `main` promotion → `ai/playbooks/publish-to-production.md`
 13. For Sentry-backed production issues, treat the incident as an active workflow, not just a source of evidence: assign it, keep it `unresolved` while the fix is in flight, leave a triage note linked to the PR, and resolve it only after explicit post-merge evidence review (`mergedAt`, `lastSeen`, recent events, recent releases).
 14. Before treating the work as fully closed, ask whether the completed workflow revealed durable learnings that should update the framework bundle or a playbook.
 16. **Linear issue tracking (when a Linear issue backs this work):** Keep the issue in sync throughout the loop — do not batch updates at the end. Milestones and required actions:

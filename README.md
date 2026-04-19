@@ -68,6 +68,7 @@ The playbooks turn repeated operational work into reusable procedures:
 - [Agent context bundle](ai/playbooks/agent-context-bundle.md) — how to install and maintain root `AGENTS.md` and the `ai/` bundle (skills, playbooks, memory).
 - [Framework review](ai/playbooks/framework-review.md) — how to audit the framework itself for contradiction, duplication, unnecessary complexity, and missing decision rules.
 - [Release management](ai/playbooks/release-management.md) — how to automate repo-level SemVer tags and GitHub Releases through a reviewable release PR flow.
+- [Publish to production](ai/playbooks/publish-to-production.md) — how to promote `staging` into `main` as the governed production-publish path for this repository.
 - [Resolve GitHub issues](ai/playbooks/resolve-github-issues.md) — how to batch related open GitHub issues, comment intent before edits, route the fix through one PR per group, and update every issue with the active outcome.
 - [Resolve Sentry issues](ai/playbooks/resolve-sentry-issues.md) — how to assign, triage, track, and close production Sentry issues with PR-linked notes and evidence-based resolution.
 
