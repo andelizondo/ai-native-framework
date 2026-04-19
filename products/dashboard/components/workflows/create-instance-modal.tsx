@@ -59,6 +59,11 @@ export function CreateInstanceModal({
   const { capture } = useAnalytics();
   const inputRef = useRef<HTMLInputElement | null>(null);
   const dialogRef = useRef<HTMLDivElement | null>(null);
+  // Imperative submit lock. Without this, rapid Enter/Enter or
+  // click/click can re-enter `handleSubmit` before React flushes the
+  // `isPending` state update from `startTransition`, double-firing
+  // `createInstanceAction` and creating duplicate instances.
+  const submitLockRef = useRef(false);
   const titleId = useId();
   const errorId = useId();
 
@@ -127,45 +132,47 @@ export function CreateInstanceModal({
 
   function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (!canSubmit || !template) return;
+    if (!canSubmit || !template || submitLockRef.current) return;
+    submitLockRef.current = true;
     setError(null);
 
     const submittedLabel = trimmed;
     const templateId = template.id;
 
     startTransition(async () => {
-      let created;
       try {
-        created = await createInstanceAction(templateId, submittedLabel);
+        const created = await createInstanceAction(templateId, submittedLabel);
+
+        // Best-effort analytics: a tracker failure (network blocked,
+        // PostHog bootstrap error, etc.) must never break the success
+        // path or the user will see a misleading error for an instance
+        // that already exists.
+        try {
+          capture("workflow.instance_created", {
+            instance_id: created.instance.id,
+            template_id: created.instance.templateId,
+          });
+        } catch {
+          // Intentionally swallow; the create already succeeded.
+        }
+
+        onClose();
+        router.push(`/workflows/${created.instance.id}`);
       } catch (err) {
         // Surface the message inline; the action throws human-readable
         // strings for validation failures and a generic message for
-        // repository errors. Only mutation failures land here — analytics
-        // is handled separately below so a PostHog hiccup can never
-        // shadow a successful create.
+        // repository errors. Only mutation failures land here —
+        // analytics errors are swallowed by the inner try/catch above.
         setError(
           err instanceof Error && err.message
             ? err.message
             : "Could not create the instance. Try again.",
         );
-        return;
+      } finally {
+        // Always release the lock so a fixed validation error or a
+        // retry after a transient failure can submit again.
+        submitLockRef.current = false;
       }
-
-      // Best-effort analytics: a tracker failure (network blocked,
-      // PostHog bootstrap error, etc.) must never break the success
-      // path or the user will see a misleading error for an instance
-      // that already exists.
-      try {
-        capture("workflow.instance_created", {
-          instance_id: created.instance.id,
-          template_id: created.instance.templateId,
-        });
-      } catch {
-        // Intentionally swallow; the create already succeeded.
-      }
-
-      onClose();
-      router.push(`/workflows/${created.instance.id}`);
     });
   }
 
