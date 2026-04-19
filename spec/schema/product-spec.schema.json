@@ -592,6 +592,49 @@
         }
       }
     },
+    "screens": {
+      "type": "array",
+      "description": "Named UI surfaces this product exposes. Optional. Each screen declares its purpose, the entities it reads/writes, and the events it emits.",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "id",
+          "purpose"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "pattern": "^[a-z0-9][a-z0-9_]*$"
+          },
+          "purpose": {
+            "type": "string",
+            "minLength": 1
+          },
+          "entities_read": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "minLength": 1
+            }
+          },
+          "entities_write": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "minLength": 1
+            }
+          },
+          "events_emitted": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "pattern": "^[a-z0-9]+(\\.[a-z0-9_]+)+$"
+            }
+          }
+        }
+      }
+    },
     "decision_log": {
       "type": "object",
       "additionalProperties": false,
