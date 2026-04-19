@@ -53,7 +53,34 @@ queue_rules:
       - check-success = test
       - check-success = decide
 
-  # Feature PRs targeting staging (integration branch).
+  # Back-merge of main into staging after a production release. Carries no new
+  # code (only commits already merged through their own reviewed PRs: the
+  # staging → main promotion and release-please's chore:release commit). Uses
+  # the merge method (not squash) so main remains an ancestor of staging and
+  # the next promotion PR is not BEHIND. Skips heavy checks because they would
+  # only re-validate already-shipped commits. The branch-name pattern is set
+  # by .github/workflows/back-merge-to-staging.yml; manual back-merges should
+  # follow the same naming so they hit this queue (or be admin-merged directly
+  # per ai/playbooks/publish-to-production.md §8).
+  - name: back-merge-to-staging
+    autoqueue: true
+    batch_size: 1
+    merge_method: merge
+    update_method: rebase
+    queue_conditions:
+      - base = staging
+      - head ~= ^chore/back-merge-main-after-
+      - -draft
+      - -label = sync:needed
+    merge_conditions:
+      - base = staging
+      - head ~= ^chore/back-merge-main-after-
+      - -draft
+      - -label = sync:needed
+
+  # Feature PRs targeting staging (integration branch). The negative condition
+  # on `head` keeps back-merge branches off this squash queue — they belong on
+  # `back-merge-to-staging` so the second parent is preserved.
   - name: staging-integration
     autoqueue: true
     batch_size: 1
@@ -61,6 +88,7 @@ queue_rules:
     update_method: rebase
     queue_conditions:
       - base = staging
+      - head !~= ^chore/back-merge-main-after-
       - label = residual:low
       - -draft
       - -label = sync:needed
@@ -71,6 +99,7 @@ queue_rules:
       - check-success = decide
     merge_conditions:
       - base = staging
+      - head !~= ^chore/back-merge-main-after-
       - label = residual:low
       - -draft
       - -label = sync:needed
