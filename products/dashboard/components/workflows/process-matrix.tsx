@@ -153,14 +153,16 @@ export function ProcessMatrix({ instance, template }: Props) {
         </div>
 
         {isEmpty ? (
-          <div
-            role="row"
-            data-testid="matrix-empty"
-            className="border-t border-border-2 px-4 py-6 text-center text-[12px] text-t2"
-          >
-            {template
-              ? "This workflow has no stages or roles defined yet."
-              : "The template that defines this workflow is no longer available."}
+          <div role="row" data-testid="matrix-empty" className="border-t border-border-2">
+            <div
+              role="cell"
+              aria-colspan={Math.max(1, 1 + stages.length)}
+              className="px-4 py-6 text-center text-[12px] text-t2"
+            >
+              {template
+                ? "This workflow has no stages or roles defined yet."
+                : "The template that defines this workflow is no longer available."}
+            </div>
           </div>
         ) : (
           roles.map((role) => {
