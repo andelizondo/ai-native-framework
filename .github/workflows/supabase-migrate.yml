@@ -1,0 +1,232 @@
+name: supabase-migrate
+
+# Database tier of the 3-tier environment model
+# (see `ai/playbooks/environment-separation.md` Database tier section).
+#
+# Three jobs, three stable check names — Mergify and branch protection rely
+# on the names below remaining stable, so do not rename them without also
+# updating `.mergify.yml` and any required-status-check lists:
+#
+#   migrate-validate    PR gate. Spins up a temporary local Supabase, applies
+#                       every committed migration in order, and runs
+#                       `supabase db lint`. No-ops with a passing check when
+#                       the PR does not touch
+#                       `products/dashboard/supabase/migrations/**`, so it is
+#                       safe as a stable required check.
+#
+#   migrate-staging     On push to `staging`. Links to the staging hosted
+#                       project (env `staging` -> `SUPABASE_PROJECT_REF` +
+#                       `SUPABASE_DB_PASSWORD`) and runs `supabase db push`.
+#                       Required by `.mergify.yml` `staging-promotion` so the
+#                       `staging` -> `main` PR cannot merge until staging has
+#                       successfully received every migration on its current
+#                       head SHA.
+#
+#   migrate-production  On push to `main`. Same shape against the production
+#                       hosted project (env `production`). Gated on a GitHub
+#                       Environment with required reviewers. Runs in parallel
+#                       with the Vercel production deploy; migrations MUST be
+#                       backwards-compatible with the previously deployed app
+#                       version (additive only — no destructive changes in
+#                       the same release as code that depends on them).
+#
+# Secrets layout:
+#   Repository      SUPABASE_ACCESS_TOKEN     (one personal access token, both projects)
+#   Env Staging     SUPABASE_PROJECT_REF      (staging project ref)
+#                   SUPABASE_DB_PASSWORD      (staging DB password)
+#   Env Production  SUPABASE_PROJECT_REF      (production project ref)
+#                   SUPABASE_DB_PASSWORD      (production DB password)
+#
+# Environment names match the existing Vercel-created GitHub Environments
+# (`Production`, `Preview`); we add `Staging` for the data tier rather than
+# reusing `Preview` because `Preview` covers every PR deployment, not just
+# the long-lived staging branch. The `Production` environment must enable
+# Required reviewers so `migrate-production` pauses for human approval.
+#
+# Why a single access token is fine: Supabase access tokens are scoped to the
+# user/account, not the project; the project ref + DB password choose which
+# project the push targets. Per-environment scoping of refs/passwords is what
+# enforces the tier boundary.
+
+on:
+  push:
+    branches: [main, staging]
+    paths:
+      - "products/dashboard/supabase/**"
+      - ".github/workflows/supabase-migrate.yml"
+  pull_request:
+    paths-ignore: []
+  workflow_dispatch:
+    inputs:
+      target:
+        description: "Which hosted project to push to (manual rerun)"
+        required: true
+        default: "staging"
+        type: choice
+        options:
+          - staging
+          - production
+
+concurrency:
+  group: supabase-migrate-${{ github.ref }}
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  # --------------------------------------------------------------------------
+  # PR-time validation: apply every migration to a throwaway local Supabase
+  # and run `db lint`. Stable check name `migrate-validate` so it can be a
+  # required gate on staging-integration without flaking when a PR does not
+  # touch the migrations folder.
+  # --------------------------------------------------------------------------
+  migrate-validate:
+    name: migrate-validate
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Detect migration or config changes
+        id: changes
+        run: |
+          set -euo pipefail
+          changed=$(git diff --name-only \
+            "${{ github.event.pull_request.base.sha }}" \
+            "${{ github.event.pull_request.head.sha }}")
+          if printf '%s\n' "$changed" | grep -Eq '^products/dashboard/supabase/(migrations/|config\.toml$)'; then
+            echo "run=true"  >> "$GITHUB_OUTPUT"
+          else
+            echo "run=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Skip when no Supabase changes
+        if: steps.changes.outputs.run != 'true'
+        run: echo "No products/dashboard/supabase changes on this PR; passing migrate-validate gate without running the local stack."
+
+      - uses: supabase/setup-cli@v1
+        if: steps.changes.outputs.run == 'true'
+        with:
+          version: latest
+
+      - name: Start local Supabase
+        if: steps.changes.outputs.run == 'true'
+        working-directory: products/dashboard
+        run: supabase start
+
+      - name: Apply migrations against local DB
+        if: steps.changes.outputs.run == 'true'
+        working-directory: products/dashboard
+        run: supabase db reset --local
+
+      - name: Lint schema
+        if: steps.changes.outputs.run == 'true'
+        working-directory: products/dashboard
+        run: supabase db lint --level warning
+
+      - name: Stop local Supabase
+        if: always() && steps.changes.outputs.run == 'true'
+        working-directory: products/dashboard
+        run: supabase stop --no-backup || true
+
+  # --------------------------------------------------------------------------
+  # Apply on push to staging.
+  # Required by the `staging-promotion` Mergify queue (.mergify.yml).
+  # --------------------------------------------------------------------------
+  migrate-staging:
+    name: migrate-staging
+    if: |
+      (github.event_name == 'push' && github.ref == 'refs/heads/staging') ||
+      (github.event_name == 'workflow_dispatch' && inputs.target == 'staging')
+    runs-on: ubuntu-latest
+    environment: Staging
+    permissions:
+      contents: read
+    env:
+      SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+      SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
+      PROJECT_REF: ${{ secrets.SUPABASE_PROJECT_REF }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: supabase/setup-cli@v1
+        with:
+          version: latest
+
+      - name: Verify required secrets
+        run: |
+          set -euo pipefail
+          missing=()
+          [ -n "${SUPABASE_ACCESS_TOKEN:-}" ] || missing+=("SUPABASE_ACCESS_TOKEN (repo secret)")
+          [ -n "${PROJECT_REF:-}" ]           || missing+=("SUPABASE_PROJECT_REF (env secret: Staging)")
+          [ -n "${SUPABASE_DB_PASSWORD:-}" ]  || missing+=("SUPABASE_DB_PASSWORD (env secret: Staging)")
+          if [ ${#missing[@]} -gt 0 ]; then
+            printf '::error title=Supabase secrets missing::%s\n' "${missing[@]}"
+            exit 1
+          fi
+
+      - name: Link to staging project
+        working-directory: products/dashboard
+        run: supabase link --project-ref "$PROJECT_REF"
+
+      - name: Push migrations
+        working-directory: products/dashboard
+        run: supabase db push --include-all
+
+      - name: List applied migrations (audit)
+        working-directory: products/dashboard
+        run: supabase migration list --linked
+
+  # --------------------------------------------------------------------------
+  # Apply on push to main (production). Gated by the `production` GitHub
+  # Environment, which should require manual reviewer approval per
+  # ai/playbooks/environment-separation.md.
+  # --------------------------------------------------------------------------
+  migrate-production:
+    name: migrate-production
+    if: |
+      (github.event_name == 'push' && github.ref == 'refs/heads/main') ||
+      (github.event_name == 'workflow_dispatch' && inputs.target == 'production')
+    runs-on: ubuntu-latest
+    environment: Production
+    permissions:
+      contents: read
+    env:
+      SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+      SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
+      PROJECT_REF: ${{ secrets.SUPABASE_PROJECT_REF }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: supabase/setup-cli@v1
+        with:
+          version: latest
+
+      - name: Verify required secrets
+        run: |
+          set -euo pipefail
+          missing=()
+          [ -n "${SUPABASE_ACCESS_TOKEN:-}" ] || missing+=("SUPABASE_ACCESS_TOKEN (repo secret)")
+          [ -n "${PROJECT_REF:-}" ]           || missing+=("SUPABASE_PROJECT_REF (env secret: Production)")
+          [ -n "${SUPABASE_DB_PASSWORD:-}" ]  || missing+=("SUPABASE_DB_PASSWORD (env secret: Production)")
+          if [ ${#missing[@]} -gt 0 ]; then
+            printf '::error title=Supabase secrets missing::%s\n' "${missing[@]}"
+            exit 1
+          fi
+
+      - name: Link to production project
+        working-directory: products/dashboard
+        run: supabase link --project-ref "$PROJECT_REF"
+
+      - name: Push migrations
+        working-directory: products/dashboard
+        run: supabase db push --include-all
+
+      - name: List applied migrations (audit)
+        working-directory: products/dashboard
+        run: supabase migration list --linked
