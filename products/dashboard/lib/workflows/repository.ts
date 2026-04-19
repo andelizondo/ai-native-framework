@@ -274,6 +274,40 @@ export function createWorkflowRepository(
       return (data ?? []).map((row) => mapInstance(row as WorkflowInstanceRow));
     },
 
+    async listAllTasks(): Promise<WorkflowTask[]> {
+      const { data, error } = await client
+        .from("workflow_tasks")
+        .select("*")
+        .order("created_at", { ascending: true });
+
+      if (error) {
+        throw new WorkflowRepositoryError("listAllTasks failed", error);
+      }
+      return (data ?? []).map((row) => mapTask(row as WorkflowTaskRow));
+    },
+
+    async listRecentEvents(limit: number): Promise<WorkflowEvent[]> {
+      // Normalize first: a `NaN` or fractional `limit` would otherwise
+      // poison `Math.min`/`Math.max` and reach Supabase as `NaN` /
+      // `1.5`, both of which produce confusing query errors. Treat
+      // anything non-finite as "0 rows requested" so the caller gets a
+      // clean empty result instead of a thrown error.
+      const normalizedLimit = Number.isFinite(limit) ? Math.trunc(limit) : 0;
+      const safeLimit = Math.max(0, Math.min(normalizedLimit, 200));
+      if (safeLimit === 0) return [];
+
+      const { data, error } = await client
+        .from("workflow_events")
+        .select("*")
+        .order("created_at", { ascending: false })
+        .limit(safeLimit);
+
+      if (error) {
+        throw new WorkflowRepositoryError("listRecentEvents failed", error);
+      }
+      return (data ?? []).map((row) => mapEvent(row as WorkflowEventRow));
+    },
+
     async createInstance(
       templateId: string,
       label: string,

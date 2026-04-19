@@ -27,6 +27,19 @@ export type AnalyticsEvent =
     }
   // ── Dashboard shell ───────────────────────────────────────────────────────
   | { event: "dashboard.shell_viewed"; properties: { route: string } }
+  // Overview screen — fired once on mount of `app/(dashboard)/page.tsx`.
+  // Carries the four stat-card numbers so analytics can answer "how many
+  // founders see N pending tasks on load?" without joining additional
+  // tables. Catalog source: spec/examples/dashboard-product.yaml.
+  | {
+      event: "dashboard.overview_viewed";
+      properties: {
+        instance_count: number;
+        pending_count: number;
+        active_count: number;
+        completion_pct: number;
+      };
+    }
   // ── Workflows ─────────────────────────────────────────────────────────────
   // Catalog source of truth: spec/examples/platform-product.yaml → events
   // catalog → workflow.instance_created. The PostHog payload intentionally
