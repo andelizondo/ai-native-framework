@@ -200,8 +200,8 @@ Create the GitHub Environments first (`Settings → Environments → New environ
 | Check | Trigger | What it does |
 |---|---|---|
 | `migrate-validate` | every PR | Spins up a temporary local Supabase, applies all committed migrations, runs `supabase db lint`. No-ops with a passing check when the PR does not touch `products/dashboard/supabase/**`. |
-| `migrate-staging` | push to `staging` | `supabase link --project-ref` (staging) + `supabase db push` against the staging project. |
-| `migrate-production` | push to `main` | Same against the production project, gated on the `production` GitHub Environment. |
+| `migrate-staging` | push to `staging` | `supabase link --project-ref` (staging) + `supabase db push` against the staging project. Always runs (no commit-message skip) so the `staging-promotion` queue's `check-success = migrate-staging` requirement is satisfied on every staging head SHA. |
+| `migrate-production` | push to `main` | Same against the production project, gated on the `Production` GitHub Environment. **Skipped on `chore: release X.Y.Z` commits** (release-please's release commit only bumps version + CHANGELOG and never carries new migrations) so each release does not require approving a guaranteed-no-op `db push` against production after the real one already ran on the immediately preceding promotion merge. `workflow_dispatch` is intentionally not subject to this skip — a manual dispatch is an explicit operator action. |
 
 `.mergify.yml` requires `migrate-validate` on the `staging-integration` queue and `migrate-staging` on the `staging-promotion` queue. The promotion PR cannot merge until staging has successfully received every migration on its current head SHA.
 
