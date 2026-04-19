@@ -58,6 +58,94 @@ interfaces:
       properties:
         type: object
 
+  workflow_repository:
+    description: >
+      Provider-agnostic persistence interface for workflow templates,
+      instances, tasks, events, and the framework items library
+      (Skills + Playbooks). Business logic MUST target this interface
+      so the storage backend stays swappable per §5.1 Layer 1. The
+      Supabase implementation lives at
+      `products/dashboard/lib/workflows/repository.ts`; the SQL schema
+      it maps to lives at
+      `products/dashboard/supabase/migrations/20260419120000_workflow_persistence.sql`.
+    operations:
+      get_templates:
+        description: "List all workflow templates ordered by label."
+        outputs:
+          templates:
+            type: array
+      get_instance:
+        description: "Fetch a single workflow instance by id, including its tasks and recent events."
+        inputs:
+          id:
+            type: string
+            format: uuid
+        outputs:
+          instance:
+            type: object
+      list_instances:
+        description: "List instances, optionally filtered by template id."
+        inputs:
+          template_id:
+            type: string
+            required: false
+        outputs:
+          instances:
+            type: array
+      create_instance:
+        description: >
+          Create a new workflow instance from a template. Materializes
+          one workflow_tasks row per entry in the template's
+          task_templates JSON, copying default roles from the template.
+        inputs:
+          template_id:
+            type: string
+          label:
+            type: string
+        outputs:
+          instance:
+            type: object
+      update_task:
+        description: "Patch a workflow task's mutable fields (status, substatus, agent assignment, etc.)."
+        inputs:
+          task_id:
+            type: string
+            format: uuid
+          patch:
+            type: object
+        outputs:
+          task:
+            type: object
+      add_event:
+        description: "Append a workflow_event row scoped to a task (and its parent instance)."
+        inputs:
+          task_id:
+            type: string
+            format: uuid
+          event:
+            type: object
+        outputs:
+          event:
+            type: object
+      get_framework_items:
+        description: "List Skills and Playbooks, optionally filtered by type."
+        inputs:
+          type:
+            type: string
+            enum: [skill, playbook]
+            required: false
+        outputs:
+          items:
+            type: array
+      upsert_framework_item:
+        description: "Create or update a framework item (Skill or Playbook)."
+        inputs:
+          item:
+            type: object
+        outputs:
+          item:
+            type: object
+
 policies:
   human_in_the_loop:
     required_for:
@@ -102,3 +190,23 @@ adapters:
     notes: >
       Introduce only with decision-log rationale per §8.2.
       Do not use V3 patterns without documented justification.
+
+  supabase_workflow_repository:
+    description: >
+      Supabase (Postgres + RLS) implementation of `workflow_repository`.
+      Wraps the @supabase/supabase-js client and reads/writes the
+      `workflow_templates`, `workflow_instances`, `workflow_tasks`,
+      `workflow_events`, and `framework_items` tables. Auth flows are
+      delegated to the existing server-side adapter at
+      `products/dashboard/lib/auth/supabase-server-adapter.ts`.
+    status: recommended_default
+    maturity_levels: [1, 2]
+    open_source: true
+    repository: "https://github.com/supabase/supabase-js"
+    implements:
+      - workflow_repository
+    notes: >
+      DEC-002 (single-user V1): RLS policies allow any authenticated
+      session to read/write all rows. A future migration introducing
+      `company_id` will tighten policies to per-company scope without
+      changing the interface.
