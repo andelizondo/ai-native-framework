@@ -133,6 +133,21 @@ Human decision is mandatory. Automation **MUST** produce a complete decision req
 
 ## Procedure
 
+### 0. Refresh the branch before opening or updating the PR
+
+Before creating a PR, the implementing agent **MUST** refresh the working branch against its intended base branch so the first published head is as current as possible.
+
+Minimum sequence for same-repository branches:
+
+1. `git fetch origin`
+2. `git checkout <work-branch>`
+3. `git rebase origin/<base-branch>` or `git merge --ff-only origin/<base-branch>` when the repository explicitly prefers that shape
+4. Run the required local validation again if the refresh changed the branch head
+
+If the refresh produces conflicts, resolve them before opening the PR. Do not treat "GitHub will mark it behind later" as an acceptable substitute for refreshing first.
+
+The automated branch-sync flow in section 2.5 remains the safety net for long-running PRs after publication; it does not replace this pre-PR freshness requirement.
+
 ### 1. Ingest and classify
 
 1. Read the PR diff, changed files, labels, and target branch.

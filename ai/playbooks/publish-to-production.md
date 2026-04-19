@@ -51,7 +51,8 @@ Before opening or reusing the promotion PR:
 
 1. Compare `main..staging` and confirm the commits are the intended release scope.
 2. Check whether any in-flight PRs still target `staging` and have not merged yet.
-3. Confirm the current `staging` head has passed the required integration gates for this repository.
+3. Refresh the local `staging` branch from `origin/staging` before opening the PR so the published head is current.
+4. Confirm the current `staging` head has passed the required integration gates for this repository.
 
 If the diff contains work the operator does not intend to publish, stop and ask for a release-scope decision instead of opening the PR.
 
