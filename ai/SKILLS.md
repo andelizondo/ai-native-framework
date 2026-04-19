@@ -81,6 +81,14 @@ Discovery should stay broad and cheap. Execution should stay narrow and deep.
 - **Load:** `playbooks/release-management.md`
 - **Constraints:** release the whole repository, not `products/dashboard/` alone; prefer dedicated automation credentials over `GITHUB_TOKEN`
 
+### Publish to production (playbook)
+
+- **When to use:** promoting reviewed changes from `staging` to `main`, publishing to production, or answering how a PR to `main` should work in this repository.
+- **Inputs:** current `staging` and `main` SHAs, promotion PR state, queue state, and release automation state.
+- **Outputs:** open or merged `staging` -> `main` promotion PR and post-merge release verification evidence.
+- **Load:** `playbooks/publish-to-production.md`
+- **Constraints:** feature PRs still target `staging`; `staging` -> `main` must use a regular merge commit and the promotion-specific gate
+
 ### Agent context bundle (playbook)
 
 - **When to use:** creating or updating root `AGENTS.md`, or files under `ai/` (`SKILLS.md`, `skills/*.md`, `MEMORY.md`, `PLAYBOOKS.md`, `playbooks/`), or making agent bootstrap behavior explicit in a repository

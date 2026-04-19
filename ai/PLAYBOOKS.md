@@ -79,6 +79,14 @@ That sequence is **practical**, not a ranking of importance: mature repos often 
 - **Load:** [`playbooks/release-management.md`](playbooks/release-management.md)
 - **Constraints:** release the repository as a single unit; use a dedicated automation token when downstream workflows must trigger; route changes through the normal PR loop.
 
+### Publish to production
+
+- **When to use:** publishing reviewed work from `staging` to production; or when someone asks how to open a PR to `main` in this repository.
+- **Inputs:** current `staging` and `main` SHAs, promotion PR state, merge-gate state, and release automation state.
+- **Outputs:** open or merged `staging` -> `main` promotion PR, plus verification that release automation observed the new `main` head.
+- **Load:** [`playbooks/publish-to-production.md`](playbooks/publish-to-production.md)
+- **Constraints:** do not open feature PRs directly to `main`; use a regular merge commit for `staging` -> `main`; do not wait for CodeRabbit on the promotion PR.
+
 ### Quality standard execution
 
 - **When to use:** PR gate failures, nightly CI triage, incident-to-regression loop, phase readiness audit.

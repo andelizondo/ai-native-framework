@@ -234,6 +234,8 @@ The repository-local `ai/PLAYBOOKS.md` and `ai/playbooks/` files are the procedu
 
 Common repository-local playbooks typically include governed repository setup, pull request execution, agent context maintenance, framework review, and release management.
 
+For repositories that separate integration from production with a `staging` branch, a dedicated publish-to-production playbook **SHOULD** define the only valid `main`-targeting promotion path and its merge constraints.
+
 The canonical workflow inventory for a repository-local agent bundle **SHOULD** live in `ai/PLAYBOOKS.md`. This framework document defines what a workflow library is and how it fits the operating system; it should not duplicate the repository's playbook catalog.
 
 ### 7.3 Workflow record shape (each entry SHOULD declare)
