@@ -119,7 +119,10 @@ jobs:
       - uses: supabase/setup-cli@v1
         if: steps.changes.outputs.run == 'true'
         with:
-          version: latest
+          # Pinned for reproducibility. Bump together with hosted-project
+          # Postgres / extension upgrades after verifying release notes at
+          # https://github.com/supabase/cli/releases.
+          version: 2.90.0
 
       - name: Start local Supabase
         if: steps.changes.outputs.run == 'true'
@@ -147,9 +150,13 @@ jobs:
   # --------------------------------------------------------------------------
   migrate-staging:
     name: migrate-staging
+    # Constrain manual dispatch to the canonical branch so a contributor
+    # cannot select target=staging from an arbitrary feature branch and push
+    # that branch's migrations to the hosted staging project. Same defence
+    # applied to migrate-production below.
     if: |
       (github.event_name == 'push' && github.ref == 'refs/heads/staging') ||
-      (github.event_name == 'workflow_dispatch' && inputs.target == 'staging')
+      (github.event_name == 'workflow_dispatch' && inputs.target == 'staging' && github.ref == 'refs/heads/staging')
     runs-on: ubuntu-latest
     environment: Staging
     permissions:
@@ -163,7 +170,8 @@ jobs:
 
       - uses: supabase/setup-cli@v1
         with:
-          version: latest
+          # Pin matches `migrate-validate` above; bump together.
+          version: 2.90.0
 
       - name: Verify required secrets
         run: |
@@ -196,9 +204,10 @@ jobs:
   # --------------------------------------------------------------------------
   migrate-production:
     name: migrate-production
+    # Constrain manual dispatch to the canonical branch (see migrate-staging).
     if: |
       (github.event_name == 'push' && github.ref == 'refs/heads/main') ||
-      (github.event_name == 'workflow_dispatch' && inputs.target == 'production')
+      (github.event_name == 'workflow_dispatch' && inputs.target == 'production' && github.ref == 'refs/heads/main')
     runs-on: ubuntu-latest
     environment: Production
     permissions:
@@ -212,7 +221,8 @@ jobs:
 
       - uses: supabase/setup-cli@v1
         with:
-          version: latest
+          # Pin matches `migrate-validate` above; bump together.
+          version: 2.90.0
 
       - name: Verify required secrets
         run: |
