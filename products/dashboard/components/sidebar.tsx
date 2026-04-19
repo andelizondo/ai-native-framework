@@ -291,7 +291,7 @@ export function Sidebar({
             Workflows
           </span>
           {/*
-           * "+ New workflow" — opens the template editor. PR 12 wires the
+           * "+ New workflow" — opens the template editor. PR 11 wires the
            * actual editor route, but the link is in place so the affordance
            * is keyboard- and screen-reader-reachable today.
            */}

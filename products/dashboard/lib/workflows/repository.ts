@@ -11,6 +11,7 @@ import type {
   WorkflowRepository,
   WorkflowRole,
   WorkflowTask,
+  WorkflowTaskCreateInput,
   WorkflowTaskPatch,
   WorkflowTaskTemplate,
   WorkflowTemplate,
@@ -448,6 +449,28 @@ export function createWorkflowRepository(
       return { ...instance, tasks, events: [] };
     },
 
+    async createTask(input: WorkflowTaskCreateInput): Promise<WorkflowTask> {
+      const { data, error } = await client
+        .from("workflow_tasks")
+        .insert({
+          instance_id: input.instanceId,
+          role_id: input.roleId,
+          stage_id: input.stageId,
+          title: input.title,
+          description: input.description ?? "",
+          checkpoint: input.checkpoint ?? false,
+          triggers: input.triggers ?? [],
+          gates: input.gates ?? [],
+          agent: input.agent ?? null,
+          skill: input.skill ?? null,
+          playbook: input.playbook ?? null,
+        })
+        .select("*")
+        .single();
+
+      return mapTask(unwrap("createTask", data, error) as WorkflowTaskRow);
+    },
+
     async updateTask(taskId: string, patch: WorkflowTaskPatch): Promise<WorkflowTask> {
       const row = patchToRow(patch);
       if (Object.keys(row).length === 0) {
@@ -462,6 +485,17 @@ export function createWorkflowRepository(
         .single();
 
       return mapTask(unwrap("updateTask", data, error) as WorkflowTaskRow);
+    },
+
+    async deleteTask(taskId: string): Promise<void> {
+      const { error } = await client
+        .from("workflow_tasks")
+        .delete()
+        .eq("id", taskId);
+
+      if (error) {
+        throw new WorkflowRepositoryError("deleteTask failed", error);
+      }
     },
 
     async addEvent(taskId: string, event: WorkflowEventInput): Promise<WorkflowEvent> {
@@ -490,6 +524,25 @@ export function createWorkflowRepository(
         .single();
 
       return mapEvent(unwrap("addEvent", data, error) as WorkflowEventRow);
+    },
+
+    async addInstanceEvent(
+      instanceId: string,
+      event: WorkflowEventInput & { taskId?: string | null },
+    ): Promise<WorkflowEvent> {
+      const { data, error } = await client
+        .from("workflow_events")
+        .insert({
+          instance_id: instanceId,
+          task_id: event.taskId ?? null,
+          name: event.name,
+          description: event.description ?? "",
+          payload: event.payload ?? {},
+        })
+        .select("*")
+        .single();
+
+      return mapEvent(unwrap("addInstanceEvent", data, error) as WorkflowEventRow);
     },
 
     async getFrameworkItems(type?: FrameworkItemType): Promise<FrameworkItem[]> {

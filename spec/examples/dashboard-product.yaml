@@ -398,6 +398,93 @@ events:
             type: string
           instance_id:
             type: string
+    - name: "workflow.task_created"
+      description: "User created a new task in workflow instance edit mode."
+      version: "1.0.0"
+      schema_version: "1.0.0"
+      classification:
+        pii: none
+        idempotency: none
+        ordering: at_least_once
+      emitted_by:
+        - "actions.createTaskAction"
+      payload:
+        type: object
+        additionalProperties: false
+        required:
+          - task_id
+          - instance_id
+          - role_id
+          - stage_id
+        properties:
+          task_id:
+            type: string
+          instance_id:
+            type: string
+          role_id:
+            type: string
+          stage_id:
+            type: string
+    - name: "workflow.task_moved"
+      description: "User moved a task to a different role-stage cell in workflow instance edit mode."
+      version: "1.0.0"
+      schema_version: "1.0.0"
+      classification:
+        pii: none
+        idempotency: recommended
+        ordering: at_least_once
+      emitted_by:
+        - "actions.moveTaskAction"
+      payload:
+        type: object
+        additionalProperties: false
+        required:
+          - task_id
+          - instance_id
+          - from_role_id
+          - from_stage_id
+          - to_role_id
+          - to_stage_id
+        properties:
+          task_id:
+            type: string
+          instance_id:
+            type: string
+          from_role_id:
+            type: string
+          from_stage_id:
+            type: string
+          to_role_id:
+            type: string
+          to_stage_id:
+            type: string
+    - name: "workflow.task_deleted"
+      description: "User deleted a task from workflow instance edit mode."
+      version: "1.0.0"
+      schema_version: "1.0.0"
+      classification:
+        pii: none
+        idempotency: recommended
+        ordering: at_least_once
+      emitted_by:
+        - "actions.deleteTaskAction"
+      payload:
+        type: object
+        additionalProperties: false
+        required:
+          - task_id
+          - instance_id
+          - role_id
+          - stage_id
+        properties:
+          task_id:
+            type: string
+          instance_id:
+            type: string
+          role_id:
+            type: string
+          stage_id:
+            type: string
 
 observability:
   logs:

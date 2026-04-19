@@ -1,4 +1,4 @@
-import { AlertTriangle } from "lucide-react";
+import { AlertTriangle, X } from "lucide-react";
 
 import { cn } from "@/lib/utils";
 import type { TaskBarState } from "@/lib/workflows/matrix";
@@ -52,9 +52,24 @@ export interface TaskCardProps {
   barState: TaskBarState;
   /** Opens the Task Drawer for this card. */
   onClick?: () => void;
+  editMode?: boolean;
+  onRemove?: () => void;
+  draggable?: boolean;
+  onDragStart?: React.DragEventHandler<HTMLDivElement>;
+  onDragEnd?: React.DragEventHandler<HTMLDivElement>;
 }
 
-export function TaskCard({ task, roleColor, barState, onClick }: TaskCardProps) {
+export function TaskCard({
+  task,
+  roleColor,
+  barState,
+  onClick,
+  editMode = false,
+  onRemove,
+  draggable = false,
+  onDragStart,
+  onDragEnd,
+}: TaskCardProps) {
   const statusClass = STATUS_PILL_CLASS[task.status];
   const statusLabel = STATUS_LABEL[task.status];
 
@@ -65,6 +80,9 @@ export function TaskCard({ task, roleColor, barState, onClick }: TaskCardProps) 
       data-status={task.status}
       className={cn("task-card", statusClass, barState, onClick && "cursor-pointer")}
       style={{ "--role-color": roleColor } as React.CSSProperties}
+      draggable={editMode && draggable}
+      onDragStart={onDragStart}
+      onDragEnd={onDragEnd}
       onClick={onClick}
       role={onClick ? "button" : undefined}
       tabIndex={onClick ? 0 : undefined}
@@ -80,6 +98,19 @@ export function TaskCard({ task, roleColor, barState, onClick }: TaskCardProps) 
       }
       aria-label={onClick ? `Open task: ${task.title}` : undefined}
     >
+      {editMode ? (
+        <button
+          type="button"
+          className="tc-remove"
+          aria-label={`Remove task: ${task.title}`}
+          onClick={(event) => {
+            event.stopPropagation();
+            onRemove?.();
+          }}
+        >
+          <X aria-hidden size={11} strokeWidth={2.2} />
+        </button>
+      ) : null}
       <div className="tc-top">
         <div className="tc-title">{task.title}</div>
         {task.checkpoint && (

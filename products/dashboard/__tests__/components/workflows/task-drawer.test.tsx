@@ -298,7 +298,7 @@ describe("TaskDrawer", () => {
       await user.click(screen.getByTestId("td-tab-dependencies"));
 
       expect(screen.getByTestId("td-dependencies-placeholder")).toHaveTextContent(
-        /DepTree coming in PR 10/i,
+        /DepTree coming in PR 14/i,
       );
     });
   });

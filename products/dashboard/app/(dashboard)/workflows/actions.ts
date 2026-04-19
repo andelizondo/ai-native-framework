@@ -8,6 +8,7 @@ import type {
   WorkflowGate,
   WorkflowInstance,
   WorkflowTask,
+  WorkflowTaskCreateInput,
   WorkflowTrigger,
 } from "@/lib/workflows/types";
 
@@ -295,4 +296,205 @@ export async function updateTaskTriggerGatesAction(
 
   revalidatePath("/", "layout");
   return { task };
+}
+
+const MAX_TASK_TITLE_LENGTH = 120;
+const MAX_TASK_DESCRIPTION_LENGTH = 240;
+const MAX_PLAYBOOK_LENGTH = 120;
+
+function normalizeTaskField(value: string, label: string, maxLength: number): string {
+  if (typeof value !== "string") {
+    throw new Error(`${label} must be a string`);
+  }
+  return value.trim().slice(0, maxLength);
+}
+
+export interface CreateTaskResult {
+  task: WorkflowTask;
+}
+
+export async function createTaskAction(
+  input: WorkflowTaskCreateInput,
+): Promise<CreateTaskResult> {
+  const instanceId = normalizeTaskField(input.instanceId, "instanceId", 80);
+  const roleId = normalizeTaskField(input.roleId, "roleId", 80);
+  const stageId = normalizeTaskField(input.stageId, "stageId", 80);
+  const title = normalizeTaskField(input.title, "title", MAX_TASK_TITLE_LENGTH);
+  const description = normalizeTaskField(
+    input.description ?? "",
+    "description",
+    MAX_TASK_DESCRIPTION_LENGTH,
+  );
+  const playbook = normalizeTaskField(
+    input.playbook ?? "",
+    "playbook",
+    MAX_PLAYBOOK_LENGTH,
+  );
+
+  if (!instanceId || !roleId || !stageId || !title) {
+    throw new Error(
+      "createTaskAction: instanceId, roleId, stageId, and title are required",
+    );
+  }
+
+  const repo = await getServerWorkflowRepository();
+  const task = await repo.createTask({
+    ...input,
+    instanceId,
+    roleId,
+    stageId,
+    title,
+    description,
+    playbook: playbook || null,
+  });
+
+  try {
+    await repo.addEvent(task.id, {
+      name: "workflow.task_created",
+      description: `Created task: ${task.title}`,
+      payload: {
+        task_id: task.id,
+        instance_id: task.instanceId,
+        role_id: task.roleId,
+        stage_id: task.stageId,
+      },
+    });
+  } catch (eventError) {
+    captureError(eventError, {
+      feature: "workflows.create_task",
+      action: "addEvent",
+      extra: { task_id: task.id, instance_id: task.instanceId },
+    });
+  }
+
+  revalidatePath("/", "layout");
+  return { task };
+}
+
+export interface MoveTaskResult {
+  task: WorkflowTask;
+}
+
+export async function moveTaskAction(
+  taskId: string,
+  roleId: string,
+  stageId: string,
+): Promise<MoveTaskResult> {
+  const trimmedTaskId = normalizeTaskField(taskId, "taskId", 80);
+  const trimmedRoleId = normalizeTaskField(roleId, "roleId", 80);
+  const trimmedStageId = normalizeTaskField(stageId, "stageId", 80);
+
+  if (!trimmedTaskId || !trimmedRoleId || !trimmedStageId) {
+    throw new Error("moveTaskAction: taskId, roleId, and stageId are required");
+  }
+
+  const repo = await getServerWorkflowRepository();
+  const current = await repo.getTask(trimmedTaskId);
+  if (!current) {
+    throw new Error("moveTaskAction: task not found");
+  }
+
+  const task =
+    current.roleId === trimmedRoleId && current.stageId === trimmedStageId
+      ? current
+      : await repo.updateTask(trimmedTaskId, {
+          roleId: trimmedRoleId,
+          stageId: trimmedStageId,
+        });
+
+  if (task !== current) {
+    try {
+      await repo.addEvent(task.id, {
+        name: "workflow.task_moved",
+        description: `Moved task: ${task.title}`,
+        payload: {
+          task_id: task.id,
+          instance_id: task.instanceId,
+          from_role_id: current.roleId,
+          from_stage_id: current.stageId,
+          to_role_id: task.roleId,
+          to_stage_id: task.stageId,
+        },
+      });
+    } catch (eventError) {
+      captureError(eventError, {
+        feature: "workflows.move_task",
+        action: "addEvent",
+        extra: { task_id: task.id, instance_id: task.instanceId },
+      });
+    }
+  }
+
+  revalidatePath("/", "layout");
+  return { task };
+}
+
+export async function startTaskAction(
+  taskId: string,
+): Promise<{ task: WorkflowTask }> {
+  const trimmedId = normalizeTaskField(taskId, "taskId", 80);
+  if (!trimmedId) throw new Error("startTaskAction: taskId is required");
+
+  const repo = await getServerWorkflowRepository();
+  const current = await repo.getTask(trimmedId);
+  if (!current) throw new Error("startTaskAction: task not found");
+  if (current.status !== "not_started") {
+    throw new Error("startTaskAction: task is not in not_started state");
+  }
+
+  const task = await repo.updateTask(trimmedId, { status: "active" });
+
+  try {
+    await repo.addEvent(trimmedId, {
+      name: "workflow.task_started",
+      description: `Started task: ${task.title}`,
+      payload: { task_id: task.id, instance_id: task.instanceId },
+    });
+  } catch (eventError) {
+    captureError(eventError, {
+      feature: "workflows.start_task",
+      action: "addEvent",
+      extra: { task_id: task.id, instance_id: task.instanceId },
+    });
+  }
+
+  revalidatePath("/", "layout");
+  return { task };
+}
+
+export async function deleteTaskAction(taskId: string): Promise<void> {
+  const trimmedTaskId = normalizeTaskField(taskId, "taskId", 80);
+  if (!trimmedTaskId) {
+    throw new Error("deleteTaskAction: taskId is required");
+  }
+
+  const repo = await getServerWorkflowRepository();
+  const task = await repo.getTask(trimmedTaskId);
+  if (!task) {
+    throw new Error("deleteTaskAction: task not found");
+  }
+
+  await repo.deleteTask(trimmedTaskId);
+
+  try {
+    await repo.addInstanceEvent(task.instanceId, {
+      taskId: null,
+      name: "workflow.task_deleted",
+      description: `Deleted task: ${task.title}`,
+      payload: {
+        task_id: task.id,
+        instance_id: task.instanceId,
+        role_id: task.roleId,
+        stage_id: task.stageId,
+      },
+    });
+  } catch (eventError) {
+    captureError(eventError, {
+      feature: "workflows.delete_task",
+      action: "addInstanceEvent",
+      extra: { task_id: task.id, instance_id: task.instanceId },
+    });
+  }
+
+  revalidatePath("/", "layout");
 }

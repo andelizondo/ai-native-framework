@@ -46,6 +46,15 @@ async function openFirstTemplateNewInstanceDialog(page: Page) {
   return dialog;
 }
 
+async function createFreshInstance(page: Page, labelPrefix: string) {
+  const dialog = await openFirstTemplateNewInstanceDialog(page);
+  await dialog
+    .getByRole("textbox", { name: /instance name/i })
+    .fill(`${labelPrefix} ${Date.now()}`);
+  await dialog.getByRole("button", { name: /^create\s*→?$/i }).click();
+  await expect(page).toHaveURL(/\/workflows\/[0-9a-f-]+$/);
+}
+
 test.describe("workflows — create-instance modal", () => {
   test("opens the modal, creates a new instance, and lands on the matrix route", async ({
     page,
@@ -96,12 +105,7 @@ test.describe("workflows — process matrix (read-only)", () => {
     // The matrix needs an existing instance to paint, so create a fresh
     // one from the first template in the sidebar (no fixture coupling)
     // and follow the redirect onto its `/workflows/{id}` route.
-    const dialog = await openFirstTemplateNewInstanceDialog(page);
-    await dialog
-      .getByRole("textbox", { name: /instance name/i })
-      .fill(`E2E Matrix ${Date.now()}`);
-    await dialog.getByRole("button", { name: /^create\s*→?$/i }).click();
-    await expect(page).toHaveURL(/\/workflows\/[0-9a-f-]+$/);
+    await createFreshInstance(page, "E2E Matrix");
 
     const matrix = page.getByTestId("process-matrix");
     await expect(matrix).toBeVisible();
@@ -150,12 +154,7 @@ test.describe("workflows — task drawer (AEL-51)", () => {
     await authenticateWithBypass(page);
 
     // Create a fresh instance so the matrix has tasks.
-    const dialog = await openFirstTemplateNewInstanceDialog(page);
-    await dialog
-      .getByRole("textbox", { name: /instance name/i })
-      .fill(`E2E Drawer ${Date.now()}`);
-    await dialog.getByRole("button", { name: /^create\s*→?$/i }).click();
-    await expect(page).toHaveURL(/\/workflows\/[0-9a-f-]+$/);
+    await createFreshInstance(page, "E2E Drawer");
 
     // Click the first task card.
     const firstCard = page.locator('[data-testid^="task-card-"]').first();
@@ -187,12 +186,7 @@ test.describe("workflows — task drawer (AEL-51)", () => {
 
     await authenticateWithBypass(page);
 
-    const dialog = await openFirstTemplateNewInstanceDialog(page);
-    await dialog
-      .getByRole("textbox", { name: /instance name/i })
-      .fill(`E2E Events Tab ${Date.now()}`);
-    await dialog.getByRole("button", { name: /^create\s*→?$/i }).click();
-    await expect(page).toHaveURL(/\/workflows\/[0-9a-f-]+$/);
+    await createFreshInstance(page, "E2E Events Tab");
 
     const firstCard = page.locator('[data-testid^="task-card-"]').first();
     await firstCard.click();
@@ -207,5 +201,36 @@ test.describe("workflows — task drawer (AEL-51)", () => {
     const eventList = page.getByTestId("td-event-list");
     const emptyState = page.getByTestId("td-events-empty");
     await expect(eventList.or(emptyState)).toBeVisible();
+  });
+});
+
+test.describe("workflows — matrix edit mode (AEL-52)", () => {
+  test("opens the add-task modal and creates a task in an empty cell", async ({
+    page,
+  }) => {
+    test.skip(
+      !hasSupabaseRuntime,
+      "Supabase runtime credentials required for the matrix edit-mode happy path",
+    );
+
+    await authenticateWithBypass(page);
+    await createFreshInstance(page, "E2E Edit Mode");
+
+    await page.getByRole("button", { name: "Edit" }).click();
+    await expect(page).toHaveURL(/edit=1/);
+
+    const addTrigger = page.locator('[data-testid^="matrix-add-task-"]').first();
+    await expect(addTrigger).toBeVisible();
+    await addTrigger.click();
+
+    const modal = page.getByRole("dialog", { name: "New task" });
+    await expect(modal).toBeVisible();
+    await expect(modal.getByText(/·/)).toBeVisible();
+
+    await modal.getByPlaceholder("Task title").fill("E2E created task");
+    await modal.getByRole("button", { name: /create task/i }).click();
+
+    await expect(modal).toBeHidden();
+    await expect(page.getByText("E2E created task")).toBeVisible();
   });
 });

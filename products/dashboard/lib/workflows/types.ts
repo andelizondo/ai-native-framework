@@ -100,6 +100,20 @@ export interface WorkflowTask {
   updatedAt: string;
 }
 
+export interface WorkflowTaskCreateInput {
+  instanceId: string;
+  roleId: string;
+  stageId: string;
+  title: string;
+  description?: string;
+  checkpoint?: boolean;
+  triggers?: WorkflowTrigger[];
+  gates?: WorkflowGate[];
+  agent?: string | null;
+  skill?: string | null;
+  playbook?: string | null;
+}
+
 export interface WorkflowEvent {
   id: string;
   instanceId: string;
@@ -210,8 +224,14 @@ export interface WorkflowRepository {
    */
   listRecentEvents(limit: number): Promise<WorkflowEvent[]>;
   createInstance(templateId: string, label: string): Promise<WorkflowInstanceDetail>;
+  createTask(input: WorkflowTaskCreateInput): Promise<WorkflowTask>;
   updateTask(taskId: string, patch: WorkflowTaskPatch): Promise<WorkflowTask>;
+  deleteTask(taskId: string): Promise<void>;
   addEvent(taskId: string, event: WorkflowEventInput): Promise<WorkflowEvent>;
+  addInstanceEvent(
+    instanceId: string,
+    event: WorkflowEventInput & { taskId?: string | null },
+  ): Promise<WorkflowEvent>;
   getFrameworkItems(type?: FrameworkItemType): Promise<FrameworkItem[]>;
   upsertFrameworkItem(item: FrameworkItem): Promise<FrameworkItem>;
 }

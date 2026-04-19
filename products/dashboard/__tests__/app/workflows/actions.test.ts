@@ -52,7 +52,12 @@ vi.mock("@/lib/workflows/repository.server", () => ({
   getServerWorkflowRepository: mockGetRepo,
 }));
 
-import { resolveCheckpointAction } from "@/app/(dashboard)/workflows/actions";
+import {
+  createTaskAction,
+  deleteTaskAction,
+  moveTaskAction,
+  resolveCheckpointAction,
+} from "@/app/(dashboard)/workflows/actions";
 
 function makeTask(overrides: Partial<WorkflowTask> = {}): WorkflowTask {
   return {
@@ -219,5 +224,107 @@ describe("resolveCheckpointAction precondition gate", () => {
     expect(mockCaptureError).toHaveBeenCalledTimes(1);
     expect(mockRevalidatePath).toHaveBeenCalledWith("/", "layout");
     expect(result.task.status).toBe("complete");
+  });
+});
+
+describe("workflow matrix edit actions", () => {
+  beforeEach(() => {
+    mockGetRepo.mockReset();
+    mockRevalidatePath.mockReset();
+    mockCaptureError.mockReset();
+  });
+
+  it("createTaskAction creates a task and records an event", async () => {
+    const created = makeTask({ id: "task-created", status: "not_started" });
+    const createTask = vi.fn().mockResolvedValue(created);
+    const addEvent = vi.fn().mockResolvedValue({
+      id: "event-2",
+      instanceId: created.instanceId,
+      taskId: created.id,
+      name: "workflow.task_created",
+      description: "",
+      payload: {},
+      createdAt: "2026-04-19T12:00:00Z",
+    });
+
+    mockGetRepo.mockResolvedValue({
+      createTask,
+      addEvent,
+    } satisfies Partial<WorkflowRepository>);
+
+    const result = await createTaskAction({
+      instanceId: created.instanceId,
+      roleId: created.roleId,
+      stageId: created.stageId,
+      title: created.title,
+      description: created.description,
+      skill: "pm",
+      agent: "PM",
+      playbook: "slice-spec",
+    });
+
+    expect(createTask).toHaveBeenCalled();
+    expect(addEvent.mock.calls[0]?.[1].name).toBe("workflow.task_created");
+    expect(mockRevalidatePath).toHaveBeenCalledWith("/", "layout");
+    expect(result.task.id).toBe("task-created");
+  });
+
+  it("moveTaskAction updates the task position and records an event", async () => {
+    const current = makeTask({ id: "task-move", roleId: "sales", stageId: "pre-sales" });
+    const moved = makeTask({ id: "task-move", roleId: "product", stageId: "stage-2" });
+    const getTask = vi.fn().mockResolvedValue(current);
+    const updateTask = vi.fn().mockResolvedValue(moved);
+    const addEvent = vi.fn().mockResolvedValue({
+      id: "event-3",
+      instanceId: moved.instanceId,
+      taskId: moved.id,
+      name: "workflow.task_moved",
+      description: "",
+      payload: {},
+      createdAt: "2026-04-19T12:00:00Z",
+    });
+
+    mockGetRepo.mockResolvedValue({
+      getTask,
+      updateTask,
+      addEvent,
+    } satisfies Partial<WorkflowRepository>);
+
+    const result = await moveTaskAction("task-move", "product", "stage-2");
+
+    expect(updateTask).toHaveBeenCalledWith("task-move", {
+      roleId: "product",
+      stageId: "stage-2",
+    });
+    expect(addEvent.mock.calls[0]?.[1].name).toBe("workflow.task_moved");
+    expect(result.task.roleId).toBe("product");
+  });
+
+  it("deleteTaskAction deletes the task and records an instance event", async () => {
+    const existing = makeTask({ id: "task-delete" });
+    const getTask = vi.fn().mockResolvedValue(existing);
+    const deleteTask = vi.fn().mockResolvedValue(undefined);
+    const addInstanceEvent = vi.fn().mockResolvedValue({
+      id: "event-4",
+      instanceId: existing.instanceId,
+      taskId: null,
+      name: "workflow.task_deleted",
+      description: "",
+      payload: {},
+      createdAt: "2026-04-19T12:00:00Z",
+    });
+
+    mockGetRepo.mockResolvedValue({
+      getTask,
+      deleteTask,
+      addInstanceEvent,
+    } satisfies Partial<WorkflowRepository>);
+
+    await deleteTaskAction("task-delete");
+
+    expect(deleteTask).toHaveBeenCalledWith("task-delete");
+    expect(addInstanceEvent.mock.calls[0]?.[0]).toBe(existing.instanceId);
+    expect(addInstanceEvent.mock.calls[0]?.[1].name).toBe("workflow.task_deleted");
+    expect(mockRevalidatePath).toHaveBeenCalledWith("/", "layout");
   });
 });
