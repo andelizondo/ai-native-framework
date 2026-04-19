@@ -23,8 +23,10 @@ export default function RootLayout({
         {/*
          * Pre-paint theme rehydration. Runs before React hydrates so a
          * persisted preference replaces the default `data-theme="dark"`
-         * without a visible flash. The script body lives in `lib/theme.ts`
-         * so DOM and storage semantics stay in one place.
+         * without a visible flash. The script body lives in
+         * `lib/theme-tokens.ts` (server-safe) and the matching client
+         * runtime lives in `lib/theme.ts`, so DOM and storage semantics
+         * stay in one place.
          */}
         <script
           dangerouslySetInnerHTML={{ __html: THEME_INIT_SCRIPT }}
