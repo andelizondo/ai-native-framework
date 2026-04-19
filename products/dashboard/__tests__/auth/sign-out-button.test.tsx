@@ -141,6 +141,8 @@ describe("SignOutButton", () => {
     );
     expect(mockResetIdentity).not.toHaveBeenCalled();
     expect(mockReplace).not.toHaveBeenCalled();
+    expect(mockRefresh).not.toHaveBeenCalled();
+    expect(mockClearBypassCookieInBrowser).not.toHaveBeenCalled();
     expect(mockCaptureMessage).toHaveBeenCalledWith(
       "Sign-out threw in UI",
       "warning",

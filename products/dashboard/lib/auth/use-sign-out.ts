@@ -87,13 +87,35 @@ export function useSignOut(provider: AuthProvider): {
         });
       }
 
+      // Each cleanup step gets its own try/catch so a failure in one
+      // (e.g. PostHog `reset()` throwing inside `resetIdentity`) does not
+      // skip the others. We still want the bypass cookie cleared and the
+      // sessionStorage marker removed even if analytics state cleanup
+      // misbehaves — otherwise the next sign-in inherits stale identity.
       try {
         resetIdentity();
+      } catch {
+        captureMessage("Sign-out cleanup failed in UI", "warning", {
+          feature: "auth.sign_out",
+          extra: { step: "resetIdentity" },
+        });
+      }
+
+      try {
         clearBypassCookieInBrowser();
+      } catch {
+        captureMessage("Sign-out cleanup failed in UI", "warning", {
+          feature: "auth.sign_out",
+          extra: { step: "clearBypassCookieInBrowser" },
+        });
+      }
+
+      try {
         window.sessionStorage.removeItem(LAST_IDENTIFIED_USER_KEY);
       } catch {
         captureMessage("Sign-out cleanup failed in UI", "warning", {
           feature: "auth.sign_out",
+          extra: { step: "sessionStorage.removeItem" },
         });
       }
 
