@@ -462,6 +462,88 @@ export async function startTaskAction(
   return { task };
 }
 
+/**
+ * Stop an in-flight task run: persists `status: "blocked"` (failed in UI)
+ * and records `workflow.run_cancelled`. Only `active` tasks accept this path.
+ */
+export async function cancelRunningTaskAction(
+  taskId: string,
+): Promise<{ task: WorkflowTask }> {
+  const trimmedId = normalizeTaskField(taskId, "taskId", 80);
+  if (!trimmedId) {
+    throw new Error("cancelRunningTaskAction: taskId is required");
+  }
+
+  const repo = await getServerWorkflowRepository();
+  const current = await repo.getTask(trimmedId);
+  if (!current) {
+    throw new Error("cancelRunningTaskAction: task not found");
+  }
+  if (current.status !== "active") {
+    throw new Error("cancelRunningTaskAction: task is not active");
+  }
+
+  const task = await repo.updateTask(trimmedId, { status: "blocked" });
+
+  try {
+    await repo.addEvent(trimmedId, {
+      name: "workflow.run_cancelled",
+      description: `Failed run: ${task.title}`,
+      payload: { task_id: task.id, instance_id: task.instanceId },
+    });
+  } catch (eventError) {
+    captureError(eventError, {
+      feature: "workflows.cancel_run",
+      action: "addEvent",
+      extra: { task_id: task.id, instance_id: task.instanceId },
+    });
+  }
+
+  revalidatePath("/", "layout");
+  return { task };
+}
+
+/**
+ * Resume a failed playbook run: `blocked` → `active`.
+ * Used when the user chooses Retry from the Task Drawer playbook control.
+ */
+export async function retryBlockedTaskAction(
+  taskId: string,
+): Promise<{ task: WorkflowTask }> {
+  const trimmedId = normalizeTaskField(taskId, "taskId", 80);
+  if (!trimmedId) {
+    throw new Error("retryBlockedTaskAction: taskId is required");
+  }
+
+  const repo = await getServerWorkflowRepository();
+  const current = await repo.getTask(trimmedId);
+  if (!current) {
+    throw new Error("retryBlockedTaskAction: task not found");
+  }
+  if (current.status !== "blocked") {
+    throw new Error("retryBlockedTaskAction: task is not blocked");
+  }
+
+  const task = await repo.updateTask(trimmedId, { status: "active" });
+
+  try {
+    await repo.addEvent(trimmedId, {
+      name: "workflow.run_retried",
+      description: `Retried run: ${task.title}`,
+      payload: { task_id: task.id, instance_id: task.instanceId },
+    });
+  } catch (eventError) {
+    captureError(eventError, {
+      feature: "workflows.retry_run",
+      action: "addEvent",
+      extra: { task_id: task.id, instance_id: task.instanceId },
+    });
+  }
+
+  revalidatePath("/", "layout");
+  return { task };
+}
+
 export async function deleteTaskAction(taskId: string): Promise<void> {
   const trimmedTaskId = normalizeTaskField(taskId, "taskId", 80);
   if (!trimmedTaskId) {

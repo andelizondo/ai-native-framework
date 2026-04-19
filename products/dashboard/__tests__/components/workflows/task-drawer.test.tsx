@@ -35,18 +35,32 @@ import { TaskDrawer } from "@/components/workflows/task-drawer";
 
 // ── Module mocks ─────────────────────────────────────────────────────────────
 
-const { mockApprove, mockReject, mockUpdateTG, mockEmitEvent, mockCaptureError } =
-  vi.hoisted(() => ({
-    mockApprove: vi.fn(),
-    mockReject: vi.fn(),
-    mockUpdateTG: vi.fn(),
-    mockEmitEvent: vi.fn(),
-    mockCaptureError: vi.fn(),
-  }));
+const {
+  mockApprove,
+  mockReject,
+  mockStart,
+  mockCancelRun,
+  mockRetryBlocked,
+  mockUpdateTG,
+  mockEmitEvent,
+  mockCaptureError,
+} = vi.hoisted(() => ({
+  mockApprove: vi.fn(),
+  mockReject: vi.fn(),
+  mockStart: vi.fn(),
+  mockCancelRun: vi.fn(),
+  mockRetryBlocked: vi.fn(),
+  mockUpdateTG: vi.fn(),
+  mockEmitEvent: vi.fn(),
+  mockCaptureError: vi.fn(),
+}));
 
 vi.mock("@/app/(dashboard)/workflows/actions", () => ({
   approveDrawerCheckpointAction: mockApprove,
   rejectDrawerCheckpointAction: mockReject,
+  startTaskAction: mockStart,
+  cancelRunningTaskAction: mockCancelRun,
+  retryBlockedTaskAction: mockRetryBlocked,
   updateTaskTriggerGatesAction: mockUpdateTG,
 }));
 
@@ -137,6 +151,7 @@ function renderDrawer(
   events: WorkflowEvent[] = [],
   onClose = vi.fn(),
   onTaskUpdate = vi.fn(),
+  onOpenPlaybookPrompt?: () => void,
 ) {
   const task = makeTask(taskOverrides);
   const instance = makeInstance([task], events);
@@ -149,6 +164,7 @@ function renderDrawer(
       template={TEMPLATE}
       onClose={onClose}
       onTaskUpdate={onTaskUpdate}
+      onOpenPlaybookPrompt={onOpenPlaybookPrompt}
     />,
   );
 
@@ -161,6 +177,9 @@ describe("TaskDrawer", () => {
   beforeEach(() => {
     mockApprove.mockReset();
     mockReject.mockReset();
+    mockStart.mockReset();
+    mockCancelRun.mockReset();
+    mockRetryBlocked.mockReset();
     mockUpdateTG.mockReset();
     mockEmitEvent.mockReset();
     mockCaptureError.mockReset();
@@ -202,19 +221,98 @@ describe("TaskDrawer", () => {
       expect(screen.getByTestId("td-reject-btn")).toBeInTheDocument();
     });
 
-    it("shows Start agent button for not_started task", () => {
-      renderDrawer({ status: "not_started", checkpoint: false });
+    it("shows Start agent button for not_started task with playbook", () => {
+      renderDrawer({ status: "not_started", checkpoint: false, playbook: "demo-pb" });
       expect(screen.getByTestId("td-start-btn")).toBeInTheDocument();
+      const playbookCard = screen.getByTestId("td-playbook-card");
+      expect(playbookCard).not.toHaveAttribute("role", "button");
     });
 
-    it("shows View live run button for active task", () => {
-      renderDrawer({ status: "active", checkpoint: false });
-      expect(screen.getByTestId("td-view-run-btn")).toBeInTheDocument();
+    it("shows active playbook row with stop control for running task", () => {
+      renderDrawer({ status: "active", checkpoint: false, playbook: "demo-pb" });
+      const playbookCard = screen.getByTestId("td-playbook-card");
+      expect(playbookCard).toHaveAttribute("role", "button");
+      expect(screen.getByTestId("td-pb-stop-run-btn")).toBeInTheDocument();
     });
 
     it("shows no action card for complete task", () => {
       renderDrawer({ status: "complete", checkpoint: false });
       expect(screen.queryByTestId("td-action-card")).not.toBeInTheDocument();
+    });
+  });
+
+  describe("Cancel run", () => {
+    it("calls cancelRunningTaskAction and onTaskUpdate when stop is clicked", async () => {
+      const updatedTask = makeTask({
+        status: "blocked",
+        checkpoint: false,
+        playbook: "demo-pb",
+      });
+      mockCancelRun.mockResolvedValue({ task: updatedTask });
+      const onTaskUpdate = vi.fn();
+      const { task } = renderDrawer(
+        { status: "active", checkpoint: false, playbook: "demo-pb" },
+        [],
+        vi.fn(),
+        onTaskUpdate,
+      );
+
+      await act(async () => {
+        fireEvent.click(screen.getByTestId("td-pb-stop-run-btn"));
+      });
+
+      expect(mockCancelRun).toHaveBeenCalledWith(task.id);
+      expect(onTaskUpdate).toHaveBeenCalledWith(updatedTask);
+      expect(mockEmitEvent).toHaveBeenCalledWith("workflow.run_cancelled", {
+        task_id: task.id,
+        instance_id: task.instanceId,
+      });
+    });
+  });
+
+  describe("Retry run", () => {
+    it("calls retryBlockedTaskAction and onTaskUpdate when retry is clicked", async () => {
+      const updatedTask = makeTask({
+        status: "active",
+        checkpoint: false,
+        playbook: "demo-pb",
+      });
+      mockRetryBlocked.mockResolvedValue({ task: updatedTask });
+      const onTaskUpdate = vi.fn();
+      const { task } = renderDrawer(
+        { status: "blocked", checkpoint: false, playbook: "demo-pb" },
+        [],
+        vi.fn(),
+        onTaskUpdate,
+      );
+
+      await act(async () => {
+        fireEvent.click(screen.getByTestId("td-pb-retry-run-btn"));
+      });
+
+      expect(mockRetryBlocked).toHaveBeenCalledWith(task.id);
+      expect(onTaskUpdate).toHaveBeenCalledWith(updatedTask);
+      expect(mockEmitEvent).toHaveBeenCalledWith("workflow.run_retried", {
+        task_id: task.id,
+        instance_id: task.instanceId,
+      });
+    });
+  });
+
+  describe("Playbook chat affordance", () => {
+    it("invokes onOpenPlaybookPrompt when the playbook card is clicked", async () => {
+      const onOpenPlaybookPrompt = vi.fn();
+      const user = userEvent.setup();
+      renderDrawer(
+        { status: "complete", checkpoint: false, playbook: "demo-pb" },
+        [],
+        vi.fn(),
+        vi.fn(),
+        onOpenPlaybookPrompt,
+      );
+
+      await user.click(screen.getByTestId("td-playbook-card"));
+      expect(onOpenPlaybookPrompt).toHaveBeenCalledTimes(1);
     });
   });
 

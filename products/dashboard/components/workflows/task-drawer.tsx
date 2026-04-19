@@ -1,12 +1,11 @@
 "use client";
 
 import { useEffect, useRef, useState, useTransition } from "react";
-import { BookOpen, Check, Play, X, XCircle } from "lucide-react";
+import { BookOpen, Check, CircleAlert, Play, RotateCw, Square, X } from "lucide-react";
 
 import { captureError } from "@/lib/monitoring";
 import { emitEvent } from "@/lib/events";
 import { cn } from "@/lib/utils";
-import { getRoleColor } from "@/lib/workflows/role-colors";
 import type {
   FrameworkItem,
   WorkflowEvent,
@@ -19,7 +18,9 @@ import type {
 } from "@/lib/workflows/types";
 import {
   approveDrawerCheckpointAction,
+  cancelRunningTaskAction,
   rejectDrawerCheckpointAction,
+  retryBlockedTaskAction,
   startTaskAction,
   updateTaskTriggerGatesAction,
 } from "@/app/(dashboard)/workflows/actions";
@@ -155,7 +156,7 @@ const STATUS_LABELS: Record<WorkflowTask["status"], string> = {
   complete: "Complete",
   active: "In progress",
   pending_approval: "Pending approval",
-  blocked: "Blocked",
+  blocked: "Failed",
   not_started: "Not started",
 };
 
@@ -166,10 +167,14 @@ interface DetailsTabProps {
   playbookOptions: FrameworkItem[];
   isPending: boolean;
   onStart: () => void;
+  onCancelRun: () => void;
+  onRetryRun: () => void;
   onApprove: () => void;
   onReject: () => void;
   onTriggersChange: (triggers: WorkflowTrigger[]) => void;
   onGatesChange: (gates: WorkflowGate[]) => void;
+  /** Playbook row (post–not_started) — opens chat/prompt when wired. */
+  onOpenPlaybookPrompt?: () => void;
 }
 
 function DetailsTab({
@@ -179,15 +184,18 @@ function DetailsTab({
   playbookOptions,
   isPending,
   onStart,
+  onCancelRun,
+  onRetryRun,
   onApprove,
   onReject,
   onTriggersChange,
   onGatesChange,
+  onOpenPlaybookPrompt,
 }: DetailsTabProps) {
   const isPendingApproval = task.status === "pending_approval";
   const isActive = task.status === "active";
   const isNotStarted = task.status === "not_started";
-  const roleColor = getRoleColor(task.roleId, roles);
+  const playbookCardClickable = !isNotStarted;
   const skillIcon = task.skill ? (SKILL_ICONS[task.skill] ?? "🤖") : "🤖";
   const skillItem = task.skill
     ? skillOptions.find((item) => item.name === task.skill || item.id === task.skill)
@@ -273,12 +281,40 @@ function DetailsTab({
         <div className="td-sec">
           <div className="td-sec-lbl">Playbook</div>
           <div
-            className={cn("td-playbook", isActive && "td-playbook-active")}
-            role={isActive ? "button" : undefined}
-            tabIndex={isActive ? 0 : undefined}
-            aria-label={isActive ? "View live run" : undefined}
-            title={isActive ? "Live run view coming in PR 10" : undefined}
-            data-testid={isActive ? "td-view-run-btn" : undefined}
+            className={cn(
+              "td-playbook",
+              `td-playbook--${task.status}`,
+              isActive && "td-playbook-active",
+              playbookCardClickable && "td-playbook-clickable",
+            )}
+            data-testid="td-playbook-card"
+            role={playbookCardClickable ? "button" : undefined}
+            tabIndex={playbookCardClickable ? 0 : undefined}
+            aria-label={playbookCardClickable ? "Open playbook chat" : undefined}
+            title={
+              playbookCardClickable
+                ? isActive
+                  ? "Open playbook chat — live run surface ships in a later release"
+                  : "Open playbook chat"
+                : undefined
+            }
+            onClick={
+              playbookCardClickable
+                ? () => {
+                    onOpenPlaybookPrompt?.();
+                  }
+                : undefined
+            }
+            onKeyDown={
+              playbookCardClickable
+                ? (e) => {
+                    if (e.key === "Enter" || e.key === " ") {
+                      e.preventDefault();
+                      onOpenPlaybookPrompt?.();
+                    }
+                  }
+                : undefined
+            }
           >
             <div className="td-pb-icon">
               {playbookItem?.icon ? (
@@ -306,13 +342,32 @@ function DetailsTab({
                   disabled={isPending}
                   aria-label="Start playbook"
                   data-testid="td-start-btn"
-                  onClick={onStart}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onStart();
+                  }}
                 >
                   <Play size={9} aria-hidden />
                 </button>
               )}
               {isActive && (
-                <div className="td-pb-state-busy" aria-label="Running" />
+                <div className="td-pb-busy-wrap">
+                  <div className="td-pb-state-busy" aria-hidden />
+                  <button
+                    type="button"
+                    className="td-pb-stop-btn"
+                    disabled={isPending}
+                    aria-label="Stop and cancel run"
+                    title="Stop and cancel run"
+                    data-testid="td-pb-stop-run-btn"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      onCancelRun();
+                    }}
+                  >
+                    <Square size={9} fill="currentColor" aria-hidden />
+                  </button>
+                </div>
               )}
               {task.status === "complete" && (
                 <div className="td-pb-state-done" aria-label="Done">
@@ -320,8 +375,24 @@ function DetailsTab({
                 </div>
               )}
               {task.status === "blocked" && (
-                <div className="td-pb-state-failed" aria-label="Failed">
-                  <XCircle size={10} aria-hidden />
+                <div className="td-pb-failed-wrap" aria-label="Failed">
+                  <div className="td-pb-failed-icon">
+                    <CircleAlert size={16} strokeWidth={2.25} aria-hidden />
+                  </div>
+                  <button
+                    type="button"
+                    className="td-pb-retry-btn"
+                    disabled={isPending}
+                    aria-label="Retry playbook run"
+                    title="Retry playbook run"
+                    data-testid="td-pb-retry-run-btn"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      onRetryRun();
+                    }}
+                  >
+                    <RotateCw size={11} strokeWidth={2.25} aria-hidden />
+                  </button>
                 </div>
               )}
             </div>
@@ -409,6 +480,11 @@ export interface TaskDrawerProps {
   playbookOptions?: FrameworkItem[];
   onClose: () => void;
   onTaskUpdate: (task: WorkflowTask) => void;
+  /**
+   * Invoked when the user activates the playbook row (any status except
+   * `not_started`) to open the agent chat / prompt surface (implemented later).
+   */
+  onOpenPlaybookPrompt?: () => void;
 }
 
 export function TaskDrawer({
@@ -420,6 +496,7 @@ export function TaskDrawer({
   playbookOptions = [],
   onClose,
   onTaskUpdate,
+  onOpenPlaybookPrompt,
 }: TaskDrawerProps) {
   const [activeTab, setActiveTab] = useState<DrawerTab>("details");
   const [isPending, startTransition] = useTransition();
@@ -466,6 +543,38 @@ export function TaskDrawer({
         });
       } catch (err) {
         captureError(err, { feature: "workflows.start_task", extra: { task_id: task.id } });
+      }
+    });
+  }
+
+  function handleCancelRun() {
+    if (!task) return;
+    startTransition(async () => {
+      try {
+        const { task: updated } = await cancelRunningTaskAction(task.id);
+        onTaskUpdate(updated);
+        emitEvent("workflow.run_cancelled", {
+          task_id: task.id,
+          instance_id: task.instanceId,
+        });
+      } catch (err) {
+        captureError(err, { feature: "workflows.cancel_run", extra: { task_id: task.id } });
+      }
+    });
+  }
+
+  function handleRetryRun() {
+    if (!task) return;
+    startTransition(async () => {
+      try {
+        const { task: updated } = await retryBlockedTaskAction(task.id);
+        onTaskUpdate(updated);
+        emitEvent("workflow.run_retried", {
+          task_id: task.id,
+          instance_id: task.instanceId,
+        });
+      } catch (err) {
+        captureError(err, { feature: "workflows.retry_run", extra: { task_id: task.id } });
       }
     });
   }
@@ -613,10 +722,13 @@ export function TaskDrawer({
               playbookOptions={playbookOptions}
               isPending={isPending}
               onStart={handleStart}
+              onCancelRun={handleCancelRun}
+              onRetryRun={handleRetryRun}
               onApprove={handleApprove}
               onReject={handleReject}
               onTriggersChange={handleTriggersChange}
               onGatesChange={handleGatesChange}
+              onOpenPlaybookPrompt={onOpenPlaybookPrompt}
             />
           )}
           {activeTab === "events" && <EventsTab events={taskEvents} />}

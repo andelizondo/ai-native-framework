@@ -518,9 +518,9 @@ body {
 .task-card.bar-complete::before {
   opacity: 0.35;
 }
-.task-card.bar-blocked::before {
-  background: #ef4444;
-  opacity: 1;
+/* DB `blocked` / UI "failed" — keep role accent, not error red */
+.task-card.bar-cancelled::before {
+  opacity: 0.4;
 }
 @keyframes ainative-bar-pulse {
   0%,
@@ -952,6 +952,39 @@ body {
   background: var(--bg-3);
   border: 1px solid var(--border);
   min-height: 54px;
+  transition:
+    background 0.14s ease,
+    border-color 0.14s ease;
+}
+/* Subtle surface tint by task status (matches pill token families) */
+.td-playbook--not_started {
+  background: color-mix(in srgb, var(--pill-ns-bg) 58%, var(--bg-3));
+}
+.td-playbook--active {
+  background: color-mix(in srgb, var(--pill-active-bg) 50%, var(--bg-3));
+  border-color: color-mix(in srgb, var(--pill-active-d) 22%, var(--border));
+}
+.td-playbook--pending_approval {
+  background: color-mix(in srgb, var(--pill-pending-bg) 52%, var(--bg-3));
+  border-color: color-mix(in srgb, var(--pill-pending-d) 24%, var(--border));
+}
+.td-playbook--complete {
+  background: color-mix(in srgb, var(--pill-complete-bg) 52%, var(--bg-3));
+  border-color: color-mix(in srgb, var(--pill-complete-d) 22%, var(--border));
+}
+.td-playbook--blocked {
+  background: color-mix(in srgb, var(--pill-blocked-bg) 52%, var(--bg-3));
+  border-color: color-mix(in srgb, var(--pill-blocked-d) 24%, var(--border));
+}
+.td-playbook-clickable {
+  cursor: pointer;
+}
+.td-playbook-clickable:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+.td-playbook-clickable:hover {
+  border-color: var(--border-hi);
 }
 .td-agent-profile-icon,
 .td-pb-icon {
@@ -1300,9 +1333,9 @@ body {
   width: 24px;
   height: 24px;
   border-radius: 50%;
-  border: 1px solid var(--border-hi);
-  background: var(--bg-4);
-  color: var(--t3);
+  border: 1px solid color-mix(in srgb, var(--pill-complete-d) 38%, var(--border-hi));
+  background: color-mix(in srgb, var(--pill-complete-bg) 70%, var(--bg-4));
+  color: var(--pill-complete-t);
   cursor: pointer;
   display: flex;
   align-items: center;
@@ -1311,17 +1344,16 @@ body {
   padding: 0;
 }
 .td-pb-run-btn:hover:not(:disabled) {
-  background: var(--primary-bg);
-  border-color: var(--primary);
-  color: var(--accent);
+  background: color-mix(in srgb, var(--pill-complete-bg) 95%, var(--bg-4));
+  border-color: color-mix(in srgb, var(--pill-complete-d) 55%, var(--border-hi));
+  color: var(--pill-complete-d);
 }
 .td-pb-run-btn:disabled {
   opacity: 0.4;
   cursor: not-allowed;
 }
 .td-pb-state-busy,
-.td-pb-state-done,
-.td-pb-state-failed {
+.td-pb-state-done {
   width: 18px;
   height: 18px;
   border-radius: 50%;
@@ -1329,6 +1361,73 @@ body {
   align-items: center;
   justify-content: center;
   flex-shrink: 0;
+}
+/* Running spinner + hover/focus stop (cancels run → `blocked` in DB) */
+.td-pb-busy-wrap {
+  position: relative;
+  width: 24px;
+  height: 24px;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.td-pb-busy-wrap .td-pb-state-busy {
+  position: absolute;
+  inset: 3px;
+}
+.td-pb-stop-btn {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  border-radius: 50%;
+  padding: 0;
+  cursor: pointer;
+  background: var(--bg-4);
+  color: var(--t2);
+  opacity: 0;
+  pointer-events: none;
+  transition:
+    opacity 0.12s ease,
+    background 0.12s ease,
+    color 0.12s ease;
+}
+.td-pb-stop-btn:hover:not(:disabled),
+.td-pb-stop-btn:focus-visible:not(:disabled) {
+  background: rgba(239, 68, 68, 0.12);
+  color: #f87171;
+}
+.td-pb-stop-btn:disabled {
+  opacity: 0;
+  cursor: not-allowed;
+}
+@media (hover: hover) {
+  .td-pb-busy-wrap:hover .td-pb-state-busy {
+    opacity: 0;
+  }
+  .td-pb-busy-wrap:hover .td-pb-stop-btn:not(:disabled) {
+    opacity: 1;
+    pointer-events: auto;
+  }
+}
+.td-pb-busy-wrap:focus-within .td-pb-state-busy {
+  opacity: 0;
+}
+.td-pb-busy-wrap:focus-within .td-pb-stop-btn:not(:disabled) {
+  opacity: 1;
+  pointer-events: auto;
+}
+@media (hover: none) {
+  .td-pb-busy-wrap .td-pb-stop-btn:not(:disabled) {
+    opacity: 1;
+    pointer-events: auto;
+  }
+  .td-pb-busy-wrap .td-pb-state-busy {
+    opacity: 0.25;
+  }
 }
 .td-pb-state-busy {
   background: transparent;
@@ -1340,9 +1439,75 @@ body {
   background: rgba(16, 185, 129, 0.15);
   color: #34d399;
 }
-.td-pb-state-failed {
-  background: rgba(239, 68, 68, 0.12);
-  color: #f87171;
+/* Failed playbook — hover/focus shows retry (blocked → active) */
+.td-pb-failed-wrap {
+  position: relative;
+  width: 24px;
+  height: 24px;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.td-pb-failed-wrap .td-pb-failed-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--pill-blocked-t);
+  transition: opacity 0.12s ease;
+}
+.td-pb-retry-btn {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  border-radius: 50%;
+  padding: 0;
+  cursor: pointer;
+  background: var(--bg-4);
+  color: var(--t2);
+  opacity: 0;
+  pointer-events: none;
+  transition:
+    opacity 0.12s ease,
+    background 0.12s ease,
+    color 0.12s ease;
+}
+.td-pb-retry-btn:hover:not(:disabled),
+.td-pb-retry-btn:focus-visible:not(:disabled) {
+  background: rgba(16, 185, 129, 0.14);
+  color: #34d399;
+}
+.td-pb-retry-btn:disabled {
+  opacity: 0;
+  cursor: not-allowed;
+}
+@media (hover: hover) {
+  .td-pb-failed-wrap:hover .td-pb-failed-icon {
+    opacity: 0;
+  }
+  .td-pb-failed-wrap:hover .td-pb-retry-btn:not(:disabled) {
+    opacity: 1;
+    pointer-events: auto;
+  }
+}
+.td-pb-failed-wrap:focus-within .td-pb-failed-icon {
+  opacity: 0;
+}
+.td-pb-failed-wrap:focus-within .td-pb-retry-btn:not(:disabled) {
+  opacity: 1;
+  pointer-events: auto;
+}
+@media (hover: none) {
+  .td-pb-failed-wrap .td-pb-retry-btn:not(:disabled) {
+    opacity: 1;
+    pointer-events: auto;
+  }
+  .td-pb-failed-wrap .td-pb-failed-icon {
+    opacity: 0.22;
+  }
 }
 @keyframes ainative-spin {
   from { transform: rotate(0deg); }
@@ -1372,7 +1537,7 @@ body {
   pointer-events: none;
 }
 .td-playbook-active:hover {
-  background: var(--bg-4);
+  background: color-mix(in srgb, var(--pill-active-bg) 38%, var(--bg-4));
 }
 @keyframes ainative-wave {
   0%   { left: -60%; }
