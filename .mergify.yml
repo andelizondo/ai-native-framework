@@ -29,6 +29,13 @@ queue_rules:
   # staging → main promotion. Uses regular merge (not squash) to preserve
   # conventional commit history so release-please can detect feat/fix/breaking signals.
   # No separate code review required when CI is green; code was already reviewed on staging.
+  #
+  # `migrate-staging` is required: the data tier of the 3-tier environment model
+  # (see ai/playbooks/environment-separation.md Database tier section). The
+  # promotion PR's head SHA is the latest staging commit, and the
+  # supabase-migrate workflow's `migrate-staging` job runs on push to staging.
+  # Requiring this check here means we cannot promote app code that depends on
+  # a migration that failed (or never reached) the staging Supabase project.
   - name: staging-promotion
     autoqueue: true
     batch_size: 1
@@ -43,6 +50,7 @@ queue_rules:
       - check-success = validate
       - check-success = test
       - check-success = decide
+      - check-success = migrate-staging
     merge_conditions:
       - base = main
       - head = staging
@@ -52,6 +60,7 @@ queue_rules:
       - check-success = validate
       - check-success = test
       - check-success = decide
+      - check-success = migrate-staging
 
   # Back-merge of main into staging after a production release. Carries no new
   # code (only commits already merged through their own reviewed PRs: the
@@ -118,6 +127,7 @@ queue_rules:
       - check-success = e2e
       - check-success = CodeRabbit
       - check-success = decide
+      - check-success = migrate-validate
     merge_conditions:
       - base = staging
       - -head ~= ^chore/back-merge-main-after-
@@ -129,6 +139,7 @@ queue_rules:
       - check-success = e2e
       - check-success = CodeRabbit
       - check-success = decide
+      - check-success = migrate-validate
 
   - name: low-risk
     autoqueue: true

@@ -134,8 +134,9 @@ For products with observability instrumentation (PostHog, Sentry), establish env
 4. **Scope analytics tokens to Production only.** In Vercel → Environment Variables, set `NEXT_PUBLIC_POSTHOG_PROJECT_TOKEN` (and `NEXT_PUBLIC_POSTHOG_HOST`) to Production environment only. PostHog guards initialization on `Boolean(token)` — no code change required. Sentry remains enabled in Preview/staging for real error visibility; rely on environment tags for dashboard filtering.
 5. **Redirect nightly CI** from the production URL to the staging URL. Set a `STAGING_URL` repository variable pointing at the stable staging alias. Update nightly workflow defaults to use `STAGING_URL` as the fallback target instead of the production origin.
 6. **Wire release automation.** `staging` → `main` is promoted via release-please using a regular merge (not squash) to preserve conventional commit history. No separate code review is required when CI is green on `staging`.
+7. **Separate the data tier.** For products with a hosted database (e.g. Supabase), provision one project per environment (`<product>-staging`, `<product>-production`) under the same organization, set per-environment GitHub Environment secrets (`SUPABASE_PROJECT_REF`, `SUPABASE_DB_PASSWORD`) plus a repo-level access token, wire `.github/workflows/supabase-migrate.yml` (validate / apply-staging / apply-production), require the `migrate-staging` check on the `staging-promotion` Mergify queue, and scope `NEXT_PUBLIC_SUPABASE_URL` / `NEXT_PUBLIC_SUPABASE_ANON_KEY` per Vercel environment so Preview points at staging and Production at production.
 
-See `ai/playbooks/environment-separation.md` for the full reusable procedure.
+See `ai/playbooks/environment-separation.md` for the full reusable procedure (including the Database tier section).
 
 ## Baseline applied in this repository
 
@@ -167,6 +168,7 @@ The current repository-foundation baseline in this repository applies the follow
 - Nightly CI target: `staging.ai-native-framework.app` (`STAGING_URL` repo variable)
 - PostHog token: Vercel Production environment only
 - Sentry: active on all environments; environment tag used for dashboard filtering
+- Data tier: one Supabase project per environment (staging + production) under one organization; migrations applied via `.github/workflows/supabase-migrate.yml`; `migrate-validate` required on `staging-integration`, `migrate-staging` required on `staging-promotion`; `production` GitHub Environment requires reviewer approval before `migrate-production` runs
 
 ## Notes for future variants
 
