@@ -485,6 +485,69 @@ events:
             type: string
           stage_id:
             type: string
+    - name: "workflow.task_started"
+      description: "User started a not_started task run from the Task Drawer playbook control."
+      version: "1.0.0"
+      schema_version: "1.0.0"
+      classification:
+        pii: none
+        idempotency: recommended
+        ordering: at_least_once
+      emitted_by:
+        - "components.task-drawer"
+      payload:
+        type: object
+        additionalProperties: false
+        required:
+          - task_id
+          - instance_id
+        properties:
+          task_id:
+            type: string
+          instance_id:
+            type: string
+    - name: "workflow.run_cancelled"
+      description: "User stopped an active task run from the Task Drawer; persisted as blocked (failed in UI)."
+      version: "1.0.0"
+      schema_version: "1.0.0"
+      classification:
+        pii: none
+        idempotency: recommended
+        ordering: at_least_once
+      emitted_by:
+        - "components.task-drawer"
+      payload:
+        type: object
+        additionalProperties: false
+        required:
+          - task_id
+          - instance_id
+        properties:
+          task_id:
+            type: string
+          instance_id:
+            type: string
+    - name: "workflow.run_retried"
+      description: "User retried a blocked (failed) task run from the Task Drawer playbook control."
+      version: "1.0.0"
+      schema_version: "1.0.0"
+      classification:
+        pii: none
+        idempotency: recommended
+        ordering: at_least_once
+      emitted_by:
+        - "components.task-drawer"
+      payload:
+        type: object
+        additionalProperties: false
+        required:
+          - task_id
+          - instance_id
+        properties:
+          task_id:
+            type: string
+          instance_id:
+            type: string
 
 observability:
   logs:
