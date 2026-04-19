@@ -20,10 +20,10 @@ ideation:
     produce durable artifacts but there is no lightweight UI that surfaces them in one place.
   user: "Solo founders and small product teams using the AI-native framework to build products."
   goal: |
-    Ship a governed dashboard shell with canonical authentication — left navigation, top bar,
-    sign-in entrypoint, and a Hello World card behind a protected session — that serves as the
-    boilerplate UI host for all future product slices across the Ideation, Design, and
-    Implementation phases.
+    Ship a governed dashboard shell with canonical authentication — collapsible left sidebar,
+    breadcrumb top bar, sign-in entrypoint, and an Overview screen behind a protected session —
+    that serves as the boilerplate UI host for the workflow canvas, framework library, and all
+    future product slices.
   constraints:
     - "Must use the framework-mandated frontend stack: Next.js + Tailwind + shadcn/ui."
     - "Dashboard lives inside the existing ai-native-framework repository under products/dashboard/."
@@ -32,10 +32,10 @@ ideation:
     - "Provider-agnostic: no vendor-specific assumptions in core business logic."
   success_metrics:
     - name: "shell_renders"
-      definition: "Dashboard shell loads with left menu, top bar, and Hello World card in under 2 seconds on localhost."
+      definition: "Dashboard shell loads with collapsible sidebar, breadcrumb top bar, and Overview screen in under 2 seconds on localhost."
       target: "100% of local dev runs"
-    - name: "phase_nav_reachable"
-      definition: "All three phase navigation items (Ideation, Design, Implementation) are rendered and clickable."
+    - name: "shell_nav_reachable"
+      definition: "Overview, Skills, Playbooks, Event Feed, and Settings nav items are rendered and clickable."
       target: "100% of renders"
     - name: "auth_login_reachable"
       definition: "Unauthenticated users are redirected to /login and can request a magic link."
@@ -48,23 +48,24 @@ ideation:
 
 design:
   objective: |
-    Build a governed Next.js + Tailwind + shadcn/ui dashboard shell with three navigation phases
-    (Ideation, Design, Implementation), a persistent left sidebar, a top bar, a canonical login
-    flow, and a Hello World card on the default protected route. The shell must be observable,
-    spec-backed, and harness-ready.
+    Build a governed Next.js + Tailwind + shadcn/ui dashboard shell with a collapsible left
+    sidebar (Overview, Framework → Skills + Playbooks, Workflows, Workspace → Event Feed +
+    Settings), a route-derived breadcrumb top bar, a canonical login flow, and an Overview
+    screen on the default protected route. The shell must be observable, spec-backed, and
+    harness-ready.
   requirements:
     - id: "FR-001"
       priority: must
-      statement: "The shell MUST render a persistent left sidebar with navigation items for Ideation, Design, and Implementation."
+      statement: "The shell MUST render a persistent collapsible left sidebar with Overview, a Framework section (Skills, Playbooks), a Workflows section, and a Workspace section (Event Feed, Settings)."
     - id: "FR-002"
       priority: must
-      statement: "The shell MUST render a top bar with the product name, a lightweight user/context area, and an explicit sign-out action."
+      statement: "The shell MUST render a top bar with a route-derived breadcrumb and a placeholder My Tasks pill."
     - id: "FR-003"
       priority: must
-      statement: "The default route (/) MUST render a Hello World card using shadcn/ui Card component."
+      statement: "The default route (/) MUST render an Overview screen with a greeting band, four stat cards, and a two-column grid of placeholder cards (Process health, Recent events, My tasks, Agent pulse)."
     - id: "FR-004"
       priority: must
-      statement: "The dashboard MUST emit a dashboard.shell_viewed event on every page load."
+      statement: "The dashboard MUST emit a dashboard.shell_viewed event on every page load and tag the active monitoring scope with component=workflow_canvas."
     - id: "FR-005"
       priority: must
       statement: "The product spec MUST be schema-valid and pass npm run validate before any slice ships."
@@ -73,22 +74,22 @@ design:
       statement: "The dashboard MUST expose a public /login route with magic-link authentication as the default sign-in method."
     - id: "FR-007"
       priority: must
-      statement: "The dashboard MUST gate /, /ideation, /design, and /implementation behind an authenticated session."
+      statement: "The dashboard MUST gate every route under /(dashboard) — including /, /framework/skills, /framework/playbooks, /events, and /settings — behind an authenticated session."
     - id: "FR-008"
       priority: must
       statement: "The dashboard MUST handle auth callback completion and return the user to the protected shell on success or back to /login with a governed error state on failure."
     - id: "FR-009"
       priority: must
-      statement: "The dashboard MUST provide a sign-out action that clears product analytics and monitoring identity state before redirecting to /login."
+      statement: "The dashboard MUST provide a sign-out action from the sidebar user menu that clears product analytics and monitoring identity state before redirecting to /login."
     - id: "FR-010"
       priority: should
       statement: "The auth abstraction SHOULD reserve provider expansion for Google OAuth without requiring page or middleware rewrites."
     - id: "FR-011"
       priority: should
-      statement: "Navigation active state SHOULD be visually indicated in the left sidebar."
+      statement: "Navigation active state SHOULD be visually indicated in the sidebar via aria-current and the accent token."
     - id: "FR-012"
       priority: should
-      statement: "The shell SHOULD be responsive down to 1024px viewport width."
+      statement: "The shell SHOULD be responsive down to 1024px viewport width and SHOULD persist sidebar collapse and theme preference across reloads via localStorage with a pre-paint init script."
   system_design: |
     Stack: Next.js 15 (App Router) + Tailwind CSS 4 + shadcn/ui.
     Layout: root layout.tsx wraps every page. Route groups split public auth UI from the
@@ -102,40 +103,51 @@ design:
       - Provider expansion is explicit in config so Google OAuth can be added later without
         rewriting routes, middleware, or monitoring logic.
     Authenticated shell:
-      - Left: <Sidebar /> — fixed width, phase navigation, brand mark.
-      - Right: <TopBar /> + <main> slot for page content.
-      - Layout-level identity sync tags PostHog and Sentry with the authenticated user UUID.
+      - Left: <Sidebar /> — collapsible (248px / 52px) rail with Overview · Framework
+        (Skills, Playbooks) · Workflows · Workspace (Event Feed, Settings) sections plus a
+        user footer that opens a menu (theme toggle, profile placeholder, sign out).
+      - Right: <TopBar /> (route-derived breadcrumb + My Tasks placeholder) + <main> slot.
+      - Layout-level <AuthIdentitySync /> tags PostHog and Sentry with the authenticated
+        user UUID.
+      - Sidebar collapse and theme preference are persisted to localStorage and rehydrated
+        before paint by inline <script> bodies in app/layout.tsx so hydration sees the
+        same value the server rendered.
     Routing:
-      - /             → Hello World card (phase: none / home; protected)
-      - /ideation     → Ideation phase placeholder (protected)
-      - /design       → Design phase placeholder (protected)
-      - /implementation → Implementation phase placeholder (protected)
+      - /                       → Overview (greeting + stat cards + empty-state cards; protected)
+      - /framework/skills       → Skills placeholder (protected; real library lands later)
+      - /framework/playbooks    → Playbooks placeholder (protected; real library lands later)
+      - /events                 → Event Feed placeholder (protected)
+      - /settings               → Settings placeholder (protected)
     Event emission: thin client-side event hook calls an /api/events route handler that
     validates the payload and logs to stdout. PostHog capture uses the typed analytics
     abstraction. Auth emits spec-backed events for magic-link requests and sign-in/sign-out.
     The shell propagates a correlation id via request headers and tags Sentry spans/events
-    with product_id + shell slice metadata.
+    with product_id + shell slice metadata, plus component=workflow_canvas on shell views.
     No application database is required for Phase 1 auth beyond the managed auth provider.
     Directory layout under products/dashboard/:
       app/
-        layout.tsx                         — root layout
-        (auth)/login/page.tsx              — login screen
-        auth/callback/route.ts             — auth callback handler
-        (dashboard)/layout.tsx             — protected shell with Sidebar + TopBar
-        (dashboard)/page.tsx               — Hello World card
-        (dashboard)/ideation/page.tsx      — Ideation placeholder
-        (dashboard)/design/page.tsx        — Design placeholder
-        (dashboard)/implementation/page.tsx — Implementation placeholder
-        (dashboard)/api/events/route.ts    — Event ingestion endpoint
+        layout.tsx                              — root layout (theme + sidebar pre-paint)
+        (auth)/login/page.tsx                   — login screen
+        auth/callback/route.ts                  — auth callback handler
+        (dashboard)/layout.tsx                  — protected shell with Sidebar + TopBar
+        (dashboard)/page.tsx                    — Overview screen
+        (dashboard)/framework/skills/page.tsx   — Skills placeholder
+        (dashboard)/framework/playbooks/page.tsx — Playbooks placeholder
+        (dashboard)/events/page.tsx             — Event Feed placeholder
+        (dashboard)/settings/page.tsx           — Settings placeholder
+        (dashboard)/api/events/route.ts         — Event ingestion endpoint
       components/
-        sidebar.tsx                — Left navigation
-        top-bar.tsx                — Top bar
+        sidebar.tsx                — Left rail (nav, workflows tree placeholder, user menu)
+        top-bar.tsx                — Top bar (breadcrumb + My Tasks placeholder)
         auth-identity-sync.tsx     — Analytics and monitoring identity sync
-        sign-out-button.tsx        — Explicit sign-out action
-        hello-world-card.tsx       — Hello World card
+        sign-out-button.tsx        — Standalone sign-out affordance (delegates to useSignOut)
+        shell-events.tsx           — Emits dashboard.shell_viewed + sets component tag
       lib/
         auth/                      — app-owned auth service + provider adapter
+        auth/use-sign-out.ts       — Shared sign-out flow used by SignOutButton + sidebar menu
         events.ts                  — Client-side audit event helper
+        sidebar.ts                 — Persisted collapse store + pre-paint init script
+        theme.ts / theme-tokens.ts — Persisted theme store + pre-paint init script
   tooling_decisions:
     - decision: "Next.js 15 with App Router"
       reason: "Framework-mandated default stack (docs/AI_NATIVE_FRAMEWORK.md §6). App Router gives co-located server components and route handlers."
@@ -176,8 +188,8 @@ design:
 
 data_model:
   entities:
-    - name: "NavigationPhase"
-      description: "A named phase in the product lifecycle surfaced as a sidebar navigation item."
+    - name: "NavigationItem"
+      description: "A static sidebar navigation entry pointing at a top-level shell route (Overview, Skills, Playbooks, Event Feed, Settings)."
       fields:
         - name: "id"
           type: "string"
@@ -211,28 +223,6 @@ events:
         properties:
           route:
             type: string
-    - name: "dashboard.phase_navigated"
-      description: "User clicked a phase navigation item in the left sidebar."
-      version: "1.0.0"
-      schema_version: "1.0.0"
-      classification:
-        pii: none
-        idempotency: none
-        ordering: at_least_once
-      emitted_by:
-        - "components.sidebar"
-      payload:
-        type: object
-        additionalProperties: false
-        required:
-          - phase
-        properties:
-          phase:
-            type: string
-            enum:
-              - ideation
-              - design
-              - implementation
     - name: "auth.requested_magic_link"
       description: "User successfully requested a magic-link sign-in email."
       version: "1.0.0"
@@ -309,9 +299,6 @@ observability:
       - key: "dashboard.shell_viewed"
         description: "Total dashboard loads; baseline engagement signal."
         type: event
-      - key: "dashboard.phase_navigated"
-        description: "Phase navigation clicks; indicates which phase receives attention."
-        type: event
       - key: "auth.requested_magic_link"
         description: "Successful magic-link requests from the login surface."
         type: event
@@ -325,8 +312,9 @@ observability:
 context_recovery:
   canonical_summary: |
     The Dashboard product is the UI shell for the ai-native-framework repository. It provides
-    a left sidebar with Ideation / Design / Implementation phase navigation, a top bar, a
-    canonical /login experience, and a Hello World card on the default protected route.
+    a collapsible left sidebar with Overview / Framework (Skills, Playbooks) / Workflows /
+    Workspace (Event Feed, Settings) navigation, a route-derived breadcrumb top bar, a
+    canonical /login experience, and an Overview screen on the default protected route.
     Stack: Next.js 15 + Tailwind 4 + shadcn/ui. Lives under products/dashboard/.
     Auth is a first-class Phase 1 slice implemented behind lib/auth/ with Supabase as the
     initial provider adapter for magic-link auth. Events are emitted via /api/events and
@@ -342,12 +330,12 @@ context_recovery:
   domain_terms:
     - term: "shell"
       definition: "The persistent layout wrapper (Sidebar + TopBar + content slot) that hosts all dashboard pages."
-    - term: "phase"
-      definition: "One of the three product lifecycle stages — Ideation, Design, Implementation — surfaced as a sidebar nav item."
+    - term: "Overview"
+      definition: "The default protected route (/) that surfaces a greeting band, four headline stat cards, and a two-column grid of placeholder cards (Process health, Recent events, My tasks, Agent pulse). PR-3 ships zero-value cards; later PRs wire real data."
+    - term: "workflow canvas"
+      definition: "The component identifier (`workflow_canvas`) tagged on Sentry scopes for shell views, since the shell ultimately hosts the workflow tree, instance routing, and matrix screens introduced by later PRs."
     - term: "harness"
       definition: "A Skill + Playbook pair that defines how a specific agent role (Feature Developer, QA Tester, DevOps Engineer) operates within this product."
-    - term: "Hello World card"
-      definition: "The shadcn/ui Card component rendered on the default route as the first observable UI artifact."
 
 decision_log:
   entries:
@@ -359,10 +347,17 @@ decision_log:
         - "New standalone repo (deferred — add when the dashboard warrants its own governance boundary)"
     - id: "DEC-002"
       date: "2026-04-12"
-      decision: "V1 is shell-only with static Hello World card; no real data wiring."
+      decision: "V1 is shell-only with placeholder Overview cards; no real data wiring."
       reason: "Fastest path to a deployed, observable, spec-backed artifact. Proves the harness pattern before adding complexity."
       alternatives:
         - "Wire real data in V1 (rejected — scope creep risk before shell is validated)"
+    - id: "DEC-006"
+      date: "2026-04-19"
+      decision: "Replace the Phase 1 Hello-World shell with the AI-Native Process Canvas chrome (collapsible sidebar, breadcrumb top bar, Overview screen) — AEL-46."
+      reason: "The Hello-World card and Ideation/Design/Implementation phase routes were placeholders for the original shell. The new design hosts the workflow canvas, framework library, and workspace surfaces; bringing the chrome forward now lets later PRs (skills, playbooks, workflow tree) plug into a stable layout."
+      alternatives:
+        - "Keep the Hello-World card and bolt the new chrome around it (rejected — leaves a stale surface in the canonical default route)."
+        - "Defer until the workflow tree is ready (rejected — every later PR would need to land its chrome and content together)."
     - id: "DEC-003"
       date: "2026-04-12"
       decision: "Three harnesses defined in Planning: Feature Developer, QA Tester, DevOps Engineer."

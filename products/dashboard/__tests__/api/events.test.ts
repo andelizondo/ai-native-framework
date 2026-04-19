@@ -35,13 +35,13 @@ function validShellViewed(overrides: Record<string, unknown> = {}) {
   };
 }
 
-function validPhaseNavigated(phase = "ideation", overrides: Record<string, unknown> = {}) {
+function validUserSignedIn(overrides: Record<string, unknown> = {}) {
   return {
-    event_name: "dashboard.phase_navigated",
+    event_name: "user.signed_in",
     occurred_at: new Date().toISOString(),
     emitted_by: "client",
     schema_version: "1.0.0",
-    payload: { phase },
+    payload: { provider: "magic_link" },
     ...overrides,
   };
 }
@@ -56,19 +56,16 @@ describe("POST /api/events — happy path", () => {
     expect(json.ok).toBe(true);
   });
 
-  it("accepts dashboard.phase_navigated for ideation and returns 202", async () => {
-    const res = await POST(makeReq(validPhaseNavigated("ideation")));
+  it("accepts user.signed_in with provider=magic_link and returns 202", async () => {
+    const res = await POST(makeReq(validUserSignedIn()));
     expect(res.status).toBe(202);
   });
 
-  it("accepts dashboard.phase_navigated for design and returns 202", async () => {
-    const res = await POST(makeReq(validPhaseNavigated("design")));
-    expect(res.status).toBe(202);
-  });
-
-  it("accepts dashboard.phase_navigated for implementation and returns 202", async () => {
-    const res = await POST(makeReq(validPhaseNavigated("implementation")));
-    expect(res.status).toBe(202);
+  it("rejects user.signed_in with an unsupported provider", async () => {
+    const res = await POST(
+      makeReq(validUserSignedIn({ payload: { provider: "twitter" } })),
+    );
+    expect(res.status).toBe(400);
   });
 
   it("echoes a valid correlation_id in the response", async () => {
@@ -134,11 +131,6 @@ describe("POST /api/events — validation errors", () => {
 
   it("returns 400 for dashboard.shell_viewed with missing route in payload", async () => {
     const res = await POST(makeReq(validShellViewed({ payload: {} })));
-    expect(res.status).toBe(400);
-  });
-
-  it("returns 400 for dashboard.phase_navigated with invalid phase value", async () => {
-    const res = await POST(makeReq(validPhaseNavigated("invalid-phase")));
     expect(res.status).toBe(400);
   });
 

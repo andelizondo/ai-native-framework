@@ -18,7 +18,6 @@ import {
 
 const ALLOWED_EVENTS = new Set([
   "dashboard.shell_viewed",
-  "dashboard.phase_navigated",
   "auth.requested_magic_link",
   "user.signed_in",
   "user.signed_out",
@@ -50,18 +49,6 @@ function sanitizePayload(
     const route = clampString(payload.route, 256);
     if (!route) return null;
     return { route };
-  }
-
-  if (eventName === "dashboard.phase_navigated") {
-    const phase = payload.phase;
-    if (
-      phase !== "ideation" &&
-      phase !== "design" &&
-      phase !== "implementation"
-    ) {
-      return null;
-    }
-    return { phase };
   }
 
   if (eventName === "auth.requested_magic_link") {
