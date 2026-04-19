@@ -50,9 +50,11 @@ export interface TaskCardProps {
   roleColor: string;
   /** Bar-state class chosen by `barClass()`. */
   barState: TaskBarState;
+  /** Opens the Task Drawer for this card. */
+  onClick?: () => void;
 }
 
-export function TaskCard({ task, roleColor, barState }: TaskCardProps) {
+export function TaskCard({ task, roleColor, barState, onClick }: TaskCardProps) {
   const statusClass = STATUS_PILL_CLASS[task.status];
   const statusLabel = STATUS_LABEL[task.status];
 
@@ -61,8 +63,13 @@ export function TaskCard({ task, roleColor, barState }: TaskCardProps) {
       data-testid={`task-card-${task.id}`}
       data-bar={barState}
       data-status={task.status}
-      className={cn("task-card", statusClass, barState)}
+      className={cn("task-card", statusClass, barState, onClick && "cursor-pointer")}
       style={{ "--role-color": roleColor } as React.CSSProperties}
+      onClick={onClick}
+      role={onClick ? "button" : undefined}
+      tabIndex={onClick ? 0 : undefined}
+      onKeyDown={onClick ? (e) => { if (e.key === "Enter" || e.key === " ") onClick(); } : undefined}
+      aria-label={onClick ? `Open task: ${task.title}` : undefined}
     >
       <div className="tc-top">
         <div className="tc-title">{task.title}</div>

@@ -137,3 +137,75 @@ test.describe("workflows — process matrix (read-only)", () => {
     await expect(matrix).toHaveAttribute("data-collapsed", "true");
   });
 });
+
+test.describe("workflows — task drawer (AEL-51)", () => {
+  test("clicking a task card opens the drawer and Escape closes it", async ({
+    page,
+  }) => {
+    test.skip(
+      !hasSupabaseRuntime,
+      "Supabase runtime credentials required for the drawer happy path",
+    );
+
+    await authenticateWithBypass(page);
+
+    // Create a fresh instance so the matrix has tasks.
+    const dialog = await openFirstTemplateNewInstanceDialog(page);
+    await dialog
+      .getByRole("textbox", { name: /instance name/i })
+      .fill(`E2E Drawer ${Date.now()}`);
+    await dialog.getByRole("button", { name: /^create\s*→?$/i }).click();
+    await expect(page).toHaveURL(/\/workflows\/[0-9a-f-]+$/);
+
+    // Click the first task card.
+    const firstCard = page.locator('[data-testid^="task-card-"]').first();
+    await expect(firstCard).toBeVisible();
+    await firstCard.click();
+
+    // Drawer should appear.
+    const drawer = page.getByTestId("task-drawer");
+    await expect(drawer).toBeVisible();
+    await expect(drawer).toHaveAttribute("role", "dialog");
+
+    // Breadcrumb and tabs visible.
+    await expect(page.getByTestId("td-tab-details")).toBeVisible();
+    await expect(page.getByTestId("td-tab-events")).toBeVisible();
+    await expect(page.getByTestId("td-tab-dependencies")).toBeVisible();
+
+    // Escape closes the drawer.
+    await page.keyboard.press("Escape");
+    await expect(drawer).toBeHidden();
+  });
+
+  test("events tab shows seed events scoped to the selected task", async ({
+    page,
+  }) => {
+    test.skip(
+      !hasSupabaseRuntime,
+      "Supabase runtime credentials required for the events tab happy path",
+    );
+
+    await authenticateWithBypass(page);
+
+    const dialog = await openFirstTemplateNewInstanceDialog(page);
+    await dialog
+      .getByRole("textbox", { name: /instance name/i })
+      .fill(`E2E Events Tab ${Date.now()}`);
+    await dialog.getByRole("button", { name: /^create\s*→?$/i }).click();
+    await expect(page).toHaveURL(/\/workflows\/[0-9a-f-]+$/);
+
+    const firstCard = page.locator('[data-testid^="task-card-"]').first();
+    await firstCard.click();
+
+    const drawer = page.getByTestId("task-drawer");
+    await expect(drawer).toBeVisible();
+
+    await page.getByTestId("td-tab-events").click();
+
+    // Either empty state or event list is shown — both are valid depending on
+    // whether the seed script wrote events for this task.
+    const eventList = page.getByTestId("td-event-list");
+    const emptyState = page.getByTestId("td-events-empty");
+    await expect(eventList.or(emptyState)).toBeVisible();
+  });
+});

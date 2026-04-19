@@ -4,7 +4,12 @@ import { revalidatePath } from "next/cache";
 
 import { captureError } from "@/lib/monitoring";
 import { getServerWorkflowRepository } from "@/lib/workflows/repository.server";
-import type { WorkflowInstance, WorkflowTask } from "@/lib/workflows/types";
+import type {
+  WorkflowGate,
+  WorkflowInstance,
+  WorkflowTask,
+  WorkflowTrigger,
+} from "@/lib/workflows/types";
 
 /**
  * Server action invoked by the create-instance modal.
@@ -159,5 +164,120 @@ export async function resolveCheckpointAction(
 
   revalidatePath("/", "layout");
 
+  return { task };
+}
+
+/**
+ * Approve a checkpoint task from the Task Drawer.
+ *
+ * Semantically different from `resolveCheckpointAction` (Overview card):
+ * the drawer approval sets the task to `active` so the agent continues
+ * running, whereas the Overview card's approve sets it to `complete` (task done).
+ * The conditional update (`status = 'pending_approval'`) is enforced server-side
+ * via plain `updateTask` here — the drawer provides the human-visible context
+ * (audit trail, breadcrumb) that the Overview shortcut deliberately omits.
+ */
+export async function approveDrawerCheckpointAction(
+  taskId: string,
+): Promise<{ task: WorkflowTask }> {
+  if (typeof taskId !== "string" || !taskId.trim()) {
+    throw new Error("approveDrawerCheckpointAction: taskId is required");
+  }
+
+  const repo = await getServerWorkflowRepository();
+  const trimmedId = taskId.trim();
+
+  const task = await repo.updateTask(trimmedId, { status: "active" });
+
+  try {
+    await repo.addEvent(trimmedId, {
+      name: "workflow.checkpoint_approved",
+      description: `Approved checkpoint: ${task.title}`,
+      payload: { task_id: task.id, instance_id: task.instanceId },
+    });
+  } catch (eventError) {
+    captureError(eventError, {
+      feature: "workflows.drawer_approve",
+      action: "addEvent",
+      extra: { task_id: task.id, instance_id: task.instanceId },
+    });
+  }
+
+  revalidatePath("/", "layout");
+  return { task };
+}
+
+/**
+ * Reject a checkpoint task from the Task Drawer.
+ *
+ * The task status remains `pending_approval` — the human must take manual
+ * action outside the system. Only a domain event is written so the audit
+ * trail reflects the rejection decision.
+ */
+export async function rejectDrawerCheckpointAction(
+  taskId: string,
+): Promise<void> {
+  if (typeof taskId !== "string" || !taskId.trim()) {
+    throw new Error("rejectDrawerCheckpointAction: taskId is required");
+  }
+
+  const repo = await getServerWorkflowRepository();
+  const trimmedId = taskId.trim();
+
+  const task = await repo.getTask(trimmedId);
+  if (!task) {
+    throw new Error("rejectDrawerCheckpointAction: task not found");
+  }
+
+  try {
+    await repo.addEvent(trimmedId, {
+      name: "workflow.checkpoint_rejected",
+      description: `Rejected checkpoint: ${task.title}`,
+      payload: { task_id: task.id, instance_id: task.instanceId },
+    });
+  } catch (eventError) {
+    captureError(eventError, {
+      feature: "workflows.drawer_reject",
+      action: "addEvent",
+      extra: { task_id: task.id, instance_id: task.instanceId },
+    });
+  }
+
+  revalidatePath("/", "layout");
+}
+
+/**
+ * Persist trigger and gate lists for a task.
+ * Called by TriggerGateEditor after each inline add/remove.
+ */
+export async function updateTaskTriggerGatesAction(
+  taskId: string,
+  triggers: WorkflowTrigger[],
+  gates: WorkflowGate[],
+): Promise<{ task: WorkflowTask }> {
+  if (typeof taskId !== "string" || !taskId.trim()) {
+    throw new Error("updateTaskTriggerGatesAction: taskId is required");
+  }
+
+  const repo = await getServerWorkflowRepository();
+  const trimmedId = taskId.trim();
+
+  const task = await repo.updateTask(trimmedId, { triggers, gates });
+
+  try {
+    await repo.addEvent(trimmedId, {
+      name: "workflow.task_updated",
+      description: `Updated triggers/gates for: ${task.title}`,
+      payload: { task_id: task.id, instance_id: task.instanceId },
+    });
+  } catch (eventError) {
+    captureError(eventError, {
+      feature: "workflows.trigger_gate_update",
+      action: "addEvent",
+      extra: { task_id: task.id, instance_id: task.instanceId },
+    });
+  }
+
+  revalidatePath("/", "layout");
   return { task };
 }

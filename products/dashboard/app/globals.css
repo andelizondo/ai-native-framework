@@ -585,6 +585,453 @@ body {
 }
 
 /*
+ * Task Drawer.
+ *
+ * Source of truth: prototype `TaskDrawer` component (`pc-components.jsx`).
+ * Fixed-position panel slides in from the right over an overlay. `position:
+ * fixed` escapes the `.matrix-wrap { overflow: auto }` scroll container
+ * correctly because that ancestor has no transform/perspective/filter.
+ */
+.task-drawer-overlay {
+  position: fixed;
+  inset: 0;
+  background: var(--overlay);
+  z-index: 40;
+}
+.task-drawer {
+  position: fixed;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  width: 420px;
+  z-index: 41;
+  background: var(--bg-2);
+  border-left: 1px solid var(--border-hi);
+  box-shadow: var(--shadow);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  animation: td-slide-in 0.22s cubic-bezier(0.25, 0, 0.25, 1);
+}
+@keyframes td-slide-in {
+  from {
+    transform: translateX(100%);
+    opacity: 0;
+  }
+  to {
+    transform: translateX(0);
+    opacity: 1;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .task-drawer {
+    animation: none;
+  }
+}
+.td-header {
+  flex-shrink: 0;
+  border-bottom: 1px solid var(--border);
+  padding: 14px 16px 0;
+}
+.td-header-top {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 8px;
+}
+.td-breadcrumb {
+  font-size: 10px;
+  color: var(--t3);
+  font-family: "JetBrains Mono", monospace;
+  letter-spacing: 0.04em;
+  margin-bottom: 6px;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex-wrap: wrap;
+}
+.td-title {
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--t1);
+  line-height: 1.3;
+  flex: 1;
+  margin: 0;
+}
+.td-close {
+  width: 26px;
+  height: 26px;
+  border-radius: 6px;
+  border: 1px solid var(--border);
+  background: none;
+  color: var(--t3);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  transition: all 0.14s;
+  padding: 0;
+}
+.td-close:hover {
+  background: var(--bg-3);
+  color: var(--t1);
+}
+.td-close:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+.td-tabs {
+  display: flex;
+  gap: 0;
+  margin-top: 12px;
+}
+.td-tab {
+  padding: 7px 14px;
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--t3);
+  background: none;
+  border: none;
+  border-bottom: 2px solid transparent;
+  cursor: pointer;
+  transition: all 0.14s;
+  margin-bottom: -1px;
+}
+.td-tab:hover {
+  color: var(--t1);
+}
+.td-tab.td-tab-active {
+  color: var(--accent);
+  border-bottom-color: var(--accent);
+}
+.td-body {
+  flex: 1;
+  overflow-y: auto;
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.td-section {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.td-section-label {
+  font-size: 9.5px;
+  font-weight: 600;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--t3);
+  font-family: "JetBrains Mono", monospace;
+}
+/* Primary action card */
+.td-action-card {
+  border-radius: 8px;
+  border: 1px solid var(--border-hi);
+  background: var(--bg-3);
+  padding: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.td-action-btns {
+  display: flex;
+  gap: 8px;
+}
+.td-btn {
+  padding: 7px 14px;
+  border-radius: 7px;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.14s;
+  border: 1px solid transparent;
+  display: flex;
+  align-items: center;
+  gap: 5px;
+}
+.td-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+.td-btn-approve {
+  background: rgba(16, 185, 129, 0.12);
+  color: #34d399;
+  border-color: rgba(16, 185, 129, 0.25);
+}
+.td-btn-approve:hover:not(:disabled) {
+  background: rgba(16, 185, 129, 0.2);
+}
+.td-btn-reject {
+  background: none;
+  color: var(--t2);
+  border-color: var(--border-hi);
+}
+.td-btn-reject:hover:not(:disabled) {
+  background: var(--bg-4);
+  color: var(--t1);
+}
+.td-btn-primary {
+  background: var(--primary);
+  color: #fff;
+}
+.td-btn-primary:hover:not(:disabled) {
+  opacity: 0.88;
+}
+.td-btn-outline {
+  background: none;
+  color: var(--accent);
+  border-color: var(--accent);
+}
+.td-btn-outline:hover:not(:disabled) {
+  background: var(--primary-bg);
+}
+.td-approved-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 12px;
+  font-weight: 600;
+  color: #34d399;
+  padding: 6px 0;
+}
+/* Status card */
+.td-status-card {
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  background: var(--bg-3);
+  padding: 10px 12px;
+  border-left-width: 3px;
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+.td-checkpoint-card {
+  border-radius: 8px;
+  border: 1px solid rgba(245, 158, 11, 0.3);
+  background: rgba(245, 158, 11, 0.06);
+  padding: 10px 12px;
+  font-size: 12px;
+  color: #fbbf24;
+  display: flex;
+  align-items: center;
+  gap: 7px;
+}
+/* Skills / playbook rows */
+.td-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 10px;
+  border-radius: 7px;
+  background: var(--bg-3);
+  border: 1px solid var(--border);
+}
+.td-row-icon {
+  width: 22px;
+  height: 22px;
+  border-radius: 5px;
+  background: var(--bg-4);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  color: var(--t3);
+}
+.td-row-name {
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--t1);
+  flex: 1;
+  min-width: 0;
+}
+.td-row-mono {
+  font-size: 10px;
+  font-family: "JetBrains Mono", monospace;
+  color: var(--accent);
+}
+.td-pulse-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+.td-pulse-active {
+  background: #10b981;
+  box-shadow: 0 0 0 2px rgba(16, 185, 129, 0.25);
+}
+.td-pulse-pending {
+  background: #f59e0b;
+  box-shadow: 0 0 0 2px rgba(245, 158, 11, 0.25);
+}
+.td-pulse-idle {
+  background: var(--t3);
+}
+/* TriggerGateEditor */
+.tg-list {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.tg-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 8px;
+  border-radius: 5px;
+  background: var(--bg-3);
+  border: 1px solid var(--border);
+  font-size: 11px;
+  color: var(--t2);
+}
+.tg-item-type {
+  font-family: "JetBrains Mono", monospace;
+  font-size: 9.5px;
+  color: var(--t3);
+  background: var(--bg-4);
+  padding: 1px 5px;
+  border-radius: 3px;
+  flex-shrink: 0;
+}
+.tg-item-label {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.tg-item-remove {
+  background: none;
+  border: none;
+  color: var(--t3);
+  cursor: pointer;
+  padding: 0 2px;
+  font-size: 12px;
+  line-height: 1;
+  border-radius: 3px;
+  transition: color 0.12s;
+}
+.tg-item-remove:hover {
+  color: #f87171;
+}
+.tg-add-btn {
+  font-size: 11px;
+  color: var(--t3);
+  background: none;
+  border: 1px dashed var(--border);
+  border-radius: 5px;
+  padding: 5px 8px;
+  cursor: pointer;
+  transition: all 0.14s;
+  text-align: left;
+  width: 100%;
+  margin-top: 2px;
+}
+.tg-add-btn:hover {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+.tg-inline-form {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  padding: 8px;
+  border-radius: 6px;
+  background: var(--bg-3);
+  border: 1px solid var(--border-hi);
+  margin-top: 2px;
+}
+.tg-inline-row {
+  display: flex;
+  gap: 5px;
+}
+.tg-select,
+.tg-input {
+  flex: 1;
+  background: var(--bg-2);
+  border: 1px solid var(--border-hi);
+  border-radius: 5px;
+  padding: 5px 8px;
+  font-size: 11px;
+  color: var(--t1);
+  outline: none;
+}
+.tg-select:focus,
+.tg-input:focus {
+  border-color: var(--accent);
+}
+.tg-form-btns {
+  display: flex;
+  gap: 5px;
+  justify-content: flex-end;
+}
+.tg-form-save {
+  padding: 4px 10px;
+  border-radius: 5px;
+  font-size: 11px;
+  font-weight: 600;
+  background: var(--primary);
+  color: #fff;
+  border: none;
+  cursor: pointer;
+  transition: opacity 0.12s;
+}
+.tg-form-save:hover {
+  opacity: 0.88;
+}
+.tg-form-cancel {
+  padding: 4px 10px;
+  border-radius: 5px;
+  font-size: 11px;
+  background: none;
+  color: var(--t3);
+  border: 1px solid var(--border);
+  cursor: pointer;
+  transition: all 0.12s;
+}
+.tg-form-cancel:hover {
+  color: var(--t1);
+  border-color: var(--border-hi);
+}
+/* Events tab */
+.td-event-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.td-event-item {
+  padding: 10px 12px;
+  border-radius: 7px;
+  background: var(--bg-3);
+  border: 1px solid var(--border);
+}
+.td-event-name {
+  font-size: 11px;
+  font-weight: 600;
+  font-family: "JetBrains Mono", monospace;
+  color: var(--accent);
+  margin-bottom: 3px;
+}
+.td-event-desc {
+  font-size: 11px;
+  color: var(--t2);
+  margin-bottom: 4px;
+}
+.td-event-time {
+  font-size: 9.5px;
+  color: var(--t3);
+  font-family: "JetBrains Mono", monospace;
+}
+.td-empty {
+  text-align: center;
+  color: var(--t3);
+  font-size: 12px;
+  padding: 24px 0;
+}
+
+/*
  * Tooltip enter animation. Used by the collapsed-mode workflow dots
  * (`SidebarWorkflowTree.CollapsedInstanceDot`) which render their
  * tooltip via a portal, so the keyframe lives in global CSS rather
