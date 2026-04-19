@@ -33,6 +33,12 @@ export function MyTasksCard({ checkpoints }: MyTasksCardProps) {
   const [error, setError] = useState<string | null>(null);
 
   function resolve(taskId: string, resolution: "approved" | "rejected") {
+    // Guard against double-fires while a previous action is still in
+    // flight. Without this, clicking Approve on row A then Reject on
+    // row B would start a second transition; when A finished it would
+    // reset `pendingId` to null and re-enable B's controls before B's
+    // server action returned.
+    if (isPending) return;
     setError(null);
     setPendingId(taskId);
     startTransition(async () => {
@@ -82,7 +88,11 @@ export function MyTasksCard({ checkpoints }: MyTasksCardProps) {
       ) : (
         <ul className="divide-y divide-border-2">
           {checkpoints.map(({ task, instance, template }) => {
-            const busy = isPending && pendingId === task.id;
+            // Disable every row while ANY resolve is pending so a second
+            // click can't race the in-flight action; highlight the row
+            // that's actually doing the work with the `…` label.
+            const rowBusy = isPending && pendingId === task.id;
+            const disabled = isPending;
             return (
               <li
                 key={task.id}
@@ -105,19 +115,19 @@ export function MyTasksCard({ checkpoints }: MyTasksCardProps) {
                   <button
                     type="button"
                     onClick={() => resolve(task.id, "approved")}
-                    disabled={busy}
+                    disabled={disabled}
                     data-testid={`overview-my-task-approve-${task.id}`}
                     className={cn(
                       "rounded-md bg-[color:#10b981] px-3.5 py-1.5 text-[11.5px] font-semibold text-white transition-opacity",
                       "hover:opacity-85 disabled:opacity-60",
                     )}
                   >
-                    {busy ? "…" : "Approve"}
+                    {rowBusy ? "…" : "Approve"}
                   </button>
                   <button
                     type="button"
                     onClick={() => resolve(task.id, "rejected")}
-                    disabled={busy}
+                    disabled={disabled}
                     data-testid={`overview-my-task-reject-${task.id}`}
                     className={cn(
                       "rounded-md border border-border bg-bg-3 px-3.5 py-1.5 text-[11.5px] text-t2 transition-colors",

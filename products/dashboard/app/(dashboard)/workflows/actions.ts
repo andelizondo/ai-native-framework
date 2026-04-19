@@ -2,6 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 
+import { captureError } from "@/lib/monitoring";
 import { getServerWorkflowRepository } from "@/lib/workflows/repository.server";
 import type { WorkflowInstance, WorkflowTask } from "@/lib/workflows/types";
 
@@ -97,24 +98,43 @@ export async function resolveCheckpointAction(
   const nextStatus = resolution === "approved" ? "complete" : "blocked";
   const task = await repo.updateTask(taskId.trim(), { status: nextStatus });
 
-  await repo.addEvent(task.id, {
-    name:
-      resolution === "approved"
-        ? "workflow.checkpoint_approved"
-        : "workflow.checkpoint_rejected",
-    description:
-      resolution === "approved"
-        ? `Approved checkpoint: ${task.title}`
-        : `Rejected checkpoint: ${task.title}`,
-    payload: {
-      task_id: task.id,
-      instance_id: task.instanceId,
-      // resolved_by deliberately omitted from the action payload here —
-      // the shell does not have the founder identifier in this context;
-      // the catalog accepts the field as required only at the gateway
-      // ingestion layer where the request is authenticated end-to-end.
-    },
-  });
+  // The status mutation already committed. If the audit-event write fails
+  // we MUST NOT swallow that silently — but we also can't let the throw
+  // skip `revalidatePath`, or the Overview would keep showing the task
+  // as pending while the database has already moved on. So: log the
+  // event-write failure to Sentry, refresh the cache, then return the
+  // updated task. The Recent Events card will be missing one entry until
+  // the next write, but the task state in My Tasks / Process Health is
+  // consistent with the database.
+  try {
+    await repo.addEvent(task.id, {
+      name:
+        resolution === "approved"
+          ? "workflow.checkpoint_approved"
+          : "workflow.checkpoint_rejected",
+      description:
+        resolution === "approved"
+          ? `Approved checkpoint: ${task.title}`
+          : `Rejected checkpoint: ${task.title}`,
+      payload: {
+        task_id: task.id,
+        instance_id: task.instanceId,
+        // resolved_by deliberately omitted from the action payload here —
+        // the shell does not have the founder identifier in this context;
+        // the catalog accepts the field as required only at the gateway
+        // ingestion layer where the request is authenticated end-to-end.
+      },
+    });
+  } catch (eventError) {
+    captureError(eventError, {
+      feature: "workflows.resolve_checkpoint",
+      action: `addEvent.${resolution}`,
+      extra: {
+        task_id: task.id,
+        instance_id: task.instanceId,
+      },
+    });
+  }
 
   revalidatePath("/", "layout");
 

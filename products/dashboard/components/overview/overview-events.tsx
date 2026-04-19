@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect } from "react";
+import { useEffect, useRef } from "react";
 
 import { useAnalytics } from "@/lib/analytics/events";
 
@@ -13,7 +13,9 @@ import { useAnalytics } from "@/lib/analytics/events";
  *
  * Numbers are passed in (not recomputed) so PostHog matches whatever
  * the user actually saw at first paint, not a value re-derived after
- * hydration changes.
+ * hydration changes. A ref guard ensures the event is emitted once per
+ * mount even when the parent re-renders with new prop values (e.g. the
+ * Overview re-fetches after `revalidatePath` from a checkpoint resolve).
  */
 export interface OverviewEventsProps {
   instanceCount: number;
@@ -29,8 +31,12 @@ export function OverviewEvents({
   completionPct,
 }: OverviewEventsProps) {
   const { capture } = useAnalytics();
+  const didCaptureRef = useRef(false);
 
   useEffect(() => {
+    if (didCaptureRef.current) return;
+    didCaptureRef.current = true;
+
     capture("dashboard.overview_viewed", {
       instance_count: instanceCount,
       pending_count: pendingCount,

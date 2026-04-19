@@ -287,10 +287,13 @@ export function createWorkflowRepository(
     },
 
     async listRecentEvents(limit: number): Promise<WorkflowEvent[]> {
-      // Cap the limit defensively. Callers ask for "last 4" today; an
-      // unbounded request would still be safe but pull a lot over the
-      // wire as the events table grows.
-      const safeLimit = Math.max(0, Math.min(limit, 200));
+      // Normalize first: a `NaN` or fractional `limit` would otherwise
+      // poison `Math.min`/`Math.max` and reach Supabase as `NaN` /
+      // `1.5`, both of which produce confusing query errors. Treat
+      // anything non-finite as "0 rows requested" so the caller gets a
+      // clean empty result instead of a thrown error.
+      const normalizedLimit = Number.isFinite(limit) ? Math.trunc(limit) : 0;
+      const safeLimit = Math.max(0, Math.min(normalizedLimit, 200));
       if (safeLimit === 0) return [];
 
       const { data, error } = await client

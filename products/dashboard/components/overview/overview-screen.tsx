@@ -66,7 +66,9 @@ export function OverviewScreen({
   const greeting = `${timeOfDayGreeting(now)}, ${firstNameFromUser(user)}.`;
   const subtitle =
     stats.pendingTasks > 0
-      ? `${stats.pendingTasks} task${stats.pendingTasks === 1 ? "" : "s"} need your decision.`
+      ? stats.pendingTasks === 1
+        ? "1 task needs your decision."
+        : `${stats.pendingTasks} tasks need your decision.`
       : "All processes running smoothly.";
 
   // Pre-format the four stat cards so the JSX reads top-to-bottom.

@@ -175,7 +175,7 @@ describe("OverviewScreen", () => {
       /Good morning, Andres\./,
     );
     expect(
-      screen.getByText(/1 task need your decision/i),
+      screen.getByText(/1 task needs your decision/i),
     ).toBeInTheDocument();
   });
 
