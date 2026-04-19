@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.14.0](https://github.com/andelizondo/ai-native-framework/compare/v0.13.0...v0.14.0) (2026-04-19)
+
+
+### Features
+
+* **dashboard:** read-only process matrix (AEL-50) ([#132](https://github.com/andelizondo/ai-native-framework/issues/132)) ([1ba057d](https://github.com/andelizondo/ai-native-framework/commit/1ba057d529efea6905449f1102d67aa19776f1cd))
+* **workflows:** task drawer with details/events tabs and approve/reject path (AEL-51) ([#133](https://github.com/andelizondo/ai-native-framework/issues/133)) ([a147cbd](https://github.com/andelizondo/ai-native-framework/commit/a147cbd25320583c161099453fc09980a81c1c94))
+
 ## [0.13.0](https://github.com/andelizondo/ai-native-framework/compare/v0.12.0...v0.13.0) (2026-04-19)
 
 
