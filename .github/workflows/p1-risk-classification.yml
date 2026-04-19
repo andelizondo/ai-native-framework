@@ -15,7 +15,7 @@ permissions:
 
 jobs:
   classify:
-    if: github.event.pull_request.base.ref == 'main'
+    if: github.event.pull_request.base.ref == 'main' || github.event.pull_request.base.ref == 'staging'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/github-script@v9
