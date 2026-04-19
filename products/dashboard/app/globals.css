@@ -227,6 +227,837 @@ body {
 }
 
 /*
+ * Process Matrix.
+ *
+ * Source of truth: prototype `Process Canvas.html` lines 141-218
+ * (matrix layout + task-card bars). The matrix relies on sticky
+ * positioning + `::before` pseudo-elements + bar-state animations
+ * that Tailwind v4's utility model does not express idiomatically;
+ * keeping the rules here lets `<ProcessMatrix>` and `<TaskCard>` stay
+ * thin presentation components that just toggle classes / data
+ * attributes.
+ *
+ * Token usage: every colour/border references the shared theme
+ * tokens above (`--bg-2`, `--border`, `--matrix-head`, etc.) so the
+ * matrix repaints automatically when the theme flips.
+ */
+.matrix-wrap {
+  flex: 1;
+  overflow: auto;
+}
+.matrix {
+  display: inline-block;
+  min-width: 100%;
+}
+.matrix-head-row {
+  display: flex;
+  position: sticky;
+  top: 0;
+  z-index: 20;
+  background: var(--matrix-head);
+  backdrop-filter: blur(8px);
+  border-bottom: 1px solid var(--border-hi);
+}
+.mx-corner {
+  width: 172px;
+  flex-shrink: 0;
+  padding: 10px 14px;
+  position: sticky;
+  left: 0;
+  z-index: 21;
+  background: var(--matrix-head);
+  backdrop-filter: blur(8px);
+  border-right: 1px solid var(--border);
+  font-size: 8.5px;
+  font-weight: 600;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--t3);
+  font-family: "JetBrains Mono", monospace;
+  display: flex;
+  align-items: flex-end;
+  gap: 6px;
+  transition: width 0.2s;
+}
+.matrix-wrap.roles-collapsed .mx-corner {
+  width: 44px;
+}
+.mx-corner-toggle {
+  width: 18px;
+  height: 18px;
+  border-radius: 4px;
+  border: 1px solid var(--border);
+  background: none;
+  color: var(--t3);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.14s;
+  flex-shrink: 0;
+  margin-left: auto;
+  padding: 0;
+}
+.mx-corner-toggle:hover {
+  background: var(--bg-3);
+  color: var(--t1);
+}
+.mx-corner-toggle:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+.mx-stage-hd {
+  width: 192px;
+  flex-shrink: 0;
+  padding: 10px 14px;
+  border-right: 1px solid var(--border-2);
+}
+.mx-stage-hd:last-child {
+  border-right: none;
+}
+.mx-stage-name {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--t1);
+}
+.mx-stage-sub {
+  font-size: 10px;
+  color: var(--t3);
+  margin-top: 1px;
+  font-style: italic;
+}
+.mx-stage-pips {
+  display: flex;
+  gap: 3px;
+  margin-top: 6px;
+  flex-wrap: wrap;
+}
+.mx-pip {
+  width: 12px;
+  height: 2.5px;
+  border-radius: 2px;
+  background: var(--bg-4);
+  transition:
+    background 0.2s,
+    opacity 0.2s;
+}
+.mx-body-row {
+  display: flex;
+  border-bottom: 1px solid var(--border-2);
+  transition: background 0.14s;
+}
+.mx-body-row:last-child {
+  border-bottom: none;
+}
+.mx-role-cell {
+  width: 172px;
+  flex-shrink: 0;
+  padding: 10px 12px;
+  position: sticky;
+  left: 0;
+  z-index: 5;
+  background: var(--bg-2);
+  border-right: 1px solid var(--border);
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  min-height: 106px;
+  transition: width 0.2s;
+}
+.matrix-wrap.roles-collapsed .mx-role-cell {
+  width: 44px;
+  padding: 10px 7px;
+  justify-content: center;
+}
+.mx-role-name {
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--t1);
+}
+.mx-role-owner {
+  font-size: 10.5px;
+  color: var(--t3);
+  margin-top: 2px;
+  line-height: 1.3;
+}
+.mx-task-cell {
+  width: 192px;
+  flex-shrink: 0;
+  padding: 7px;
+  border-right: 1px solid var(--border-2);
+  min-height: 106px;
+  background: var(--bg);
+  transition: background 0.14s;
+}
+.mx-task-cell:last-child {
+  border-right: none;
+}
+.mx-task-cell.has-task:hover {
+  background: var(--bg-2);
+}
+
+/* ── Task card ── */
+.task-card {
+  width: 100%;
+  min-height: 92px;
+  height: 100%;
+  padding: 9px 10px;
+  border-radius: 7px;
+  border: 1px solid var(--border);
+  background: var(--bg-2);
+  transition: all 0.15s;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  position: relative;
+  overflow: hidden;
+}
+.task-card::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  width: 2.5px;
+  background: var(--role-color, var(--border));
+  transition:
+    opacity 0.2s,
+    box-shadow 0.25s;
+}
+.task-card.bar-locked::before {
+  opacity: 0.1;
+}
+.task-card.bar-ready::before {
+  opacity: 0.35;
+}
+.task-card.bar-active::before {
+  opacity: 1;
+  box-shadow: 2px 0 8px var(--role-color);
+}
+.task-card.bar-pending::before {
+  background: #f59e0b;
+  opacity: 1;
+  box-shadow: 2px 0 12px rgba(245, 158, 11, 0.6);
+  animation: ainative-bar-pulse 2s ease-in-out infinite;
+}
+.task-card.bar-complete::before {
+  opacity: 0.35;
+}
+.task-card.bar-blocked::before {
+  background: #ef4444;
+  opacity: 1;
+}
+@keyframes ainative-bar-pulse {
+  0%,
+  100% {
+    box-shadow: 2px 0 6px rgba(245, 158, 11, 0.3);
+  }
+  50% {
+    box-shadow: 2px 0 16px rgba(245, 158, 11, 0.8);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .task-card.bar-pending::before {
+    animation: none;
+  }
+}
+.task-card.bar-complete {
+  opacity: 0.75;
+}
+.task-card.bar-complete .tc-title {
+  text-decoration: line-through;
+  text-decoration-color: var(--t3);
+}
+.task-card:hover {
+  border-color: var(--border-hi);
+  background: var(--bg-3);
+  opacity: 1;
+}
+.tc-top {
+  display: flex;
+  align-items: flex-start;
+  gap: 5px;
+}
+.tc-title {
+  font-size: 11.5px;
+  font-weight: 600;
+  color: var(--t1);
+  line-height: 1.3;
+  flex: 1;
+}
+.tc-desc {
+  font-size: 10.5px;
+  color: var(--t2);
+  line-height: 1.4;
+  flex: 1;
+}
+.tc-footer {
+  margin-top: auto;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding-top: 3px;
+  gap: 6px;
+}
+.s-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  padding: 2px 7px;
+  border-radius: 9999px;
+  height: 18px;
+}
+.s-complete .s-pill {
+  background: var(--pill-complete-bg);
+}
+.s-active .s-pill {
+  background: var(--pill-active-bg);
+}
+.s-pending .s-pill {
+  background: var(--pill-pending-bg);
+}
+.s-blocked .s-pill {
+  background: var(--pill-blocked-bg);
+}
+.s-not_started .s-pill {
+  background: var(--pill-ns-bg);
+}
+.s-dot {
+  width: 4.5px;
+  height: 4.5px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+.s-complete .s-dot {
+  background: var(--pill-complete-d);
+}
+.s-active .s-dot {
+  background: var(--pill-active-d);
+}
+.s-pending .s-dot {
+  background: var(--pill-pending-d);
+}
+.s-blocked .s-dot {
+  background: var(--pill-blocked-d);
+}
+.s-not_started .s-dot {
+  background: var(--pill-ns-d);
+}
+.s-text {
+  font-size: 9.5px;
+  font-weight: 500;
+  line-height: 1;
+}
+.s-complete .s-text {
+  color: var(--pill-complete-t);
+}
+.s-active .s-text {
+  color: var(--pill-active-t);
+}
+.s-pending .s-text {
+  color: var(--pill-pending-t);
+}
+.s-blocked .s-text {
+  color: var(--pill-blocked-t);
+}
+.s-not_started .s-text {
+  color: var(--pill-ns-t);
+}
+.tc-agent {
+  font-size: 9.5px;
+  color: var(--t3);
+  font-family: "JetBrains Mono", monospace;
+  line-height: 18px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.tc-cp-badge {
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: #f59e0b;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  box-shadow: 0 0 0 3px rgba(245, 158, 11, 0.15);
+}
+
+/*
+ * Task Drawer.
+ *
+ * CSS faithfully mirrors prototype `Process Canvas.html` lines 221-269
+ * and `TaskDrawer` in `pc-components.jsx`. Fixed-position panel slides
+ * in from the right over an overlay. `position:fixed` escapes the
+ * `.matrix-wrap { overflow:auto }` scroll container correctly because
+ * that ancestor has no transform/perspective/filter.
+ *
+ * z-index ladder (from prototype): overlay=55, drawer=60.
+ */
+.task-drawer-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 55;
+  background: var(--overlay);
+}
+.task-drawer {
+  position: fixed;
+  right: 0;
+  top: 0;
+  bottom: 0;
+  width: 420px;
+  background: var(--bg-2);
+  border-left: 1px solid var(--border-hi);
+  box-shadow: var(--shadow);
+  z-index: 60;
+  display: flex;
+  flex-direction: column;
+  transform: translateX(105%);
+  transition: transform 0.26s cubic-bezier(0.4, 0, 0.2, 1);
+}
+.task-drawer.open {
+  transform: translateX(0);
+}
+@media (prefers-reduced-motion: reduce) {
+  .task-drawer {
+    transition: none;
+  }
+}
+/* Header */
+.td-header {
+  padding: 18px 20px 0;
+  border-bottom: 1px solid var(--border);
+  flex-shrink: 0;
+}
+.td-header-top {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  margin-bottom: 8px;
+}
+.td-title {
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--t1);
+  letter-spacing: -0.02em;
+  line-height: 1.3;
+  flex: 1;
+  margin: 0;
+}
+.td-close {
+  width: 26px;
+  height: 26px;
+  border-radius: 6px;
+  border: 1px solid var(--border);
+  background: var(--bg-3);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--t2);
+  flex-shrink: 0;
+  transition: all 0.14s;
+  padding: 0;
+}
+.td-close:hover {
+  background: var(--bg-4);
+  color: var(--t1);
+}
+.td-close:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+.td-breadcrumb {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  margin-bottom: 12px;
+  flex-wrap: wrap;
+}
+.td-crumb {
+  font-size: 11px;
+  color: var(--t3);
+  font-family: "JetBrains Mono", monospace;
+}
+.td-crumb-sep {
+  font-size: 11px;
+  color: var(--t3);
+}
+/* Tabs extend to edges with negative margin (mirrors prototype) */
+.td-tabs {
+  display: flex;
+  margin: 0 -20px;
+  padding: 0 20px;
+}
+.td-tab {
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--t3);
+  padding: 7px 12px 9px;
+  cursor: pointer;
+  border-bottom: 2px solid transparent;
+  background: none;
+  border-top: none;
+  border-left: none;
+  border-right: none;
+  transition: all 0.14s;
+  margin-bottom: -1px;
+}
+.td-tab:hover {
+  color: var(--t2);
+}
+.td-tab.td-tab-active {
+  color: var(--accent);
+  border-bottom-color: var(--accent);
+}
+/* Body */
+.td-body {
+  flex: 1;
+  overflow-y: auto;
+  padding: 18px 20px;
+}
+/* Section block — margin-bottom matches prototype's `.dr-sec` */
+.td-sec {
+  margin-bottom: 20px;
+}
+/* Section label with decorative `::after` line (from prototype `.dr-sec-lbl::after`) */
+.td-sec-lbl {
+  font-size: 9px;
+  font-weight: 600;
+  letter-spacing: 0.13em;
+  text-transform: uppercase;
+  color: var(--t3);
+  font-family: "JetBrains Mono", monospace;
+  margin-bottom: 9px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.td-sec-lbl::after {
+  content: "";
+  flex: 1;
+  height: 1px;
+  background: var(--border-2);
+}
+/* Action card — sits at top of details tab before any sections */
+.td-action-top {
+  background: var(--bg-3);
+  border: 1px solid var(--border-hi);
+  border-radius: 9px;
+  padding: 12px;
+  margin-bottom: 18px;
+}
+/* Buttons — all full-width, stacked */
+.td-btn {
+  width: 100%;
+  padding: 9px 16px;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  font-size: 12.5px;
+  font-weight: 600;
+  cursor: pointer;
+  font-family: inherit;
+  transition: all 0.15s;
+  margin-bottom: 7px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+}
+.td-btn:last-child {
+  margin-bottom: 0;
+}
+.td-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+.td-btn-primary {
+  background: var(--primary);
+  border-color: var(--primary);
+  color: white;
+}
+.td-btn-primary:hover:not(:disabled) {
+  opacity: 0.9;
+}
+.td-btn-approve {
+  background: #10b981;
+  border-color: #10b981;
+  color: white;
+}
+.td-btn-approve:hover:not(:disabled) {
+  opacity: 0.9;
+}
+.td-btn-run {
+  background: var(--primary-bg);
+  border-color: var(--primary);
+  color: var(--accent);
+}
+.td-btn-run:hover:not(:disabled) {
+  background: rgba(99, 102, 241, 0.18);
+}
+.td-btn-ghost {
+  background: transparent;
+  color: var(--t2);
+  border-color: transparent;
+}
+.td-btn-ghost:hover:not(:disabled) {
+  background: var(--bg-3);
+  color: var(--t1);
+}
+/* "Approved — agent continuing" badge */
+.td-approved-badge {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding: 10px 12px;
+  border-radius: 8px;
+  background: rgba(16, 185, 129, 0.08);
+  border: 1px solid rgba(16, 185, 129, 0.2);
+  font-size: 12px;
+  font-weight: 500;
+  color: #34d399;
+  margin-bottom: 16px;
+}
+/* Agent and playbook rows */
+.td-agent,
+.td-playbook {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  border-radius: 8px;
+  background: var(--bg-3);
+  border: 1px solid var(--border);
+  min-height: 54px;
+}
+.td-agent-icon,
+.td-pb-icon {
+  width: 32px;
+  height: 32px;
+  border-radius: 8px;
+  background: var(--bg-4);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  font-size: 16px;
+}
+.td-agent-info {
+  flex: 1;
+}
+.td-agent-name {
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--t1);
+}
+.td-agent-skill {
+  font-size: 10.5px;
+  color: var(--t3);
+  font-family: "JetBrains Mono", monospace;
+  margin-top: 2px;
+}
+.td-pb-name {
+  font-size: 12.5px;
+  font-weight: 600;
+  font-family: "JetBrains Mono", monospace;
+  color: var(--accent);
+  flex: 1;
+}
+.td-agent-pulse {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+/* Checkpoint notice */
+.td-checkpoint-notice {
+  padding: 10px 12px;
+  border-radius: 8px;
+  background: rgba(245, 158, 11, 0.07);
+  border: 1px solid rgba(245, 158, 11, 0.18);
+  font-size: 12px;
+  color: var(--t2);
+  line-height: 1.6;
+}
+/* TriggerGateEditor */
+.tg-list {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.tg-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 8px;
+  border-radius: 5px;
+  background: var(--bg-3);
+  border: 1px solid var(--border);
+  font-size: 11px;
+  color: var(--t2);
+}
+.tg-item-type {
+  font-family: "JetBrains Mono", monospace;
+  font-size: 9.5px;
+  color: var(--t3);
+  background: var(--bg-4);
+  padding: 1px 5px;
+  border-radius: 3px;
+  flex-shrink: 0;
+}
+.tg-item-label {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.tg-item-remove {
+  background: none;
+  border: none;
+  color: var(--t3);
+  cursor: pointer;
+  padding: 0 2px;
+  font-size: 12px;
+  line-height: 1;
+  border-radius: 3px;
+  transition: color 0.12s;
+}
+.tg-item-remove:hover {
+  color: #f87171;
+}
+.tg-add-btn {
+  font-size: 11px;
+  color: var(--t3);
+  background: none;
+  border: 1px dashed var(--border);
+  border-radius: 5px;
+  padding: 5px 8px;
+  cursor: pointer;
+  transition: all 0.14s;
+  text-align: left;
+  width: 100%;
+  margin-top: 4px;
+}
+.tg-add-btn:hover {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+.tg-add-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+.tg-inline-form {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  padding: 8px;
+  border-radius: 6px;
+  background: var(--bg-3);
+  border: 1px solid var(--border-hi);
+  margin-top: 4px;
+}
+.tg-inline-row {
+  display: flex;
+  gap: 5px;
+}
+.tg-select,
+.tg-input {
+  flex: 1;
+  background: var(--bg-2);
+  border: 1px solid var(--border-hi);
+  border-radius: 5px;
+  padding: 5px 8px;
+  font-size: 11px;
+  color: var(--t1);
+  outline: none;
+}
+.tg-select:focus,
+.tg-input:focus {
+  border-color: var(--accent);
+}
+.tg-form-btns {
+  display: flex;
+  gap: 5px;
+  justify-content: flex-end;
+}
+.tg-form-save {
+  padding: 4px 10px;
+  border-radius: 5px;
+  font-size: 11px;
+  font-weight: 600;
+  background: var(--primary);
+  color: #fff;
+  border: none;
+  cursor: pointer;
+  transition: opacity 0.12s;
+}
+.tg-form-save:hover {
+  opacity: 0.88;
+}
+.tg-form-save:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+.tg-form-cancel {
+  padding: 4px 10px;
+  border-radius: 5px;
+  font-size: 11px;
+  background: none;
+  color: var(--t3);
+  border: 1px solid var(--border);
+  cursor: pointer;
+  transition: all 0.12s;
+}
+.tg-form-cancel:hover {
+  color: var(--t1);
+  border-color: var(--border-hi);
+}
+/* Events tab — dot+line layout (prototype `.dr-ev-*`) */
+.td-event-list {
+  display: flex;
+  flex-direction: column;
+}
+.td-event-item {
+  display: flex;
+  gap: 8px;
+  padding: 7px 0;
+  border-bottom: 1px solid var(--border-2);
+}
+.td-event-item:last-child {
+  border-bottom: none;
+}
+.td-event-dot {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: var(--accent);
+  margin-top: 5px;
+  flex-shrink: 0;
+}
+.td-event-name {
+  font-size: 10.5px;
+  font-family: "JetBrains Mono", monospace;
+  color: var(--accent);
+}
+.td-event-desc {
+  font-size: 11px;
+  color: var(--t2);
+  margin-top: 1px;
+}
+.td-event-time {
+  font-size: 10px;
+  color: var(--t3);
+  margin-top: 1px;
+}
+.td-empty {
+  font-size: 11.5px;
+  color: var(--t3);
+  padding-top: 4px;
+}
+
+/*
  * Tooltip enter animation. Used by the collapsed-mode workflow dots
  * (`SidebarWorkflowTree.CollapsedInstanceDot`) which render their
  * tooltip via a portal, so the keyframe lives in global CSS rather

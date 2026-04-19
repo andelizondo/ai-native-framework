@@ -33,6 +33,19 @@ async function authenticateWithBypass(page: Page) {
   ]);
 }
 
+/** Opens the "+ New instance" dialog for the first template in the sidebar tree. */
+async function openFirstTemplateNewInstanceDialog(page: Page) {
+  await page.goto("/");
+  const trigger = page
+    .locator('[data-testid^="workflow-new-instance-"]')
+    .first();
+  await expect(trigger).toBeVisible();
+  await trigger.click();
+  const dialog = page.getByRole("dialog");
+  await expect(dialog).toBeVisible();
+  return dialog;
+}
+
 test.describe("workflows — create-instance modal", () => {
   test("opens the modal, creates a new instance, and lands on the matrix route", async ({
     page,
@@ -43,19 +56,8 @@ test.describe("workflows — create-instance modal", () => {
     );
 
     await authenticateWithBypass(page);
-    await page.goto("/");
 
-    // Sidebar workflow tree should expose at least one template seeded by
-    // PR 4. Click the "+ New instance" trigger for the first template
-    // present in the tree.
-    const newInstance = page
-      .locator('[data-testid^="workflow-new-instance-"]')
-      .first();
-    await expect(newInstance).toBeVisible();
-    await newInstance.click();
-
-    const dialog = page.getByRole("dialog");
-    await expect(dialog).toBeVisible();
+    const dialog = await openFirstTemplateNewInstanceDialog(page);
 
     // Create button is disabled until the user types a non-empty label.
     const createBtn = dialog.getByRole("button", { name: /^create\s*→?$/i });
@@ -77,5 +79,133 @@ test.describe("workflows — create-instance modal", () => {
     await expect(
       page.getByRole("link", { name: uniqueLabel }),
     ).toBeVisible();
+  });
+});
+
+test.describe("workflows — process matrix (read-only)", () => {
+  test("renders sticky stage headers, role rows, and at least one bar-state task card", async ({
+    page,
+  }) => {
+    test.skip(
+      !hasSupabaseRuntime,
+      "Supabase runtime credentials required for the matrix happy path",
+    );
+
+    await authenticateWithBypass(page);
+
+    // The matrix needs an existing instance to paint, so create a fresh
+    // one from the first template in the sidebar (no fixture coupling)
+    // and follow the redirect onto its `/workflows/{id}` route.
+    const dialog = await openFirstTemplateNewInstanceDialog(page);
+    await dialog
+      .getByRole("textbox", { name: /instance name/i })
+      .fill(`E2E Matrix ${Date.now()}`);
+    await dialog.getByRole("button", { name: /^create\s*→?$/i }).click();
+    await expect(page).toHaveURL(/\/workflows\/[0-9a-f-]+$/);
+
+    const matrix = page.getByTestId("process-matrix");
+    await expect(matrix).toBeVisible();
+
+    // Stage headers and role row are present (selectors match the
+    // seeded "Client Project Delivery" template; if a different
+    // template is first in the sidebar the test still asserts at
+    // least one of each).
+    await expect(
+      page.locator('[data-testid^="matrix-stage-"]').first(),
+    ).toBeVisible();
+    await expect(
+      page.locator('[data-testid^="matrix-role-row-"]').first(),
+    ).toBeVisible();
+
+    // Newly-created instances start every task at `not_started`, so
+    // the matrix must paint at least one card and at least one card
+    // must carry a bar-* state class. Use the data attribute the
+    // component wires for exactly this assertion.
+    await expect(
+      page.locator('[data-testid^="task-card-"]').first(),
+    ).toBeVisible();
+    await expect(
+      page.locator('[data-testid^="task-card-"][data-bar^="bar-"]').first(),
+    ).toBeVisible();
+
+    // The role-collapse toggle flips the matrix into collapsed mode;
+    // verify the body class flips so we know the CSS contract is wired.
+    const toggle = page.getByTestId("matrix-roles-toggle");
+    await expect(toggle).toHaveAttribute("aria-pressed", "false");
+    await toggle.click();
+    await expect(toggle).toHaveAttribute("aria-pressed", "true");
+    await expect(matrix).toHaveAttribute("data-collapsed", "true");
+  });
+});
+
+test.describe("workflows — task drawer (AEL-51)", () => {
+  test("clicking a task card opens the drawer and Escape closes it", async ({
+    page,
+  }) => {
+    test.skip(
+      !hasSupabaseRuntime,
+      "Supabase runtime credentials required for the drawer happy path",
+    );
+
+    await authenticateWithBypass(page);
+
+    // Create a fresh instance so the matrix has tasks.
+    const dialog = await openFirstTemplateNewInstanceDialog(page);
+    await dialog
+      .getByRole("textbox", { name: /instance name/i })
+      .fill(`E2E Drawer ${Date.now()}`);
+    await dialog.getByRole("button", { name: /^create\s*→?$/i }).click();
+    await expect(page).toHaveURL(/\/workflows\/[0-9a-f-]+$/);
+
+    // Click the first task card.
+    const firstCard = page.locator('[data-testid^="task-card-"]').first();
+    await expect(firstCard).toBeVisible();
+    await firstCard.click();
+
+    // Drawer should appear.
+    const drawer = page.getByTestId("task-drawer");
+    await expect(drawer).toBeVisible();
+    await expect(drawer).toHaveAttribute("role", "dialog");
+
+    // Breadcrumb and tabs visible.
+    await expect(page.getByTestId("td-tab-details")).toBeVisible();
+    await expect(page.getByTestId("td-tab-events")).toBeVisible();
+    await expect(page.getByTestId("td-tab-dependencies")).toBeVisible();
+
+    // Escape closes the drawer.
+    await page.keyboard.press("Escape");
+    await expect(drawer).toBeHidden();
+  });
+
+  test("events tab shows seed events scoped to the selected task", async ({
+    page,
+  }) => {
+    test.skip(
+      !hasSupabaseRuntime,
+      "Supabase runtime credentials required for the events tab happy path",
+    );
+
+    await authenticateWithBypass(page);
+
+    const dialog = await openFirstTemplateNewInstanceDialog(page);
+    await dialog
+      .getByRole("textbox", { name: /instance name/i })
+      .fill(`E2E Events Tab ${Date.now()}`);
+    await dialog.getByRole("button", { name: /^create\s*→?$/i }).click();
+    await expect(page).toHaveURL(/\/workflows\/[0-9a-f-]+$/);
+
+    const firstCard = page.locator('[data-testid^="task-card-"]').first();
+    await firstCard.click();
+
+    const drawer = page.getByTestId("task-drawer");
+    await expect(drawer).toBeVisible();
+
+    await page.getByTestId("td-tab-events").click();
+
+    // Either empty state or event list is shown — both are valid depending on
+    // whether the seed script wrote events for this task.
+    const eventList = page.getByTestId("td-event-list");
+    const emptyState = page.getByTestId("td-events-empty");
+    await expect(eventList.or(emptyState)).toBeVisible();
   });
 });

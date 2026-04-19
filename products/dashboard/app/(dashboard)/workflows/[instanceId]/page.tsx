@@ -1,16 +1,27 @@
 import { notFound } from "next/navigation";
 
 import { ShellEvents } from "@/components/shell-events";
+import { ProcessMatrix } from "@/components/workflows/process-matrix";
 import { getServerWorkflowRepository } from "@/lib/workflows/repository.server";
 
 /**
- * Workflow instance route — stub.
+ * Workflow instance route.
  *
- * PR 5 lands the routing target so the create-instance modal has
- * somewhere to navigate after a successful insert. The Process Matrix
- * canvas itself ships in PR 7; for now we render the instance label
- * and a placeholder note so the page is discoverable in QA without
- * inventing matrix UI we'd just throw away.
+ * Renders the read-only Process Matrix for the requested instance.
+ * The matrix component owns layout (sticky header / role column,
+ * pip strip, role collapse) and visual state (bar-* classes); this
+ * route just resolves the instance + template and frames the page
+ * header above the canvas.
+ *
+ * Failure modes:
+ * - Instance not found → standard 404 (preserves the AEL-48 contract
+ *   where stale links produce a clean Not Found page rather than
+ *   crashing the dashboard shell).
+ * - Template missing (instance row references a deleted template):
+ *   render the matrix shell with a friendly placeholder so QA can
+ *   still observe the page rather than a hard crash. The instance
+ *   row carries its own `roles` snapshot, so we still get the
+ *   header counts right even without a template body.
  */
 
 interface Params {
@@ -31,12 +42,14 @@ export default async function WorkflowInstancePage({
     notFound();
   }
 
+  const template = await repo.getTemplate(instance.templateId);
+
   return (
     <>
       <ShellEvents route="/workflows/[instanceId]" />
 
-      <div className="overflow-y-auto p-6">
-        <header className="mb-5">
+      <div className="flex h-full flex-col overflow-hidden">
+        <header className="flex-shrink-0 border-b border-border bg-bg px-6 py-4">
           <p className="font-mono text-[10px] uppercase tracking-[0.13em] text-t3">
             Workflow instance
           </p>
@@ -52,17 +65,7 @@ export default async function WorkflowInstancePage({
           </p>
         </header>
 
-        <section className="rounded-[10px] border border-dashed border-border bg-bg-2 px-6 py-10 text-center">
-          <h2 className="text-[14px] font-semibold text-t1">
-            Matrix coming in PR 7
-          </h2>
-          <p className="mx-auto mt-1.5 max-w-md text-[12px] text-t2">
-            The Process Matrix view (sticky stage headers, role rows, task
-            cards with state pills) lands once the core canvas component
-            is ready. This page exists today so create-instance flows
-            have a routing target.
-          </p>
-        </section>
+        <ProcessMatrix instance={instance} template={template} />
       </div>
     </>
   );
