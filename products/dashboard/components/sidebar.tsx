@@ -166,7 +166,7 @@ function UserMenu({
           role="alert"
           aria-live="polite"
           id="sidebar-signout-error"
-          className="px-2.5 py-1 text-[11px] text-[color:var(--pill-blocked-t)]"
+          className="px-2.5 py-1 text-[11px] text-(color:--pill-blocked-t)"
         >
           {signOutError}
         </p>
@@ -178,7 +178,7 @@ function UserMenu({
         onClick={onSignOut}
         disabled={signingOut}
         aria-describedby={signOutError ? "sidebar-signout-error" : undefined}
-        className="flex w-full items-center gap-2 rounded-md px-2.5 py-2 text-[12.5px] text-[color:var(--pill-blocked-t)] hover:bg-[color:var(--pill-blocked-bg)] disabled:opacity-60 transition-colors"
+        className="flex w-full items-center gap-2 rounded-md px-2.5 py-2 text-[12.5px] text-(color:--pill-blocked-t) hover:bg-(--pill-blocked-bg) disabled:opacity-60 transition-colors"
       >
         <LogOut className="h-3.5 w-3.5" />
         {signingOut ? "Signing out…" : "Sign out"}

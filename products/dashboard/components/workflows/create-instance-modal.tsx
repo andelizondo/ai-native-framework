@@ -183,7 +183,7 @@ export function CreateInstanceModal({
       aria-modal="true"
       aria-labelledby={titleId}
       data-testid="create-instance-modal"
-      className="fixed inset-0 z-50 flex items-center justify-center bg-[color:var(--overlay)] p-4 backdrop-blur-[3px]"
+      className="fixed inset-0 z-50 flex items-center justify-center bg-(--overlay) p-4 backdrop-blur-[3px]"
       onMouseDown={(event) => {
         // Close only on direct backdrop clicks, not on clicks inside the
         // dialog that bubble up. Block while a request is in flight.
@@ -248,7 +248,7 @@ export function CreateInstanceModal({
           <p
             id={errorId}
             role="alert"
-            className="mt-3 text-[11.5px] text-[color:var(--pill-blocked-t)]"
+            className="mt-3 text-[11.5px] text-(color:--pill-blocked-t)"
           >
             {error}
           </p>

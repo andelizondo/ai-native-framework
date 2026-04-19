@@ -16,6 +16,13 @@ import { cn } from "@/lib/utils";
 type AgentStatus = "active" | "waiting" | "idle";
 
 interface AgentRow {
+  /**
+   * Stable identifier used as the React key. Two agents could share a
+   * `name` (e.g. multiple "PM Agent" runs once PR-8 wires the live
+   * runtime), so the row must carry its own id rather than reusing the
+   * display label.
+   */
+  id: string;
   name: string;
   icon: string;
   status: AgentStatus;
@@ -27,30 +34,35 @@ interface AgentRow {
 // with `repo.listAgentRuns()` once that surface exists.
 const SEED_AGENTS: ReadonlyArray<AgentRow> = [
   {
+    id: "agent-pm",
     name: "PM Agent",
     icon: "📋",
     status: "active",
     task: "Backlog refinement · CompanyX",
   },
   {
+    id: "agent-designer",
     name: "Designer Agent",
     icon: "🎨",
     status: "waiting",
     task: "Awaiting design review approval",
   },
   {
+    id: "agent-project",
     name: "Project Agent",
     icon: "🗂️",
     status: "active",
     task: "Scope planning · CompanyX",
   },
   {
+    id: "agent-devops",
     name: "DevOps Agent",
     icon: "🔧",
     status: "active",
     task: "Infra requirements · CompanyX",
   },
   {
+    id: "agent-strategist",
     name: "Strategist Agent",
     icon: "🧭",
     status: "active",
@@ -92,7 +104,7 @@ export function AgentPulseCard({ agents = SEED_AGENTS }: AgentPulseCardProps) {
         <ul className="divide-y divide-border-2">
           {agents.map((agent) => (
             <li
-              key={agent.name}
+              key={agent.id}
               className="flex items-center gap-2.5 px-4 py-2.5"
             >
               <span
