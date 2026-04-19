@@ -1,11 +1,12 @@
 "use client";
 
 import { useEffect, useState, useTransition } from "react";
-import { AlertTriangle, BookOpen, Bot, X, Zap } from "lucide-react";
+import { BookOpen, X } from "lucide-react";
 
 import { captureError } from "@/lib/monitoring";
 import { emitEvent } from "@/lib/events";
 import { cn } from "@/lib/utils";
+import { getRoleColor } from "@/lib/workflows/role-colors";
 import type {
   WorkflowEvent,
   WorkflowGate,
@@ -21,6 +22,23 @@ import {
   updateTaskTriggerGatesAction,
 } from "@/app/(dashboard)/workflows/actions";
 
+// Emoji icons keyed by skill name — mirrors SKILL_ICONS in pc-components.jsx.
+const SKILL_ICONS: Record<string, string> = {
+  pm: "📋",
+  builder: "⚡",
+  devops: "🔧",
+  "finance-ops": "💰",
+  "sales-ops": "🤝",
+  designer: "🎨",
+  researcher: "🔍",
+  strategist: "🧭",
+  growth: "📈",
+  qa: "✅",
+  project: "🗂️",
+  support: "🎧",
+  "spec.review": "📋",
+};
+
 // ── TriggerGateEditor ─────────────────────────────────────────────────────────
 
 const TRIGGER_TYPES = ["manual", "event", "task_complete", "schedule", "webhook"];
@@ -35,33 +53,25 @@ interface TriggerGateEditorProps {
 
 function TriggerGateEditor({ items, kind, disabled, onChange }: TriggerGateEditorProps) {
   const [isAdding, setIsAdding] = useState(false);
-  const [pendingType, setPendingType] = useState(kind === "trigger" ? TRIGGER_TYPES[0]! : GATE_TYPES[0]!);
-  const [pendingLabel, setPendingLabel] = useState("");
-
   const types = kind === "trigger" ? TRIGGER_TYPES : GATE_TYPES;
+  const [pendingType, setPendingType] = useState(types[0]!);
+  const [pendingLabel, setPendingLabel] = useState("");
 
   function handleAdd() {
     if (!pendingLabel.trim()) return;
-    const next = [
-      ...items,
-      { type: pendingType, label: pendingLabel.trim() },
-    ];
-    onChange(next);
+    onChange([...items, { type: pendingType, label: pendingLabel.trim() }]);
     setPendingLabel("");
     setPendingType(types[0]!);
     setIsAdding(false);
   }
 
   function handleRemove(index: number) {
-    const next = items.filter((_, i) => i !== index);
-    onChange(next);
+    onChange(items.filter((_, i) => i !== index));
   }
 
   return (
-    <div className="td-section" data-testid={`tg-editor-${kind}`}>
-      <span className="td-section-label">
-        {kind === "trigger" ? "Triggers" : "Gates"}
-      </span>
+    <div className="td-sec" data-testid={`tg-editor-${kind}`}>
+      <div className="td-sec-lbl">{kind === "trigger" ? "Triggers" : "Gates"}</div>
       <div className="tg-list">
         {items.map((item, i) => (
           <div key={i} className="tg-item" data-testid={`tg-item-${kind}-${i}`}>
@@ -89,9 +99,7 @@ function TriggerGateEditor({ items, kind, disabled, onChange }: TriggerGateEdito
               onChange={(e) => setPendingType(e.target.value)}
             >
               {types.map((t) => (
-                <option key={t} value={t}>
-                  {t}
-                </option>
+                <option key={t} value={t}>{t}</option>
               ))}
             </select>
             <input
@@ -110,10 +118,7 @@ function TriggerGateEditor({ items, kind, disabled, onChange }: TriggerGateEdito
             <button
               type="button"
               className="tg-form-cancel"
-              onClick={() => {
-                setIsAdding(false);
-                setPendingLabel("");
-              }}
+              onClick={() => { setIsAdding(false); setPendingLabel(""); }}
             >
               Cancel
             </button>
@@ -142,91 +147,9 @@ function TriggerGateEditor({ items, kind, disabled, onChange }: TriggerGateEdito
   );
 }
 
-// ── Primary action card ───────────────────────────────────────────────────────
-
-interface PrimaryActionProps {
-  task: WorkflowTask;
-  isPending: boolean;
-  onApprove: () => void;
-  onReject: () => void;
-}
-
-function PrimaryActionCard({ task, isPending, onApprove, onReject }: PrimaryActionProps) {
-  if (task.status === "pending_approval") {
-    return (
-      <div className="td-action-card" data-testid="td-action-card">
-        <div className="td-action-btns">
-          <button
-            type="button"
-            className="td-btn td-btn-approve"
-            disabled={isPending}
-            onClick={onApprove}
-            data-testid="td-approve-btn"
-          >
-            ✓ Approve &amp; continue
-          </button>
-          <button
-            type="button"
-            className="td-btn td-btn-reject"
-            disabled={isPending}
-            onClick={onReject}
-            data-testid="td-reject-btn"
-          >
-            Reject
-          </button>
-        </div>
-      </div>
-    );
-  }
-
-  if (task.status === "not_started") {
-    return (
-      <div className="td-action-card" data-testid="td-action-card">
-        <div className="td-action-btns">
-          <button
-            type="button"
-            className="td-btn td-btn-primary"
-            disabled={isPending}
-            data-testid="td-start-btn"
-          >
-            ▶ Start agent
-          </button>
-        </div>
-      </div>
-    );
-  }
-
-  if (task.status === "active") {
-    return (
-      <div className="td-action-card" data-testid="td-action-card">
-        <div className="td-action-btns">
-          <button
-            type="button"
-            className="td-btn td-btn-outline"
-            disabled={isPending}
-            data-testid="td-view-run-btn"
-          >
-            View live run
-          </button>
-        </div>
-      </div>
-    );
-  }
-
-  return null;
-}
-
 // ── Details tab ───────────────────────────────────────────────────────────────
 
-const STATUS_BORDER: Record<WorkflowTask["status"], string> = {
-  complete: "#10b981",
-  active: "#6366f1",
-  pending_approval: "#f59e0b",
-  blocked: "#ef4444",
-  not_started: "var(--border)",
-};
-
-const STATUS_LABEL: Record<WorkflowTask["status"], string> = {
+const STATUS_LABELS: Record<WorkflowTask["status"], string> = {
   complete: "Complete",
   active: "Active",
   pending_approval: "Pending approval",
@@ -234,8 +157,17 @@ const STATUS_LABEL: Record<WorkflowTask["status"], string> = {
   not_started: "Not started",
 };
 
+const STATUS_PILL_CLASS: Record<WorkflowTask["status"], string> = {
+  complete: "s-complete",
+  active: "s-active",
+  pending_approval: "s-pending",
+  blocked: "s-blocked",
+  not_started: "s-not_started",
+};
+
 interface DetailsTabProps {
   task: WorkflowTask;
+  roles: WorkflowRole[];
   isPending: boolean;
   onApprove: () => void;
   onReject: () => void;
@@ -245,73 +177,133 @@ interface DetailsTabProps {
 
 function DetailsTab({
   task,
+  roles,
   isPending,
   onApprove,
   onReject,
   onTriggersChange,
   onGatesChange,
 }: DetailsTabProps) {
-  const statusColor = STATUS_BORDER[task.status];
+  const isPendingApproval = task.status === "pending_approval";
+  const isActive = task.status === "active";
+  const isNotStarted = task.status === "not_started";
+  const roleColor = getRoleColor(task.roleId, roles);
+  const skillIcon = task.skill ? (SKILL_ICONS[task.skill] ?? "🤖") : "🤖";
 
   return (
     <>
-      {/* Primary action */}
-      <PrimaryActionCard
-        task={task}
-        isPending={isPending}
-        onApprove={onApprove}
-        onReject={onReject}
-      />
+      {/* PRIMARY ACTION at top — mirrors prototype `.dr-action-top` */}
+      {(isPendingApproval || isActive || isNotStarted) && (
+        <div className="td-action-top" data-testid="td-action-card">
+          {isPendingApproval && (
+            <>
+              <button
+                type="button"
+                className="td-btn td-btn-approve"
+                disabled={isPending}
+                onClick={onApprove}
+                data-testid="td-approve-btn"
+              >
+                ✓ Approve &amp; continue
+              </button>
+              <button
+                type="button"
+                className="td-btn td-btn-ghost"
+                disabled={isPending}
+                onClick={onReject}
+                data-testid="td-reject-btn"
+              >
+                Reject
+              </button>
+            </>
+          )}
+          {isActive && (
+            <button
+              type="button"
+              className="td-btn td-btn-run"
+              disabled={isPending}
+              data-testid="td-view-run-btn"
+            >
+              View live run
+            </button>
+          )}
+          {isNotStarted && (
+            <button
+              type="button"
+              className="td-btn td-btn-primary"
+              disabled={isPending}
+              data-testid="td-start-btn"
+            >
+              ▶ Start agent
+            </button>
+          )}
+        </div>
+      )}
 
       {/* Status */}
-      <div className="td-section">
-        <span className="td-section-label">Status</span>
+      <div className="td-sec">
+        <div className="td-sec-lbl">Status</div>
         <div
-          className="td-status-card"
-          style={{ borderLeftColor: statusColor }}
+          style={{
+            padding: "9px 12px",
+            borderRadius: 7,
+            background: "var(--bg-3)",
+            border: "1px solid var(--border)",
+            borderLeft: `2px solid ${roleColor}`,
+            fontSize: "11.5px",
+            color: "var(--t2)",
+          }}
           data-testid="td-status-card"
         >
-          <div className={cn("s-pill", `s-${task.status}`)} style={{ alignSelf: "flex-start" }}>
+          <div
+            className={cn("s-pill", STATUS_PILL_CLASS[task.status])}
+            style={{ marginBottom: 4 }}
+          >
             <div className="s-dot" aria-hidden />
-            <div className="s-text">{STATUS_LABEL[task.status]}</div>
+            <div className="s-text">{STATUS_LABELS[task.status]}</div>
           </div>
-          {task.substatus && (
-            <div style={{ fontSize: 11, color: "var(--t3)" }}>{task.substatus}</div>
-          )}
+          {task.substatus && <div>{task.substatus}</div>}
         </div>
       </div>
 
-      {/* Checkpoint */}
-      {task.checkpoint && task.status === "pending_approval" && (
-        <div className="td-checkpoint-card" data-testid="td-checkpoint-card">
-          <AlertTriangle size={13} aria-hidden />
-          Requesting approval to proceed.
+      {/* Checkpoint notice */}
+      {task.checkpoint && isPendingApproval && (
+        <div className="td-sec">
+          <div className="td-sec-lbl">Checkpoint</div>
+          <div className="td-checkpoint-notice" data-testid="td-checkpoint-card">
+            Requesting approval to proceed.
+          </div>
         </div>
       )}
 
       {/* Skills */}
-      {(task.agent || task.skill) && (
-        <div className="td-section">
-          <span className="td-section-label">Skills</span>
-          <div className="td-row">
-            <div className="td-row-icon">
-              <Bot size={12} aria-hidden />
-            </div>
-            {task.agent && (
-              <span className="td-row-name">{task.agent}</span>
-            )}
-            {task.skill && (
-              <span className="td-row-mono">{task.skill}</span>
-            )}
-            <div
-              className={cn(
-                "td-pulse-dot",
-                task.status === "active"
-                  ? "td-pulse-active"
-                  : task.status === "pending_approval"
-                    ? "td-pulse-pending"
-                    : "td-pulse-idle",
+      {(task.agent ?? task.skill) && (
+        <div className="td-sec">
+          <div className="td-sec-lbl">Skills</div>
+          <div className="td-agent">
+            <div className="td-agent-icon">{skillIcon}</div>
+            <div className="td-agent-info">
+              <div className="td-agent-name">
+                {task.agent ? `${task.agent} Agent` : "Agent"}
+              </div>
+              {task.skill && (
+                <div className="td-agent-skill">{task.skill}</div>
               )}
+            </div>
+            <div
+              className="td-agent-pulse"
+              style={{
+                background: isActive
+                  ? "#10b981"
+                  : isPendingApproval
+                    ? "#f59e0b"
+                    : "var(--border)",
+                boxShadow: isActive
+                  ? "0 0 6px rgba(16,185,129,0.5)"
+                  : isPendingApproval
+                    ? "0 0 6px rgba(245,158,11,0.4)"
+                    : "none",
+              }}
               aria-hidden
             />
           </div>
@@ -320,15 +312,13 @@ function DetailsTab({
 
       {/* Playbook */}
       {task.playbook && (
-        <div className="td-section">
-          <span className="td-section-label">Playbook</span>
-          <div className="td-row">
-            <div className="td-row-icon">
-              <BookOpen size={12} aria-hidden />
+        <div className="td-sec">
+          <div className="td-sec-lbl">Playbook</div>
+          <div className="td-playbook">
+            <div className="td-pb-icon">
+              <BookOpen size={15} aria-hidden />
             </div>
-            <span className="td-row-mono" style={{ color: "var(--accent)" }}>
-              {task.playbook}
-            </span>
+            <div className="td-pb-name">{task.playbook}</div>
           </div>
         </div>
       )}
@@ -354,32 +344,34 @@ function DetailsTab({
 
 // ── Events tab ────────────────────────────────────────────────────────────────
 
-interface EventsTabProps {
-  events: WorkflowEvent[];
-}
-
-function EventsTab({ events }: EventsTabProps) {
+function EventsTab({ events }: { events: WorkflowEvent[] }) {
   if (events.length === 0) {
     return (
       <div className="td-empty" data-testid="td-events-empty">
-        No events recorded for this task yet.
+        No events yet.
       </div>
     );
   }
 
   return (
-    <div className="td-event-list" data-testid="td-event-list">
-      {events.map((ev) => (
-        <div key={ev.id} className="td-event-item" data-testid={`td-event-${ev.id}`}>
-          <div className="td-event-name">{ev.name}</div>
-          {ev.description && (
-            <div className="td-event-desc">{ev.description}</div>
-          )}
-          <div className="td-event-time">
-            {new Date(ev.createdAt).toLocaleString()}
+    <div className="td-sec" style={{ marginTop: 4 }}>
+      <div className="td-sec-lbl">Event log</div>
+      <div className="td-event-list" data-testid="td-event-list">
+        {events.map((ev) => (
+          <div key={ev.id} className="td-event-item" data-testid={`td-event-${ev.id}`}>
+            <div className="td-event-dot" aria-hidden />
+            <div>
+              <div className="td-event-name">{ev.name}</div>
+              {ev.description && (
+                <div className="td-event-desc">{ev.description}</div>
+              )}
+              <div className="td-event-time">
+                {new Date(ev.createdAt).toLocaleString()}
+              </div>
+            </div>
           </div>
-        </div>
-      ))}
+        ))}
+      </div>
     </div>
   );
 }
@@ -388,18 +380,22 @@ function EventsTab({ events }: EventsTabProps) {
 
 function DependenciesTab() {
   return (
-    <div className="td-empty" data-testid="td-dependencies-placeholder">
-      DepTree coming in PR 10
+    <div className="td-sec" style={{ marginTop: 4 }}>
+      <div className="td-sec-lbl">Flow</div>
+      <div className="td-empty" data-testid="td-dependencies-placeholder">
+        DepTree coming in PR 10
+      </div>
     </div>
   );
 }
 
 // ── Main TaskDrawer ───────────────────────────────────────────────────────────
 
-type DrawerTab = "details" | "events" | "dependencies";
+type DrawerTab = "details" | "deps" | "events";
 
 export interface TaskDrawerProps {
-  task: WorkflowTask;
+  /** null → closed (drawer stays in DOM for CSS slide-out animation). */
+  task: WorkflowTask | null;
   instance: WorkflowInstanceDetail;
   roles: WorkflowRole[];
   template: WorkflowTemplate | null;
@@ -417,27 +413,30 @@ export function TaskDrawer({
 }: TaskDrawerProps) {
   const [activeTab, setActiveTab] = useState<DrawerTab>("details");
   const [isPending, startTransition] = useTransition();
+  const open = !!task;
 
-  const roleLabel = roles.find((r) => r.id === task.roleId)?.label ?? task.roleId;
-  const stageLabel =
-    template?.stages.find((s) => s.id === task.stageId)?.label ?? task.stageId;
-  const taskEvents = instance.events.filter((e) => e.taskId === task.id);
+  // Reset to details tab whenever a different task is selected.
+  useEffect(() => { setActiveTab("details"); }, [task?.id]);
 
-  // Analytics event on open
+  // Analytics event on open.
   useEffect(() => {
-    emitEvent("dashboard.task_drawer_opened", { task_id: task.id });
-  }, [task.id]);
+    if (task) {
+      emitEvent("dashboard.task_drawer_opened", { task_id: task.id });
+    }
+  }, [task?.id]);
 
-  // Close on Escape
+  // Close on Escape.
   useEffect(() => {
+    if (!open) return;
     function handleKey(e: KeyboardEvent) {
       if (e.key === "Escape") onClose();
     }
     window.addEventListener("keydown", handleKey);
     return () => window.removeEventListener("keydown", handleKey);
-  }, [onClose]);
+  }, [open, onClose]);
 
   function handleApprove() {
+    if (!task) return;
     startTransition(async () => {
       try {
         const { task: updated } = await approveDrawerCheckpointAction(task.id);
@@ -447,15 +446,13 @@ export function TaskDrawer({
           instance_id: task.instanceId,
         });
       } catch (err) {
-        captureError(err, {
-          feature: "workflows.drawer_approve",
-          extra: { task_id: task.id },
-        });
+        captureError(err, { feature: "workflows.drawer_approve", extra: { task_id: task.id } });
       }
     });
   }
 
   function handleReject() {
+    if (!task) return;
     startTransition(async () => {
       try {
         await rejectDrawerCheckpointAction(task.id);
@@ -464,53 +461,54 @@ export function TaskDrawer({
           instance_id: task.instanceId,
         });
       } catch (err) {
-        captureError(err, {
-          feature: "workflows.drawer_reject",
-          extra: { task_id: task.id },
-        });
+        captureError(err, { feature: "workflows.drawer_reject", extra: { task_id: task.id } });
       }
     });
   }
 
   function handleTriggersChange(triggers: WorkflowTrigger[]) {
+    if (!task) return;
     startTransition(async () => {
       try {
-        const { task: updated } = await updateTaskTriggerGatesAction(
-          task.id,
-          triggers,
-          task.gates,
-        );
+        const { task: updated } = await updateTaskTriggerGatesAction(task.id, triggers, task.gates);
         onTaskUpdate(updated);
       } catch (err) {
-        captureError(err, {
-          feature: "workflows.trigger_gate_update",
-          extra: { task_id: task.id },
-        });
+        captureError(err, { feature: "workflows.trigger_gate_update", extra: { task_id: task.id } });
       }
     });
   }
 
   function handleGatesChange(gates: WorkflowGate[]) {
+    if (!task) return;
     startTransition(async () => {
       try {
-        const { task: updated } = await updateTaskTriggerGatesAction(
-          task.id,
-          task.triggers,
-          gates,
-        );
+        const { task: updated } = await updateTaskTriggerGatesAction(task.id, task.triggers, gates);
         onTaskUpdate(updated);
       } catch (err) {
-        captureError(err, {
-          feature: "workflows.trigger_gate_update",
-          extra: { task_id: task.id },
-        });
+        captureError(err, { feature: "workflows.trigger_gate_update", extra: { task_id: task.id } });
       }
     });
   }
 
+  const roleLabel = task ? (roles.find((r) => r.id === task.roleId)?.label ?? task.roleId) : "";
+  const stageLabel = task
+    ? (template?.stages.find((s) => s.id === task.stageId)?.label ?? task.stageId)
+    : "";
+  const taskEvents = task ? instance.events.filter((e) => e.taskId === task.id) : [];
+
+  // Closed state: render empty shell so the slide-out CSS transition works.
+  if (!task) {
+    return (
+      <>
+        <div className="task-drawer-overlay" aria-hidden style={{ display: "none" }} />
+        <div className="task-drawer" data-testid="task-drawer" aria-hidden />
+      </>
+    );
+  }
+
   return (
     <>
-      {/* Overlay — closes drawer on click */}
+      {/* Overlay — closes drawer on click outside */}
       <div
         className="task-drawer-overlay"
         aria-hidden
@@ -518,23 +516,16 @@ export function TaskDrawer({
         onClick={onClose}
       />
 
-      {/* Drawer panel */}
+      {/* Drawer panel — `open` class triggers CSS slide-in */}
       <div
         role="dialog"
         aria-modal="true"
         aria-label={`Task: ${task.title}`}
-        className="task-drawer"
+        className={cn("task-drawer", open && "open")}
         data-testid="task-drawer"
       >
-        {/* Header */}
+        {/* Header: title row → breadcrumb → tabs (prototype order) */}
         <header className="td-header">
-          <div className="td-breadcrumb">
-            <span>{instance.label}</span>
-            <span aria-hidden>›</span>
-            <span>{stageLabel}</span>
-            <span aria-hidden>›</span>
-            <span>{roleLabel}</span>
-          </div>
           <div className="td-header-top">
             <h2 className="td-title">{task.title}</h2>
             <button
@@ -548,21 +539,29 @@ export function TaskDrawer({
             </button>
           </div>
 
-          {/* Tab bar */}
+          <div className="td-breadcrumb">
+            <span className="td-crumb">{instance.label}</span>
+            <span className="td-crumb-sep" aria-hidden>›</span>
+            <span className="td-crumb">{stageLabel}</span>
+            <span className="td-crumb-sep" aria-hidden>›</span>
+            <span className="td-crumb">{roleLabel}</span>
+          </div>
+
           <div className="td-tabs" role="tablist" aria-label="Task sections">
-            {(["details", "dependencies", "events"] as const).map((tab) => (
+            {(["details", "deps", "events"] as const).map((tab) => (
               <button
                 key={tab}
                 role="tab"
                 aria-selected={activeTab === tab}
                 className={cn("td-tab", activeTab === tab && "td-tab-active")}
                 onClick={() => setActiveTab(tab)}
-                data-testid={`td-tab-${tab}`}
+                data-testid={`td-tab-${tab === "deps" ? "dependencies" : tab}`}
               >
-                {tab.charAt(0).toUpperCase() + tab.slice(1)}
-                {tab === "events" && taskEvents.length > 0
-                  ? ` (${taskEvents.length})`
-                  : ""}
+                {tab === "details"
+                  ? "Details"
+                  : tab === "deps"
+                    ? "Dependencies"
+                    : `Events${taskEvents.length > 0 ? ` (${taskEvents.length})` : ""}`}
               </button>
             ))}
           </div>
@@ -573,6 +572,7 @@ export function TaskDrawer({
           {activeTab === "details" && (
             <DetailsTab
               task={task}
+              roles={roles}
               isPending={isPending}
               onApprove={handleApprove}
               onReject={handleReject}
@@ -581,7 +581,7 @@ export function TaskDrawer({
             />
           )}
           {activeTab === "events" && <EventsTab events={taskEvents} />}
-          {activeTab === "dependencies" && <DependenciesTab />}
+          {activeTab === "deps" && <DependenciesTab />}
         </div>
       </div>
     </>

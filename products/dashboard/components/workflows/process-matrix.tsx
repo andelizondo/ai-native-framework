@@ -236,16 +236,14 @@ export function ProcessMatrix({ instance, template }: Props) {
       </div>
     </div>
 
-    {selectedTask && (
-      <TaskDrawer
-        task={selectedTask}
-        instance={instance}
-        roles={roles}
-        template={template}
-        onClose={() => setSelectedTaskId(null)}
-        onTaskUpdate={handleTaskUpdate}
-      />
-    )}
+    <TaskDrawer
+      task={selectedTask}
+      instance={instance}
+      roles={roles}
+      template={template}
+      onClose={() => setSelectedTaskId(null)}
+      onTaskUpdate={handleTaskUpdate}
+    />
   </>
   );
 }
