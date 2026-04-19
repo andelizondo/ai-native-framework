@@ -106,19 +106,30 @@ jobs:
             echo "tag=$tag" >> "$GITHUB_OUTPUT"
           fi
 
-      - name: Create back-merge branch
+      - name: Create or reuse back-merge branch
         if: steps.check.outputs.needed == 'true'
         run: |
           set -euo pipefail
           branch="${{ steps.check.outputs.branch }}"
           tag="${{ steps.check.outputs.tag }}"
-          git checkout -b "$branch" origin/staging
-          git merge --no-ff origin/main \
-            -m "chore: back-merge main into staging after release ${tag}" \
-            -m "Automated by back-merge-to-staging.yml. See ai/playbooks/publish-to-production.md §8."
-          git push origin "$branch"
+          # Idempotent for retries (common when --admin merge fails on the
+          # first attempt and the workflow is re-dispatched). If the remote
+          # branch already exists with a valid back-merge commit, reuse it
+          # rather than failing on `git push` rejection or creating a divergent
+          # second branch.
+          if git ls-remote --exit-code --heads origin "$branch" >/dev/null 2>&1; then
+            echo "::notice title=Reusing branch::$branch already exists on origin; reusing it."
+            git fetch origin "$branch"
+            git checkout -B "$branch" "origin/$branch"
+          else
+            git checkout -b "$branch" origin/staging
+            git merge --no-ff origin/main \
+              -m "chore: back-merge main into staging after release ${tag}" \
+              -m "Automated by back-merge-to-staging.yml. See ai/playbooks/publish-to-production.md §8."
+            git push -u origin "$branch"
+          fi
 
-      - name: Open back-merge PR
+      - name: Open or reuse back-merge PR
         if: steps.check.outputs.needed == 'true'
         id: pr
         env:
@@ -145,12 +156,20 @@ jobs:
           \`.github/workflows/back-merge-to-staging.yml\` — see \`ai/playbooks/publish-to-production.md\` §8.
           EOF
           )
-          pr_url=$(gh pr create \
-            --base staging \
-            --head "$branch" \
-            --title "chore: back-merge main into staging after release ${tag}" \
-            --body "$body" \
-            --label "residual:low")
+          # Reuse an existing open PR if one is already attached to this branch
+          # (typical for workflow_dispatch retries or partial-failure recovery).
+          existing=$(gh pr list --state open --base staging --head "$branch" --json number,url --jq '.[0]')
+          if [ -n "$existing" ] && [ "$existing" != "null" ]; then
+            pr_url=$(echo "$existing" | python3 -c "import json,sys; print(json.load(sys.stdin)['url'])")
+            echo "::notice title=Reusing PR::$pr_url already open for $branch."
+          else
+            pr_url=$(gh pr create \
+              --base staging \
+              --head "$branch" \
+              --title "chore: back-merge main into staging after release ${tag}" \
+              --body "$body" \
+              --label "residual:low")
+          fi
           echo "pr_url=$pr_url" >> "$GITHUB_OUTPUT"
           pr_number="${pr_url##*/}"
           echo "pr_number=$pr_number" >> "$GITHUB_OUTPUT"
@@ -162,6 +181,12 @@ jobs:
         run: |
           set -euo pipefail
           pr_number="${{ steps.pr.outputs.pr_number }}"
+          # Skip if a previous run already merged the PR (idempotent retry).
+          pr_state=$(gh pr view "$pr_number" --json state --jq '.state')
+          if [ "$pr_state" = "MERGED" ]; then
+            echo "::notice title=Already merged::PR #${pr_number} is already MERGED; nothing to do."
+            exit 0
+          fi
           # `--admin` bypasses required status checks. Justified for back-merge
           # branches because every commit being merged was already reviewed
           # and merged through its own PR (promotion or release-please).

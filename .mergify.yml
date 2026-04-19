@@ -67,14 +67,25 @@ queue_rules:
     batch_size: 1
     merge_method: merge
     update_method: rebase
+    # Branch-name match alone is not a strong identity guard — anyone (or any
+    # automation) could push `chore/back-merge-main-after-foo` and inherit the
+    # check-skipping behaviour. The combined guards below require the PR to
+    # carry the `residual:low` label AND a title that exactly matches the
+    # workflow's template, which the workflow always sets together. Manual
+    # back-merges per `ai/playbooks/publish-to-production.md` §8 follow the
+    # same naming/label/title convention so they hit this queue too.
     queue_conditions:
       - base = staging
       - head ~= ^chore/back-merge-main-after-
+      - label = residual:low
+      - title ~= ^chore: back-merge main into staging after release
       - -draft
       - -label = sync:needed
     merge_conditions:
       - base = staging
       - head ~= ^chore/back-merge-main-after-
+      - label = residual:low
+      - title ~= ^chore: back-merge main into staging after release
       - -draft
       - -label = sync:needed
 
