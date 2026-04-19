@@ -274,6 +274,37 @@ export function createWorkflowRepository(
       return (data ?? []).map((row) => mapInstance(row as WorkflowInstanceRow));
     },
 
+    async listAllTasks(): Promise<WorkflowTask[]> {
+      const { data, error } = await client
+        .from("workflow_tasks")
+        .select("*")
+        .order("created_at", { ascending: true });
+
+      if (error) {
+        throw new WorkflowRepositoryError("listAllTasks failed", error);
+      }
+      return (data ?? []).map((row) => mapTask(row as WorkflowTaskRow));
+    },
+
+    async listRecentEvents(limit: number): Promise<WorkflowEvent[]> {
+      // Cap the limit defensively. Callers ask for "last 4" today; an
+      // unbounded request would still be safe but pull a lot over the
+      // wire as the events table grows.
+      const safeLimit = Math.max(0, Math.min(limit, 200));
+      if (safeLimit === 0) return [];
+
+      const { data, error } = await client
+        .from("workflow_events")
+        .select("*")
+        .order("created_at", { ascending: false })
+        .limit(safeLimit);
+
+      if (error) {
+        throw new WorkflowRepositoryError("listRecentEvents failed", error);
+      }
+      return (data ?? []).map((row) => mapEvent(row as WorkflowEventRow));
+    },
+
     async createInstance(
       templateId: string,
       label: string,
