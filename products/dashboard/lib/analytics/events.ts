@@ -26,13 +26,7 @@ export type AnalyticsEvent =
       properties: { feature_name: string; action: string };
     }
   // ── Dashboard shell ───────────────────────────────────────────────────────
-  | { event: "dashboard.shell_viewed"; properties: { route: string } }
-  | {
-      event: "dashboard.phase_navigated";
-      properties: {
-        phase: "ideation" | "design" | "implementation";
-      };
-    };
+  | { event: "dashboard.shell_viewed"; properties: { route: string } };
 
 // ─── PART B — Client-side capture hook ───────────────────────────────────────
 //

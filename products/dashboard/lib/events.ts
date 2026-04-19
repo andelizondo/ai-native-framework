@@ -15,7 +15,6 @@ import { PRODUCT_ID, SHELL_SLICE_ID } from "@/lib/sentry";
  *
  * Event names must match the catalog exactly:
  *   - dashboard.shell_viewed
- *   - dashboard.phase_navigated
  *   - auth.requested_magic_link
  *   - user.signed_in
  *   - user.signed_out
@@ -23,10 +22,6 @@ import { PRODUCT_ID, SHELL_SLICE_ID } from "@/lib/sentry";
 
 type ShellViewedPayload = {
   route: string;
-};
-
-type PhaseNavigatedPayload = {
-  phase: "ideation" | "design" | "implementation";
 };
 
 type AuthProviderPayload = {
@@ -39,7 +34,6 @@ type AuthProviderPayload = {
  */
 type EventMap = {
   "dashboard.shell_viewed": ShellViewedPayload;
-  "dashboard.phase_navigated": PhaseNavigatedPayload;
   "auth.requested_magic_link": { provider: "magic_link" };
   "user.signed_in": AuthProviderPayload;
   "user.signed_out": AuthProviderPayload;
@@ -53,7 +47,7 @@ type EventName = keyof EventMap;
  *
  * The envelope includes required transport fields per spec/policy/event-taxonomy.yaml:
  * event_name, occurred_at, emitted_by, correlation_id, schema_version.
- * Catalog payload (route / phase only) is nested under `payload`.
+ * Catalog payload (route / provider only) is nested under `payload`.
  */
 export function emitEvent<T extends EventName>(name: T, payload: EventMap[T]): void {
   // Only runs in browser — no-op during SSR

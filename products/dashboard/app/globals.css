@@ -25,12 +25,34 @@
   --border-2: rgba(255, 255, 255, 0.04);
   --border-hi: rgba(255, 255, 255, 0.12);
 
+  /*
+   * Text tokens.
+   *
+   * The prototype shipped with `--t2: #64748b` and `--t3: #334155`, but
+   * those values fail WCAG-AA contrast (≥4.5:1 for body text) against
+   * both `--bg` (#070d1a) and `--bg-2` (#0c1525). We bump them to slate-300
+   * and slate-400 so the canonical `text-t2` / `text-t3` utilities stay
+   * reusable on every dark surface (sidebar section labels, empty-state
+   * card bodies, stat hints, footer email) without per-callsite overrides.
+   * The visual hierarchy `t1 > t2 > t3` is preserved.
+   */
   --t1: #e2e8f0;
-  --t2: #64748b;
-  --t3: #334155;
+  --t2: #cbd5e1;
+  --t3: #94a3b8;
 
-  --primary: #6366f1;
-  --primary-bg: rgba(99, 102, 241, 0.1);
+  /*
+   * Brand primary.
+   *
+   * The prototype shipped indigo-500 (#6366f1), but white text on that
+   * shade lands at 4.46:1 contrast — just under WCAG-AA's 4.5:1 floor.
+   * Bumping to indigo-600 (#4f46e5) clears 6:1 while staying within the
+   * same hue family, so the brand badge / user avatar remain readable
+   * without per-element overrides. `--accent` keeps the lighter
+   * indigo-400 so non-text accents (active link tint, focus highlights)
+   * still match the prototype's "two-step" indigo system.
+   */
+  --primary: #4f46e5;
+  --primary-bg: rgba(79, 70, 229, 0.1);
   --accent: #818cf8;
 
   --shadow: 0 24px 60px rgba(0, 0, 0, 0.6);
@@ -73,9 +95,10 @@
   --t2: #475569;
   --t3: #94a3b8;
 
-  --primary: #6366f1;
-  --primary-bg: rgba(99, 102, 241, 0.07);
-  --accent: #6366f1;
+  /* See note in [data-theme="dark"] above for the indigo-600 bump. */
+  --primary: #4f46e5;
+  --primary-bg: rgba(79, 70, 229, 0.07);
+  --accent: #4f46e5;
 
   --shadow: 0 8px 40px rgba(0, 0, 0, 0.1);
   --matrix-head: rgba(248, 250, 252, 0.97);
@@ -170,4 +193,35 @@ body {
   transition:
     background-color 0.2s ease,
     color 0.2s ease;
+}
+
+/*
+ * Sidebar collapse — driven by `<html data-sidebar="collapsed|expanded">`.
+ *
+ * The collapse state lives on the root element so the inline pre-paint
+ * script in `app/layout.tsx` can rehydrate the persisted preference
+ * before React renders, without forcing the React tree to depend on a
+ * client-only value (which would cause a hydration mismatch). Markup
+ * stays the same in both states; this stylesheet hides labels and
+ * narrows the rail when collapsed.
+ */
+[data-sidebar="collapsed"] [data-sidebar-root] {
+  width: 52px;
+}
+[data-sidebar="collapsed"] [data-sidebar-collapsible] {
+  display: none;
+}
+[data-sidebar="collapsed"] [data-sidebar-when-collapsed] {
+  display: flex;
+}
+[data-sidebar-when-collapsed] {
+  display: none;
+}
+[data-sidebar="collapsed"] [data-sidebar-nav] {
+  padding: 7px;
+  justify-content: center;
+}
+[data-sidebar="collapsed"] [data-sidebar-user] {
+  padding: 8px;
+  justify-content: center;
 }

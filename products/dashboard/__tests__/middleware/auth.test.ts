@@ -128,7 +128,7 @@ describe("middleware — authentication enforcement", () => {
       response: new Response() as never,
     });
 
-    const res = await middleware(makeReq("/ideation"));
+    const res = await middleware(makeReq("/framework/skills"));
 
     expect(res.status).toBe(307);
     expect(res.headers.get("location")).toContain("/login");

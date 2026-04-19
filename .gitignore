@@ -11,8 +11,14 @@ products/dashboard/.next/
 products/dashboard/out/
 products/dashboard/.vercel
 products/dashboard/coverage/
+products/dashboard/test-results/
+products/dashboard/playwright-report/
+products/dashboard/tsconfig.tsbuildinfo
 
 # Build output
 dist/
 build/
 settings.local.json
+
+# Editor / agent local config
+.cursor/
