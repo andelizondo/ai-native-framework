@@ -602,7 +602,7 @@ screens:
     events_emitted: []
 
   - id: "workflow_matrix"
-    purpose: "The Process Matrix: a role × stage grid rendering a WorkflowInstance's tasks as cards. Read-only primary surface; edit mode is the next surface."
+    purpose: "The Process Matrix: a role × stage grid rendering a WorkflowInstance's tasks as cards. Read mode plus a task-level edit mode (add/move/remove tasks within the instance). Template editing is a separate surface."
     entities_read:
       - "WorkflowInstance"
       - "WorkflowTask"
@@ -612,7 +612,6 @@ screens:
       - "workflow.task_started"
       - "workflow.task_completed"
       - "workflow.task_blocked"
-      - "workflow.template_edited"
 
   - id: "framework_skills"
     purpose: "Card grid of framework Skills with a markdown editor for CRUD operations. Feeds WorkflowTask.skill references."
