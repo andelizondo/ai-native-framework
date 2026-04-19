@@ -16,6 +16,19 @@ export type WorkflowTaskStatus =
   | "blocked"
   | "complete";
 
+/**
+ * Legal terminal states for `WorkflowRepository.transitionPendingCheckpoint`.
+ * The atomic checkpoint resolution path only ever flips a
+ * `pending_approval` row to one of these two statuses — `complete`
+ * for approve, `blocked` for reject — so the parameter type is
+ * narrowed to keep callers from accidentally requesting (e.g.)
+ * `active` or `not_started`, which would silently corrupt the
+ * approval audit trail.
+ */
+export type WorkflowCheckpointTransitionStatus =
+  | Extract<WorkflowTaskStatus, "complete">
+  | Extract<WorkflowTaskStatus, "blocked">;
+
 export type FrameworkItemType = "skill" | "playbook";
 
 export interface WorkflowStage {
@@ -147,7 +160,49 @@ export interface WorkflowEventInput {
 export interface WorkflowRepository {
   getTemplates(): Promise<WorkflowTemplate[]>;
   getInstance(id: string): Promise<WorkflowInstanceDetail | null>;
+  /**
+   * Single-task lookup. Returns `null` when the row is missing or RLS
+   * hides it. Read-only utility for surfaces that need a single row
+   * without going through `getInstance()`'s heavier joins.
+   *
+   * Note: do **not** use this to validate preconditions before a
+   * write — the read-then-write window is racy. Use
+   * `transitionPendingCheckpoint` (or a similar conditional-update
+   * primitive) for state transitions that depend on the current row
+   * value.
+   */
+  getTask(taskId: string): Promise<WorkflowTask | null>;
+  /**
+   * Atomic transition of a checkpoint task that is currently awaiting
+   * approval. Issues a single conditional UPDATE against
+   * `workflow_tasks` with `id = taskId AND checkpoint = TRUE AND
+   * status = 'pending_approval'`, so the row only flips when the
+   * preconditions are still true at write time. Returns the updated
+   * task on success, or `null` when no row matched (task missing /
+   * not a checkpoint / not in `pending_approval` / RLS-hidden) — the
+   * caller decides how to surface that.
+   *
+   * `nextStatus` MUST be one of the legal terminal states for an
+   * approval flow (`complete` for approve, `blocked` for reject). The
+   * mapping from action intent to status lives in the action layer,
+   * not here, so this primitive stays composable.
+   */
+  transitionPendingCheckpoint(
+    taskId: string,
+    nextStatus: WorkflowCheckpointTransitionStatus,
+  ): Promise<WorkflowTask | null>;
   listInstances(templateId?: string): Promise<WorkflowInstance[]>;
+  /**
+   * All tasks across every instance the caller can read (RLS still
+   * applies). Used by the Overview screen to compute completion stats
+   * without N+1 round-trips through `getInstance()`.
+   */
+  listAllTasks(): Promise<WorkflowTask[]>;
+  /**
+   * Most recent workflow events across every instance the caller can
+   * read. Ordered by `created_at` DESC; capped at `limit`.
+   */
+  listRecentEvents(limit: number): Promise<WorkflowEvent[]>;
   createInstance(templateId: string, label: string): Promise<WorkflowInstanceDetail>;
   updateTask(taskId: string, patch: WorkflowTaskPatch): Promise<WorkflowTask>;
   addEvent(taskId: string, event: WorkflowEventInput): Promise<WorkflowEvent>;

@@ -7,6 +7,7 @@ import type {
   WorkflowEventInput,
   WorkflowInstance,
   WorkflowInstanceDetail,
+  WorkflowCheckpointTransitionStatus,
   WorkflowRepository,
   WorkflowRole,
   WorkflowTask,
@@ -257,6 +258,56 @@ export function createWorkflowRepository(
       };
     },
 
+    async getTask(taskId: string): Promise<WorkflowTask | null> {
+      const { data, error } = await client
+        .from("workflow_tasks")
+        .select("*")
+        .eq("id", taskId)
+        .maybeSingle();
+
+      if (error) {
+        throw new WorkflowRepositoryError("getTask failed", error);
+      }
+      if (!data) {
+        return null;
+      }
+      return mapTask(data as WorkflowTaskRow);
+    },
+
+    async transitionPendingCheckpoint(
+      taskId: string,
+      nextStatus: WorkflowCheckpointTransitionStatus,
+    ): Promise<WorkflowTask | null> {
+      // Single atomic UPDATE … WHERE id = ? AND checkpoint = TRUE
+      // AND status = 'pending_approval' RETURNING *. This avoids the
+      // read-then-write race that a `getTask` precondition check would
+      // create: between SELECT and UPDATE another writer could flip
+      // the row, and we'd happily resolve a checkpoint that has
+      // already been resolved (or worse, transition a non-checkpoint).
+      // When `data` is null the row didn't match the predicates —
+      // missing, not a checkpoint, not pending_approval, or hidden by
+      // RLS — and the caller should treat that as a no-op failure.
+      const { data, error } = await client
+        .from("workflow_tasks")
+        .update({ status: nextStatus })
+        .eq("id", taskId)
+        .eq("checkpoint", true)
+        .eq("status", "pending_approval")
+        .select("*")
+        .maybeSingle();
+
+      if (error) {
+        throw new WorkflowRepositoryError(
+          "transitionPendingCheckpoint failed",
+          error,
+        );
+      }
+      if (!data) {
+        return null;
+      }
+      return mapTask(data as WorkflowTaskRow);
+    },
+
     async listInstances(templateId?: string): Promise<WorkflowInstance[]> {
       let query = client
         .from("workflow_instances")
@@ -272,6 +323,40 @@ export function createWorkflowRepository(
         throw new WorkflowRepositoryError("listInstances failed", error);
       }
       return (data ?? []).map((row) => mapInstance(row as WorkflowInstanceRow));
+    },
+
+    async listAllTasks(): Promise<WorkflowTask[]> {
+      const { data, error } = await client
+        .from("workflow_tasks")
+        .select("*")
+        .order("created_at", { ascending: true });
+
+      if (error) {
+        throw new WorkflowRepositoryError("listAllTasks failed", error);
+      }
+      return (data ?? []).map((row) => mapTask(row as WorkflowTaskRow));
+    },
+
+    async listRecentEvents(limit: number): Promise<WorkflowEvent[]> {
+      // Normalize first: a `NaN` or fractional `limit` would otherwise
+      // poison `Math.min`/`Math.max` and reach Supabase as `NaN` /
+      // `1.5`, both of which produce confusing query errors. Treat
+      // anything non-finite as "0 rows requested" so the caller gets a
+      // clean empty result instead of a thrown error.
+      const normalizedLimit = Number.isFinite(limit) ? Math.trunc(limit) : 0;
+      const safeLimit = Math.max(0, Math.min(normalizedLimit, 200));
+      if (safeLimit === 0) return [];
+
+      const { data, error } = await client
+        .from("workflow_events")
+        .select("*")
+        .order("created_at", { ascending: false })
+        .limit(safeLimit);
+
+      if (error) {
+        throw new WorkflowRepositoryError("listRecentEvents failed", error);
+      }
+      return (data ?? []).map((row) => mapEvent(row as WorkflowEventRow));
     },
 
     async createInstance(

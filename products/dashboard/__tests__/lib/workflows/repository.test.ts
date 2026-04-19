@@ -368,6 +368,103 @@ describe("workflow repository", () => {
     });
   });
 
+  describe("getTask", () => {
+    it("returns a single task mapped to camelCase shape", async () => {
+      const repo = createWorkflowRepository(makeFakeClient(store));
+      const instance = await repo.createInstance("client-delivery", "Acme Corp");
+      const checkpoint = instance.tasks.find((t) => t.checkpoint)!;
+
+      const fetched = await repo.getTask(checkpoint.id);
+
+      expect(fetched).not.toBeNull();
+      expect(fetched!.id).toBe(checkpoint.id);
+      expect(fetched!.checkpoint).toBe(true);
+      expect(fetched!.title).toBe("PDR Review");
+      expect(fetched!.instanceId).toBe(instance.id);
+    });
+
+    it("returns null when the task id is unknown (RLS-hidden or missing)", async () => {
+      const repo = createWorkflowRepository(makeFakeClient(store));
+
+      const fetched = await repo.getTask("does-not-exist");
+
+      expect(fetched).toBeNull();
+    });
+  });
+
+  describe("transitionPendingCheckpoint", () => {
+    it("flips a pending_approval checkpoint task to the requested status atomically", async () => {
+      const repo = createWorkflowRepository(makeFakeClient(store));
+      const instance = await repo.createInstance("client-delivery", "Acme Corp");
+      const checkpoint = instance.tasks.find((t) => t.checkpoint)!;
+
+      // Templates materialize tasks in `not_started`; promote to
+      // pending_approval so the conditional UPDATE's predicates match.
+      await repo.updateTask(checkpoint.id, { status: "pending_approval" });
+
+      const transitioned = await repo.transitionPendingCheckpoint(
+        checkpoint.id,
+        "complete",
+      );
+
+      expect(transitioned).not.toBeNull();
+      expect(transitioned!.id).toBe(checkpoint.id);
+      expect(transitioned!.status).toBe("complete");
+      expect(transitioned!.checkpoint).toBe(true);
+
+      // Persisted: a re-read sees the new status.
+      const refetched = await repo.getTask(checkpoint.id);
+      expect(refetched!.status).toBe("complete");
+    });
+
+    it("returns null when the task is not a checkpoint (UPDATE matches no row, no write)", async () => {
+      const repo = createWorkflowRepository(makeFakeClient(store));
+      const instance = await repo.createInstance("client-delivery", "Acme Corp");
+      const nonCheckpoint = instance.tasks.find((t) => !t.checkpoint)!;
+
+      // Even after promoting status, the `checkpoint = TRUE` predicate
+      // must fail and the UPDATE must not write — the row stays
+      // untouched so subsequent flows see truthful state.
+      await repo.updateTask(nonCheckpoint.id, { status: "pending_approval" });
+
+      const transitioned = await repo.transitionPendingCheckpoint(
+        nonCheckpoint.id,
+        "complete",
+      );
+
+      expect(transitioned).toBeNull();
+      const refetched = await repo.getTask(nonCheckpoint.id);
+      expect(refetched!.status).toBe("pending_approval");
+    });
+
+    it("returns null when the task is not in pending_approval (UPDATE matches no row, no write)", async () => {
+      const repo = createWorkflowRepository(makeFakeClient(store));
+      const instance = await repo.createInstance("client-delivery", "Acme Corp");
+      const checkpoint = instance.tasks.find((t) => t.checkpoint)!;
+
+      // Checkpoint exists but is still `not_started` from materialization.
+      const transitioned = await repo.transitionPendingCheckpoint(
+        checkpoint.id,
+        "complete",
+      );
+
+      expect(transitioned).toBeNull();
+      const refetched = await repo.getTask(checkpoint.id);
+      expect(refetched!.status).toBe("not_started");
+    });
+
+    it("returns null when the task id is unknown", async () => {
+      const repo = createWorkflowRepository(makeFakeClient(store));
+
+      const transitioned = await repo.transitionPendingCheckpoint(
+        "does-not-exist",
+        "complete",
+      );
+
+      expect(transitioned).toBeNull();
+    });
+  });
+
   describe("addEvent + getInstance", () => {
     it("appends an event and surfaces it via getInstance", async () => {
       const repo = createWorkflowRepository(makeFakeClient(store));
