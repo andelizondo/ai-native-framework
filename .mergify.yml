@@ -78,14 +78,18 @@ queue_rules:
       - base = staging
       - head ~= ^chore/back-merge-main-after-
       - label = residual:low
-      - title ~= ^chore: back-merge main into staging after release
+      # YAML quoting required: the colon in `chore:` would otherwise be parsed
+      # as a mapping key, silently invalidating the whole queue config and
+      # causing Mergify to fall through to `staging-integration` (which is
+      # exactly how PR #110 was squash-merged and broke ancestry).
+      - "title ~= ^chore: back-merge main into staging after release"
       - -draft
       - -label = sync:needed
     merge_conditions:
       - base = staging
       - head ~= ^chore/back-merge-main-after-
       - label = residual:low
-      - title ~= ^chore: back-merge main into staging after release
+      - "title ~= ^chore: back-merge main into staging after release"
       - -draft
       - -label = sync:needed
 
