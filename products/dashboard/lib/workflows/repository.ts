@@ -214,6 +214,20 @@ export function createWorkflowRepository(
       return (data ?? []).map((row) => mapTemplate(row as WorkflowTemplateRow));
     },
 
+    async getTemplate(id: string): Promise<WorkflowTemplate | null> {
+      const { data, error } = await client
+        .from("workflow_templates")
+        .select("*")
+        .eq("id", id)
+        .maybeSingle();
+
+      if (error) {
+        throw new WorkflowRepositoryError("getTemplate failed", error);
+      }
+      if (!data) return null;
+      return mapTemplate(data as WorkflowTemplateRow);
+    },
+
     async getInstance(id: string): Promise<WorkflowInstanceDetail | null> {
       const { data: instanceRow, error: instanceErr } = await client
         .from("workflow_instances")

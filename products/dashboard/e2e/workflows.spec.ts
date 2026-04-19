@@ -79,3 +79,61 @@ test.describe("workflows — create-instance modal", () => {
     ).toBeVisible();
   });
 });
+
+test.describe("workflows — process matrix (read-only)", () => {
+  test("renders sticky stage headers, role rows, and at least one bar-state task card", async ({
+    page,
+  }) => {
+    test.skip(
+      !hasSupabaseRuntime,
+      "Supabase runtime credentials required for the matrix happy path",
+    );
+
+    await authenticateWithBypass(page);
+
+    // The matrix needs an existing instance to paint, so create a fresh
+    // one from the first template in the sidebar (no fixture coupling)
+    // and follow the redirect onto its `/workflows/{id}` route.
+    await page.goto("/");
+    await page.locator('[data-testid^="workflow-new-instance-"]').first().click();
+    const dialog = page.getByRole("dialog");
+    await dialog
+      .getByRole("textbox", { name: /instance name/i })
+      .fill(`E2E Matrix ${Date.now()}`);
+    await dialog.getByRole("button", { name: /^create\s*→?$/i }).click();
+    await expect(page).toHaveURL(/\/workflows\/[0-9a-f-]+$/);
+
+    const matrix = page.getByTestId("process-matrix");
+    await expect(matrix).toBeVisible();
+
+    // Stage headers and role row are present (selectors match the
+    // seeded "Client Project Delivery" template; if a different
+    // template is first in the sidebar the test still asserts at
+    // least one of each).
+    await expect(
+      page.locator('[data-testid^="matrix-stage-"]').first(),
+    ).toBeVisible();
+    await expect(
+      page.locator('[data-testid^="matrix-role-row-"]').first(),
+    ).toBeVisible();
+
+    // Newly-created instances start every task at `not_started`, so
+    // the matrix must paint at least one card and at least one card
+    // must carry a bar-* state class. Use the data attribute the
+    // component wires for exactly this assertion.
+    await expect(
+      page.locator('[data-testid^="task-card-"]').first(),
+    ).toBeVisible();
+    await expect(
+      page.locator('[data-testid^="task-card-"][data-bar^="bar-"]').first(),
+    ).toBeVisible();
+
+    // The role-collapse toggle flips the matrix into collapsed mode;
+    // verify the body class flips so we know the CSS contract is wired.
+    const toggle = page.getByTestId("matrix-roles-toggle");
+    await expect(toggle).toHaveAttribute("aria-pressed", "false");
+    await toggle.click();
+    await expect(toggle).toHaveAttribute("aria-pressed", "true");
+    await expect(matrix).toHaveAttribute("data-collapsed", "true");
+  });
+});
