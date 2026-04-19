@@ -176,7 +176,7 @@ export interface WorkflowRepository {
    */
   transitionPendingCheckpoint(
     taskId: string,
-    nextStatus: WorkflowTaskStatus,
+    nextStatus: WorkflowCheckpointTransitionStatus,
   ): Promise<WorkflowTask | null>;
   listInstances(templateId?: string): Promise<WorkflowInstance[]>;
   /**
