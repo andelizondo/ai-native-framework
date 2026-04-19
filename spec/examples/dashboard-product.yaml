@@ -317,6 +317,87 @@ events:
             enum:
               - magic_link
               - google
+    - name: "dashboard.task_drawer_opened"
+      description: "User opened the Task Drawer by clicking a task card in the Process Matrix."
+      version: "1.0.0"
+      schema_version: "1.0.0"
+      classification:
+        pii: none
+        idempotency: none
+        ordering: at_least_once
+      emitted_by:
+        - "components.task-drawer"
+      payload:
+        type: object
+        additionalProperties: false
+        required:
+          - task_id
+        properties:
+          task_id:
+            type: string
+    - name: "workflow.checkpoint_approved"
+      description: "User approved a pending checkpoint task from the Task Drawer, allowing the agent to continue."
+      version: "1.0.0"
+      schema_version: "1.0.0"
+      classification:
+        pii: none
+        idempotency: recommended
+        ordering: at_least_once
+      emitted_by:
+        - "components.task-drawer"
+      payload:
+        type: object
+        additionalProperties: false
+        required:
+          - task_id
+          - instance_id
+        properties:
+          task_id:
+            type: string
+          instance_id:
+            type: string
+    - name: "workflow.checkpoint_rejected"
+      description: "User rejected a pending checkpoint task from the Task Drawer."
+      version: "1.0.0"
+      schema_version: "1.0.0"
+      classification:
+        pii: none
+        idempotency: recommended
+        ordering: at_least_once
+      emitted_by:
+        - "components.task-drawer"
+      payload:
+        type: object
+        additionalProperties: false
+        required:
+          - task_id
+          - instance_id
+        properties:
+          task_id:
+            type: string
+          instance_id:
+            type: string
+    - name: "workflow.task_updated"
+      description: "Task triggers or gates were updated via the Task Drawer editor."
+      version: "1.0.0"
+      schema_version: "1.0.0"
+      classification:
+        pii: none
+        idempotency: recommended
+        ordering: at_least_once
+      emitted_by:
+        - "actions.updateTaskTriggerGatesAction"
+      payload:
+        type: object
+        additionalProperties: false
+        required:
+          - task_id
+          - instance_id
+        properties:
+          task_id:
+            type: string
+          instance_id:
+            type: string
 
 observability:
   logs:

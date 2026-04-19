@@ -585,6 +585,479 @@ body {
 }
 
 /*
+ * Task Drawer.
+ *
+ * CSS faithfully mirrors prototype `Process Canvas.html` lines 221-269
+ * and `TaskDrawer` in `pc-components.jsx`. Fixed-position panel slides
+ * in from the right over an overlay. `position:fixed` escapes the
+ * `.matrix-wrap { overflow:auto }` scroll container correctly because
+ * that ancestor has no transform/perspective/filter.
+ *
+ * z-index ladder (from prototype): overlay=55, drawer=60.
+ */
+.task-drawer-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 55;
+  background: var(--overlay);
+}
+.task-drawer {
+  position: fixed;
+  right: 0;
+  top: 0;
+  bottom: 0;
+  width: 420px;
+  background: var(--bg-2);
+  border-left: 1px solid var(--border-hi);
+  box-shadow: var(--shadow);
+  z-index: 60;
+  display: flex;
+  flex-direction: column;
+  transform: translateX(105%);
+  transition: transform 0.26s cubic-bezier(0.4, 0, 0.2, 1);
+}
+.task-drawer.open {
+  transform: translateX(0);
+}
+@media (prefers-reduced-motion: reduce) {
+  .task-drawer {
+    transition: none;
+  }
+}
+/* Header */
+.td-header {
+  padding: 18px 20px 0;
+  border-bottom: 1px solid var(--border);
+  flex-shrink: 0;
+}
+.td-header-top {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  margin-bottom: 8px;
+}
+.td-title {
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--t1);
+  letter-spacing: -0.02em;
+  line-height: 1.3;
+  flex: 1;
+  margin: 0;
+}
+.td-close {
+  width: 26px;
+  height: 26px;
+  border-radius: 6px;
+  border: 1px solid var(--border);
+  background: var(--bg-3);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--t2);
+  flex-shrink: 0;
+  transition: all 0.14s;
+  padding: 0;
+}
+.td-close:hover {
+  background: var(--bg-4);
+  color: var(--t1);
+}
+.td-close:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+.td-breadcrumb {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  margin-bottom: 12px;
+  flex-wrap: wrap;
+}
+.td-crumb {
+  font-size: 11px;
+  color: var(--t3);
+  font-family: "JetBrains Mono", monospace;
+}
+.td-crumb-sep {
+  font-size: 11px;
+  color: var(--t3);
+}
+/* Tabs extend to edges with negative margin (mirrors prototype) */
+.td-tabs {
+  display: flex;
+  margin: 0 -20px;
+  padding: 0 20px;
+}
+.td-tab {
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--t3);
+  padding: 7px 12px 9px;
+  cursor: pointer;
+  border-bottom: 2px solid transparent;
+  background: none;
+  border-top: none;
+  border-left: none;
+  border-right: none;
+  transition: all 0.14s;
+  margin-bottom: -1px;
+}
+.td-tab:hover {
+  color: var(--t2);
+}
+.td-tab.td-tab-active {
+  color: var(--accent);
+  border-bottom-color: var(--accent);
+}
+/* Body */
+.td-body {
+  flex: 1;
+  overflow-y: auto;
+  padding: 18px 20px;
+}
+/* Section block — margin-bottom matches prototype's `.dr-sec` */
+.td-sec {
+  margin-bottom: 20px;
+}
+/* Section label with decorative `::after` line (from prototype `.dr-sec-lbl::after`) */
+.td-sec-lbl {
+  font-size: 9px;
+  font-weight: 600;
+  letter-spacing: 0.13em;
+  text-transform: uppercase;
+  color: var(--t3);
+  font-family: "JetBrains Mono", monospace;
+  margin-bottom: 9px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.td-sec-lbl::after {
+  content: "";
+  flex: 1;
+  height: 1px;
+  background: var(--border-2);
+}
+/* Action card — sits at top of details tab before any sections */
+.td-action-top {
+  background: var(--bg-3);
+  border: 1px solid var(--border-hi);
+  border-radius: 9px;
+  padding: 12px;
+  margin-bottom: 18px;
+}
+/* Buttons — all full-width, stacked */
+.td-btn {
+  width: 100%;
+  padding: 9px 16px;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  font-size: 12.5px;
+  font-weight: 600;
+  cursor: pointer;
+  font-family: inherit;
+  transition: all 0.15s;
+  margin-bottom: 7px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+}
+.td-btn:last-child {
+  margin-bottom: 0;
+}
+.td-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+.td-btn-primary {
+  background: var(--primary);
+  border-color: var(--primary);
+  color: white;
+}
+.td-btn-primary:hover:not(:disabled) {
+  opacity: 0.9;
+}
+.td-btn-approve {
+  background: #10b981;
+  border-color: #10b981;
+  color: white;
+}
+.td-btn-approve:hover:not(:disabled) {
+  opacity: 0.9;
+}
+.td-btn-run {
+  background: var(--primary-bg);
+  border-color: var(--primary);
+  color: var(--accent);
+}
+.td-btn-run:hover:not(:disabled) {
+  background: rgba(99, 102, 241, 0.18);
+}
+.td-btn-ghost {
+  background: transparent;
+  color: var(--t2);
+  border-color: transparent;
+}
+.td-btn-ghost:hover:not(:disabled) {
+  background: var(--bg-3);
+  color: var(--t1);
+}
+/* "Approved — agent continuing" badge */
+.td-approved-badge {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding: 10px 12px;
+  border-radius: 8px;
+  background: rgba(16, 185, 129, 0.08);
+  border: 1px solid rgba(16, 185, 129, 0.2);
+  font-size: 12px;
+  font-weight: 500;
+  color: #34d399;
+  margin-bottom: 16px;
+}
+/* Agent and playbook rows */
+.td-agent,
+.td-playbook {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  border-radius: 8px;
+  background: var(--bg-3);
+  border: 1px solid var(--border);
+  min-height: 54px;
+}
+.td-agent-icon,
+.td-pb-icon {
+  width: 32px;
+  height: 32px;
+  border-radius: 8px;
+  background: var(--bg-4);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  font-size: 16px;
+}
+.td-agent-info {
+  flex: 1;
+}
+.td-agent-name {
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--t1);
+}
+.td-agent-skill {
+  font-size: 10.5px;
+  color: var(--t3);
+  font-family: "JetBrains Mono", monospace;
+  margin-top: 2px;
+}
+.td-pb-name {
+  font-size: 12.5px;
+  font-weight: 600;
+  font-family: "JetBrains Mono", monospace;
+  color: var(--accent);
+  flex: 1;
+}
+.td-agent-pulse {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+/* Checkpoint notice */
+.td-checkpoint-notice {
+  padding: 10px 12px;
+  border-radius: 8px;
+  background: rgba(245, 158, 11, 0.07);
+  border: 1px solid rgba(245, 158, 11, 0.18);
+  font-size: 12px;
+  color: var(--t2);
+  line-height: 1.6;
+}
+/* TriggerGateEditor */
+.tg-list {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.tg-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 8px;
+  border-radius: 5px;
+  background: var(--bg-3);
+  border: 1px solid var(--border);
+  font-size: 11px;
+  color: var(--t2);
+}
+.tg-item-type {
+  font-family: "JetBrains Mono", monospace;
+  font-size: 9.5px;
+  color: var(--t3);
+  background: var(--bg-4);
+  padding: 1px 5px;
+  border-radius: 3px;
+  flex-shrink: 0;
+}
+.tg-item-label {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.tg-item-remove {
+  background: none;
+  border: none;
+  color: var(--t3);
+  cursor: pointer;
+  padding: 0 2px;
+  font-size: 12px;
+  line-height: 1;
+  border-radius: 3px;
+  transition: color 0.12s;
+}
+.tg-item-remove:hover {
+  color: #f87171;
+}
+.tg-add-btn {
+  font-size: 11px;
+  color: var(--t3);
+  background: none;
+  border: 1px dashed var(--border);
+  border-radius: 5px;
+  padding: 5px 8px;
+  cursor: pointer;
+  transition: all 0.14s;
+  text-align: left;
+  width: 100%;
+  margin-top: 4px;
+}
+.tg-add-btn:hover {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+.tg-add-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+.tg-inline-form {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  padding: 8px;
+  border-radius: 6px;
+  background: var(--bg-3);
+  border: 1px solid var(--border-hi);
+  margin-top: 4px;
+}
+.tg-inline-row {
+  display: flex;
+  gap: 5px;
+}
+.tg-select,
+.tg-input {
+  flex: 1;
+  background: var(--bg-2);
+  border: 1px solid var(--border-hi);
+  border-radius: 5px;
+  padding: 5px 8px;
+  font-size: 11px;
+  color: var(--t1);
+  outline: none;
+}
+.tg-select:focus,
+.tg-input:focus {
+  border-color: var(--accent);
+}
+.tg-form-btns {
+  display: flex;
+  gap: 5px;
+  justify-content: flex-end;
+}
+.tg-form-save {
+  padding: 4px 10px;
+  border-radius: 5px;
+  font-size: 11px;
+  font-weight: 600;
+  background: var(--primary);
+  color: #fff;
+  border: none;
+  cursor: pointer;
+  transition: opacity 0.12s;
+}
+.tg-form-save:hover {
+  opacity: 0.88;
+}
+.tg-form-save:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+.tg-form-cancel {
+  padding: 4px 10px;
+  border-radius: 5px;
+  font-size: 11px;
+  background: none;
+  color: var(--t3);
+  border: 1px solid var(--border);
+  cursor: pointer;
+  transition: all 0.12s;
+}
+.tg-form-cancel:hover {
+  color: var(--t1);
+  border-color: var(--border-hi);
+}
+/* Events tab — dot+line layout (prototype `.dr-ev-*`) */
+.td-event-list {
+  display: flex;
+  flex-direction: column;
+}
+.td-event-item {
+  display: flex;
+  gap: 8px;
+  padding: 7px 0;
+  border-bottom: 1px solid var(--border-2);
+}
+.td-event-item:last-child {
+  border-bottom: none;
+}
+.td-event-dot {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: var(--accent);
+  margin-top: 5px;
+  flex-shrink: 0;
+}
+.td-event-name {
+  font-size: 10.5px;
+  font-family: "JetBrains Mono", monospace;
+  color: var(--accent);
+}
+.td-event-desc {
+  font-size: 11px;
+  color: var(--t2);
+  margin-top: 1px;
+}
+.td-event-time {
+  font-size: 10px;
+  color: var(--t3);
+  margin-top: 1px;
+}
+.td-empty {
+  font-size: 11.5px;
+  color: var(--t3);
+  padding-top: 4px;
+}
+
+/*
  * Tooltip enter animation. Used by the collapsed-mode workflow dots
  * (`SidebarWorkflowTree.CollapsedInstanceDot`) which render their
  * tooltip via a portal, so the keyframe lives in global CSS rather

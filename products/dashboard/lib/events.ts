@@ -37,6 +37,9 @@ type EventMap = {
   "auth.requested_magic_link": { provider: "magic_link" };
   "user.signed_in": AuthProviderPayload;
   "user.signed_out": AuthProviderPayload;
+  "dashboard.task_drawer_opened": { task_id: string };
+  "workflow.checkpoint_approved": { task_id: string; instance_id: string };
+  "workflow.checkpoint_rejected": { task_id: string; instance_id: string };
 };
 
 type EventName = keyof EventMap;

@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { ChevronsLeftRight } from "lucide-react";
 
 import { cn } from "@/lib/utils";
@@ -15,6 +15,7 @@ import type {
 } from "@/lib/workflows/types";
 
 import { TaskCard } from "./task-card";
+import { TaskDrawer } from "./task-drawer";
 
 /**
  * Read-only Process Matrix.
@@ -50,6 +51,15 @@ interface Props {
 
 export function ProcessMatrix({ instance, template }: Props) {
   const [collapsed, setCollapsed] = useState(false);
+  const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null);
+  // Local optimistic task list so approve/reject update the bar immediately.
+  // Sync from server when instance.tasks changes (e.g. after revalidatePath).
+  const [localTasks, setLocalTasks] = useState<WorkflowTask[]>(instance.tasks);
+  useEffect(() => { setLocalTasks(instance.tasks); }, [instance.tasks]);
+
+  const handleTaskUpdate = useCallback((updated: WorkflowTask) => {
+    setLocalTasks((prev) => prev.map((t) => (t.id === updated.id ? updated : t)));
+  }, []);
 
   // Derive stages, roles, and the (role, stage) -> task index up
   // front. The matrix re-renders on every collapse toggle, so we
@@ -62,21 +72,25 @@ export function ProcessMatrix({ instance, template }: Props) {
 
   const tasksByCell = useMemo(() => {
     const map = new Map<string, WorkflowTask>();
-    for (const task of instance.tasks) {
+    for (const task of localTasks) {
       map.set(`${task.roleId}::${task.stageId}`, task);
     }
     return map;
-  }, [instance.tasks]);
+  }, [localTasks]);
 
   const tasksByStage = useMemo(() => {
     const map = new Map<string, WorkflowTask[]>();
-    for (const task of instance.tasks) {
+    for (const task of localTasks) {
       const bucket = map.get(task.stageId) ?? [];
       bucket.push(task);
       map.set(task.stageId, bucket);
     }
     return map;
-  }, [instance.tasks]);
+  }, [localTasks]);
+
+  const selectedTask = selectedTaskId
+    ? (localTasks.find((t) => t.id === selectedTaskId) ?? null)
+    : null;
 
   // Empty state: a template with no stages OR no roles can't paint a
   // grid. Render the matrix shell + a friendly placeholder so QA can
@@ -84,13 +98,14 @@ export function ProcessMatrix({ instance, template }: Props) {
   const isEmpty = stages.length === 0 || roles.length === 0;
 
   return (
-    <div
-      data-testid="process-matrix"
-      data-collapsed={collapsed ? "true" : "false"}
-      className={cn(
-        "matrix-wrap",
-        collapsed && "roles-collapsed",
-      )}
+    <>
+      <div
+        data-testid="process-matrix"
+        data-collapsed={collapsed ? "true" : "false"}
+        className={cn(
+          "matrix-wrap",
+          collapsed && "roles-collapsed",
+        )}
     >
       <div
         className="matrix"
@@ -209,7 +224,8 @@ export function ProcessMatrix({ instance, template }: Props) {
                         <TaskCard
                           task={task}
                           roleColor={roleColor}
-                          barState={barClass(task, canStart(task, instance.tasks))}
+                          barState={barClass(task, canStart(task, localTasks))}
+                          onClick={() => setSelectedTaskId(task.id)}
                         />
                       ) : null}
                     </div>
@@ -221,5 +237,16 @@ export function ProcessMatrix({ instance, template }: Props) {
         )}
       </div>
     </div>
+
+    <TaskDrawer
+      task={selectedTask}
+      instance={instance}
+      roles={roles}
+      template={template}
+      onClose={() => setSelectedTaskId(null)}
+      onTaskUpdate={handleTaskUpdate}
+    />
+  </>
   );
 }
+
