@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.13.0](https://github.com/andelizondo/ai-native-framework/compare/v0.12.0...v0.13.0) (2026-04-19)
+
+
+### Miscellaneous Chores
+
+* trigger release-please for staging promotion ([#128](https://github.com/andelizondo/ai-native-framework/issues/128)) ([ced01da](https://github.com/andelizondo/ai-native-framework/commit/ced01da94860272a42e6cf5fdbd1d709c8d8657f))
+
 ## [0.12.0](https://github.com/andelizondo/ai-native-framework/compare/v0.11.1...v0.12.0) (2026-04-19)
 
 
