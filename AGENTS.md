@@ -56,6 +56,7 @@ If you change schema, examples, policy, templates, or playbooks, run `npm run va
 - When every thread has a visible outcome on the **current** head but **`CHANGES_REQUESTED`** persists, or threads still need CodeRabbit to acknowledge closure, post **one** PR comment with the **canonical approval prompt** from `ai/playbooks/pull-request-execution-loop.md` section 3 item 6. **Do not** use `@coderabbitai review` for that—it forces a long full re-review. See `ai/skills/developer.md` step 9.
 - **Stale reviews / merge queue:** When thread closure on the **current** head is complete but GitHub still shows **`CHANGES_REQUESTED`** only from **older** bot submissions, a **maintainer** may **dismiss** those stale reviews with a **visible message** (normative rules: `ai/playbooks/pull-request-execution-loop.md`, finding closure)—not a bypass for open findings. If **Mergify** dropped the PR, re-queue with `@mergifyio queue` and the queue name from `.mergify.yml` (e.g. `low-risk`); remove a stray **`dequeued`** label if it blocks a clean retry.
 - When publishing changes with a pull request in this repository, open the PR ready for review by default. Use a draft PR only when the user explicitly asks for draft state.
+- **Branch model:** feature branches target `staging`, not `main`. `staging` is the integration branch, protected with the same rules as `main`. The `staging` → `main` promotion is automated by release-please using a regular merge (not squash) to preserve conventional commit history; no separate review is required when CI is green. Never open a feature PR directly against `main` unless it is a release-please release PR.
 
 ## Change Discipline
 
@@ -88,6 +89,7 @@ Escalate or stop when any of these are true:
 - `ai/playbooks/release-management.md` - how to automate repository-level tags and GitHub Releases with a governed release PR flow
 - `ai/playbooks/resolve-github-issues.md` - how to batch and resolve open GitHub issues with per-issue audit comments and one PR per fix group
 - `ai/playbooks/resolve-sentry-issues.md` - how to manage Sentry issues as governed incidents with assignment, notes, and evidence-based closure
+- `ai/playbooks/environment-separation.md` - how to establish and maintain the 3-tier environment model (production / staging / development) including branch setup, Vercel configuration, and analytics token scoping
 - `ai/SKILLS.md` - skill discovery index (role- and task-oriented harnesses)
 - `ai/skills/` - on-demand skill bodies selected from `ai/SKILLS.md`
 - `ai/MEMORY.md` - durable operating memory and open loops

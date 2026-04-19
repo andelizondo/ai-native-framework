@@ -25,6 +25,61 @@ queue_rules:
       - -label = sync:needed
       - check-success = validate
       - check-success = decide
+
+  # staging → main promotion. Uses regular merge (not squash) to preserve
+  # conventional commit history so release-please can detect feat/fix/breaking signals.
+  # No separate code review required when CI is green; code was already reviewed on staging.
+  - name: staging-promotion
+    autoqueue: true
+    batch_size: 1
+    merge_method: merge
+    update_method: rebase
+    queue_conditions:
+      - base = main
+      - head = staging
+      - label = residual:low
+      - -draft
+      - -label = sync:needed
+      - check-success = validate
+      - check-success = test
+      - check-success = decide
+    merge_conditions:
+      - base = main
+      - head = staging
+      - label = residual:low
+      - -draft
+      - -label = sync:needed
+      - check-success = validate
+      - check-success = test
+      - check-success = decide
+
+  # Feature PRs targeting staging (integration branch).
+  - name: staging-integration
+    autoqueue: true
+    batch_size: 1
+    merge_method: squash
+    update_method: rebase
+    queue_conditions:
+      - base = staging
+      - label = residual:low
+      - -draft
+      - -label = sync:needed
+      - check-success = validate
+      - check-success = test
+      - check-success = e2e
+      - check-success = CodeRabbit
+      - check-success = decide
+    merge_conditions:
+      - base = staging
+      - label = residual:low
+      - -draft
+      - -label = sync:needed
+      - check-success = validate
+      - check-success = test
+      - check-success = e2e
+      - check-success = CodeRabbit
+      - check-success = decide
+
   - name: low-risk
     autoqueue: true
     batch_size: 1
@@ -50,5 +105,6 @@ queue_rules:
       - check-success = e2e
       - check-success = CodeRabbit
       - check-success = decide
+
 merge_protections_settings:
   reporting_method: check-runs

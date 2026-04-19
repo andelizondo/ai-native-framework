@@ -15,7 +15,7 @@ on:
   workflow_dispatch:
     inputs:
       base_url:
-        description: "Target URL for E2E tests (defaults to production)"
+        description: "Target URL for E2E tests (defaults to staging)"
         required: false
         type: string
 
@@ -82,10 +82,11 @@ jobs:
         run: |
           # Nightly runs need a real deployment target even when the repository
           # variable has not been configured yet. Fall back to the canonical
-          # production origin for this repository.
-          TARGET_URL="${{ inputs.base_url || vars.PRODUCTION_URL || 'https://ai-native-framework.app' }}"
+          # staging origin for this repository. Production is never a nightly
+          # target — automated test traffic must not pollute production metrics.
+          TARGET_URL="${{ inputs.base_url || vars.STAGING_URL || 'https://staging.ai-native-framework.app' }}"
           if [ -z "$TARGET_URL" ]; then
-            echo "::error::No target URL configured. Set the 'base_url' workflow input or the 'PRODUCTION_URL' repository variable."
+            echo "::error::No target URL configured. Set the 'base_url' workflow input or the 'STAGING_URL' repository variable."
             exit 1
           fi
           echo "BASE_URL=$TARGET_URL" >> "$GITHUB_ENV"

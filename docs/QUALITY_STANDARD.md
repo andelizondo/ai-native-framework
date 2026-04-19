@@ -65,6 +65,7 @@ These are the blessed defaults for the golden product (`products/dashboard`). Do
 | Error monitoring | **Sentry** | See `docs/ANALYTICS_STANDARD.md §9`; already required; Sentry is the source of truth for production error rates |
 | Product analytics | **PostHog** | See `docs/ANALYTICS_STANDARD.md`; funnel and retention data drives the production verification loop |
 | Preview environments | **Vercel preview deployments** | Per-PR preview URLs enable smoke verification before merge and release |
+| Deployment environments | **Three tiers: production / staging / development** | `main` → production (real users only); `staging` branch → stable Vercel preview alias used by nightly CI and PR E2E; local → development. PostHog is only initialised in the production Vercel environment; automated test traffic never reaches production metrics. |
 | Coverage aggregation | **Codecov** (optional) | LCOV from Vitest uploads on PR/main for trends and patch comments; configured as a non-blocking signal via `codecov.yml` unless the team tightens thresholds in Codecov |
 
 **AI evals** do not have a single default tool. Use a structured eval runner (custom scripts, LangSmith, or equivalent) that:
@@ -236,15 +237,13 @@ Blocking checks are configured as required status checks on the protected branch
 
 ### 7.2 Nightly CI structure
 
-Nightly jobs run on a schedule (e.g. `0 3 * * *`) against the `main` branch:
+Nightly jobs run on a schedule (e.g. `0 3 * * *`) against the `staging` environment (`staging.ai-native-framework.app`). Production is never a nightly target; automated traffic must not pollute production analytics or error-rate baselines.
 
 ```text
 nightly
-  └─ test:e2e:full       (full Playwright suite)
-  └─ test:a11y:full      (full accessibility audit)
-  └─ test:visual         (visual regression comparison)
-  └─ eval:ai:full        (full AI eval suite — Phase 2+)
-  └─ smoke:production    (production environment health check)
+  └─ test-full           (full Vitest suite with coverage)
+  └─ e2e-full            (full Playwright suite, Chromium + Firefox, against staging)
+  └─ report-failure      (opens a GitHub issue on any job failure)
 ```
 
 Failures in nightly jobs open a tracking issue automatically (or post to an alert channel) and are triaged before the next release cut.
