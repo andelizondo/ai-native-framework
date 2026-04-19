@@ -1,7 +1,7 @@
 // @vitest-environment node
 
 /**
- * Unit tests for the checkpoint precondition gate added to
+ * Unit tests for the checkpoint precondition gate enforced by
  * `resolveCheckpointAction`.
  *
  * The action is the only write path the Overview "My Tasks" card exposes
@@ -10,12 +10,19 @@
  * non-checkpoint tasks, or checkpoints that are not currently waiting
  * — into `complete` / `blocked` and emit a misleading domain event.
  *
+ * The repository now exposes `transitionPendingCheckpoint(id, nextStatus)`
+ * which collapses the precondition + write into a single atomic
+ * conditional UPDATE (`WHERE checkpoint = TRUE AND status =
+ * 'pending_approval'`). When no row matches, the method returns `null`
+ * and the action throws — without calling `addEvent` or revalidating —
+ * so the database state and event feed stay truthful.
+ *
  * These tests assert the action:
- *   - rejects when the task does not exist
- *   - rejects when the task is not a checkpoint
- *   - rejects when the task is not in `pending_approval`
- *   - never calls `updateTask` / `addEvent` on the rejection path
- *   - calls `updateTask` + `addEvent` and revalidates on the happy path
+ *   - rejects when no row matched the conditional update (covers the
+ *     missing / not-a-checkpoint / not-pending_approval cases)
+ *   - never calls `addEvent` / `revalidatePath` on the rejection path
+ *   - calls `transitionPendingCheckpoint` + `addEvent` + revalidates on
+ *     the happy path
  */
 
 import { describe, it, expect, vi, beforeEach } from "vitest";
@@ -24,6 +31,7 @@ import type {
   WorkflowEvent,
   WorkflowRepository,
   WorkflowTask,
+  WorkflowTaskStatus,
 } from "@/lib/workflows/types";
 
 const { mockGetRepo, mockRevalidatePath, mockCaptureError } = vi.hoisted(() => ({
@@ -69,13 +77,18 @@ function makeTask(overrides: Partial<WorkflowTask> = {}): WorkflowTask {
 }
 
 interface RepoMocks {
-  getTask: ReturnType<typeof vi.fn>;
-  updateTask: ReturnType<typeof vi.fn>;
+  transitionPendingCheckpoint: ReturnType<typeof vi.fn>;
   addEvent: ReturnType<typeof vi.fn>;
 }
 
-function setupRepo(initial: WorkflowTask | null): RepoMocks {
-  const updatedEvent: WorkflowEvent = {
+/**
+ * `transitioned` is what the conditional UPDATE would return:
+ *   - a `WorkflowTask` when the row matched and was flipped
+ *   - `null` when no row matched the predicates (missing, not a
+ *     checkpoint, not pending_approval, or RLS-hidden)
+ */
+function setupRepo(transitioned: WorkflowTask | null): RepoMocks {
+  const event: WorkflowEvent = {
     id: "event-1",
     instanceId: "instance-1",
     taskId: "task-1",
@@ -86,18 +99,16 @@ function setupRepo(initial: WorkflowTask | null): RepoMocks {
   };
 
   const mocks: RepoMocks = {
-    getTask: vi.fn().mockResolvedValue(initial),
-    updateTask: vi
+    transitionPendingCheckpoint: vi
       .fn()
-      .mockImplementation(async (_id: string, patch: Partial<WorkflowTask>) =>
-        makeTask({ ...(initial ?? {}), ...patch }),
+      .mockImplementation(async (_id: string, nextStatus: WorkflowTaskStatus) =>
+        transitioned ? makeTask({ ...transitioned, status: nextStatus }) : null,
       ),
-    addEvent: vi.fn().mockResolvedValue(updatedEvent),
+    addEvent: vi.fn().mockResolvedValue(event),
   };
 
   const repo: Partial<WorkflowRepository> = {
-    getTask: mocks.getTask,
-    updateTask: mocks.updateTask,
+    transitionPendingCheckpoint: mocks.transitionPendingCheckpoint,
     addEvent: mocks.addEvent,
   };
 
@@ -135,62 +146,47 @@ describe("resolveCheckpointAction precondition gate", () => {
     expect(mockGetRepo).not.toHaveBeenCalled();
   });
 
-  it("rejects when the task does not exist and never writes", async () => {
+  it("rejects when the conditional update matches no row and never writes", async () => {
+    // `null` covers the union of: row missing, not a checkpoint, not in
+    // pending_approval, or hidden by RLS. The action does not — and
+    // cannot — distinguish these cases at the application layer, since
+    // the atomic UPDATE only reports whether *something* matched.
     const repo = setupRepo(null);
 
     await expect(
       resolveCheckpointAction("task-1", "approved"),
-    ).rejects.toThrow(/task not found/);
+    ).rejects.toThrow(
+      /missing, not a checkpoint, or no longer pending_approval/,
+    );
 
-    expect(repo.getTask).toHaveBeenCalledWith("task-1");
-    expect(repo.updateTask).not.toHaveBeenCalled();
+    expect(repo.transitionPendingCheckpoint).toHaveBeenCalledWith(
+      "task-1",
+      "complete",
+    );
     expect(repo.addEvent).not.toHaveBeenCalled();
     expect(mockRevalidatePath).not.toHaveBeenCalled();
   });
 
-  it("rejects when the task is not a checkpoint and never writes", async () => {
-    const repo = setupRepo(makeTask({ checkpoint: false }));
-
-    await expect(
-      resolveCheckpointAction("task-1", "approved"),
-    ).rejects.toThrow(/not a checkpoint/);
-
-    expect(repo.updateTask).not.toHaveBeenCalled();
-    expect(repo.addEvent).not.toHaveBeenCalled();
-    expect(mockRevalidatePath).not.toHaveBeenCalled();
-  });
-
-  it("rejects when the task is not in pending_approval and never writes", async () => {
-    const repo = setupRepo(makeTask({ status: "complete" }));
-
-    await expect(
-      resolveCheckpointAction("task-1", "rejected"),
-    ).rejects.toThrow(/expected "pending_approval"/);
-
-    expect(repo.updateTask).not.toHaveBeenCalled();
-    expect(repo.addEvent).not.toHaveBeenCalled();
-    expect(mockRevalidatePath).not.toHaveBeenCalled();
-  });
-
-  it("trims the taskId before lookup and write", async () => {
+  it("trims the taskId before issuing the conditional update", async () => {
     const repo = setupRepo(makeTask());
 
     await resolveCheckpointAction("  task-1  ", "approved");
 
-    expect(repo.getTask).toHaveBeenCalledWith("task-1");
-    expect(repo.updateTask).toHaveBeenCalledWith("task-1", {
-      status: "complete",
-    });
+    expect(repo.transitionPendingCheckpoint).toHaveBeenCalledWith(
+      "task-1",
+      "complete",
+    );
   });
 
-  it("calls updateTask + addEvent + revalidatePath on the happy path", async () => {
+  it("calls transitionPendingCheckpoint + addEvent + revalidatePath on the happy path", async () => {
     const repo = setupRepo(makeTask());
 
     const result = await resolveCheckpointAction("task-1", "approved");
 
-    expect(repo.updateTask).toHaveBeenCalledWith("task-1", {
-      status: "complete",
-    });
+    expect(repo.transitionPendingCheckpoint).toHaveBeenCalledWith(
+      "task-1",
+      "complete",
+    );
     expect(repo.addEvent).toHaveBeenCalledTimes(1);
     expect(repo.addEvent.mock.calls[0]?.[1].name).toBe(
       "workflow.checkpoint_approved",
@@ -204,9 +200,10 @@ describe("resolveCheckpointAction precondition gate", () => {
 
     await resolveCheckpointAction("task-1", "rejected");
 
-    expect(repo.updateTask).toHaveBeenCalledWith("task-1", {
-      status: "blocked",
-    });
+    expect(repo.transitionPendingCheckpoint).toHaveBeenCalledWith(
+      "task-1",
+      "blocked",
+    );
     expect(repo.addEvent.mock.calls[0]?.[1].name).toBe(
       "workflow.checkpoint_rejected",
     );
@@ -218,7 +215,7 @@ describe("resolveCheckpointAction precondition gate", () => {
 
     const result = await resolveCheckpointAction("task-1", "approved");
 
-    expect(repo.updateTask).toHaveBeenCalledTimes(1);
+    expect(repo.transitionPendingCheckpoint).toHaveBeenCalledTimes(1);
     expect(mockCaptureError).toHaveBeenCalledTimes(1);
     expect(mockRevalidatePath).toHaveBeenCalledWith("/", "layout");
     expect(result.task.status).toBe("complete");

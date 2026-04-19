@@ -11,6 +11,7 @@ import type {
   WorkflowRole,
   WorkflowTask,
   WorkflowTaskPatch,
+  WorkflowTaskStatus,
   WorkflowTaskTemplate,
   WorkflowTemplate,
 } from "./types";
@@ -266,6 +267,40 @@ export function createWorkflowRepository(
 
       if (error) {
         throw new WorkflowRepositoryError("getTask failed", error);
+      }
+      if (!data) {
+        return null;
+      }
+      return mapTask(data as WorkflowTaskRow);
+    },
+
+    async transitionPendingCheckpoint(
+      taskId: string,
+      nextStatus: WorkflowTaskStatus,
+    ): Promise<WorkflowTask | null> {
+      // Single atomic UPDATE … WHERE id = ? AND checkpoint = TRUE
+      // AND status = 'pending_approval' RETURNING *. This avoids the
+      // read-then-write race that a `getTask` precondition check would
+      // create: between SELECT and UPDATE another writer could flip
+      // the row, and we'd happily resolve a checkpoint that has
+      // already been resolved (or worse, transition a non-checkpoint).
+      // When `data` is null the row didn't match the predicates —
+      // missing, not a checkpoint, not pending_approval, or hidden by
+      // RLS — and the caller should treat that as a no-op failure.
+      const { data, error } = await client
+        .from("workflow_tasks")
+        .update({ status: nextStatus })
+        .eq("id", taskId)
+        .eq("checkpoint", true)
+        .eq("status", "pending_approval")
+        .select("*")
+        .maybeSingle();
+
+      if (error) {
+        throw new WorkflowRepositoryError(
+          "transitionPendingCheckpoint failed",
+          error,
+        );
       }
       if (!data) {
         return null;

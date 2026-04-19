@@ -41,8 +41,13 @@ export function ProcessHealthCard({ health }: ProcessHealthCardProps) {
             // `percentComplete` already clamps at the source; we re-clamp
             // here so any future non-aggregate caller (or a stale cached
             // payload from an older deploy) cannot paint an overflowing
-            // progress bar or a `>100%` / negative percentage.
-            const safePct = Math.max(0, Math.min(100, completionPct));
+            // progress bar or a `>100%` / negative percentage. Coerce
+            // non-finite values to 0 first — `Math.min`/`Math.max`
+            // propagate `NaN`, so without the guard a bad upstream
+            // payload would render as `NaN%` and `width: NaN%`.
+            const safePct = Number.isFinite(completionPct)
+              ? Math.max(0, Math.min(100, completionPct))
+              : 0;
             return (
               <li
                 key={template.id}

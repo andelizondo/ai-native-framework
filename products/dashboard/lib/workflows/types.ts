@@ -149,13 +149,35 @@ export interface WorkflowRepository {
   getInstance(id: string): Promise<WorkflowInstanceDetail | null>;
   /**
    * Single-task lookup. Returns `null` when the row is missing or RLS
-   * hides it. Callers that mutate a task (e.g. `resolveCheckpointAction`)
-   * use this to enforce business preconditions — `checkpoint === true`
-   * and `status === "pending_approval"` — before issuing the write,
-   * since RLS only gates *who* can update, not *which states* may be
-   * transitioned.
+   * hides it. Read-only utility for surfaces that need a single row
+   * without going through `getInstance()`'s heavier joins.
+   *
+   * Note: do **not** use this to validate preconditions before a
+   * write — the read-then-write window is racy. Use
+   * `transitionPendingCheckpoint` (or a similar conditional-update
+   * primitive) for state transitions that depend on the current row
+   * value.
    */
   getTask(taskId: string): Promise<WorkflowTask | null>;
+  /**
+   * Atomic transition of a checkpoint task that is currently awaiting
+   * approval. Issues a single conditional UPDATE against
+   * `workflow_tasks` with `id = taskId AND checkpoint = TRUE AND
+   * status = 'pending_approval'`, so the row only flips when the
+   * preconditions are still true at write time. Returns the updated
+   * task on success, or `null` when no row matched (task missing /
+   * not a checkpoint / not in `pending_approval` / RLS-hidden) — the
+   * caller decides how to surface that.
+   *
+   * `nextStatus` MUST be one of the legal terminal states for an
+   * approval flow (`complete` for approve, `blocked` for reject). The
+   * mapping from action intent to status lives in the action layer,
+   * not here, so this primitive stays composable.
+   */
+  transitionPendingCheckpoint(
+    taskId: string,
+    nextStatus: WorkflowTaskStatus,
+  ): Promise<WorkflowTask | null>;
   listInstances(templateId?: string): Promise<WorkflowInstance[]>;
   /**
    * All tasks across every instance the caller can read (RLS still

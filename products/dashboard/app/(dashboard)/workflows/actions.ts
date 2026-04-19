@@ -97,32 +97,27 @@ export async function resolveCheckpointAction(
   const repo = await getServerWorkflowRepository();
   const trimmedTaskId = taskId.trim();
 
-  // Business-level precondition: only tasks that are *checkpoints*
-  // currently *awaiting approval* may be resolved through this path.
-  // RLS gates *who* may write to the row; it does not encode workflow
-  // semantics. Without this check, a crafted client payload could flip
-  // any reachable task — including ones that are not checkpoints, or
-  // checkpoints that have already been resolved — into `complete` /
-  // `blocked` and emit a misleading domain event. We refuse early and
-  // do not call `updateTask` / `addEvent` so the database state and
-  // event feed both stay truthful.
-  const existing = await repo.getTask(trimmedTaskId);
-  if (!existing) {
-    throw new Error("resolveCheckpointAction: task not found");
-  }
-  if (!existing.checkpoint) {
-    throw new Error(
-      "resolveCheckpointAction: task is not a checkpoint and cannot be resolved here",
-    );
-  }
-  if (existing.status !== "pending_approval") {
-    throw new Error(
-      `resolveCheckpointAction: task is in status "${existing.status}", expected "pending_approval"`,
-    );
-  }
-
+  // Atomic state transition: a *single* conditional UPDATE … WHERE id =
+  // ? AND checkpoint = TRUE AND status = 'pending_approval'. RLS gates
+  // *who* may write to the row; it does not encode workflow semantics,
+  // so without this server-side gate a crafted client payload could
+  // flip any reachable task — including non-checkpoints, or checkpoints
+  // already resolved — into `complete` / `blocked` and emit a
+  // misleading domain event. The previous getTask-then-updateTask
+  // shape was correct in principle but racy: between the SELECT and
+  // the UPDATE another writer could change the row, so we'd happily
+  // resolve a checkpoint that had already been resolved (or worse,
+  // transition a row that is no longer a checkpoint). Pushing both
+  // predicates into the UPDATE closes that window — when no row is
+  // returned, nothing was written, and we refuse without calling
+  // `addEvent` so the database state and event feed stay truthful.
   const nextStatus = resolution === "approved" ? "complete" : "blocked";
-  const task = await repo.updateTask(trimmedTaskId, { status: nextStatus });
+  const task = await repo.transitionPendingCheckpoint(trimmedTaskId, nextStatus);
+  if (!task) {
+    throw new Error(
+      "resolveCheckpointAction: task is missing, not a checkpoint, or no longer pending_approval",
+    );
+  }
 
   // The status mutation already committed. If the audit-event write fails
   // we MUST NOT swallow that silently — but we also can't let the throw
