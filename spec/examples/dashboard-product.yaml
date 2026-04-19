@@ -377,6 +377,27 @@ events:
             type: string
           instance_id:
             type: string
+    - name: "workflow.task_updated"
+      description: "Task triggers or gates were updated via the Task Drawer editor."
+      version: "1.0.0"
+      schema_version: "1.0.0"
+      classification:
+        pii: none
+        idempotency: recommended
+        ordering: at_least_once
+      emitted_by:
+        - "actions.updateTaskTriggerGatesAction"
+      payload:
+        type: object
+        additionalProperties: false
+        required:
+          - task_id
+          - instance_id
+        properties:
+          task_id:
+            type: string
+          instance_id:
+            type: string
 
 observability:
   logs:

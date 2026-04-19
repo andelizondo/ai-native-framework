@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useTransition } from "react";
+import { useEffect, useRef, useState, useTransition } from "react";
 import { BookOpen, X } from "lucide-react";
 
 import { captureError } from "@/lib/monitoring";
@@ -221,7 +221,8 @@ function DetailsTab({
             <button
               type="button"
               className="td-btn td-btn-run"
-              disabled={isPending}
+              disabled
+              title="Live run view coming in PR 10"
               data-testid="td-view-run-btn"
             >
               View live run
@@ -231,7 +232,8 @@ function DetailsTab({
             <button
               type="button"
               className="td-btn td-btn-primary"
-              disabled={isPending}
+              disabled
+              title="Manual start coming in PR 10"
               data-testid="td-start-btn"
             >
               ▶ Start agent
@@ -413,10 +415,19 @@ export function TaskDrawer({
 }: TaskDrawerProps) {
   const [activeTab, setActiveTab] = useState<DrawerTab>("details");
   const [isPending, startTransition] = useTransition();
+  const closeRef = useRef<HTMLButtonElement>(null);
   const open = !!task;
 
   // Reset to details tab whenever a different task is selected.
   useEffect(() => { setActiveTab("details"); }, [task?.id]);
+
+  // Move focus into the drawer when it opens so the dialog is usable by
+  // keyboard and screen-reader users without tabbing behind the overlay.
+  useEffect(() => {
+    if (open) {
+      closeRef.current?.focus();
+    }
+  }, [open]);
 
   // Analytics event on open.
   useEffect(() => {
@@ -529,6 +540,7 @@ export function TaskDrawer({
           <div className="td-header-top">
             <h2 className="td-title">{task.title}</h2>
             <button
+              ref={closeRef}
               type="button"
               className="td-close"
               aria-label="Close task drawer"

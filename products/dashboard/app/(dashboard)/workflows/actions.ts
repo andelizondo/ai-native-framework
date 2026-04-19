@@ -187,6 +187,16 @@ export async function approveDrawerCheckpointAction(
   const repo = await getServerWorkflowRepository();
   const trimmedId = taskId.trim();
 
+  const current = await repo.getTask(trimmedId);
+  if (!current) {
+    throw new Error("approveDrawerCheckpointAction: task not found");
+  }
+  if (!current.checkpoint || current.status !== "pending_approval") {
+    throw new Error(
+      "approveDrawerCheckpointAction: task is not a pending checkpoint",
+    );
+  }
+
   const task = await repo.updateTask(trimmedId, { status: "active" });
 
   try {
@@ -227,6 +237,11 @@ export async function rejectDrawerCheckpointAction(
   const task = await repo.getTask(trimmedId);
   if (!task) {
     throw new Error("rejectDrawerCheckpointAction: task not found");
+  }
+  if (!task.checkpoint || task.status !== "pending_approval") {
+    throw new Error(
+      "rejectDrawerCheckpointAction: task is not a pending checkpoint",
+    );
   }
 
   try {
