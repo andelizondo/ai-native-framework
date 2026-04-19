@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.11.0](https://github.com/andelizondo/ai-native-framework/compare/v0.10.0...v0.11.0) (2026-04-19)
+
+
+### Features
+
+* **dashboard:** shell rewrite — sidebar, top bar, overview (AEL-46) ([#104](https://github.com/andelizondo/ai-native-framework/issues/104)) ([0461553](https://github.com/andelizondo/ai-native-framework/commit/0461553a6bf5f796697dfbc46a284cefa0335f0c))
+
 ## [0.10.0](https://github.com/andelizondo/ai-native-framework/compare/v0.9.0...v0.10.0) (2026-04-19)
 
 
