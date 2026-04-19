@@ -27,8 +27,14 @@ function StatCard({ value, label, hint }: { value: string; label: string; hint: 
       <div className="font-mono text-[26px] font-extrabold leading-none tracking-tight text-t1">
         {value}
       </div>
-      <div className="mt-1.5 text-[11px] text-t3">{label}</div>
-      <div className="mt-1 font-mono text-[10px] text-t3">{hint}</div>
+      {/*
+       * Use `text-t2` (not `text-t3`) for the small stat metadata. In the
+       * light theme `--t3` (#94a3b8) on `--bg`/`--bg-2` lands at ~2.5:1,
+       * below the WCAG-AA 4.5:1 floor for body text. Bumping to `--t2`
+       * (#475569) clears 7:1 in light and 9:1+ in dark.
+       */}
+      <div className="mt-1.5 text-[11px] text-t2">{label}</div>
+      <div className="mt-1 font-mono text-[10px] text-t2">{hint}</div>
     </div>
   );
 }
@@ -45,7 +51,9 @@ function EmptyCard({
       <header className="flex items-center justify-between border-b border-border px-4 py-3">
         <h2 className="text-[12px] font-semibold text-t1">{title}</h2>
       </header>
-      <p className="px-4 py-7 text-center text-[12px] text-t3">{body}</p>
+      {/* See note in `StatCard` — empty-state copy uses `text-t2` so light
+          theme stays above the WCAG-AA 4.5:1 contrast floor. */}
+      <p className="px-4 py-7 text-center text-[12px] text-t2">{body}</p>
     </section>
   );
 }

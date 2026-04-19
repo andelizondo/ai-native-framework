@@ -130,6 +130,27 @@ describe("SignOutButton", () => {
     );
   });
 
+  it("surfaces an inline error when signOut() throws an exception", async () => {
+    mockSignOut.mockRejectedValue(new Error("network down"));
+
+    render(<SignOutButton provider="magic_link" />);
+    fireEvent.click(screen.getByRole("button", { name: /sign out/i }));
+
+    await waitFor(() =>
+      expect(screen.getByText(/we could not sign you out/i)).toBeInTheDocument(),
+    );
+    expect(mockResetIdentity).not.toHaveBeenCalled();
+    expect(mockReplace).not.toHaveBeenCalled();
+    expect(mockCaptureMessage).toHaveBeenCalledWith(
+      "Sign-out threw in UI",
+      "warning",
+      expect.objectContaining({
+        feature: "auth.sign_out",
+        extra: expect.objectContaining({ exception: "network down" }),
+      }),
+    );
+  });
+
   it("announces inline sign-out errors to assistive tech", async () => {
     mockSignOut.mockResolvedValue({
       ok: false,

@@ -51,7 +51,23 @@ export function useSignOut(provider: AuthProvider): {
     setError(null);
 
     try {
-      const result = await signOut();
+      let result: Awaited<ReturnType<typeof signOut>>;
+      try {
+        result = await signOut();
+      } catch (err) {
+        // `signOut()` is documented to return `{ ok, error }` instead of
+        // throwing, but a thrown error (network failure, dev runtime crash,
+        // etc.) must still surface to the user with the same affordance as
+        // a returned `ok: false`. Without this catch, `loading` would flip
+        // back to `false` in `finally` while `error` stayed `null`, leaving
+        // the menu silently unresponsive.
+        setError(getUserSafeSignOutError("sign_out_failed"));
+        captureMessage("Sign-out threw in UI", "warning", {
+          feature: "auth.sign_out",
+          extra: { exception: err instanceof Error ? err.message : String(err) },
+        });
+        return;
+      }
 
       if (!result.ok) {
         setError(getUserSafeSignOutError(result.error.code));

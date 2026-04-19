@@ -147,6 +147,11 @@ describe("Sidebar", () => {
     render(<Sidebar user={TEST_USER} />);
 
     await user.click(screen.getByRole("button", { name: /open user menu/i }));
+    // `userEvent` simulates a realistic open click on the trigger. The
+    // menuitem click below uses `fireEvent` (synchronous) so we can assert
+    // `mockToggleTheme` and the menu-close transition without racing the
+    // outside-click handler that `userEvent`'s async pointer events would
+    // schedule.
     fireEvent.click(screen.getByRole("menuitem", { name: /light mode/i }));
 
     expect(mockToggleTheme).toHaveBeenCalledOnce();
