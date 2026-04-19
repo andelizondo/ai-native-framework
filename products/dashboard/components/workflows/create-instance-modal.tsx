@@ -23,12 +23,16 @@ import type { WorkflowTemplate } from "@/lib/workflows/types";
  * Behavior:
  * - Backdrop click and Escape close the modal (unless a create is in
  *   flight — we don't want to drop a half-finished mutation).
+ * - Tab/Shift+Tab are trapped inside the dialog (focusable elements
+ *   are recomputed on each Tab so dynamic state — disabled buttons,
+ *   the error region — doesn't leak focus into the page behind).
  * - Enter inside the input submits when the trimmed name is non-empty
  *   (mirrors the prototype's `onKeyDown` behavior).
- * - On success: `capture('workflow.instance_created', ...)`, then
- *   `router.push('/workflows/{id}')`. The server action also revalidates
- *   the dashboard layout so the sidebar reflects the new row when the
- *   matrix route renders.
+ * - On success: `router.push('/workflows/{id}')` runs unconditionally
+ *   so an analytics-side failure (e.g., PostHog blocked) cannot cause
+ *   us to surface an error for an instance that was actually persisted
+ *   or invite a duplicate submission. `capture(...)` is a best-effort
+ *   call inside its own try/catch.
  * - The Create button is disabled until the trimmed label is non-empty,
  *   matching the issue's "disabled until name non-empty" requirement.
  */
@@ -54,6 +58,7 @@ export function CreateInstanceModal({
   const router = useRouter();
   const { capture } = useAnalytics();
   const inputRef = useRef<HTMLInputElement | null>(null);
+  const dialogRef = useRef<HTMLDivElement | null>(null);
   const titleId = useId();
   const errorId = useId();
 
@@ -78,6 +83,33 @@ export function CreateInstanceModal({
     function onKey(e: KeyboardEvent) {
       if (e.key === "Escape" && !isPending) {
         onClose();
+        return;
+      }
+      if (e.key !== "Tab") return;
+
+      // Focus trap: keep keyboard focus inside the dialog. Recompute
+      // the focusable list on every Tab so disabled-state changes
+      // (e.g., the Create button toggling on/off) and conditionally
+      // rendered nodes (the error alert) don't leak focus.
+      const root = dialogRef.current;
+      if (!root) return;
+      const focusables = Array.from(
+        root.querySelectorAll<HTMLElement>(
+          'a[href],button:not([disabled]),input:not([disabled]),select:not([disabled]),textarea:not([disabled]),[tabindex]:not([tabindex="-1"])',
+        ),
+      ).filter((el) => !el.hasAttribute("inert") && el.offsetParent !== null);
+      if (focusables.length === 0) return;
+
+      const first = focusables[0];
+      const last = focusables[focusables.length - 1];
+      const active = document.activeElement as HTMLElement | null;
+
+      if (e.shiftKey && (active === first || !root.contains(active))) {
+        e.preventDefault();
+        last.focus();
+      } else if (!e.shiftKey && (active === last || !root.contains(active))) {
+        e.preventDefault();
+        first.focus();
       }
     }
     window.addEventListener("keydown", onKey);
@@ -102,29 +134,44 @@ export function CreateInstanceModal({
     const templateId = template.id;
 
     startTransition(async () => {
+      let created;
       try {
-        const { instance } = await createInstanceAction(templateId, submittedLabel);
-        capture("workflow.instance_created", {
-          instance_id: instance.id,
-          template_id: instance.templateId,
-        });
-        onClose();
-        router.push(`/workflows/${instance.id}`);
+        created = await createInstanceAction(templateId, submittedLabel);
       } catch (err) {
         // Surface the message inline; the action throws human-readable
         // strings for validation failures and a generic message for
-        // repository errors.
+        // repository errors. Only mutation failures land here — analytics
+        // is handled separately below so a PostHog hiccup can never
+        // shadow a successful create.
         setError(
           err instanceof Error && err.message
             ? err.message
             : "Could not create the instance. Try again.",
         );
+        return;
       }
+
+      // Best-effort analytics: a tracker failure (network blocked,
+      // PostHog bootstrap error, etc.) must never break the success
+      // path or the user will see a misleading error for an instance
+      // that already exists.
+      try {
+        capture("workflow.instance_created", {
+          instance_id: created.instance.id,
+          template_id: created.instance.templateId,
+        });
+      } catch {
+        // Intentionally swallow; the create already succeeded.
+      }
+
+      onClose();
+      router.push(`/workflows/${created.instance.id}`);
     });
   }
 
   return (
     <div
+      ref={dialogRef}
       role="dialog"
       aria-modal="true"
       aria-labelledby={titleId}

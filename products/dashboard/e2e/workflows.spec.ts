@@ -75,7 +75,7 @@ test.describe("workflows — create-instance modal", () => {
       page.getByRole("heading", { name: uniqueLabel }),
     ).toBeVisible();
     await expect(
-      page.getByRole("link", { name: new RegExp(uniqueLabel) }),
+      page.getByRole("link", { name: uniqueLabel }),
     ).toBeVisible();
   });
 });

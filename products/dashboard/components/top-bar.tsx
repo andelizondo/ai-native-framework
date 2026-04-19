@@ -24,7 +24,9 @@ const ROUTE_LABELS: ReadonlyArray<{ test: (path: string) => boolean; crumbs: str
   { test: (p) => p === "/settings" || p.startsWith("/settings/"), crumbs: ["Settings"] },
   // Workflow instance routes carry the instance label in the page itself,
   // so the breadcrumb stays generic until per-instance metadata is wired.
-  { test: (p) => p.startsWith("/workflows/"), crumbs: ["Workflows", "Instance"] },
+  // Match exactly one segment after `/workflows/` so sub-routes like
+  // `/workflows/templates/new` (PR12 stub) don't pick up the instance crumb.
+  { test: (p) => /^\/workflows\/[^/]+\/?$/.test(p), crumbs: ["Workflows", "Instance"] },
 ];
 
 function deriveCrumbs(pathname: string | null): string[] {
