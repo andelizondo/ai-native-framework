@@ -148,6 +148,17 @@ export interface WorkflowRepository {
   getTemplates(): Promise<WorkflowTemplate[]>;
   getInstance(id: string): Promise<WorkflowInstanceDetail | null>;
   listInstances(templateId?: string): Promise<WorkflowInstance[]>;
+  /**
+   * All tasks across every instance the caller can read (RLS still
+   * applies). Used by the Overview screen to compute completion stats
+   * without N+1 round-trips through `getInstance()`.
+   */
+  listAllTasks(): Promise<WorkflowTask[]>;
+  /**
+   * Most recent workflow events across every instance the caller can
+   * read. Ordered by `created_at` DESC; capped at `limit`.
+   */
+  listRecentEvents(limit: number): Promise<WorkflowEvent[]>;
   createInstance(templateId: string, label: string): Promise<WorkflowInstanceDetail>;
   updateTask(taskId: string, patch: WorkflowTaskPatch): Promise<WorkflowTask>;
   addEvent(taskId: string, event: WorkflowEventInput): Promise<WorkflowEvent>;
