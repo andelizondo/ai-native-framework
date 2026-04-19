@@ -125,81 +125,146 @@ data_model:
         - name: "created_at"
           type: "timestamp"
       relationships:
-        - target: "Workflow"
+        - target: "WorkflowInstance"
           cardinality: "1:N"
-        - target: "Event"
-          cardinality: "1:N"
-
-    - name: "Workflow"
-      description: "A running instance of one of the four V1 workflows (W1–W4)."
-      fields:
-        - name: "id"
-          type: "uuid"
-          pk: true
-        - name: "company_id"
-          type: "uuid"
-        - name: "type"
-          type: "enum(W1,W2,W3,W4)"
-        - name: "status"
-          type: "enum(not_started,active,blocked,complete)"
-        - name: "started_at"
-          type: "timestamp"
-        - name: "completed_at"
-          type: "timestamp"
-      relationships:
-        - target: "Checkpoint"
-          cardinality: "1:N"
-        - target: "Event"
+        - target: "WorkflowEvent"
           cardinality: "1:N"
 
-    - name: "Checkpoint"
-      description: "A human judgment gate bound to a workflow step. Requires founder approval or rejection."
+    - name: "WorkflowTemplate"
+      description: "A reusable definition of a workflow — its stages, roles, and the task templates that materialize into tasks when an instance is created. Editable by the founder."
       fields:
         - name: "id"
-          type: "uuid"
-          pk: true
-        - name: "workflow_id"
-          type: "uuid"
-        - name: "description"
           type: "string"
-        - name: "status"
-          type: "enum(pending,approved,rejected)"
+          pk: true
+        - name: "label"
+          type: "string"
+        - name: "color"
+          type: "string"
+        - name: "multi_instance"
+          type: "boolean"
+        - name: "stages"
+          type: "jsonb"
+        - name: "roles"
+          type: "jsonb"
+        - name: "task_templates"
+          type: "jsonb"
         - name: "created_at"
           type: "timestamp"
-        - name: "resolved_at"
+        - name: "updated_at"
           type: "timestamp"
-        - name: "resolved_by"
-          type: "string"
-          pii: low
-      relationships: []
+      relationships:
+        - target: "WorkflowInstance"
+          cardinality: "1:N"
 
-    - name: "Event"
-      description: "A structured domain event emitted by a workflow or platform action."
+    - name: "WorkflowInstance"
+      description: "A running instance of a WorkflowTemplate for the company. Owns a concrete set of tasks and tracks status at the instance level."
       fields:
         - name: "id"
           type: "uuid"
           pk: true
         - name: "company_id"
           type: "uuid"
-        - name: "workflow_id"
+        - name: "template_id"
+          type: "string"
+        - name: "label"
+          type: "string"
+        - name: "status"
+          type: "enum(not_started,active,blocked,complete)"
+        - name: "roles"
+          type: "jsonb"
+        - name: "created_at"
+          type: "timestamp"
+      relationships:
+        - target: "WorkflowTask"
+          cardinality: "1:N"
+        - target: "WorkflowEvent"
+          cardinality: "1:N"
+
+    - name: "WorkflowTask"
+      description: "The atomic unit of work inside a WorkflowInstance. Carries its role, stage, status, substatus, optional human checkpoint flag, and the skill/playbook/agent binding that executes it."
+      fields:
+        - name: "id"
           type: "uuid"
+          pk: true
+        - name: "instance_id"
+          type: "uuid"
+        - name: "role"
+          type: "string"
+        - name: "stage"
+          type: "string"
+        - name: "title"
+          type: "string"
+        - name: "desc"
+          type: "string"
+        - name: "status"
+          type: "enum(not_started,active,blocked,complete)"
+        - name: "substatus"
+          type: "string"
+        - name: "checkpoint"
+          type: "boolean"
+        - name: "triggers"
+          type: "jsonb"
+        - name: "gates"
+          type: "jsonb"
+        - name: "events"
+          type: "jsonb"
+        - name: "agent"
+          type: "string"
+        - name: "skill"
+          type: "string"
+        - name: "playbook"
+          type: "string"
+        - name: "created_at"
+          type: "timestamp"
+        - name: "updated_at"
+          type: "timestamp"
+      relationships: []
+
+    - name: "WorkflowEvent"
+      description: "A structured domain event emitted against a workflow instance or task. Feeds the Event Feed and audit log."
+      fields:
+        - name: "id"
+          type: "uuid"
+          pk: true
         - name: "name"
           type: "string"
+        - name: "desc"
+          type: "string"
+        - name: "ts"
+          type: "timestamp"
+        - name: "instance_id"
+          type: "uuid"
+        - name: "task_id"
+          type: "uuid"
         - name: "payload"
           type: "jsonb"
-        - name: "occurred_at"
+      relationships: []
+
+    - name: "FrameworkItem"
+      description: "An editable framework asset the founder can author: a Skill or a Playbook. Rendered by the Framework Skills and Framework Playbooks screens."
+      fields:
+        - name: "id"
+          type: "string"
+          pk: true
+        - name: "type"
+          type: "enum(skill,playbook)"
+        - name: "name"
+          type: "string"
+        - name: "description"
+          type: "string"
+        - name: "icon"
+          type: "string"
+        - name: "content"
+          type: "string"
+        - name: "updated_at"
           type: "timestamp"
-        - name: "emitted_by"
-          type: "string"
-        - name: "correlation_id"
-          type: "string"
       relationships: []
 
 events:
   naming_convention: "domain.action_in_past_tense"
   catalog:
-    - name: "platform.company_created"
-      description: "A new company workspace was created in the platform."
+    - name: "workflow.instance_created"
+      description: "A new WorkflowInstance was materialized from a WorkflowTemplate."
       version: "1.0.0"
       schema_version: "1.0.0"
       classification:
@@ -207,14 +272,21 @@ events:
         idempotency: required
         ordering: at_least_once
       emitted_by:
-        - "api.company"
+        - "api.workflow_instance"
       payload:
         type: object
         additionalProperties: false
         required:
+          - instance_id
+          - template_id
           - company_id
           - occurred_at
         properties:
+          instance_id:
+            type: string
+            format: uuid
+          template_id:
+            type: string
           company_id:
             type: string
             format: uuid
@@ -222,8 +294,8 @@ events:
             type: string
             format: date-time
 
-    - name: "workflow.started"
-      description: "A workflow instance was started for a company."
+    - name: "workflow.task_started"
+      description: "A WorkflowTask transitioned into the active state."
       version: "1.0.0"
       schema_version: "1.0.0"
       classification:
@@ -231,35 +303,27 @@ events:
         idempotency: required
         ordering: at_least_once
       emitted_by:
-        - "api.workflow"
+        - "api.workflow_task"
       payload:
         type: object
         additionalProperties: false
         required:
-          - workflow_id
-          - company_id
-          - workflow_type
+          - task_id
+          - instance_id
           - occurred_at
         properties:
-          workflow_id:
+          task_id:
             type: string
             format: uuid
-          company_id:
+          instance_id:
             type: string
             format: uuid
-          workflow_type:
-            type: string
-            enum:
-              - W1
-              - W2
-              - W3
-              - W4
           occurred_at:
             type: string
             format: date-time
 
-    - name: "workflow.completed"
-      description: "A workflow instance reached the complete state."
+    - name: "workflow.task_completed"
+      description: "A WorkflowTask reached the complete state."
       version: "1.0.0"
       schema_version: "1.0.0"
       classification:
@@ -267,35 +331,27 @@ events:
         idempotency: required
         ordering: at_least_once
       emitted_by:
-        - "api.workflow"
+        - "api.workflow_task"
       payload:
         type: object
         additionalProperties: false
         required:
-          - workflow_id
-          - company_id
-          - workflow_type
+          - task_id
+          - instance_id
           - occurred_at
         properties:
-          workflow_id:
+          task_id:
             type: string
             format: uuid
-          company_id:
+          instance_id:
             type: string
             format: uuid
-          workflow_type:
-            type: string
-            enum:
-              - W1
-              - W2
-              - W3
-              - W4
           occurred_at:
             type: string
             format: date-time
 
-    - name: "checkpoint.created"
-      description: "A human checkpoint was created and is pending founder approval."
+    - name: "workflow.task_blocked"
+      description: "A WorkflowTask entered the blocked state and needs attention."
       version: "1.0.0"
       schema_version: "1.0.0"
       classification:
@@ -303,30 +359,58 @@ events:
         idempotency: required
         ordering: at_least_once
       emitted_by:
-        - "api.checkpoint"
+        - "api.workflow_task"
       payload:
         type: object
         additionalProperties: false
         required:
-          - checkpoint_id
-          - workflow_id
-          - description
+          - task_id
+          - instance_id
+          - reason
           - occurred_at
         properties:
-          checkpoint_id:
+          task_id:
             type: string
             format: uuid
-          workflow_id:
+          instance_id:
             type: string
             format: uuid
-          description:
+          reason:
             type: string
           occurred_at:
             type: string
             format: date-time
 
-    - name: "checkpoint.resolved"
-      description: "A human checkpoint was resolved by the founder (approved or rejected)."
+    - name: "workflow.checkpoint_requested"
+      description: "A WorkflowTask flagged as a human checkpoint is now pending founder decision."
+      version: "1.0.0"
+      schema_version: "1.0.0"
+      classification:
+        pii: none
+        idempotency: required
+        ordering: at_least_once
+      emitted_by:
+        - "api.workflow_task"
+      payload:
+        type: object
+        additionalProperties: false
+        required:
+          - task_id
+          - instance_id
+          - occurred_at
+        properties:
+          task_id:
+            type: string
+            format: uuid
+          instance_id:
+            type: string
+            format: uuid
+          occurred_at:
+            type: string
+            format: date-time
+
+    - name: "workflow.checkpoint_approved"
+      description: "A pending checkpoint task was approved by the founder."
       version: "1.0.0"
       schema_version: "1.0.0"
       classification:
@@ -334,29 +418,132 @@ events:
         idempotency: required
         ordering: at_least_once
       emitted_by:
-        - "api.checkpoint"
+        - "api.workflow_task"
       payload:
         type: object
         additionalProperties: false
         required:
-          - checkpoint_id
-          - workflow_id
-          - resolution
+          - task_id
+          - instance_id
           - resolved_by
           - occurred_at
         properties:
-          checkpoint_id:
+          task_id:
             type: string
             format: uuid
-          workflow_id:
+          instance_id:
             type: string
             format: uuid
-          resolution:
-            type: string
-            enum:
-              - approved
-              - rejected
           resolved_by:
+            type: string
+          occurred_at:
+            type: string
+            format: date-time
+
+    - name: "workflow.checkpoint_rejected"
+      description: "A pending checkpoint task was rejected by the founder."
+      version: "1.0.0"
+      schema_version: "1.0.0"
+      classification:
+        pii: low
+        idempotency: required
+        ordering: at_least_once
+      emitted_by:
+        - "api.workflow_task"
+      payload:
+        type: object
+        additionalProperties: false
+        required:
+          - task_id
+          - instance_id
+          - resolved_by
+          - occurred_at
+        properties:
+          task_id:
+            type: string
+            format: uuid
+          instance_id:
+            type: string
+            format: uuid
+          resolved_by:
+            type: string
+          occurred_at:
+            type: string
+            format: date-time
+
+    - name: "workflow.template_edited"
+      description: "A WorkflowTemplate definition (stages, roles, task templates) was edited."
+      version: "1.0.0"
+      schema_version: "1.0.0"
+      classification:
+        pii: none
+        idempotency: recommended
+        ordering: at_least_once
+      emitted_by:
+        - "api.workflow_template"
+      payload:
+        type: object
+        additionalProperties: false
+        required:
+          - template_id
+          - edited_by
+          - occurred_at
+        properties:
+          template_id:
+            type: string
+          edited_by:
+            type: string
+          occurred_at:
+            type: string
+            format: date-time
+
+    - name: "framework.skill_edited"
+      description: "A FrameworkItem of type `skill` was created or edited."
+      version: "1.0.0"
+      schema_version: "1.0.0"
+      classification:
+        pii: none
+        idempotency: recommended
+        ordering: at_least_once
+      emitted_by:
+        - "api.framework_item"
+      payload:
+        type: object
+        additionalProperties: false
+        required:
+          - item_id
+          - edited_by
+          - occurred_at
+        properties:
+          item_id:
+            type: string
+          edited_by:
+            type: string
+          occurred_at:
+            type: string
+            format: date-time
+
+    - name: "framework.playbook_edited"
+      description: "A FrameworkItem of type `playbook` was created or edited."
+      version: "1.0.0"
+      schema_version: "1.0.0"
+      classification:
+        pii: none
+        idempotency: recommended
+        ordering: at_least_once
+      emitted_by:
+        - "api.framework_item"
+      payload:
+        type: object
+        additionalProperties: false
+        required:
+          - item_id
+          - edited_by
+          - occurred_at
+        properties:
+          item_id:
+            type: string
+          edited_by:
             type: string
           occurred_at:
             type: string
@@ -372,21 +559,108 @@ observability:
   metrics:
     tool: "PostHog"
     core_metrics:
-      - key: "workflow.started"
-        description: "A workflow was started. Primary activation signal."
+      - key: "workflow.instance_created"
+        description: "A WorkflowInstance was created. Primary activation signal."
         type: event
-      - key: "workflow.completed"
-        description: "A workflow reached the complete state. Primary success signal."
+      - key: "workflow.task_started"
+        description: "A task transitioned to active. Measures instance progress velocity."
         type: event
-      - key: "checkpoint.created"
+      - key: "workflow.task_completed"
+        description: "A task reached complete. Primary success signal at the atomic unit."
+        type: event
+      - key: "workflow.task_blocked"
+        description: "A task entered blocked. Tracks friction and blockage rate."
+        type: event
+      - key: "workflow.checkpoint_requested"
         description: "A human checkpoint surfaced. Measures agent autonomy rate."
         type: event
-      - key: "checkpoint.resolved"
-        description: "A checkpoint was resolved. Measures founder response rate and loop closure."
+      - key: "workflow.checkpoint_approved"
+        description: "A checkpoint was approved. Measures founder response rate and loop closure."
         type: event
-      - key: "platform.company_created"
-        description: "A company workspace was created. Top-of-funnel activation metric."
+      - key: "workflow.checkpoint_rejected"
+        description: "A checkpoint was rejected. Tracks disagreement signal."
         type: event
+      - key: "workflow.template_edited"
+        description: "A WorkflowTemplate was edited. Tracks authoring activity."
+        type: event
+      - key: "framework.skill_edited"
+        description: "A framework skill was edited. Tracks founder authoring of reusable skills."
+        type: event
+      - key: "framework.playbook_edited"
+        description: "A framework playbook was edited. Tracks founder authoring of reusable playbooks."
+        type: event
+
+screens:
+  - id: "overview"
+    purpose: "Company overview: a single-glance view of every WorkflowInstance status, pending checkpoints, and recent events."
+    entities_read:
+      - "Company"
+      - "WorkflowInstance"
+      - "WorkflowTask"
+      - "WorkflowEvent"
+    entities_write: []
+    events_emitted: []
+
+  - id: "workflow_matrix"
+    purpose: "The Process Matrix: a role × stage grid rendering a WorkflowInstance's tasks as cards. Read mode plus a task-level edit mode (add/move/remove tasks within the instance). Template editing is a separate surface."
+    entities_read:
+      - "WorkflowInstance"
+      - "WorkflowTask"
+    entities_write:
+      - "WorkflowTask"
+    events_emitted:
+      - "workflow.task_started"
+      - "workflow.task_completed"
+      - "workflow.task_blocked"
+
+  - id: "framework_skills"
+    purpose: "Card grid of framework Skills with a markdown editor for CRUD operations. Feeds WorkflowTask.skill references."
+    entities_read:
+      - "FrameworkItem"
+    entities_write:
+      - "FrameworkItem"
+    events_emitted:
+      - "framework.skill_edited"
+
+  - id: "framework_playbooks"
+    purpose: "Card grid of framework Playbooks with a markdown editor for CRUD operations. Feeds WorkflowTask.playbook references."
+    entities_read:
+      - "FrameworkItem"
+    entities_write:
+      - "FrameworkItem"
+    events_emitted:
+      - "framework.playbook_edited"
+
+  - id: "task_drawer"
+    purpose: "Details + Events tabs for a single WorkflowTask, including the approve/reject path for tasks flagged as checkpoints."
+    entities_read:
+      - "WorkflowTask"
+      - "WorkflowEvent"
+    entities_write:
+      - "WorkflowTask"
+    events_emitted:
+      - "workflow.checkpoint_requested"
+      - "workflow.checkpoint_approved"
+      - "workflow.checkpoint_rejected"
+
+  - id: "agent_run"
+    purpose: "Live view of an agent executing a WorkflowTask: streamed output, tool calls, and emitted events in one panel."
+    entities_read:
+      - "WorkflowTask"
+      - "WorkflowEvent"
+    entities_write: []
+    events_emitted: []
+
+  - id: "my_tasks"
+    purpose: "A founder-scoped list of WorkflowTasks currently assigned to the founder role, across all instances."
+    entities_read:
+      - "WorkflowInstance"
+      - "WorkflowTask"
+    entities_write:
+      - "WorkflowTask"
+    events_emitted:
+      - "workflow.task_started"
+      - "workflow.task_completed"
 
 context_recovery:
   canonical_summary: |
