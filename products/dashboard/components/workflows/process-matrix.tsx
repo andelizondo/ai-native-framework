@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { ChevronsLeftRight } from "lucide-react";
 
 import { cn } from "@/lib/utils";
@@ -53,7 +53,9 @@ export function ProcessMatrix({ instance, template }: Props) {
   const [collapsed, setCollapsed] = useState(false);
   const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null);
   // Local optimistic task list so approve/reject update the bar immediately.
+  // Sync from server when instance.tasks changes (e.g. after revalidatePath).
   const [localTasks, setLocalTasks] = useState<WorkflowTask[]>(instance.tasks);
+  useEffect(() => { setLocalTasks(instance.tasks); }, [instance.tasks]);
 
   const handleTaskUpdate = useCallback((updated: WorkflowTask) => {
     setLocalTasks((prev) => prev.map((t) => (t.id === updated.id ? updated : t)));
