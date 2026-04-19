@@ -59,9 +59,9 @@ double_confirm_changes = true
 enable_confirmations = false
 
 # Magic link is the Phase 1 default per `products/dashboard/.env.example`.
-[auth.email.template.magic_link]
-subject = "Your dashboard sign-in link"
-content_path = "./templates/magic_link.html"
+# Supabase's default magic-link template is fine for now; add a custom
+# `[auth.email.template.magic_link]` block here once we have a template
+# file under `products/dashboard/supabase/templates/` to point at.
 
 [edge_runtime]
 enabled = true
