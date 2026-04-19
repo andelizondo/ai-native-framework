@@ -8,9 +8,16 @@
  * persisted preference before first paint to avoid a theme flash. This
  * module is the canonical client-side surface for reading and writing that
  * preference.
+ *
+ * State is centralised in a module-level subscriber set so every
+ * `useTheme()` consumer (current or future) sees the same value. Without
+ * that, two components calling the hook would each keep an independent
+ * `useState` snapshot, drift after the first toggle, and silently flip the
+ * wrong way on the next call. `useSyncExternalStore` keeps the React
+ * renders coherent across all subscribers.
  */
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useSyncExternalStore } from "react";
 
 export type Theme = "dark" | "light";
 
@@ -40,6 +47,23 @@ function readDomTheme(): Theme {
   return isTheme(attr) ? attr : DEFAULT_THEME;
 }
 
+const listeners = new Set<() => void>();
+
+function subscribe(listener: () => void): () => void {
+  listeners.add(listener);
+  return () => {
+    listeners.delete(listener);
+  };
+}
+
+function emitThemeChange(): void {
+  listeners.forEach((listener) => listener());
+}
+
+function getServerSnapshot(): Theme {
+  return DEFAULT_THEME;
+}
+
 function applyTheme(theme: Theme): void {
   if (typeof document !== "undefined") {
     document.documentElement.setAttribute("data-theme", theme);
@@ -48,42 +72,33 @@ function applyTheme(theme: Theme): void {
     try {
       window.localStorage.setItem(THEME_STORAGE_KEY, theme);
     } catch {
-      // Persisting is best-effort. A sandboxed/full storage quota or a
-      // privacy-mode browser still gets a working theme — the in-memory
+      // Persisting is best-effort. A sandboxed browser, full storage
+      // quota, or privacy mode still gets a working theme — the in-memory
       // state and DOM attribute are authoritative for the session.
     }
   }
+  emitThemeChange();
 }
 
 /**
  * Read and write the active theme.
  *
- * The hook starts with `DEFAULT_THEME` to keep server and first client
- * render aligned with the static `<html data-theme="dark">` markup, then
- * syncs with whatever the pre-paint script applied on the client.
+ * All subscribers share one module-level store, so an update from any
+ * consumer is reflected in every other consumer's next render.
  */
 export function useTheme(): {
   theme: Theme;
   setTheme: (theme: Theme) => void;
   toggleTheme: () => void;
 } {
-  const [theme, setThemeState] = useState<Theme>(DEFAULT_THEME);
-
-  useEffect(() => {
-    setThemeState(readDomTheme());
-  }, []);
+  const theme = useSyncExternalStore(subscribe, readDomTheme, getServerSnapshot);
 
   const setTheme = useCallback((next: Theme) => {
     applyTheme(next);
-    setThemeState(next);
   }, []);
 
   const toggleTheme = useCallback(() => {
-    setThemeState((current) => {
-      const next: Theme = current === "dark" ? "light" : "dark";
-      applyTheme(next);
-      return next;
-    });
+    applyTheme(readDomTheme() === "dark" ? "light" : "dark");
   }, []);
 
   return { theme, setTheme, toggleTheme };

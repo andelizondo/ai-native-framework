@@ -68,6 +68,22 @@ describe("useTheme", () => {
     const { result } = renderHook(() => useTheme());
     expect(result.current.theme).toBe(DEFAULT_THEME);
   });
+
+  it("shares state across consumers — one consumer's update reaches every other", () => {
+    // Two independent renderHook calls model two components mounting
+    // useTheme() side-by-side. With per-instance state they would drift
+    // after the first toggle; the shared store keeps them coherent.
+    const a = renderHook(() => useTheme());
+    const b = renderHook(() => useTheme());
+
+    act(() => a.result.current.setTheme("light"));
+    expect(a.result.current.theme).toBe("light");
+    expect(b.result.current.theme).toBe("light");
+
+    act(() => b.result.current.toggleTheme());
+    expect(a.result.current.theme).toBe("dark");
+    expect(b.result.current.theme).toBe("dark");
+  });
 });
 
 describe("THEME_INIT_SCRIPT", () => {
