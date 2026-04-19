@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.9.0](https://github.com/andelizondo/ai-native-framework/compare/v0.8.2...v0.9.0) (2026-04-19)
+
+
+### Features
+
+* **spec:** workflow domain model, screens, events (AEL-44) ([#95](https://github.com/andelizondo/ai-native-framework/issues/95)) ([063b978](https://github.com/andelizondo/ai-native-framework/commit/063b978f3ee3e164f55126be77b691ad6be88cb0))
+
 ## [0.8.2](https://github.com/andelizondo/ai-native-framework/compare/v0.8.1...v0.8.2) (2026-04-18)
 
 
