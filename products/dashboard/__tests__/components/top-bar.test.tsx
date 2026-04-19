@@ -1,61 +1,70 @@
 /**
  * Component tests for components/top-bar.tsx
- * Spec anchor: dashboard shell — TopBar renders status and user area.
+ * Spec anchor: AEL-46 — Shell rewrite (Sidebar + TopBar + auth wiring + stub Overview).
+ *
+ * Covers:
+ *   - The breadcrumb is derived from the active route (Overview / Skills /
+ *     Playbooks / Event Feed / Settings).
+ *   - The header landmark and the placeholder "My Tasks" pill render.
+ *   - Unknown routes still produce a sensible humanised fallback so a new
+ *     route added before the table is updated does not blank the chrome.
  */
 
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, vi } from "vitest";
 import { render, screen } from "@testing-library/react";
+import { usePathname } from "next/navigation";
+
 import { TopBar } from "@/components/top-bar";
 
 describe("TopBar", () => {
-  it("renders the Dashboard page title", () => {
-    render(
-      <TopBar
-        user={{ id: "user-123", email: "andres@example.com", provider: "magic_link" }}
-      />,
-    );
-    expect(screen.getByText("Dashboard")).toBeInTheDocument();
+  it("renders the Overview breadcrumb on the home route", () => {
+    vi.mocked(usePathname).mockReturnValue("/");
+    render(<TopBar />);
+    const crumb = screen.getByText("Overview");
+    expect(crumb).toBeInTheDocument();
+    expect(crumb).toHaveAttribute("aria-current", "page");
   });
 
-  it("renders the Planning status badge", () => {
-    render(
-      <TopBar
-        user={{ id: "user-123", email: "andres@example.com", provider: "magic_link" }}
-      />,
-    );
-    expect(screen.getByText("Planning")).toBeInTheDocument();
+  it("renders 'Skills' on /framework/skills", () => {
+    vi.mocked(usePathname).mockReturnValue("/framework/skills");
+    render(<TopBar />);
+    expect(screen.getByText("Skills")).toBeInTheDocument();
+  });
+
+  it("renders 'Playbooks' on /framework/playbooks", () => {
+    vi.mocked(usePathname).mockReturnValue("/framework/playbooks");
+    render(<TopBar />);
+    expect(screen.getByText("Playbooks")).toBeInTheDocument();
+  });
+
+  it("renders 'Event Feed' on /events", () => {
+    vi.mocked(usePathname).mockReturnValue("/events");
+    render(<TopBar />);
+    expect(screen.getByText("Event Feed")).toBeInTheDocument();
+  });
+
+  it("renders 'Settings' on /settings", () => {
+    vi.mocked(usePathname).mockReturnValue("/settings");
+    render(<TopBar />);
+    expect(screen.getByText("Settings")).toBeInTheDocument();
+  });
+
+  it("falls back to a humanised crumb for unknown routes", () => {
+    vi.mocked(usePathname).mockReturnValue("/some-future-route");
+    render(<TopBar />);
+    expect(screen.getByText("Some Future Route")).toBeInTheDocument();
   });
 
   it("renders a header landmark", () => {
-    render(
-      <TopBar
-        user={{ id: "user-123", email: "andres@example.com", provider: "magic_link" }}
-      />,
-    );
+    vi.mocked(usePathname).mockReturnValue("/");
+    render(<TopBar />);
     expect(screen.getByRole("banner")).toBeInTheDocument();
   });
 
-  it("renders the user avatar placeholder", () => {
-    render(
-      <TopBar
-        user={{ id: "user-123", email: "andres@example.com", provider: "magic_link" }}
-      />,
-    );
-    // Avatar is rendered as a div with the letter 'A'
-    expect(screen.getByText("A")).toBeInTheDocument();
-  });
-
-  it("trims whitespace from the displayed email", () => {
-    render(
-      <TopBar
-        user={{
-          id: "user-123",
-          email: "  andres@example.com  ",
-          provider: "magic_link",
-        }}
-      />,
-    );
-
-    expect(screen.getByText("andres@example.com")).toBeInTheDocument();
+  it("renders the My Tasks pill as a disabled placeholder", () => {
+    vi.mocked(usePathname).mockReturnValue("/");
+    render(<TopBar />);
+    const pill = screen.getByRole("button", { name: /my tasks/i });
+    expect(pill).toBeDisabled();
   });
 });

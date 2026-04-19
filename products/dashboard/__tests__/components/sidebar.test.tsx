@@ -1,70 +1,162 @@
 /**
  * Component tests for components/sidebar.tsx
- * Spec anchor: dashboard.phase_navigated — sidebar navigation links trigger phase events.
+ * Spec anchor: AEL-46 — Shell rewrite (Sidebar + TopBar + auth wiring + stub Overview).
+ *
+ * Covers:
+ *   - Sidebar renders the canonical nav (Overview, Skills, Playbooks,
+ *     Event Feed, Settings) with correct hrefs.
+ *   - Active route is reflected via aria-current=page.
+ *   - The collapse toggle flips `<html data-sidebar>` so CSS can hide
+ *     labels without React having to re-render the tree.
+ *   - User menu opens, exposes the theme toggle and a sign-out item, and
+ *     calls the shared sign-out flow when clicked.
  */
 
-import { describe, it, expect, vi } from "vitest";
-import { render, screen } from "@testing-library/react";
+import { describe, it, expect, vi, beforeEach } from "vitest";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { usePathname } from "next/navigation";
+
+const { mockHandleSignOut, mockToggleTheme } = vi.hoisted(() => ({
+  mockHandleSignOut: vi.fn(),
+  mockToggleTheme: vi.fn(),
+}));
+
+vi.mock("@/lib/auth/use-sign-out", () => ({
+  useSignOut: vi.fn(() => ({
+    handleSignOut: mockHandleSignOut,
+    loading: false,
+    error: null,
+  })),
+}));
+
+vi.mock("@/lib/theme", () => ({
+  useTheme: vi.fn(() => ({
+    theme: "dark",
+    setTheme: vi.fn(),
+    toggleTheme: mockToggleTheme,
+  })),
+}));
+
 import { Sidebar } from "@/components/sidebar";
 
+const TEST_USER = {
+  id: "user-123",
+  email: "andres@example.com",
+  provider: "magic_link" as const,
+};
+
 describe("Sidebar", () => {
-  it("renders the brand name", () => {
-    render(<Sidebar />);
+  beforeEach(() => {
+    mockHandleSignOut.mockReset();
+    mockToggleTheme.mockReset();
+    vi.mocked(usePathname).mockReturnValue("/");
+    // The inline script in app/layout.tsx normally sets this before paint;
+    // in jsdom we set it explicitly so the store has a starting truth.
+    document.documentElement.setAttribute("data-sidebar", "expanded");
+    window.localStorage.clear();
+  });
+
+  it("renders the brand name and version", () => {
+    render(<Sidebar user={TEST_USER} />);
     expect(screen.getByText("AI-Native")).toBeInTheDocument();
+    expect(screen.getByText("v0.1")).toBeInTheDocument();
   });
 
-  it("renders the brand logo link pointing to home", () => {
-    render(<Sidebar />);
-    const logoLink = screen.getByRole("link", { name: /ai-native/i });
-    expect(logoLink).toHaveAttribute("href", "/");
-  });
-
-  it("renders navigation links for all three phases", () => {
-    render(<Sidebar />);
-    expect(
-      screen.getByRole("link", { name: /ideation/i }),
-    ).toHaveAttribute("href", "/ideation");
-    expect(screen.getByRole("link", { name: /design/i })).toHaveAttribute(
+  it("renders the canonical navigation links", () => {
+    render(<Sidebar user={TEST_USER} />);
+    expect(screen.getByRole("link", { name: /overview/i })).toHaveAttribute("href", "/");
+    expect(screen.getByRole("link", { name: /skills/i })).toHaveAttribute(
       "href",
-      "/design",
+      "/framework/skills",
     );
-    expect(
-      screen.getByRole("link", { name: /implementation/i }),
-    ).toHaveAttribute("href", "/implementation");
+    expect(screen.getByRole("link", { name: /playbooks/i })).toHaveAttribute(
+      "href",
+      "/framework/playbooks",
+    );
+    expect(screen.getByRole("link", { name: /event feed/i })).toHaveAttribute(
+      "href",
+      "/events",
+    );
+    expect(screen.getByRole("link", { name: /settings/i })).toHaveAttribute(
+      "href",
+      "/settings",
+    );
   });
 
-  it("renders a navigation landmark", () => {
-    render(<Sidebar />);
-    expect(screen.getByRole("navigation")).toBeInTheDocument();
+  it("marks the active route with aria-current=page", () => {
+    vi.mocked(usePathname).mockReturnValue("/framework/skills");
+    render(<Sidebar user={TEST_USER} />);
+    expect(screen.getByRole("link", { name: /skills/i })).toHaveAttribute(
+      "aria-current",
+      "page",
+    );
+    expect(screen.getByRole("link", { name: /overview/i })).not.toHaveAttribute(
+      "aria-current",
+    );
   });
 
-  it("applies active styles to the current pathname link", () => {
-    vi.mocked(usePathname).mockReturnValue("/ideation");
-    render(<Sidebar />);
-    const ideationLink = screen.getByRole("link", { name: /ideation/i });
-    // Active link gets a background utility class; check it differs from inactive links
-    expect(ideationLink.className).toContain("bg-amber-50");
+  it("renders the workflows empty-state placeholder", () => {
+    render(<Sidebar user={TEST_USER} />);
+    expect(screen.getByTestId("sidebar-workflows-empty")).toBeInTheDocument();
   });
 
-  it("does not apply active styles to inactive links when on /ideation", () => {
-    vi.mocked(usePathname).mockReturnValue("/ideation");
-    render(<Sidebar />);
-    const designLink = screen.getByRole("link", { name: /design/i });
-    expect(designLink.className).not.toContain("bg-blue-50");
+  it("renders the user button with email-derived initials", () => {
+    render(<Sidebar user={TEST_USER} />);
+    const trigger = screen.getByRole("button", { name: /open user menu/i });
+    expect(trigger).toBeInTheDocument();
+    expect(trigger).toHaveTextContent("A"); // initial of "andres"
+    expect(screen.getByText("andres@example.com")).toBeInTheDocument();
   });
 
-  it("emits analytics on phase link click", async () => {
+  it("collapse toggle flips <html data-sidebar>", async () => {
     const user = userEvent.setup();
-    // Import after mock setup so posthog is the mocked version
-    const posthog = (await import("posthog-js")).default;
+    render(<Sidebar user={TEST_USER} />);
 
-    render(<Sidebar />);
-    await user.click(screen.getByRole("link", { name: /ideation/i }));
+    expect(document.documentElement.getAttribute("data-sidebar")).toBe("expanded");
 
-    expect(posthog.capture).toHaveBeenCalledWith("dashboard.phase_navigated", {
-      phase: "ideation",
-    });
+    await user.click(screen.getByRole("button", { name: /collapse sidebar/i }));
+
+    expect(document.documentElement.getAttribute("data-sidebar")).toBe("collapsed");
+  });
+
+  it("opens the user menu and exposes theme + sign-out items", async () => {
+    const user = userEvent.setup();
+    render(<Sidebar user={TEST_USER} />);
+
+    await user.click(screen.getByRole("button", { name: /open user menu/i }));
+
+    const menu = await screen.findByRole("menu", { name: /user menu/i });
+    expect(menu).toBeInTheDocument();
+    expect(screen.getByRole("menuitem", { name: /light mode/i })).toBeInTheDocument();
+    expect(screen.getByRole("menuitem", { name: /sign out/i })).toBeInTheDocument();
+  });
+
+  it("invokes the shared sign-out flow from the user menu", async () => {
+    const user = userEvent.setup();
+    render(<Sidebar user={TEST_USER} />);
+
+    await user.click(screen.getByRole("button", { name: /open user menu/i }));
+    await user.click(screen.getByRole("menuitem", { name: /sign out/i }));
+
+    await waitFor(() => expect(mockHandleSignOut).toHaveBeenCalledOnce());
+  });
+
+  it("toggles the theme via the user menu and closes the menu", async () => {
+    const user = userEvent.setup();
+    render(<Sidebar user={TEST_USER} />);
+
+    await user.click(screen.getByRole("button", { name: /open user menu/i }));
+    // `userEvent` simulates a realistic open click on the trigger. The
+    // menuitem click below uses `fireEvent` (synchronous) so we can assert
+    // `mockToggleTheme` and the menu-close transition without racing the
+    // outside-click handler that `userEvent`'s async pointer events would
+    // schedule.
+    fireEvent.click(screen.getByRole("menuitem", { name: /light mode/i }));
+
+    expect(mockToggleTheme).toHaveBeenCalledOnce();
+    await waitFor(() =>
+      expect(screen.queryByRole("menu", { name: /user menu/i })).not.toBeInTheDocument(),
+    );
   });
 });

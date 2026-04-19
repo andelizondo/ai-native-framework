@@ -1,72 +1,19 @@
 "use client";
 
-import { useState } from "react";
-import { useRouter } from "next/navigation";
-import { useAnalytics } from "@/lib/analytics/events";
-import { emitEvent } from "@/lib/events";
-import { resetIdentity } from "@/lib/analytics/identity";
-import { captureMessage } from "@/lib/monitoring";
-import { signOut } from "@/lib/auth/service";
-import { clearBypassCookieInBrowser } from "@/lib/auth/test-bypass.client";
 import type { AuthProvider } from "@/lib/auth/types";
+import { useSignOut } from "@/lib/auth/use-sign-out";
 
-const LAST_IDENTIFIED_USER_KEY = "dashboard:last_identified_user";
-
-const SIGN_OUT_ERROR_MESSAGES: Partial<Record<string, string>> = {
-  sign_out_failed: "We could not sign you out. Try again.",
-};
-
-function getUserSafeSignOutError(code: string): string {
-  return SIGN_OUT_ERROR_MESSAGES[code] ?? "We could not sign you out. Try again.";
-}
-
+/**
+ * Standalone sign-out affordance.
+ *
+ * Kept as a public component so login/test-only surfaces and pre-shell
+ * layouts that don't render the new sidebar user menu can still trigger a
+ * sign-out. The behaviour (analytics, monitoring, bypass-cookie cleanup,
+ * /login redirect) lives in `useSignOut` so the user menu and this button
+ * can never disagree about what "sign out" means.
+ */
 export function SignOutButton({ provider }: { provider: AuthProvider }) {
-  const router = useRouter();
-  const { capture } = useAnalytics();
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-
-  async function handleSignOut() {
-    setLoading(true);
-    setError(null);
-
-    try {
-      const result = await signOut();
-
-      if (!result.ok) {
-        setError(getUserSafeSignOutError(result.error.code));
-        captureMessage("Sign-out failed in UI", "warning", {
-          feature: "auth.sign_out",
-          extra: { reason: result.error.code },
-        });
-        return;
-      }
-
-      try {
-        emitEvent("user.signed_out", { provider });
-        capture("user.signed_out", { provider });
-      } catch {
-        captureMessage("Sign-out telemetry failed in UI", "warning", {
-          feature: "auth.sign_out",
-        });
-      }
-
-      try {
-        resetIdentity();
-        clearBypassCookieInBrowser();
-        window.sessionStorage.removeItem(LAST_IDENTIFIED_USER_KEY);
-      } catch {
-        captureMessage("Sign-out cleanup failed in UI", "warning", {
-          feature: "auth.sign_out",
-        });
-      }
-
-      router.replace("/login");
-      router.refresh();
-    } finally {
-      setLoading(false);
-    }
-  }
+  const { handleSignOut, loading, error } = useSignOut(provider);
 
   return (
     <div className="flex items-center gap-2">
@@ -85,7 +32,7 @@ export function SignOutButton({ provider }: { provider: AuthProvider }) {
         onClick={handleSignOut}
         disabled={loading}
         aria-describedby={error ? "signout-error" : undefined}
-        className="rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-xs font-medium text-slate-700 disabled:opacity-50"
+        className="rounded-lg border border-border bg-bg-2 px-3 py-1.5 text-xs font-medium text-t2 hover:bg-bg-3 hover:text-t1 disabled:opacity-50 transition-colors"
       >
         {loading ? "Signing out…" : "Sign out"}
       </button>

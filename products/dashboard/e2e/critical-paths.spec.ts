@@ -41,7 +41,9 @@ async function authenticateWithBypass(page: Page) {
 }
 
 function sidebarLink(page: Page, targetName: RegExp) {
-  return page.getByRole("navigation").getByRole("link", { name: targetName });
+  return page
+    .getByRole("navigation", { name: /primary/i })
+    .getByRole("link", { name: targetName });
 }
 
 test.describe("critical-path auth and dashboard flows", () => {
@@ -78,19 +80,53 @@ test.describe("critical-path auth and dashboard flows", () => {
     ).toBeVisible();
   });
 
-  test("authenticated session can reach the dashboard and sign out", async ({
+  test("authenticated session can reach the dashboard and sign out via the sidebar user menu", async ({
     page,
   }) => {
     await authenticateWithBypass(page);
 
     await page.goto("/");
     await expect(
-      page.getByRole("heading", { name: /hello, world/i }),
+      page.getByRole("heading", { name: /welcome back/i }),
     ).toBeVisible();
-    await expect(sidebarLink(page, /ideation/i)).toBeVisible();
+    await expect(sidebarLink(page, /overview/i)).toBeVisible();
+    await expect(sidebarLink(page, /skills/i)).toBeVisible();
+    await expect(sidebarLink(page, /playbooks/i)).toBeVisible();
 
-    await page.getByRole("button", { name: /sign out/i }).click();
+    // Sign-out lives behind the user menu in the sidebar footer.
+    await page.getByRole("button", { name: /open user menu/i }).click();
+    await page.getByRole("menuitem", { name: /sign out/i }).click();
     await expect(page).toHaveURL(/\/login$/);
+  });
+
+  test("sidebar collapse persists across reloads", async ({ page }) => {
+    await authenticateWithBypass(page);
+
+    await page.goto("/");
+    await expect(page.locator("html")).toHaveAttribute("data-sidebar", "expanded");
+
+    await page.getByRole("button", { name: /collapse sidebar/i }).first().click();
+    await expect(page.locator("html")).toHaveAttribute("data-sidebar", "collapsed");
+
+    await page.reload();
+    // The pre-paint init script must restore `collapsed` before React hydrates.
+    await expect(page.locator("html")).toHaveAttribute("data-sidebar", "collapsed");
+  });
+
+  test("theme toggle via sidebar user menu flips data-theme and persists", async ({
+    page,
+  }) => {
+    await authenticateWithBypass(page);
+
+    await page.goto("/");
+    await expect(page.locator("html")).toHaveAttribute("data-theme", "dark");
+
+    await page.getByRole("button", { name: /open user menu/i }).click();
+    await page.getByRole("menuitem", { name: /light mode/i }).click();
+    await expect(page.locator("html")).toHaveAttribute("data-theme", "light");
+
+    await page.reload();
+    await expect(page.locator("html")).toHaveAttribute("data-theme", "light");
   });
 });
 
@@ -113,7 +149,7 @@ test.describe("accessibility — critical flows (WCAG 2.1 AA)", () => {
     await authenticateWithBypass(page);
     await expectNoA11yViolations("/", page, async (p) => {
       await expect(p).toHaveURL(/\/$/);
-      await expect(p.getByRole("heading", { name: /hello, world/i })).toBeVisible();
+      await expect(p.getByRole("heading", { name: /welcome back/i })).toBeVisible();
     });
   });
 });

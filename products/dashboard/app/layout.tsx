@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import "./globals.css";
 import { getAppRelease, getReleaseChannel } from "@/lib/release";
 import { DEFAULT_THEME, THEME_INIT_SCRIPT } from "@/lib/theme-tokens";
+import { SIDEBAR_INIT_SCRIPT } from "@/lib/sidebar";
 import { SpeedInsights } from "@vercel/speed-insights/next";
 import { Analytics } from "@vercel/analytics/next";
 
@@ -18,7 +19,7 @@ export default function RootLayout({
   const appRelease = getAppRelease();
 
   return (
-    <html lang="en" data-theme={DEFAULT_THEME}>
+    <html lang="en" data-theme={DEFAULT_THEME} data-sidebar="expanded">
       <head>
         {/*
          * Pre-paint theme rehydration. Runs before React hydrates so a
@@ -30,6 +31,15 @@ export default function RootLayout({
          */}
         <script
           dangerouslySetInnerHTML={{ __html: THEME_INIT_SCRIPT }}
+        />
+        {/*
+         * Pre-paint sidebar rehydration. Same flash-avoidance contract as
+         * the theme script: rewrite `data-sidebar` from the persisted
+         * preference before React hydrates so the sidebar does not snap
+         * from expanded → collapsed (or back) on reload.
+         */}
+        <script
+          dangerouslySetInnerHTML={{ __html: SIDEBAR_INIT_SCRIPT }}
         />
       </head>
       <body
