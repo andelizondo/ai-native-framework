@@ -87,7 +87,7 @@ Escalate or stop when any of these are true:
 - `ai/playbooks/agent-context-bundle.md` - how to install and maintain the `ai/` bundle alongside root `AGENTS.md`
 - `ai/playbooks/framework-review.md` - how to audit the framework itself for consistency, efficiency, and predictability
 - `ai/playbooks/release-management.md` - how to automate repository-level tags and GitHub Releases with a governed release PR flow
-- `ai/playbooks/publish-to-production.md` - how to publish reviewed `staging` work to production through the governed `staging` -> `main` promotion PR
+- `ai/playbooks/publish-to-production.md` - how to publish reviewed `staging` work to production through the governed `staging` -> `main` promotion PR (includes the §8 automated back-merge of `main` into `staging` after every release)
 - `ai/playbooks/resolve-github-issues.md` - how to batch and resolve open GitHub issues with per-issue audit comments and one PR per fix group
 - `ai/playbooks/resolve-sentry-issues.md` - how to manage Sentry issues as governed incidents with assignment, notes, and evidence-based closure
 - `ai/playbooks/environment-separation.md` - how to establish and maintain the 3-tier environment model (production / staging / development) including branch setup, Vercel configuration, and analytics token scoping

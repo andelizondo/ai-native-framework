@@ -53,7 +53,55 @@ queue_rules:
       - check-success = test
       - check-success = decide
 
-  # Feature PRs targeting staging (integration branch).
+  # Back-merge of main into staging after a production release. Carries no new
+  # code (only commits already merged through their own reviewed PRs: the
+  # staging → main promotion and release-please's chore:release commit). Uses
+  # the merge method (not squash) so main remains an ancestor of staging and
+  # the next promotion PR is not BEHIND. Skips heavy checks because they would
+  # only re-validate already-shipped commits. The branch-name pattern is set
+  # by .github/workflows/back-merge-to-staging.yml; manual back-merges should
+  # follow the same naming so they hit this queue (or be admin-merged directly
+  # per ai/playbooks/publish-to-production.md §8).
+  - name: back-merge-to-staging
+    autoqueue: true
+    batch_size: 1
+    merge_method: merge
+    update_method: rebase
+    # Branch-name match alone is not a strong identity guard — anyone (or any
+    # automation) could push `chore/back-merge-main-after-foo` and inherit the
+    # check-skipping behaviour. The combined guards below require the PR to
+    # carry the `residual:low` label AND a title that exactly matches the
+    # workflow's template, which the workflow always sets together. Manual
+    # back-merges per `ai/playbooks/publish-to-production.md` §8 follow the
+    # same naming/label/title convention so they hit this queue too.
+    queue_conditions:
+      - base = staging
+      - head ~= ^chore/back-merge-main-after-
+      - label = residual:low
+      # YAML quoting required: the colon in `chore:` would otherwise be parsed
+      # as a mapping key, silently invalidating the whole queue config and
+      # causing Mergify to fall through to `staging-integration` (which is
+      # exactly how PR #110 was squash-merged and broke ancestry).
+      - "title ~= ^chore: back-merge main into staging after release"
+      - -draft
+      - -label = sync:needed
+    merge_conditions:
+      - base = staging
+      - head ~= ^chore/back-merge-main-after-
+      - label = residual:low
+      - "title ~= ^chore: back-merge main into staging after release"
+      - -draft
+      - -label = sync:needed
+
+  # Feature PRs targeting staging (integration branch). The negative condition
+  # on `head` keeps back-merge branches off this squash queue — they belong on
+  # `back-merge-to-staging` so the second parent is preserved.
+  #
+  # NOTE: Mergify negation uses the `-` prefix on the whole condition, NOT
+  # `!~=`. An earlier version of this file used `head !~= ^chore/back-merge-...`
+  # which Mergify silently treated as a no-op, causing the back-merge PR #110
+  # to be admitted to this squash queue and break ancestry. Always use the
+  # `-` prefix for negation.
   - name: staging-integration
     autoqueue: true
     batch_size: 1
@@ -61,6 +109,7 @@ queue_rules:
     update_method: rebase
     queue_conditions:
       - base = staging
+      - -head ~= ^chore/back-merge-main-after-
       - label = residual:low
       - -draft
       - -label = sync:needed
@@ -71,6 +120,7 @@ queue_rules:
       - check-success = decide
     merge_conditions:
       - base = staging
+      - -head ~= ^chore/back-merge-main-after-
       - label = residual:low
       - -draft
       - -label = sync:needed

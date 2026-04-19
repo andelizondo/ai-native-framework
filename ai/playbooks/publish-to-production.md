@@ -159,9 +159,74 @@ Capture the minimum audit bundle:
 - `staging` head SHA that was promoted
 - release-please workflow run URL
 - follow-on release PR URL and merge SHA
+- back-merge PR URL (from §8) and merge SHA
 - any operator-visible note about holds, exceptions, or intentionally deferred release follow-up
 
-## Expected two-PR sequence
+### 8. Back-merge `main` into `staging`
+
+After release-please publishes the `vX.Y.Z` tag, `main` is two commits ahead of `staging`:
+
+1. The promotion merge commit produced by §5.
+2. `chore: release X.Y.Z` produced by release-please.
+
+Those commits **MUST** be back-merged into `staging` before the next feature PR or the next promotion. The back-merge **MUST** use a regular merge commit so `main` remains an ancestor of `staging` — a squash merge drops the second parent and leaves `staging` content-equal but history-divergent, which forces the next promotion PR open in a `BEHIND` state with `sync:needed`.
+
+**Canonical path: automated.**
+
+`.github/workflows/back-merge-to-staging.yml` runs on `release: published`. It:
+
+1. Branches `chore/back-merge-main-after-vX.Y.Z` from the current `staging` head.
+2. Performs `git merge --no-ff origin/main`.
+3. Opens a PR (`base=staging`, `head=chore/back-merge-main-after-vX.Y.Z`) with the `residual:low` label so policy auto-clears it.
+4. Merges the PR with `gh pr merge --merge --admin`, bypassing required status checks because every commit being merged has already been reviewed and shipped through its own PR.
+
+The `--admin` step requires `RELEASE_PLEASE_TOKEN` (the same maintainer PAT used by `release-please.yml`). If the token is unset the workflow opens the PR but cannot merge it; a maintainer must finish with `gh pr merge <n> --merge --admin --delete-branch`.
+
+**Mergify safety net.**
+
+If the workflow's admin merge step fails or is skipped, `.mergify.yml` defines a `back-merge-to-staging` queue that picks up any open PR whose `head` matches `^chore/back-merge-main-after-` and merges it with `merge_method: merge` once required branch-protection checks settle. The `staging-integration` (squash) queue explicitly excludes that branch pattern so the back-merge cannot accidentally land as a squash.
+
+**Manual fallback.**
+
+If both the workflow and the queue are unavailable (token missing, workflow disabled, branch protection mid-change, or this is the bootstrap run before the workflow exists on `main`), do the back-merge by hand. **Open the PR as a draft** so the `staging-integration` queue cannot race in and squash it before all checks settle and you `--admin` merge:
+
+```bash
+git fetch origin
+git checkout staging
+git pull --ff-only origin staging
+git checkout -b chore/back-merge-main-after-<tag>
+git merge --no-ff origin/main \
+  -m "chore: back-merge main into staging after release <tag>"
+git push -u origin HEAD
+
+# Draft prevents Mergify from queueing this PR while checks run.
+gh pr create --draft \
+  --base staging \
+  --head "chore/back-merge-main-after-<tag>" \
+  --title "chore: back-merge main into staging after release <tag>" \
+  --body "Manual back-merge per ai/playbooks/publish-to-production.md §8." \
+  --label "residual:low"
+
+# Wait for validate / test / e2e / decide to be green on the PR head.
+# Then mark ready and admin-merge in one motion.
+gh pr ready <pr-number>
+# IMPORTANT: must be --merge (not --squash) so main stays an ancestor of staging.
+gh pr merge <pr-number> --merge --admin --delete-branch
+```
+
+Why draft: the `back-merge-to-staging` queue accepts the PR without checks, but Mergify's queue selection between two matching queues is not deterministic across versions. If `staging-integration` ever admits the back-merge branch (a Mergify-config bug, a change in matching semantics, or a typo in the negation guard), the PR is squashed and ancestry is silently broken. Drafting locks Mergify out until you take it ready and merge in the same step.
+
+**Verification.**
+
+After the back-merge merges, confirm:
+
+- `git log origin/staging..origin/main` is empty (nothing left on `main` that is not on `staging`).
+- `gh api repos/<owner>/<repo>/compare/main...staging --jq '.behind_by'` returns `0`.
+- The merge commit on `staging` has two parents (`git show --no-patch --format='%h %p' origin/staging`).
+
+If `behind_by` is still non-zero, the back-merge probably squashed instead of merged. Repair by opening a zero-diff merge-commit PR (a fresh `git merge --no-ff origin/main` against the current `staging` head) and admin-merge it with the merge method.
+
+## Expected three-PR sequence
 
 When this repository publishes normally, the sequence is:
 
@@ -171,6 +236,9 @@ When this repository publishes normally, the sequence is:
 4. The policy workflow can set `residual:low` on that release PR without CodeRabbit, because it is automation-shaped release metadata work.
 5. Mergify auto-queues and auto-merges the second PR through the `release-please` queue when `validate` and `decide` succeed.
 6. The merge of the second PR creates the tag and GitHub Release.
+7. The `release: published` event fires `back-merge-to-staging.yml`, which opens and admin-merges a third PR (`chore/back-merge-main-after-vX.Y.Z` -> `staging`) so `main` is an ancestor of `staging` again before the next feature lands.
+
+The first PR is human-decided. The second and third are repository-managed automation; they should not require manual review work in the ordinary happy path.
 
 ## Related artifacts
 
@@ -179,3 +247,4 @@ When this repository publishes normally, the sequence is:
 - `ai/playbooks/environment-separation.md`
 - `.mergify.yml`
 - `.github/workflows/release-please.yml`
+- `.github/workflows/back-merge-to-staging.yml`
