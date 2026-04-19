@@ -13,7 +13,7 @@ name: test
 
 on:
   push:
-    branches: [main]
+    branches: [main, staging]
     paths:
       - "products/dashboard/**"
       - "codecov.yml"

@@ -79,6 +79,14 @@ That sequence is **practical**, not a ranking of importance: mature repos often 
 - **Load:** [`playbooks/release-management.md`](playbooks/release-management.md)
 - **Constraints:** release the repository as a single unit; use a dedicated automation token when downstream workflows must trigger; route changes through the normal PR loop.
 
+### Publish to production
+
+- **When to use:** publishing reviewed work from `staging` to production; or when someone asks how to open a PR to `main` in this repository.
+- **Inputs:** current `staging` and `main` SHAs, promotion PR state, merge-gate state, and release automation state.
+- **Outputs:** open or merged `staging` -> `main` promotion PR, plus verification that release automation observed the new `main` head.
+- **Load:** [`playbooks/publish-to-production.md`](playbooks/publish-to-production.md)
+- **Constraints:** do not open feature PRs directly to `main`; use a regular merge commit for `staging` -> `main`; do not wait for CodeRabbit on the promotion PR.
+
 ### Quality standard execution
 
 - **When to use:** PR gate failures, nightly CI triage, incident-to-regression loop, phase readiness audit.
@@ -102,6 +110,14 @@ That sequence is **practical**, not a ranking of importance: mature repos often 
 - **Outputs:** assigned issue, triage note, evidence-based closure decision, resolution note, and final Sentry state.
 - **Load:** [`playbooks/resolve-sentry-issues.md`](playbooks/resolve-sentry-issues.md)
 - **Constraints:** keep issues `unresolved` while the fix is in flight; close only with explicit evidence from merge timing and post-merge Sentry data.
+
+### Environment separation
+
+- **When to use:** establishing or auditing the 3-tier deployment environment model (production / staging / development) for a repository or product; when automated test traffic is polluting production analytics or error dashboards; when adding a new observability tool that needs environment-scoped tokens.
+- **Inputs:** repository owner and name, production domain, staging domain, Vercel project access, GitHub admin access, GitHub token.
+- **Outputs:** `staging` branch with identical protection to `main`; nightly CI retargeted to staging; PostHog token scoped to Production Vercel environment only; Sentry active on staging with environment tags; Mergify staging-integration and staging-promotion queues; updated framework docs.
+- **Load:** [`playbooks/environment-separation.md`](playbooks/environment-separation.md)
+- **Constraints:** never target production from nightly CI; do not use a separate PostHog project for non-production; `staging` → `main` must use regular merge to preserve conventional commit history; Vercel integration-managed variables require removal and manual re-addition to scope by environment.
 
 ### Service wiring
 

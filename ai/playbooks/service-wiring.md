@@ -29,6 +29,8 @@ Understanding what agents can and cannot do prevents wasted time searching for t
 | Enable/disable Supabase auth providers | **None** | Supabase dashboard |
 | Read Vercel projects and teams | Vercel MCP (`list_projects`, `list_teams`) | Automated |
 | Add/update Vercel environment variables | **None** | Vercel dashboard |
+| Scope Vercel env vars by environment (Production/Preview/Development) | **None** | Vercel dashboard |
+| Assign stable domain alias to a branch | **None** | Vercel dashboard → Domains |
 | Create Google OAuth credentials | No MCP; `gcloud` CLI (if installed) | Google Cloud Console |
 | Edit `.env.local` | File tools | Automated |
 
@@ -62,6 +64,24 @@ Check the magic link email directly — the link domain reveals the misconfigure
 [vercel.com/{team}/{project}/settings/environment-variables](https://vercel.com/{team}/{project}/settings/environment-variables)
 
 Set variables for **Production** (and **Preview** if needed). Variables added here require a redeploy to take effect.
+
+### Analytics and monitoring token scoping
+
+To keep production metrics clean (real users only), scope observability tokens by Vercel environment:
+
+| Variable | Production | Preview | Development |
+|---|---|---|---|
+| `NEXT_PUBLIC_POSTHOG_PROJECT_TOKEN` | ✅ set | ❌ unset | ❌ unset |
+| `NEXT_PUBLIC_POSTHOG_HOST` | ✅ set | ❌ unset | ❌ unset |
+| `NEXT_PUBLIC_SENTRY_DSN` | ✅ set | ✅ set | optional |
+
+PostHog guards initialization on `Boolean(token)` — unset token silently skips initialization with no code changes required. Sentry remains active on Preview/staging to surface real integration errors; filter production dashboards by `environment = production`.
+
+**Important:** If PostHog is connected via the Vercel PostHog integration, the variables are integration-managed and cannot be directly scoped per-environment. In that case: remove the integration-managed variables via "Manage Connection" → "Remove" and re-add them manually as plain env vars with Production-only scope.
+
+### Staging alias
+
+Assign a stable domain alias to the `staging` branch in Vercel → Settings → Domains (e.g. `staging.{domain}`). Vercel creates a Preview deployment for every push to `staging`; the alias makes the URL stable for nightly CI targeting.
 
 ### Auth providers variable
 

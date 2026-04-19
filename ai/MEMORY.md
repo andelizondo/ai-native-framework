@@ -12,6 +12,7 @@ This file stores durable repository memory for agents. It is not a transcript an
   - `ai/playbooks/agent-context-bundle.md`
   - `ai/playbooks/framework-review.md`
   - `ai/playbooks/release-management.md`
+  - `ai/playbooks/publish-to-production.md`
   - `ai/playbooks/resolve-github-issues.md`
   - `ai/playbooks/resolve-sentry-issues.md`
 - The canonical validation command is `npm run validate`.
@@ -85,6 +86,11 @@ This file stores durable repository memory for agents. It is not a transcript an
 - 2026-04-17: When rebasing a PR branch that conflicts in `ai/playbooks/` or `ai/skills/`, prefer the HEAD (main) version — those files were already user-reviewed and merged; the branch copy is stale.
 - 2026-04-17: E2E tests that require an external backend need two independent skip guards: app-config visibility (e.g. `isVisible()` on the form) to check whether the feature is enabled in the deployed app, and runner env vars (e.g. `NEXT_PUBLIC_SUPABASE_URL`) to check whether the backend is reachable from the test runner. Neither guard alone is sufficient.
 - 2026-04-18: Added first-class issue-resolution playbooks for GitHub and Sentry. GitHub issue work now standardizes batching by shared root cause with required pre-edit and post-PR comments on every issue; Sentry issue work now standardizes assignment, unresolved-in-flight status, triage and resolution notes, and evidence-based closure using PR merge time plus `lastSeen` and recent event data.
+- 2026-04-19: Mergify `staging-integration` queue requires `residual:low` label + `check-success = CodeRabbit` status + all gate checks (`validate`, `test`, `e2e`, `decide`). When Mergify shows NEUTRAL on a feature→staging PR, verify the `residual:low` label is present; if it is and the queue still does not pick up the PR, try `@mergifyio queue staging-integration`; if that also fails, squash-merge manually via `gh pr merge --squash`. The Mergify merge queue is only guaranteed to auto-trigger when all queue_conditions in `.mergify.yml` are simultaneously satisfied.
+- 2026-04-19: When a Linear issue tracks an implementation task, keep it in sync at every milestone throughout the PR loop — not just at the start and end. Required touchpoints: In Progress + plan comment (start), In Review + PR link attachment (PR open), CodeRabbit round comment (each review cycle), Done + closed checklist + next-issue pointer (merge). Each comment must be self-contained so any agent can resume cold. This pattern is codified in `ai/skills/developer.md` step 16.
+- 2026-04-18: Adopted a 3-tier deployment model (production / staging / development): `staging` is a long-lived protected branch mirroring `main`; feature PRs target `staging`; `staging` → `main` is the release gate using regular merge (not squash) to preserve conventional commit history for release-please; nightly CI targets `STAGING_URL` (never production); PostHog is Production-only (token unset on Preview/Development); Sentry remains active on staging with environment tags for filtering. Full procedure in `ai/playbooks/environment-separation.md`.
+- 2026-04-19: Added `ai/playbooks/publish-to-production.md` as the canonical answer to "how do I open a PR to `main`?" in this repository. Direct feature PRs to `main` remain invalid; the governed production path is a ready-for-review `staging` -> `main` promotion PR merged through the `staging-promotion` queue with a regular merge commit, followed by release-please verification on the new `main` head.
+- 2026-04-19: Tightened PR publication discipline so agents must refresh their branch against the intended base branch before creating a PR; the post-publication branch-sync workflow remains a safety net, not a substitute for opening from a stale head.
 
 ## Update Rules
 

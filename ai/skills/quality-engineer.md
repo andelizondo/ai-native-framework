@@ -13,6 +13,14 @@ Implement, maintain, and execute the verification system for framework-aligned p
 - Setting up or configuring the test stack (Vitest, Playwright, MSW) for a new product
 - Reviewing accessibility failures from axe-core and deciding fix vs. defer
 
+## Environment model
+
+- **Production** (`main` / `ai-native-framework.app`): real users only. PostHog and Sentry reflect genuine user behavior. No automated test traffic ever targets production.
+- **Staging** (`staging` branch / `staging.ai-native-framework.app`): nightly CI target and E2E gate for PRs. PostHog token is unset — no analytics events generated. Sentry is active for real integration errors.
+- **Development** (local): PostHog auto-opts out in `NODE_ENV=development`. Sentry traces at full sample rate.
+
+When diagnosing nightly failures, the target is `STAGING_URL` (repo variable), not the production origin. Do not manually point nightly runs at production.
+
 ## Do Not Use When
 
 - The task is purely about event capture, PII rules, or PostHog/Sentry wiring — that is `docs/ANALYTICS_STANDARD.md` territory

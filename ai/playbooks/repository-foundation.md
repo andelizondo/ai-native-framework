@@ -124,15 +124,31 @@ Security automation should be on before contributors begin adding integrations, 
 3. Read back repository settings and branch protection from GitHub.
 4. Record the applied configuration in the framework playbook so future repos reuse the same baseline.
 
+## 8. Establish the 3-tier environment model
+
+For products with observability instrumentation (PostHog, Sentry), establish environment separation before any real user traffic lands:
+
+1. **Create a long-lived `staging` branch** from `main`. Apply identical branch protection rules to `staging` as to `main` (required checks, linear history, no force pushes, no deletions, conversation resolution, enforce admins).
+2. **Redirect feature PR targets** to `staging`. Feature branches are created from `staging` and PRs target `staging`. `main` receives feature code via the `staging` release gate (exception: repository-managed release-please release PRs).
+3. **Configure a stable Vercel alias** for the `staging` branch (e.g. `staging.{domain}`). Vercel treats `staging` as a Preview deployment; assign the stable alias in Vercel → Settings → Domains.
+4. **Scope analytics tokens to Production only.** In Vercel → Environment Variables, set `NEXT_PUBLIC_POSTHOG_PROJECT_TOKEN` (and `NEXT_PUBLIC_POSTHOG_HOST`) to Production environment only. PostHog guards initialization on `Boolean(token)` — no code change required. Sentry remains enabled in Preview/staging for real error visibility; rely on environment tags for dashboard filtering.
+5. **Redirect nightly CI** from the production URL to the staging URL. Set a `STAGING_URL` repository variable pointing at the stable staging alias. Update nightly workflow defaults to use `STAGING_URL` as the fallback target instead of the production origin.
+6. **Wire release automation.** `staging` → `main` is promoted via release-please using a regular merge (not squash) to preserve conventional commit history. No separate code review is required when CI is green on `staging`.
+
+See `ai/playbooks/environment-separation.md` for the full reusable procedure.
+
 ## Baseline applied in this repository
 
 The current repository-foundation baseline in this repository applies the following concrete settings:
 
 - Default branch: `main`
-- Required checks: `validate`, `decide`, `CodeRabbit`
-- Merge strategy: squash only
+- Integration branch: `staging` (protected, identical rules to `main`)
+- Feature PR target: `staging` (not `main`)
+- Release gate: `staging` → `main` via release-please (regular merge, no squash)
+- Required checks: `validate`, `test`, `e2e`, `CodeRabbit`, `decide`
+- Merge strategy: squash only (feature branches to `staging`); regular merge for `staging` → `main`
 - Delete branch on merge: enabled
-- Branch protection: enabled on `main`
+- Branch protection: enabled on `main` and `staging`
 - Strict status checks: enabled
 - Built-in GitHub approvals required: 0
 - Merge authority delegated to policy check: yes (`decide`)
@@ -148,6 +164,9 @@ The current repository-foundation baseline in this repository applies the follow
 - CodeRabbit review on new pushes: enabled
 - CodeRabbit review on draft PRs: disabled
 - Policy gate for observed CodeRabbit review artifact on the current head SHA before residual-low merge authority: enabled
+- Nightly CI target: `staging.ai-native-framework.app` (`STAGING_URL` repo variable)
+- PostHog token: Vercel Production environment only
+- Sentry: active on all environments; environment tag used for dashboard filtering
 
 ## Notes for future variants
 
