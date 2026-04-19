@@ -198,16 +198,32 @@ jobs:
         run: supabase migration list --linked
 
   # --------------------------------------------------------------------------
-  # Apply on push to main (production). Gated by the `production` GitHub
-  # Environment, which should require manual reviewer approval per
+  # Apply on push to main (production). Gated by the `Production` GitHub
+  # Environment, which requires manual reviewer approval per
   # ai/playbooks/environment-separation.md.
+  #
+  # Skipped on `chore: release X.Y.Z` commits: release-please's release commit
+  # only bumps version + CHANGELOG and never carries new migrations, so any
+  # new migrations were already pushed by the immediately preceding push (the
+  # `staging` -> `main` promotion merge). Without this skip every release
+  # produced two `migrate-production` runs that both required manual
+  # environment approval — one that did the actual `db push`, and one that
+  # was a guaranteed no-op. `workflow_dispatch` is intentionally NOT subject
+  # to this skip: a manual dispatch is an explicit operator action.
   # --------------------------------------------------------------------------
   migrate-production:
     name: migrate-production
-    # Constrain manual dispatch to the canonical branch (see migrate-staging).
     if: |
-      (github.event_name == 'push' && github.ref == 'refs/heads/main') ||
-      (github.event_name == 'workflow_dispatch' && inputs.target == 'production' && github.ref == 'refs/heads/main')
+      (
+        github.event_name == 'push'
+        && github.ref == 'refs/heads/main'
+        && !startsWith(github.event.head_commit.message, 'chore: release ')
+      ) ||
+      (
+        github.event_name == 'workflow_dispatch'
+        && inputs.target == 'production'
+        && github.ref == 'refs/heads/main'
+      )
     runs-on: ubuntu-latest
     environment: Production
     permissions:
