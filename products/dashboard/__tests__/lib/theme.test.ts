@@ -15,8 +15,8 @@ import {
   DEFAULT_THEME,
   THEME_INIT_SCRIPT,
   THEME_STORAGE_KEY,
-  useTheme,
-} from "@/lib/theme";
+} from "@/lib/theme-tokens";
+import { useTheme } from "@/lib/theme";
 
 function resetDom() {
   document.documentElement.removeAttribute("data-theme");
