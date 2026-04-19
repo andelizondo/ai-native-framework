@@ -241,11 +241,9 @@ Nightly jobs run on a schedule (e.g. `0 3 * * *`) against the `staging` environm
 
 ```text
 nightly
-  └─ test:e2e:full       (full Playwright suite against staging)
-  └─ test:a11y:full      (full accessibility audit against staging)
-  └─ test:visual         (visual regression comparison)
-  └─ eval:ai:full        (full AI eval suite — Phase 2+)
-  └─ smoke:staging       (staging environment health check)
+  └─ test-full           (full Vitest suite with coverage)
+  └─ e2e-full            (full Playwright suite, Chromium + Firefox, against staging)
+  └─ report-failure      (opens a GitHub issue on any job failure)
 ```
 
 Failures in nightly jobs open a tracking issue automatically (or post to an alert channel) and are triaged before the next release cut.

@@ -129,7 +129,7 @@ Security automation should be on before contributors begin adding integrations, 
 For products with observability instrumentation (PostHog, Sentry), establish environment separation before any real user traffic lands:
 
 1. **Create a long-lived `staging` branch** from `main`. Apply identical branch protection rules to `staging` as to `main` (required checks, linear history, no force pushes, no deletions, conversation resolution, enforce admins).
-2. **Redirect feature PR targets** to `staging`. Feature branches are created from `staging` and PRs target `staging`. `main` only receives merges from `staging` via the release gate.
+2. **Redirect feature PR targets** to `staging`. Feature branches are created from `staging` and PRs target `staging`. `main` receives feature code via the `staging` release gate (exception: repository-managed release-please release PRs).
 3. **Configure a stable Vercel alias** for the `staging` branch (e.g. `staging.{domain}`). Vercel treats `staging` as a Preview deployment; assign the stable alias in Vercel → Settings → Domains.
 4. **Scope analytics tokens to Production only.** In Vercel → Environment Variables, set `NEXT_PUBLIC_POSTHOG_PROJECT_TOKEN` (and `NEXT_PUBLIC_POSTHOG_HOST`) to Production environment only. PostHog guards initialization on `Boolean(token)` — no code change required. Sentry remains enabled in Preview/staging for real error visibility; rely on environment tags for dashboard filtering.
 5. **Redirect nightly CI** from the production URL to the staging URL. Set a `STAGING_URL` repository variable pointing at the stable staging alias. Update nightly workflow defaults to use `STAGING_URL` as the fallback target instead of the production origin.
@@ -145,7 +145,7 @@ The current repository-foundation baseline in this repository applies the follow
 - Integration branch: `staging` (protected, identical rules to `main`)
 - Feature PR target: `staging` (not `main`)
 - Release gate: `staging` → `main` via release-please (regular merge, no squash)
-- Required checks: `validate`, `decide`, `CodeRabbit`
+- Required checks: `validate`, `test`, `e2e`, `CodeRabbit`, `decide`
 - Merge strategy: squash only (feature branches to `staging`); regular merge for `staging` → `main`
 - Delete branch on merge: enabled
 - Branch protection: enabled on `main` and `staging`

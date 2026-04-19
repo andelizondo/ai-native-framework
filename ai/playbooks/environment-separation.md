@@ -51,7 +51,7 @@ git push -u origin staging
 ```
 
 Or via GitHub MCP:
-```
+```text
 create_branch(owner, repo, branch="staging", from_branch="main")
 ```
 
@@ -63,6 +63,8 @@ Mirror the exact protection rules from `main`. Retrieve the current `main` prote
 curl -s -H "Authorization: Bearer $GITHUB_TOKEN" \
   https://api.github.com/repos/{owner}/{repo}/branches/main/protection
 ```
+
+> **Note**: The example below shows the protection rules for this repository. Use the JSON response from the command above as your payload, adjusting only the `contexts` array if your required checks differ from this baseline.
 
 Then apply the same rules to `staging`:
 
