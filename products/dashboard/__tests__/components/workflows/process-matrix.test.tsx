@@ -96,6 +96,10 @@ describe("ProcessMatrix", () => {
 
     render(<ProcessMatrix instance={inst} template={TEMPLATE} />);
 
+    expect(
+      screen.getByRole("table", { name: "Workflow process matrix" }),
+    ).toBeInTheDocument();
+
     expect(screen.getByTestId("matrix-stage-pre-sales")).toBeInTheDocument();
     expect(screen.getByTestId("matrix-stage-validation")).toBeInTheDocument();
     expect(screen.getByTestId("matrix-role-row-sales")).toBeInTheDocument();

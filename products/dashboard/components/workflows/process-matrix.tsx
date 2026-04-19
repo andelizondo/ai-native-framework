@@ -92,7 +92,11 @@ export function ProcessMatrix({ instance, template }: Props) {
         collapsed && "roles-collapsed",
       )}
     >
-      <div className="matrix">
+      <div
+        className="matrix"
+        role="table"
+        aria-label="Workflow process matrix"
+      >
         <div className="matrix-head-row" role="row">
           <div className="mx-corner" role="columnheader">
             {!collapsed && <span className="flex-1">Roles</span>}
