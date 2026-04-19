@@ -36,7 +36,7 @@ At the end of this playbook:
 |---|---|---|
 | Create `staging` branch | GitHub MCP (`create_branch`) or `git push` | Automated |
 | Set branch protection rules | GitHub REST API (`PUT /branches/{branch}/protection`) | Automated with token |
-| Create `STAGING_URL` repository variable | GitHub REST API (`POST /actions/variables`) | Automated with token |
+| Create `STAGING_URL` repository variable | GitHub REST API (`GET` / `PATCH` / `POST` on `/actions/variables`) | Automated with token |
 | Assign stable Vercel domain alias to `staging` branch | **None** | Vercel dashboard → Settings → Domains |
 | Scope Vercel env vars to Production only | **None** | Vercel dashboard → Settings → Environment Variables |
 
@@ -68,13 +68,15 @@ curl -s -H "Authorization: Bearer $GITHUB_TOKEN" \
 
 Then apply the same rules to `staging`:
 
+> Note: the payload below is an example from this repository's current baseline. Reuse the JSON returned by the `main` protection `GET` above, save it to a file or variable, then adjust any branch-specific fields before the `PUT` to `staging`.
+
 ```bash
 curl -s -X PUT \
   -H "Authorization: Bearer $GITHUB_TOKEN" \
   -H "Accept: application/vnd.github+json" \
   https://api.github.com/repos/{owner}/{repo}/branches/staging/protection \
   -d '{
-    "required_status_checks": { "strict": true, "contexts": ["validate", "CodeRabbit", "decide"] },
+    "required_status_checks": { "strict": true, "contexts": ["validate", "test", "e2e", "CodeRabbit", "decide"] },
     "enforce_admins": true,
     "required_pull_request_reviews": {
       "dismiss_stale_reviews": false,
@@ -92,11 +94,23 @@ curl -s -X PUT \
 ### 3. Create STAGING_URL repository variable
 
 ```bash
-curl -s -X POST \
+# Upsert STAGING_URL so repair and audit reruns stay idempotent.
+if curl -sf \
   -H "Authorization: Bearer $GITHUB_TOKEN" \
   -H "Accept: application/vnd.github+json" \
-  https://api.github.com/repos/{owner}/{repo}/actions/variables \
-  -d '{"name":"STAGING_URL","value":"https://staging.{domain}"}'
+  https://api.github.com/repos/{owner}/{repo}/actions/variables/STAGING_URL >/dev/null; then
+  curl -s -X PATCH \
+    -H "Authorization: Bearer $GITHUB_TOKEN" \
+    -H "Accept: application/vnd.github+json" \
+    https://api.github.com/repos/{owner}/{repo}/actions/variables/STAGING_URL \
+    -d '{"name":"STAGING_URL","value":"https://staging.{domain}"}'
+else
+  curl -s -X POST \
+    -H "Authorization: Bearer $GITHUB_TOKEN" \
+    -H "Accept: application/vnd.github+json" \
+    https://api.github.com/repos/{owner}/{repo}/actions/variables \
+    -d '{"name":"STAGING_URL","value":"https://staging.{domain}"}'
+fi
 ```
 
 ### 4. Update nightly CI to target staging
