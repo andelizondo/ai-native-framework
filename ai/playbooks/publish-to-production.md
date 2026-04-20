@@ -64,8 +64,36 @@ Create a ready-for-review PR with:
 - `head=staging`
 - non-draft state
 - summary focused on the production publish scope and notable operational risk
+- a `BEGIN_COMMIT_OVERRIDE` / `END_COMMIT_OVERRIDE` block in the PR body with standardized conventional-commit lines for every releasable change in this promotion scope
 
 This PR is not a feature review surface. The substantive review already happened on the feature PRs that landed in `staging`.
+
+**Required release-please override block (mandatory):**
+
+Before merging any `staging` -> `main` promotion PR, include this section in the PR body:
+
+```md
+BEGIN_COMMIT_OVERRIDE
+<one standardized conventional commit per releasable item>
+END_COMMIT_OVERRIDE
+```
+
+Standardization rules:
+
+- Use one line per releasable change.
+- Use only conventional commit prefixes: `feat`, `fix`, `perf`, `revert`, and optionally `chore` when release metadata is intentionally desired.
+- Keep each line in the form: `<type>(<scope>): <short summary>`.
+- Keep summaries concise and user-facing; avoid tooling noise, PR numbers, merge boilerplate, and co-author trailers.
+- Do not include `docs`, `test`, `ci`, or other non-releasable-only entries unless you intentionally want them reflected in release notes.
+
+Example:
+
+```md
+BEGIN_COMMIT_OVERRIDE
+feat(dashboard): workflow run controls and task retry/cancel UX
+fix(policy): require trusted bot identity for reviewer-skip paths
+END_COMMIT_OVERRIDE
+```
 
 Canonical CLI sequence:
 
@@ -130,6 +158,7 @@ After the PR merges:
 4. Confirm the second PR receives `residual:low`, passes `validate` and `decide`, and auto-merges through the `release-please` Mergify queue in `.mergify.yml`.
 5. Confirm the merge of the second PR created the tag and GitHub Release expected by `release-please`.
 6. If no release PR appears, or it opens but does not auto-merge, inspect the failure modes in `ai/playbooks/release-management.md` before treating production publication as complete.
+7. If release-please logs report `commit could not be parsed` on the promotion merge commit, update the merged promotion PR body with a corrected `BEGIN_COMMIT_OVERRIDE` block and rerun the release-please workflow.
 
 Canonical verification sequence:
 
