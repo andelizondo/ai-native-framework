@@ -20,7 +20,8 @@ import type { WorkflowTask } from "./types";
 const TASK_TRIGGER_TYPES = new Set(["task", "after_task"]);
 
 /**
- * Bar state strings rendered by `.task-card.bar-*` (see `globals.css`).
+ * Bar state strings rendered by `.task-card.bar-*` (see `globals.css`;
+ * `bar-cancelled` is DB `blocked` / UI "failed").
  * Exporting the type keeps the component / test surface honest:
  * any new state must round-trip through this union.
  */
@@ -30,7 +31,7 @@ export type TaskBarState =
   | "bar-active"
   | "bar-pending"
   | "bar-complete"
-  | "bar-blocked";
+  | "bar-cancelled";
 
 /**
  * Returns true when `task` has no remaining upstream task dependencies.
@@ -84,7 +85,7 @@ export function barClass(
     case "pending_approval":
       return "bar-pending";
     case "blocked":
-      return "bar-blocked";
+      return "bar-cancelled";
     case "not_started":
     default:
       return isReady ? "bar-ready" : "bar-locked";

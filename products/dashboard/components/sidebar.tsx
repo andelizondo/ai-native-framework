@@ -258,14 +258,21 @@ export function Sidebar({
         >
           <span className="text-[10px] font-bold">AI</span>
         </button>
-        <div data-sidebar-collapsible className="flex flex-1 items-center gap-2 overflow-hidden">
-          <span className="truncate text-[13px] font-bold tracking-tight text-t1">AI-Native</span>
-          <span className="rounded bg-bg-3 px-1.5 py-[2px] font-mono text-[9.5px] text-t3">v0.1</span>
+        <div
+          data-sidebar-collapsible
+          className="flex min-w-0 flex-1 items-center gap-2 overflow-hidden"
+        >
+          <span className="min-w-0 flex-1 truncate text-[13px] font-bold tracking-tight text-t1">
+            AI-Native
+          </span>
+          <span className="shrink-0 rounded bg-bg-3 px-1.5 py-[2px] font-mono text-[9.5px] text-t3">
+            v0.1
+          </span>
           <button
             type="button"
             onClick={toggleCollapsed}
             aria-label="Collapse sidebar"
-            className="ml-auto flex h-[22px] w-[22px] items-center justify-center rounded-[5px] border border-border text-t3 hover:bg-bg-3 hover:text-t1 transition-colors"
+            className="flex h-[22px] w-[22px] shrink-0 items-center justify-center rounded-[5px] border border-border text-t3 hover:bg-bg-3 hover:text-t1 transition-colors"
             title="Collapse"
           >
             <ChevronLeft className="h-3.5 w-3.5" />
@@ -291,7 +298,7 @@ export function Sidebar({
             Workflows
           </span>
           {/*
-           * "+ New workflow" — opens the template editor. PR 12 wires the
+           * "+ New workflow" — opens the template editor. PR 11 wires the
            * actual editor route, but the link is in place so the affordance
            * is keyboard- and screen-reader-reachable today.
            */}

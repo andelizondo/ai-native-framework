@@ -30,13 +30,21 @@ interface Params {
 
 export default async function WorkflowInstancePage({
   params,
+  searchParams,
 }: {
   params: Promise<Params>;
+  searchParams: Promise<{ edit?: string }>;
 }) {
   const { instanceId } = await params;
+  const { edit } = await searchParams;
+  const editMode = edit === "1";
 
   const repo = await getServerWorkflowRepository();
-  const instance = await repo.getInstance(instanceId);
+  const [instance, skills, playbooks] = await Promise.all([
+    repo.getInstance(instanceId),
+    repo.getFrameworkItems("skill"),
+    repo.getFrameworkItems("playbook"),
+  ]);
 
   if (!instance) {
     notFound();
@@ -65,7 +73,13 @@ export default async function WorkflowInstancePage({
           </p>
         </header>
 
-        <ProcessMatrix instance={instance} template={template} />
+        <ProcessMatrix
+          instance={instance}
+          template={template}
+          editMode={editMode}
+          skillOptions={skills}
+          playbookOptions={playbooks}
+        />
       </div>
     </>
   );

@@ -100,6 +100,20 @@ export interface WorkflowTask {
   updatedAt: string;
 }
 
+export interface WorkflowTaskCreateInput {
+  instanceId: string;
+  roleId: string;
+  stageId: string;
+  title: string;
+  description?: string;
+  checkpoint?: boolean;
+  triggers?: WorkflowTrigger[];
+  gates?: WorkflowGate[];
+  agent?: string | null;
+  skill?: string | null;
+  playbook?: string | null;
+}
+
 export interface WorkflowEvent {
   id: string;
   instanceId: string;
@@ -197,6 +211,17 @@ export interface WorkflowRepository {
     taskId: string,
     nextStatus: WorkflowCheckpointTransitionStatus,
   ): Promise<WorkflowTask | null>;
+  /**
+   * Atomic conditional update for ordinary task writes that depend on
+   * the current task status. Returns the updated row when the status
+   * predicate still matched at write time, or `null` when the row is
+   * missing / hidden / no longer in `expectedStatus`.
+   */
+  updateTaskIfStatus(
+    taskId: string,
+    expectedStatus: WorkflowTaskStatus,
+    patch: WorkflowTaskPatch,
+  ): Promise<WorkflowTask | null>;
   listInstances(templateId?: string): Promise<WorkflowInstance[]>;
   /**
    * All tasks across every instance the caller can read (RLS still
@@ -210,8 +235,14 @@ export interface WorkflowRepository {
    */
   listRecentEvents(limit: number): Promise<WorkflowEvent[]>;
   createInstance(templateId: string, label: string): Promise<WorkflowInstanceDetail>;
+  createTask(input: WorkflowTaskCreateInput): Promise<WorkflowTask>;
   updateTask(taskId: string, patch: WorkflowTaskPatch): Promise<WorkflowTask>;
+  deleteTask(taskId: string): Promise<void>;
   addEvent(taskId: string, event: WorkflowEventInput): Promise<WorkflowEvent>;
+  addInstanceEvent(
+    instanceId: string,
+    event: WorkflowEventInput & { taskId?: string | null },
+  ): Promise<WorkflowEvent>;
   getFrameworkItems(type?: FrameworkItemType): Promise<FrameworkItem[]>;
   upsertFrameworkItem(item: FrameworkItem): Promise<FrameworkItem>;
 }

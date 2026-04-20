@@ -11,7 +11,9 @@ import type {
   WorkflowRepository,
   WorkflowRole,
   WorkflowTask,
+  WorkflowTaskCreateInput,
   WorkflowTaskPatch,
+  WorkflowTaskStatus,
   WorkflowTaskTemplate,
   WorkflowTemplate,
 } from "./types";
@@ -448,6 +450,57 @@ export function createWorkflowRepository(
       return { ...instance, tasks, events: [] };
     },
 
+    async createTask(input: WorkflowTaskCreateInput): Promise<WorkflowTask> {
+      const { data, error } = await client
+        .from("workflow_tasks")
+        .insert({
+          instance_id: input.instanceId,
+          role_id: input.roleId,
+          stage_id: input.stageId,
+          title: input.title,
+          description: input.description ?? "",
+          status: "not_started",
+          substatus: "",
+          checkpoint: input.checkpoint ?? false,
+          triggers: input.triggers ?? [],
+          gates: input.gates ?? [],
+          agent: input.agent ?? null,
+          skill: input.skill ?? null,
+          playbook: input.playbook ?? null,
+        })
+        .select("*")
+        .single();
+
+      return mapTask(unwrap("createTask", data, error) as WorkflowTaskRow);
+    },
+
+    async updateTaskIfStatus(
+      taskId: string,
+      expectedStatus: WorkflowTaskStatus,
+      patch: WorkflowTaskPatch,
+    ): Promise<WorkflowTask | null> {
+      const row = patchToRow(patch);
+      if (Object.keys(row).length === 0) {
+        throw new WorkflowRepositoryError("updateTaskIfStatus called with empty patch");
+      }
+
+      const { data, error } = await client
+        .from("workflow_tasks")
+        .update(row)
+        .eq("id", taskId)
+        .eq("status", expectedStatus)
+        .select("*")
+        .maybeSingle();
+
+      if (error) {
+        throw new WorkflowRepositoryError("updateTaskIfStatus failed", error);
+      }
+      if (!data) {
+        return null;
+      }
+      return mapTask(data as WorkflowTaskRow);
+    },
+
     async updateTask(taskId: string, patch: WorkflowTaskPatch): Promise<WorkflowTask> {
       const row = patchToRow(patch);
       if (Object.keys(row).length === 0) {
@@ -462,6 +515,17 @@ export function createWorkflowRepository(
         .single();
 
       return mapTask(unwrap("updateTask", data, error) as WorkflowTaskRow);
+    },
+
+    async deleteTask(taskId: string): Promise<void> {
+      const { error } = await client
+        .from("workflow_tasks")
+        .delete()
+        .eq("id", taskId);
+
+      if (error) {
+        throw new WorkflowRepositoryError("deleteTask failed", error);
+      }
     },
 
     async addEvent(taskId: string, event: WorkflowEventInput): Promise<WorkflowEvent> {
@@ -490,6 +554,25 @@ export function createWorkflowRepository(
         .single();
 
       return mapEvent(unwrap("addEvent", data, error) as WorkflowEventRow);
+    },
+
+    async addInstanceEvent(
+      instanceId: string,
+      event: WorkflowEventInput & { taskId?: string | null },
+    ): Promise<WorkflowEvent> {
+      const { data, error } = await client
+        .from("workflow_events")
+        .insert({
+          instance_id: instanceId,
+          task_id: event.taskId ?? null,
+          name: event.name,
+          description: event.description ?? "",
+          payload: event.payload ?? {},
+        })
+        .select("*")
+        .single();
+
+      return mapEvent(unwrap("addInstanceEvent", data, error) as WorkflowEventRow);
     },
 
     async getFrameworkItems(type?: FrameworkItemType): Promise<FrameworkItem[]> {

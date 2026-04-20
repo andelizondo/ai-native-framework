@@ -318,7 +318,7 @@ export function SidebarWorkflowTree({ templates, instancesByTemplate }: Props) {
                 {/* Count pill — number by default, pen icon on hover.
                     Mirrors prototype's `pt-count-pill`/`pt-count-edit`
                     pair (lines 86-90). The pen click navigates to the
-                    template-editor stub (PR 12 wires the real route). */}
+                    template-editor stub (PR 11 wires the real route). */}
                 <Link
                   href={`/workflows/templates/${template.id}/edit`}
                   onClick={(e) => e.stopPropagation()}

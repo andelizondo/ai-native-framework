@@ -28,6 +28,12 @@ type AuthProviderPayload = {
   provider: "magic_link" | "google";
 };
 
+/** Task + instance identifiers (shared by several workflow client events). */
+type WorkflowTaskInstancePayload = {
+  task_id: string;
+  instance_id: string;
+};
+
 /**
  * Discriminated map — enforces name/payload pairing at compile time.
  * Adding a new event requires updating this map; TypeScript will catch mismatches.
@@ -38,8 +44,11 @@ type EventMap = {
   "user.signed_in": AuthProviderPayload;
   "user.signed_out": AuthProviderPayload;
   "dashboard.task_drawer_opened": { task_id: string };
-  "workflow.checkpoint_approved": { task_id: string; instance_id: string };
-  "workflow.checkpoint_rejected": { task_id: string; instance_id: string };
+  "workflow.checkpoint_approved": WorkflowTaskInstancePayload;
+  "workflow.checkpoint_rejected": WorkflowTaskInstancePayload;
+  "workflow.task_started": WorkflowTaskInstancePayload;
+  "workflow.run_cancelled": WorkflowTaskInstancePayload;
+  "workflow.run_retried": WorkflowTaskInstancePayload;
 };
 
 type EventName = keyof EventMap;
