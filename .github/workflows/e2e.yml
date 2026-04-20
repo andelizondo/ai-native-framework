@@ -45,12 +45,12 @@ jobs:
       statuses: write
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
         with:
           # Checkout the SHA that triggered the deployment, not the latest main
           ref: ${{ github.event.deployment.sha || github.sha }}
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v6
         with:
           node-version: "20"
           cache: "npm"
@@ -71,7 +71,7 @@ jobs:
 
       - name: Upload Playwright report
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: playwright-report-${{ github.event.deployment.sha || github.sha }}
           path: products/dashboard/playwright-report/
