@@ -393,6 +393,9 @@ export function AgentRunPanel({
     });
   }
 
+  // `isApproved` means approveDrawerCheckpointAction has already flipped
+  // `task.status` to "active" while preserving `task.checkpoint`, so this
+  // combination represents a checkpointed task that has been approved to continue.
   const isApproved = task.status === "active" && task.checkpoint;
 
   return (
