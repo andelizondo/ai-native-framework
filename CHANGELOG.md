@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.16.0](https://github.com/andelizondo/ai-native-framework/compare/v0.15.0...v0.16.0) (2026-04-20)
+
+
+### Features
+
+* **dashboard:** workflow run controls, sidebar collapse, Failed label ([972fa61](https://github.com/andelizondo/ai-native-framework/commit/972fa61e638dcecdc747cb60e51cb64cc8d3e87f))
+
+
+### Bug Fixes
+
+* **policy:** skip CodeRabbit on promotion/back-merge PRs ([972fa61](https://github.com/andelizondo/ai-native-framework/commit/972fa61e638dcecdc747cb60e51cb64cc8d3e87f))
+
 ## [0.15.0](https://github.com/andelizondo/ai-native-framework/compare/v0.14.0...v0.15.0) (2026-04-20)
 
 
