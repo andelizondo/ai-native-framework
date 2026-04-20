@@ -556,13 +556,21 @@ export async function retryBlockedTaskAction(
  * Called client-side when the panel opens so it always shows fresh data.
  */
 export async function fetchPendingCheckpointsAction(): Promise<PendingCheckpoint[]> {
-  const repo = await getServerWorkflowRepository();
-  const [templates, instances, tasks] = await Promise.all([
-    repo.getTemplates(),
-    repo.listInstances(),
-    repo.listAllTasks(),
-  ]);
-  return pickPendingCheckpoints({ templates, instances, tasks, events: [] });
+  try {
+    const repo = await getServerWorkflowRepository();
+    const [templates, instances, tasks] = await Promise.all([
+      repo.getTemplates(),
+      repo.listInstances(),
+      repo.listAllTasks(),
+    ]);
+    return pickPendingCheckpoints({ templates, instances, tasks, events: [] });
+  } catch (error) {
+    captureError(error, {
+      feature: "workflows.fetch_pending_checkpoints",
+      action: "list_pending",
+    });
+    throw error;
+  }
 }
 
 export async function deleteTaskAction(taskId: string): Promise<void> {

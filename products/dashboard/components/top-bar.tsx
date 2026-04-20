@@ -56,6 +56,7 @@ export function TopBar({ initialPendingCount = 0 }: TopBarProps) {
   const editMode = searchParams.get("edit") === "1";
 
   const [panelOpen, setPanelOpen] = useState(false);
+  const [pendingCount, setPendingCount] = useState(initialPendingCount);
 
   function toggleEditMode() {
     if (!pathname) return;
@@ -69,11 +70,14 @@ export function TopBar({ initialPendingCount = 0 }: TopBarProps) {
     router.replace(query ? `${pathname}?${query}` : pathname, { scroll: false });
   }
 
-  const hasPending = initialPendingCount > 0;
+  const hasPending = pendingCount > 0;
 
   return (
     <>
-      <header className="flex h-[52px] shrink-0 items-center gap-2.5 border-b border-border bg-bg px-5">
+      <header
+        className="flex h-[52px] shrink-0 items-center gap-2.5 border-b border-border bg-bg px-5"
+        data-testid="topbar-header"
+      >
         <nav aria-label="Breadcrumb" className="flex min-w-0 flex-1 items-center gap-1.5">
           {crumbs.map((crumb, idx) => {
             const isLast = idx === crumbs.length - 1;
@@ -115,7 +119,7 @@ export function TopBar({ initialPendingCount = 0 }: TopBarProps) {
 
           <button
             type="button"
-            aria-label={`My Tasks${hasPending ? ` — ${initialPendingCount} pending` : ""}`}
+            aria-label={`My Tasks${hasPending ? ` — ${pendingCount} pending` : ""}`}
             aria-expanded={panelOpen}
             onClick={() => setPanelOpen((v) => !v)}
             data-testid="topbar-my-tasks-btn"
@@ -135,7 +139,7 @@ export function TopBar({ initialPendingCount = 0 }: TopBarProps) {
                 aria-hidden
                 data-testid="topbar-pending-badge"
               >
-                {initialPendingCount}
+                {pendingCount}
               </span>
             )}
           </button>
@@ -145,6 +149,7 @@ export function TopBar({ initialPendingCount = 0 }: TopBarProps) {
       <CheckpointPanel
         open={panelOpen}
         onClose={() => setPanelOpen(false)}
+        onPendingCountChange={setPendingCount}
       />
     </>
   );

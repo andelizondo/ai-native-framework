@@ -59,16 +59,19 @@ describe("TopBar", () => {
   it("renders a header landmark", () => {
     vi.mocked(usePathname).mockReturnValue("/");
     render(<TopBar />);
-    // TopBar renders its own <header> plus CheckpointPanel's <header>; check the topbar one
-    expect(screen.getAllByRole("banner").length).toBeGreaterThanOrEqual(1);
+    expect(screen.getByTestId("topbar-header")).toBeInTheDocument();
   });
 
-  it("renders the My Tasks pill and it is clickable", () => {
+  it("renders the My Tasks pill and it toggles expanded state when clicked", async () => {
     vi.mocked(usePathname).mockReturnValue("/");
+    const user = userEvent.setup();
     render(<TopBar />);
     const pill = screen.getByTestId("topbar-my-tasks-btn");
     expect(pill).toBeInTheDocument();
-    expect(pill).not.toBeDisabled();
+    expect(pill).toHaveAttribute("aria-expanded", "false");
+
+    await user.click(pill);
+    expect(pill).toHaveAttribute("aria-expanded", "true");
   });
 
   it("renders the workflow edit pill and toggles the edit query param", async () => {

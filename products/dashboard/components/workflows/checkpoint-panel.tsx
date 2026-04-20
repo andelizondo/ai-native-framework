@@ -3,8 +3,10 @@
 import { useEffect, useState, useTransition } from "react";
 import { X } from "lucide-react";
 
-import { resolveCheckpointAction } from "@/app/(dashboard)/workflows/actions";
-import { fetchPendingCheckpointsAction } from "@/app/(dashboard)/workflows/actions";
+import {
+  fetchPendingCheckpointsAction,
+  resolveCheckpointAction,
+} from "@/app/(dashboard)/workflows/actions";
 import { captureError } from "@/lib/monitoring";
 import { emitEvent } from "@/lib/events";
 import { cn } from "@/lib/utils";
@@ -16,12 +18,14 @@ export interface CheckpointPanelProps {
   onClose: () => void;
   /** Initial count so the badge renders on first paint without a round-trip. */
   initialCheckpoints?: PendingCheckpoint[];
+  onPendingCountChange?: (count: number) => void;
 }
 
 export function CheckpointPanel({
   open,
   onClose,
   initialCheckpoints = [],
+  onPendingCountChange,
 }: CheckpointPanelProps) {
   const [checkpoints, setCheckpoints] = useState<PendingCheckpoint[]>(initialCheckpoints);
   const [loadError, setLoadError] = useState(false);
@@ -37,6 +41,7 @@ export function CheckpointPanel({
         const fresh = await fetchPendingCheckpointsAction();
         setCheckpoints(fresh);
         setResolvedById({});
+        onPendingCountChange?.(fresh.length);
         setLoadError(false);
       } catch (err) {
         captureError(err, { feature: "checkpoint_panel.load" });
@@ -50,7 +55,11 @@ export function CheckpointPanel({
     startTransition(async () => {
       try {
         await resolveCheckpointAction(taskId, resolution);
-        setResolvedById((prev) => ({ ...prev, [taskId]: resolution }));
+        setResolvedById((prev) => {
+          const next = { ...prev, [taskId]: resolution };
+          onPendingCountChange?.(Math.max(0, checkpoints.length - Object.keys(next).length));
+          return next;
+        });
       } catch (err) {
         captureError(err, {
           feature: "checkpoint_panel.resolve",
