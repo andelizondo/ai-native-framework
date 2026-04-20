@@ -7,6 +7,7 @@ import { AuthIdentitySync } from "@/components/auth-identity-sync";
 import { captureError } from "@/lib/monitoring";
 import { getServerWorkflowRepository } from "@/lib/workflows/repository.server";
 import type { WorkflowInstance, WorkflowTemplate } from "@/lib/workflows/types";
+import { pickPendingCheckpoints } from "@/lib/workflows/aggregate";
 
 /**
  * Server-side load of the workflow tree data the sidebar renders.
@@ -19,27 +20,34 @@ import type { WorkflowInstance, WorkflowTemplate } from "@/lib/workflows/types";
 async function loadSidebarWorkflowTree(): Promise<{
   templates: WorkflowTemplate[];
   instancesByTemplate: Record<string, SidebarInstanceView[]>;
+  pendingCount: number;
 }> {
   try {
     const repo = await getServerWorkflowRepository();
-    const [templates, instances] = await Promise.all([
+    const [templates, instances, tasks] = await Promise.all([
       repo.getTemplates(),
       repo.listInstances(),
+      repo.listAllTasks(),
     ]);
 
     const instancesByTemplate: Record<string, SidebarInstanceView[]> = {};
     for (const instance of instances satisfies WorkflowInstance[]) {
       const bucket = instancesByTemplate[instance.templateId] ?? [];
-      // PR 5 has no per-task aggregation yet; `hasPending` and `progress`
-      // light up automatically when PR 8 wires task state.
       bucket.push({ ...instance });
       instancesByTemplate[instance.templateId] = bucket;
     }
 
-    return { templates, instancesByTemplate };
+    const pendingCount = pickPendingCheckpoints({
+      templates,
+      instances,
+      tasks,
+      events: [],
+    }).length;
+
+    return { templates, instancesByTemplate, pendingCount };
   } catch (error) {
     captureError(error, { feature: "sidebar.workflow_tree" });
-    return { templates: [], instancesByTemplate: {} };
+    return { templates: [], instancesByTemplate: {}, pendingCount: 0 };
   }
 }
 
@@ -63,7 +71,7 @@ export default async function DashboardLayout({
     redirect("/login");
   }
 
-  const { templates, instancesByTemplate } = await loadSidebarWorkflowTree();
+  const { templates, instancesByTemplate, pendingCount } = await loadSidebarWorkflowTree();
 
   return (
     <>
@@ -74,7 +82,7 @@ export default async function DashboardLayout({
         instancesByTemplate={instancesByTemplate}
       />
       <div className="flex min-w-0 flex-1 flex-col overflow-hidden">
-        <TopBar />
+        <TopBar initialPendingCount={pendingCount} />
         <main className="min-h-0 flex-1 overflow-y-auto bg-bg">{children}</main>
       </div>
     </>

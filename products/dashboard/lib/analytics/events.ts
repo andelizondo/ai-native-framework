@@ -49,7 +49,11 @@ export type AnalyticsEvent =
   | {
       event: "workflow.instance_created";
       properties: { instance_id: string; template_id: string };
-    };
+    }
+  // ── Agent run panel ───────────────────────────────────────────────────────
+  | { event: "dashboard.agent_run_opened"; properties: { task_id: string } }
+  // ── My Tasks panel ────────────────────────────────────────────────────────
+  | { event: "dashboard.my_tasks_opened"; properties: Record<string, never> };
 
 // ─── PART B — Client-side capture hook ───────────────────────────────────────
 //

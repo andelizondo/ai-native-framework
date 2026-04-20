@@ -49,6 +49,8 @@ type EventMap = {
   "workflow.task_started": WorkflowTaskInstancePayload;
   "workflow.run_cancelled": WorkflowTaskInstancePayload;
   "workflow.run_retried": WorkflowTaskInstancePayload;
+  "dashboard.agent_run_opened": { task_id: string };
+  "dashboard.my_tasks_opened": Record<string, never>;
 };
 
 type EventName = keyof EventMap;

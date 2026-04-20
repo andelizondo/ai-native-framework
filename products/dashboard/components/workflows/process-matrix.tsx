@@ -23,6 +23,7 @@ import type {
 } from "@/lib/workflows/types";
 
 import { AddTaskModal } from "./add-task-modal";
+import { AgentRunPanel } from "./agent-run-panel";
 import { TaskCard } from "./task-card";
 import { TaskDrawer } from "./task-drawer";
 
@@ -54,6 +55,7 @@ export function ProcessMatrix({
   const [confirmDeleteTask, setConfirmDeleteTask] = useState<WorkflowTask | null>(
     null,
   );
+  const [agentRunOpen, setAgentRunOpen] = useState(false);
   const [localTasks, setLocalTasks] = useState<WorkflowTask[]>(instance.tasks);
   const [isPending, startTransition] = useTransition();
 
@@ -397,7 +399,16 @@ export function ProcessMatrix({
         template={template}
         skillOptions={skillOptions}
         playbookOptions={playbookOptions}
-        onClose={() => setSelectedTaskId(null)}
+        onClose={() => { setSelectedTaskId(null); setAgentRunOpen(false); }}
+        onTaskUpdate={handleTaskUpdate}
+        onViewLiveRun={selectedTask?.status === "active" ? () => setAgentRunOpen(true) : undefined}
+      />
+
+      <AgentRunPanel
+        task={agentRunOpen ? selectedTask : null}
+        instance={instance}
+        open={agentRunOpen}
+        onClose={() => setAgentRunOpen(false)}
         onTaskUpdate={handleTaskUpdate}
       />
 
