@@ -59,14 +59,19 @@ describe("TopBar", () => {
   it("renders a header landmark", () => {
     vi.mocked(usePathname).mockReturnValue("/");
     render(<TopBar />);
-    expect(screen.getByRole("banner")).toBeInTheDocument();
+    expect(screen.getByTestId("topbar-header")).toBeInTheDocument();
   });
 
-  it("renders the My Tasks pill as a disabled placeholder", () => {
+  it("renders the My Tasks pill and it toggles expanded state when clicked", async () => {
     vi.mocked(usePathname).mockReturnValue("/");
+    const user = userEvent.setup();
     render(<TopBar />);
-    const pill = screen.getByRole("button", { name: /my tasks/i });
-    expect(pill).toBeDisabled();
+    const pill = screen.getByTestId("topbar-my-tasks-btn");
+    expect(pill).toBeInTheDocument();
+    expect(pill).toHaveAttribute("aria-expanded", "false");
+
+    await user.click(pill);
+    expect(pill).toHaveAttribute("aria-expanded", "true");
   });
 
   it("renders the workflow edit pill and toggles the edit query param", async () => {

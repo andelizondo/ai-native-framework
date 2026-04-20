@@ -4,6 +4,10 @@ import { revalidatePath } from "next/cache";
 
 import { captureError } from "@/lib/monitoring";
 import { getServerWorkflowRepository } from "@/lib/workflows/repository.server";
+import {
+  pickPendingCheckpoints,
+  type PendingCheckpoint,
+} from "@/lib/workflows/aggregate";
 import type {
   WorkflowGate,
   WorkflowInstance,
@@ -545,6 +549,28 @@ export async function retryBlockedTaskAction(
 
   revalidatePath("/", "layout");
   return { task };
+}
+
+/**
+ * Fetch pending checkpoints for the My Tasks panel.
+ * Called client-side when the panel opens so it always shows fresh data.
+ */
+export async function fetchPendingCheckpointsAction(): Promise<PendingCheckpoint[]> {
+  try {
+    const repo = await getServerWorkflowRepository();
+    const [templates, instances, tasks] = await Promise.all([
+      repo.getTemplates(),
+      repo.listInstances(),
+      repo.listAllTasks(),
+    ]);
+    return pickPendingCheckpoints({ templates, instances, tasks, events: [] });
+  } catch (error) {
+    captureError(error, {
+      feature: "workflows.fetch_pending_checkpoints",
+      action: "list_pending",
+    });
+    throw error;
+  }
 }
 
 export async function deleteTaskAction(taskId: string): Promise<void> {

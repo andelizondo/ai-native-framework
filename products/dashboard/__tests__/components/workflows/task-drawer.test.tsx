@@ -151,12 +151,12 @@ function renderDrawer(
   events: WorkflowEvent[] = [],
   onClose = vi.fn(),
   onTaskUpdate = vi.fn(),
-  onOpenPlaybookPrompt?: () => void,
+  onViewLiveRun?: () => void,
 ) {
   const task = makeTask(taskOverrides);
   const instance = makeInstance([task], events);
 
-  render(
+  const view = render(
     <TaskDrawer
       task={task}
       instance={instance}
@@ -164,11 +164,11 @@ function renderDrawer(
       template={TEMPLATE}
       onClose={onClose}
       onTaskUpdate={onTaskUpdate}
-      onOpenPlaybookPrompt={onOpenPlaybookPrompt}
+      onViewLiveRun={onViewLiveRun}
     />,
   );
 
-  return { task, onClose, onTaskUpdate };
+  return { task, onClose, onTaskUpdate, ...view };
 }
 
 // ── Tests ─────────────────────────────────────────────────────────────────────
@@ -306,21 +306,34 @@ describe("TaskDrawer", () => {
       expect(screen.getByTestId("td-playbook-card")).not.toHaveAttribute("role", "button");
     });
 
-    it("invokes onOpenPlaybookPrompt when the playbook card is clicked", async () => {
-      const onOpenPlaybookPrompt = vi.fn();
+    it("invokes onViewLiveRun for every eligible playbook-card status and skips not_started without a handler", async () => {
       const user = userEvent.setup();
-      renderDrawer(
-        { status: "complete", checkpoint: false, playbook: "demo-pb" },
-        [],
-        vi.fn(),
-        vi.fn(),
-        onOpenPlaybookPrompt,
-      );
+      const runnableStatuses: WorkflowTask["status"][] = [
+        "active",
+        "blocked",
+        "pending_approval",
+        "complete",
+      ];
 
-      const playbookCard = screen.getByTestId("td-playbook-card");
-      expect(playbookCard).toHaveAttribute("role", "button");
-      await user.click(playbookCard);
-      expect(onOpenPlaybookPrompt).toHaveBeenCalledTimes(1);
+      for (const status of runnableStatuses) {
+        const onViewLiveRun = vi.fn();
+        const { unmount } = renderDrawer(
+          { status, checkpoint: false, playbook: "demo-pb" },
+          [],
+          vi.fn(),
+          vi.fn(),
+          onViewLiveRun,
+        );
+
+        const playbookCard = screen.getByTestId("td-playbook-card");
+        expect(playbookCard).toHaveAttribute("role", "button");
+        await user.click(playbookCard);
+        expect(onViewLiveRun).toHaveBeenCalledTimes(1);
+        unmount();
+      }
+
+      renderDrawer({ status: "not_started", checkpoint: false, playbook: "demo-pb" });
+      expect(screen.getByTestId("td-playbook-card")).not.toHaveAttribute("role", "button");
     });
   });
 
