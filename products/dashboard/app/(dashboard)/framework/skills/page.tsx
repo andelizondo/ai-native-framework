@@ -3,7 +3,7 @@ import { ShellEvents } from "@/components/shell-events";
 /**
  * Skills — placeholder.
  *
- * Real Skills library lands in PR 13 (AEL-56). This page exists so the
+ * Real Skills library lands in PR 12 (AEL-56). This page exists so the
  * sidebar's Framework → Skills link doesn't 404 and so shell events
  * fire on the route during PR 3.
  */

@@ -11,8 +11,8 @@
  *     row instead of crashing the route.
  */
 
-import { describe, expect, it } from "vitest";
-import { render, screen, within } from "@testing-library/react";
+import { describe, expect, it, vi, beforeEach } from "vitest";
+import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 
 import { ProcessMatrix } from "@/components/workflows/process-matrix";
@@ -21,6 +21,31 @@ import type {
   WorkflowTask,
   WorkflowTemplate,
 } from "@/lib/workflows/types";
+
+const {
+  mockCreateTaskAction,
+  mockDeleteTaskAction,
+  mockMoveTaskAction,
+  mockCaptureError,
+} = vi.hoisted(() => ({
+  mockCreateTaskAction: vi.fn(),
+  mockDeleteTaskAction: vi.fn(),
+  mockMoveTaskAction: vi.fn(),
+  mockCaptureError: vi.fn(),
+}));
+
+vi.mock("@/app/(dashboard)/workflows/actions", () => ({
+  createTaskAction: mockCreateTaskAction,
+  deleteTaskAction: mockDeleteTaskAction,
+  moveTaskAction: mockMoveTaskAction,
+  approveDrawerCheckpointAction: vi.fn(),
+  rejectDrawerCheckpointAction: vi.fn(),
+  updateTaskTriggerGatesAction: vi.fn(),
+}));
+
+vi.mock("@/lib/monitoring", () => ({
+  captureError: mockCaptureError,
+}));
 
 const TEMPLATE: WorkflowTemplate = {
   id: "client-delivery",
@@ -77,6 +102,13 @@ function instance(tasks: WorkflowTask[]): WorkflowInstanceDetail {
 }
 
 describe("ProcessMatrix", () => {
+  beforeEach(() => {
+    mockCreateTaskAction.mockReset();
+    mockDeleteTaskAction.mockReset();
+    mockMoveTaskAction.mockReset();
+    mockCaptureError.mockReset();
+  });
+
   it("renders stage headers, role rows, and task cells", () => {
     const inst = instance([
       task({
@@ -179,5 +211,54 @@ describe("ProcessMatrix", () => {
     expect(screen.getByTestId("matrix-empty")).toHaveTextContent(
       /no stages or roles/i,
     );
+  });
+
+  it("shows edit affordances and creates a task in an empty cell", async () => {
+    const inst = instance([task({ id: "k-1", status: "active" })]);
+    const user = userEvent.setup();
+    const created = task({
+      id: "created-1",
+      roleId: "product",
+      stageId: "validation",
+      title: "New task",
+      agent: "PM",
+    });
+    mockCreateTaskAction.mockResolvedValue({ task: created });
+
+    render(<ProcessMatrix instance={inst} template={TEMPLATE} editMode />);
+
+    await user.click(screen.getByTestId("matrix-add-task-product-validation"));
+    expect(screen.getByRole("dialog", { name: "New task" })).toBeInTheDocument();
+
+    await user.type(screen.getByPlaceholderText("Task title"), "New task");
+    await user.click(screen.getByRole("button", { name: /create task/i }));
+
+    expect(mockCreateTaskAction).toHaveBeenCalledWith(
+      expect.objectContaining({
+        instanceId: "inst-1",
+        roleId: "product",
+        stageId: "validation",
+        title: "New task",
+      }),
+    );
+    expect(await screen.findByTestId("task-card-created-1")).toBeInTheDocument();
+  });
+
+  it("removes a task after confirm", async () => {
+    const inst = instance([task({ id: "k-1", status: "active" })]);
+    const user = userEvent.setup();
+    mockDeleteTaskAction.mockResolvedValue(undefined);
+
+    render(<ProcessMatrix instance={inst} template={TEMPLATE} editMode />);
+
+    await user.click(screen.getByLabelText("Remove task: Project Description"));
+    expect(screen.getByRole("dialog", { name: 'Delete "Project Description"?' })).toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: "Delete" }));
+
+    expect(mockDeleteTaskAction).toHaveBeenCalledWith("k-1");
+    await waitFor(() => {
+      expect(screen.queryByTestId("task-card-k-1")).not.toBeInTheDocument();
+    });
   });
 });

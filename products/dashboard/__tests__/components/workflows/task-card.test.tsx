@@ -1,7 +1,7 @@
 /**
  * Component tests for components/workflows/task-card.tsx.
  * Spec anchor: AEL-50 — PR 7 (Process Matrix). Covers:
- *   - Each bar state (locked/ready/active/pending/complete/blocked)
+ *   - Each bar state (locked/ready/active/pending/complete/failed)
  *     toggles the `bar-*` class on the card root and the
  *     `data-bar` attribute (used by Playwright for asserting state).
  *   - The role accent colour is wired through the `--role-color`
@@ -51,15 +51,15 @@ describe("TaskCard", () => {
     expect(
       within(card).getByText("Define objective, identify PDR need"),
     ).toBeInTheDocument();
-    expect(within(card).getByText("Active")).toBeInTheDocument();
+    expect(within(card).getByText("In progress")).toBeInTheDocument();
     expect(within(card).getByText("Sales Ops")).toBeInTheDocument();
   });
 
   it.each<[WorkflowTask["status"], TaskBarState, string]>([
     ["complete", "bar-complete", "Complete"],
-    ["active", "bar-active", "Active"],
+    ["active", "bar-active", "In progress"],
     ["pending_approval", "bar-pending", "Pending approval"],
-    ["blocked", "bar-blocked", "Blocked"],
+    ["blocked", "bar-cancelled", "Failed"],
     ["not_started", "bar-ready", "Not started"],
     ["not_started", "bar-locked", "Not started"],
   ])(

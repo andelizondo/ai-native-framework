@@ -12,7 +12,8 @@
 
 import { describe, it, expect, vi } from "vitest";
 import { render, screen } from "@testing-library/react";
-import { usePathname } from "next/navigation";
+import userEvent from "@testing-library/user-event";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 
 import { TopBar } from "@/components/top-bar";
 
@@ -66,5 +67,26 @@ describe("TopBar", () => {
     render(<TopBar />);
     const pill = screen.getByRole("button", { name: /my tasks/i });
     expect(pill).toBeDisabled();
+  });
+
+  it("renders the workflow edit pill and toggles the edit query param", async () => {
+    vi.mocked(usePathname).mockReturnValue("/workflows/123");
+    vi.mocked(useSearchParams).mockReturnValue(new URLSearchParams());
+    const replace = vi.fn();
+    vi.mocked(useRouter).mockReturnValue({
+      push: vi.fn(),
+      replace,
+      back: vi.fn(),
+      forward: vi.fn(),
+      refresh: vi.fn(),
+      prefetch: vi.fn(),
+    });
+
+    render(<TopBar />);
+
+    const user = userEvent.setup();
+    await user.click(screen.getByRole("button", { name: "Edit" }));
+
+    expect(replace).toHaveBeenCalledWith("/workflows/123?edit=1", { scroll: false });
   });
 });

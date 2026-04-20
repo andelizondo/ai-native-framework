@@ -21,6 +21,20 @@ const ALLOWED_EVENTS = new Set([
   "auth.requested_magic_link",
   "user.signed_in",
   "user.signed_out",
+  "dashboard.task_drawer_opened",
+  "workflow.checkpoint_approved",
+  "workflow.checkpoint_rejected",
+  "workflow.task_started",
+  "workflow.run_cancelled",
+  "workflow.run_retried",
+]);
+
+const WORKFLOW_TASK_INSTANCE_EVENTS = new Set([
+  "workflow.checkpoint_approved",
+  "workflow.checkpoint_rejected",
+  "workflow.task_started",
+  "workflow.run_cancelled",
+  "workflow.run_retried",
 ]);
 
 type EventBody = {
@@ -65,6 +79,19 @@ function sanitizePayload(
     }
 
     return { provider: payload.provider };
+  }
+
+  if (eventName === "dashboard.task_drawer_opened") {
+    const task_id = clampString(payload.task_id, 80);
+    if (!task_id) return null;
+    return { task_id };
+  }
+
+  if (WORKFLOW_TASK_INSTANCE_EVENTS.has(eventName)) {
+    const task_id = clampString(payload.task_id, 80);
+    const instance_id = clampString(payload.instance_id, 80);
+    if (!task_id || !instance_id) return null;
+    return { task_id, instance_id };
   }
 
   return null;

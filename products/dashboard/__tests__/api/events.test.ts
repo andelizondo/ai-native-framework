@@ -61,6 +61,19 @@ describe("POST /api/events — happy path", () => {
     expect(res.status).toBe(202);
   });
 
+  it("accepts workflow.task_started with task_id and instance_id and returns 202", async () => {
+    const res = await POST(
+      makeReq({
+        event_name: "workflow.task_started",
+        occurred_at: new Date().toISOString(),
+        emitted_by: "client",
+        schema_version: "1.0.0",
+        payload: { task_id: "t-1", instance_id: "i-1" },
+      }),
+    );
+    expect(res.status).toBe(202);
+  });
+
   it("rejects user.signed_in with an unsupported provider", async () => {
     const res = await POST(
       makeReq(validUserSignedIn({ payload: { provider: "twitter" } })),

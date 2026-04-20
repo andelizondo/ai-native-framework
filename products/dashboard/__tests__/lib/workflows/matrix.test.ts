@@ -91,7 +91,7 @@ describe("barClass", () => {
     expect(barClass(task("c", { status: "complete" }), false)).toBe("bar-complete");
     expect(barClass(task("a", { status: "active" }), false)).toBe("bar-active");
     expect(barClass(task("p", { status: "pending_approval" }), true)).toBe("bar-pending");
-    expect(barClass(task("b", { status: "blocked" }), true)).toBe("bar-blocked");
+    expect(barClass(task("b", { status: "blocked" }), true)).toBe("bar-cancelled");
   });
 
   it("splits not_started tasks into ready/locked based on canStart", () => {

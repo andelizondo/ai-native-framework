@@ -1,13 +1,13 @@
 "use client";
 
 import { useEffect, useRef, useState, useTransition } from "react";
-import { BookOpen, X } from "lucide-react";
+import { BookOpen, Check, CircleAlert, Play, RotateCw, Square, X } from "lucide-react";
 
 import { captureError } from "@/lib/monitoring";
 import { emitEvent } from "@/lib/events";
 import { cn } from "@/lib/utils";
-import { getRoleColor } from "@/lib/workflows/role-colors";
 import type {
+  FrameworkItem,
   WorkflowEvent,
   WorkflowGate,
   WorkflowInstanceDetail,
@@ -18,7 +18,10 @@ import type {
 } from "@/lib/workflows/types";
 import {
   approveDrawerCheckpointAction,
+  cancelRunningTaskAction,
   rejectDrawerCheckpointAction,
+  retryBlockedTaskAction,
+  startTaskAction,
   updateTaskTriggerGatesAction,
 } from "@/app/(dashboard)/workflows/actions";
 
@@ -151,122 +154,118 @@ function TriggerGateEditor({ items, kind, disabled, onChange }: TriggerGateEdito
 
 const STATUS_LABELS: Record<WorkflowTask["status"], string> = {
   complete: "Complete",
-  active: "Active",
+  active: "In progress",
   pending_approval: "Pending approval",
-  blocked: "Blocked",
+  blocked: "Failed",
   not_started: "Not started",
-};
-
-const STATUS_PILL_CLASS: Record<WorkflowTask["status"], string> = {
-  complete: "s-complete",
-  active: "s-active",
-  pending_approval: "s-pending",
-  blocked: "s-blocked",
-  not_started: "s-not_started",
 };
 
 interface DetailsTabProps {
   task: WorkflowTask;
   roles: WorkflowRole[];
+  skillOptions: FrameworkItem[];
+  playbookOptions: FrameworkItem[];
   isPending: boolean;
+  onStart: () => void;
+  onCancelRun: () => void;
+  onRetryRun: () => void;
   onApprove: () => void;
   onReject: () => void;
   onTriggersChange: (triggers: WorkflowTrigger[]) => void;
   onGatesChange: (gates: WorkflowGate[]) => void;
+  /** Playbook row (post–not_started) — opens chat/prompt when wired. */
+  onOpenPlaybookPrompt?: () => void;
 }
 
 function DetailsTab({
   task,
   roles,
+  skillOptions,
+  playbookOptions,
   isPending,
+  onStart,
+  onCancelRun,
+  onRetryRun,
   onApprove,
   onReject,
   onTriggersChange,
   onGatesChange,
+  onOpenPlaybookPrompt,
 }: DetailsTabProps) {
   const isPendingApproval = task.status === "pending_approval";
   const isActive = task.status === "active";
   const isNotStarted = task.status === "not_started";
-  const roleColor = getRoleColor(task.roleId, roles);
+  const playbookCardClickable =
+    !isNotStarted && typeof onOpenPlaybookPrompt === "function";
   const skillIcon = task.skill ? (SKILL_ICONS[task.skill] ?? "🤖") : "🤖";
+  const skillItem = task.skill
+    ? skillOptions.find((item) => item.name === task.skill || item.id === task.skill)
+    : null;
+  const playbookItem = task.playbook
+    ? playbookOptions.find(
+        (item) => item.name === task.playbook || item.id === task.playbook,
+      )
+    : null;
+  const playbookDescription = playbookItem?.description?.trim();
 
   return (
     <>
-      {/* PRIMARY ACTION at top — mirrors prototype `.dr-action-top` */}
-      {(isPendingApproval || isActive || isNotStarted) && (
+      {/* 1. Status + Skill — two columns */}
+      <div className="td-status-skill-row td-sec">
+        <div className="td-status-col">
+          <div className="td-sec-lbl">Status</div>
+          <div
+            className={cn("td-status-card", `td-status-card--${task.status}`)}
+            data-testid="td-status-card"
+          >
+            <span className="td-status-indicator" aria-hidden />
+            <div className="td-status-copy">
+              <div className="td-status-label">{STATUS_LABELS[task.status]}</div>
+              {task.substatus ? (
+                <div className="td-substatus">{task.substatus}</div>
+              ) : null}
+            </div>
+          </div>
+        </div>
+
+        {(task.agent ?? task.skill) && (
+          <div className="td-skill-col">
+            <div className="td-sec-lbl">Skill</div>
+            <div className="td-agent-profile">
+              <div className="td-agent-profile-icon">{skillIcon}</div>
+              <div className="td-agent-profile-info">
+                <div className="td-agent-profile-name">
+                  {skillItem?.name ?? task.skill ?? task.agent}
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* Approve / reject card — only for pending_approval */}
+      {isPendingApproval && (
         <div className="td-action-top" data-testid="td-action-card">
-          {isPendingApproval && (
-            <>
-              <button
-                type="button"
-                className="td-btn td-btn-approve"
-                disabled={isPending}
-                onClick={onApprove}
-                data-testid="td-approve-btn"
-              >
-                ✓ Approve &amp; continue
-              </button>
-              <button
-                type="button"
-                className="td-btn td-btn-ghost"
-                disabled={isPending}
-                onClick={onReject}
-                data-testid="td-reject-btn"
-              >
-                Reject
-              </button>
-            </>
-          )}
-          {isActive && (
-            <button
-              type="button"
-              className="td-btn td-btn-run"
-              disabled
-              title="Live run view coming in PR 10"
-              data-testid="td-view-run-btn"
-            >
-              View live run
-            </button>
-          )}
-          {isNotStarted && (
-            <button
-              type="button"
-              className="td-btn td-btn-primary"
-              disabled
-              title="Manual start coming in PR 10"
-              data-testid="td-start-btn"
-            >
-              ▶ Start agent
-            </button>
-          )}
+          <button
+            type="button"
+            className="td-btn td-btn-approve"
+            disabled={isPending}
+            onClick={onApprove}
+            data-testid="td-approve-btn"
+          >
+            ✓ Approve &amp; continue
+          </button>
+          <button
+            type="button"
+            className="td-btn td-btn-ghost"
+            disabled={isPending}
+            onClick={onReject}
+            data-testid="td-reject-btn"
+          >
+            Reject
+          </button>
         </div>
       )}
-
-      {/* Status */}
-      <div className="td-sec">
-        <div className="td-sec-lbl">Status</div>
-        <div
-          style={{
-            padding: "9px 12px",
-            borderRadius: 7,
-            background: "var(--bg-3)",
-            border: "1px solid var(--border)",
-            borderLeft: `2px solid ${roleColor}`,
-            fontSize: "11.5px",
-            color: "var(--t2)",
-          }}
-          data-testid="td-status-card"
-        >
-          <div
-            className={cn("s-pill", STATUS_PILL_CLASS[task.status])}
-            style={{ marginBottom: 4 }}
-          >
-            <div className="s-dot" aria-hidden />
-            <div className="s-text">{STATUS_LABELS[task.status]}</div>
-          </div>
-          {task.substatus && <div>{task.substatus}</div>}
-        </div>
-      </div>
 
       {/* Checkpoint notice */}
       {task.checkpoint && isPendingApproval && (
@@ -278,49 +277,126 @@ function DetailsTab({
         </div>
       )}
 
-      {/* Skills */}
-      {(task.agent ?? task.skill) && (
-        <div className="td-sec">
-          <div className="td-sec-lbl">Skills</div>
-          <div className="td-agent">
-            <div className="td-agent-icon">{skillIcon}</div>
-            <div className="td-agent-info">
-              <div className="td-agent-name">
-                {task.agent ? `${task.agent} Agent` : "Agent"}
-              </div>
-              {task.skill && (
-                <div className="td-agent-skill">{task.skill}</div>
-              )}
-            </div>
-            <div
-              className="td-agent-pulse"
-              style={{
-                background: isActive
-                  ? "#10b981"
-                  : isPendingApproval
-                    ? "#f59e0b"
-                    : "var(--border)",
-                boxShadow: isActive
-                  ? "0 0 6px rgba(16,185,129,0.5)"
-                  : isPendingApproval
-                    ? "0 0 6px rgba(245,158,11,0.4)"
-                    : "none",
-              }}
-              aria-hidden
-            />
-          </div>
-        </div>
-      )}
-
-      {/* Playbook */}
+      {/* 3. Playbook — what is being run, with inline run state */}
       {task.playbook && (
         <div className="td-sec">
           <div className="td-sec-lbl">Playbook</div>
-          <div className="td-playbook">
+          <div
+            className={cn(
+              "td-playbook",
+              `td-playbook--${task.status}`,
+              isActive && "td-playbook-active",
+              playbookCardClickable && "td-playbook-clickable",
+            )}
+            data-testid="td-playbook-card"
+            role={playbookCardClickable ? "button" : undefined}
+            tabIndex={playbookCardClickable ? 0 : undefined}
+            aria-label={playbookCardClickable ? "Open playbook chat" : undefined}
+            title={
+              playbookCardClickable
+                ? isActive
+                  ? "Open playbook chat — live run surface ships in a later release"
+                  : "Open playbook chat"
+                : undefined
+            }
+            onClick={
+              playbookCardClickable
+                ? () => {
+                    onOpenPlaybookPrompt?.();
+                  }
+                : undefined
+            }
+            onKeyDown={
+              playbookCardClickable
+                ? (e) => {
+                    if (e.key === "Enter" || e.key === " ") {
+                      e.preventDefault();
+                      onOpenPlaybookPrompt?.();
+                    }
+                  }
+                : undefined
+            }
+          >
             <div className="td-pb-icon">
-              <BookOpen size={15} aria-hidden />
+              {playbookItem?.icon ? (
+                <span aria-hidden>{playbookItem.icon}</span>
+              ) : (
+                <BookOpen size={15} aria-hidden />
+              )}
             </div>
-            <div className="td-pb-name">{task.playbook}</div>
+            <div className="td-pb-info">
+              <div className="td-pb-name">{playbookItem?.name ?? task.playbook}</div>
+              <div
+                className={cn(
+                  "td-item-desc",
+                  playbookDescription && "td-item-desc-plain",
+                )}
+              >
+                {playbookDescription || "No description"}
+              </div>
+            </div>
+            <div className="td-pb-action">
+              {isNotStarted && (
+                <button
+                  type="button"
+                  className="td-pb-run-btn"
+                  disabled={isPending}
+                  aria-label="Start playbook"
+                  data-testid="td-start-btn"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onStart();
+                  }}
+                >
+                  <Play size={9} aria-hidden />
+                </button>
+              )}
+              {isActive && (
+                <div className="td-pb-busy-wrap">
+                  <div className="td-pb-state-busy" aria-hidden />
+                  <button
+                    type="button"
+                    className="td-pb-stop-btn"
+                    disabled={isPending}
+                    aria-label="Stop and cancel run"
+                    title="Stop and cancel run"
+                    data-testid="td-pb-stop-run-btn"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      onCancelRun();
+                    }}
+                  >
+                    <Square size={9} fill="currentColor" aria-hidden />
+                  </button>
+                </div>
+              )}
+              {task.status === "complete" && (
+                <div className="td-pb-state-done" aria-label="Done">
+                  <Check size={10} aria-hidden />
+                </div>
+              )}
+              {task.status === "blocked" && (
+                <div className="td-pb-failed-wrap" aria-label="Failed">
+                  <div className="td-pb-failed-icon">
+                    <CircleAlert size={16} strokeWidth={2.25} aria-hidden />
+                  </div>
+                  <button
+                    type="button"
+                    className="td-pb-retry-btn"
+                    disabled={isPending}
+                    aria-label="Retry playbook run"
+                    title="Retry playbook run"
+                    data-testid="td-pb-retry-run-btn"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      onRetryRun();
+                    }}
+                  >
+                    <RotateCw size={11} strokeWidth={2.25} aria-hidden />
+                  </button>
+                </div>
+              )}
+            </div>
           </div>
         </div>
       )}
@@ -385,7 +461,7 @@ function DependenciesTab() {
     <div className="td-sec" style={{ marginTop: 4 }}>
       <div className="td-sec-lbl">Flow</div>
       <div className="td-empty" data-testid="td-dependencies-placeholder">
-        DepTree coming in PR 10
+        DepTree coming in PR 14
       </div>
     </div>
   );
@@ -401,8 +477,15 @@ export interface TaskDrawerProps {
   instance: WorkflowInstanceDetail;
   roles: WorkflowRole[];
   template: WorkflowTemplate | null;
+  skillOptions?: FrameworkItem[];
+  playbookOptions?: FrameworkItem[];
   onClose: () => void;
   onTaskUpdate: (task: WorkflowTask) => void;
+  /**
+   * Invoked when the user activates the playbook row (any status except
+   * `not_started`) to open the agent chat / prompt surface (implemented later).
+   */
+  onOpenPlaybookPrompt?: () => void;
 }
 
 export function TaskDrawer({
@@ -410,8 +493,11 @@ export function TaskDrawer({
   instance,
   roles,
   template,
+  skillOptions = [],
+  playbookOptions = [],
   onClose,
   onTaskUpdate,
+  onOpenPlaybookPrompt,
 }: TaskDrawerProps) {
   const [activeTab, setActiveTab] = useState<DrawerTab>("details");
   const [isPending, startTransition] = useTransition();
@@ -445,6 +531,54 @@ export function TaskDrawer({
     window.addEventListener("keydown", handleKey);
     return () => window.removeEventListener("keydown", handleKey);
   }, [open, onClose]);
+
+  function handleStart() {
+    if (!task) return;
+    startTransition(async () => {
+      try {
+        const { task: updated } = await startTaskAction(task.id);
+        onTaskUpdate(updated);
+        emitEvent("workflow.task_started", {
+          task_id: task.id,
+          instance_id: task.instanceId,
+        });
+      } catch (err) {
+        captureError(err, { feature: "workflows.start_task", extra: { task_id: task.id } });
+      }
+    });
+  }
+
+  function handleCancelRun() {
+    if (!task) return;
+    startTransition(async () => {
+      try {
+        const { task: updated } = await cancelRunningTaskAction(task.id);
+        onTaskUpdate(updated);
+        emitEvent("workflow.run_cancelled", {
+          task_id: task.id,
+          instance_id: task.instanceId,
+        });
+      } catch (err) {
+        captureError(err, { feature: "workflows.cancel_run", extra: { task_id: task.id } });
+      }
+    });
+  }
+
+  function handleRetryRun() {
+    if (!task) return;
+    startTransition(async () => {
+      try {
+        const { task: updated } = await retryBlockedTaskAction(task.id);
+        onTaskUpdate(updated);
+        emitEvent("workflow.run_retried", {
+          task_id: task.id,
+          instance_id: task.instanceId,
+        });
+      } catch (err) {
+        captureError(err, { feature: "workflows.retry_run", extra: { task_id: task.id } });
+      }
+    });
+  }
 
   function handleApprove() {
     if (!task) return;
@@ -585,11 +719,17 @@ export function TaskDrawer({
             <DetailsTab
               task={task}
               roles={roles}
+              skillOptions={skillOptions}
+              playbookOptions={playbookOptions}
               isPending={isPending}
+              onStart={handleStart}
+              onCancelRun={handleCancelRun}
+              onRetryRun={handleRetryRun}
               onApprove={handleApprove}
               onReject={handleReject}
               onTriggersChange={handleTriggersChange}
               onGatesChange={handleGatesChange}
+              onOpenPlaybookPrompt={onOpenPlaybookPrompt}
             />
           )}
           {activeTab === "events" && <EventsTab events={taskEvents} />}

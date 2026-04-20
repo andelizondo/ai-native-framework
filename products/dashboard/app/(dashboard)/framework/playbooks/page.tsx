@@ -3,7 +3,7 @@ import { ShellEvents } from "@/components/shell-events";
 /**
  * Playbooks — placeholder.
  *
- * Real Playbooks library lands in PR 14 (AEL-57). This page exists so
+ * Real Playbooks library lands in PR 13 (AEL-57). This page exists so
  * the sidebar's Framework → Playbooks link doesn't 404 and so shell
  * events fire on the route during PR 3.
  */
