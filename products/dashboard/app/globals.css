@@ -1788,6 +1788,7 @@ body {
 @media (prefers-reduced-motion: reduce) {
   .arp-live-pill::after,
   .arp-step--active .arp-step-icon { animation: none; }
+  .arp-progress-fill { transition: none; }
 }
 /* Output block */
 .arp-output {
