@@ -1,5 +1,19 @@
 # Changelog
 
+## [0.17.0](https://github.com/andelizondo/ai-native-framework/compare/v0.16.0...v0.17.0) (2026-04-20)
+
+
+### Features
+
+* **dashboard:** workflow run controls, task modals, and task drawer updates ([a623bc4](https://github.com/andelizondo/ai-native-framework/commit/a623bc4906983d715504d00c737d92dadd58532b))
+
+
+### Bug Fixes
+
+* **dashboard:** accept workflow client events in EventMap and /api/events ([a623bc4](https://github.com/andelizondo/ai-native-framework/commit/a623bc4906983d715504d00c737d92dadd58532b))
+* **policy:** skip CodeRabbit on promotion/back-merge PRs ([a623bc4](https://github.com/andelizondo/ai-native-framework/commit/a623bc4906983d715504d00c737d92dadd58532b))
+* **release:** seed release-please commit parsing ([a623bc4](https://github.com/andelizondo/ai-native-framework/commit/a623bc4906983d715504d00c737d92dadd58532b))
+
 ## [0.16.0](https://github.com/andelizondo/ai-native-framework/compare/v0.15.0...v0.16.0) (2026-04-20)
 
 
