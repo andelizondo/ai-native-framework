@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.18.0](https://github.com/andelizondo/ai-native-framework/compare/v0.17.0...v0.18.0) (2026-04-20)
+
+
+### Features
+
+* **dashboard:** playbook card to run panel, chat footer, and progress polish ([8e54665](https://github.com/andelizondo/ai-native-framework/commit/8e54665ff700363919f774ed1458585329ee859b))
+
 ## [0.17.0](https://github.com/andelizondo/ai-native-framework/compare/v0.16.0...v0.17.0) (2026-04-20)
 
 
