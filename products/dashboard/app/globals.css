@@ -995,12 +995,6 @@ body {
   transition: color 0.15s;
 }
 .td-playbook-clickable:hover .td-pb-open-hint { color: var(--accent); }
-.td-pb-chevron {
-  color: var(--t3);
-  margin-left: 2px;
-  transition: color 0.15s;
-}
-.td-playbook-clickable:hover .td-pb-chevron { color: var(--accent); }
 .td-agent-profile-icon,
 .td-pb-icon {
   width: 32px;

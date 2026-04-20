@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState, useTransition } from "react";
-import { BookOpen, Check, ChevronRight, CircleAlert, Play, RotateCw, Square, X } from "lucide-react";
+import { BookOpen, Check, CircleAlert, Play, RotateCw, Square, X } from "lucide-react";
 
 import { captureError } from "@/lib/monitoring";
 import { emitEvent } from "@/lib/events";
@@ -373,7 +373,6 @@ function DetailsTab({
               {task.status === "complete" && (
                 <div className="td-pb-state-done" aria-label="Done">
                   <Check size={10} aria-hidden />
-                  {playbookCardClickable && <ChevronRight size={11} aria-hidden className="td-pb-chevron" />}
                 </div>
               )}
               {task.status === "blocked" && (
