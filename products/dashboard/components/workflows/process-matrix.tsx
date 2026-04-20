@@ -401,11 +401,7 @@ export function ProcessMatrix({
         playbookOptions={playbookOptions}
         onClose={() => { setSelectedTaskId(null); setAgentRunOpen(false); }}
         onTaskUpdate={handleTaskUpdate}
-        onViewLiveRun={
-          selectedTask && selectedTask.status !== "not_started"
-            ? () => setAgentRunOpen(true)
-            : undefined
-        }
+        onViewLiveRun={selectedTask?.playbook ? () => setAgentRunOpen(true) : undefined}
       />
 
       <AgentRunPanel

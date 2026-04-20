@@ -1,7 +1,7 @@
 "use client";
 
-import { useEffect, useRef, useTransition } from "react";
-import { Send, X } from "lucide-react";
+import { useEffect, useMemo, useRef, useState, useTransition } from "react";
+import { ChevronDown, ChevronRight, Send, X } from "lucide-react";
 
 import {
   approveDrawerCheckpointAction,
@@ -34,13 +34,11 @@ interface AgentRun {
   skill: string;
   playbook: string;
   steps: AgentRunStep[];
-  /** When true the waiting step renders a checkpoint card. */
   checkpoint: boolean;
   checkpointSubstatus?: string;
 }
 
 // ── Seed ─────────────────────────────────────────────────────────────────────
-// Seed data used until real agent integration lands (later PR).
 
 const SEED_RUNNING: AgentRun = {
   agentName: "PM Agent",
@@ -156,8 +154,8 @@ const SEED_COMPLETE: AgentRun = {
       status: "done",
       duration: "2m 34s",
       output: [
-        { kind: "ok",   text: "✓ 6 acceptance criteria drafted" },
-        { kind: "ok",   text: "✓ Aligned with framework policy" },
+        { kind: "ok", text: "✓ 6 acceptance criteria drafted" },
+        { kind: "ok", text: "✓ Aligned with framework policy" },
       ],
     },
     {
@@ -222,10 +220,26 @@ const SEED_FAILED: AgentRun = {
   ],
 };
 
+// Not-started preview — all steps as a plan, no output yet
+const SEED_NOT_STARTED: AgentRun = {
+  agentName: "PM Agent",
+  skill: "pm",
+  playbook: "backlog-refinement",
+  checkpoint: false,
+  steps: [
+    { id: "s1", label: "Load spec and context",             status: "pending" },
+    { id: "s2", label: "Analyse stakeholders and scope",    status: "pending" },
+    { id: "s3", label: "Draft acceptance criteria",         status: "pending" },
+    { id: "s4", label: "Validate against framework policy", status: "pending" },
+    { id: "s5", label: "Surface for founder review",        status: "pending" },
+  ],
+};
+
 function pickSeedRun(task: WorkflowTask): AgentRun {
-  if (task.status === "complete") return SEED_COMPLETE;
-  if (task.status === "blocked")  return SEED_FAILED;
-  if (task.checkpoint)            return SEED_CHECKPOINT;
+  if (task.status === "not_started") return SEED_NOT_STARTED;
+  if (task.status === "complete")    return SEED_COMPLETE;
+  if (task.status === "blocked")     return SEED_FAILED;
+  if (task.checkpoint)               return SEED_CHECKPOINT;
   return SEED_RUNNING;
 }
 
@@ -238,6 +252,28 @@ export function stepStatusIcon(status: StepStatus): { symbol: string; className:
     case "waiting": return { symbol: "⏳", className: "arp-step-icon--waiting" };
     case "failed":  return { symbol: "✗", className: "arp-step-icon--failed" };
     default:        return { symbol: "○", className: "arp-step-icon--pending" };
+  }
+}
+
+// ── Initial expanded set ──────────────────────────────────────────────────────
+
+function initialExpanded(task: WorkflowTask, steps: AgentRunStep[]): Set<string> {
+  switch (task.status) {
+    case "not_started":
+      // All collapsed — preview mode
+      return new Set();
+    case "active":
+    case "pending_approval":
+      // Only the current active/waiting step
+      return new Set(steps.filter((s) => s.status === "active" || s.status === "waiting").map((s) => s.id));
+    case "complete":
+      // All done steps expanded
+      return new Set(steps.map((s) => s.id));
+    case "blocked":
+      // Done + failed steps expanded
+      return new Set(steps.filter((s) => s.status === "done" || s.status === "failed").map((s) => s.id));
+    default:
+      return new Set();
   }
 }
 
@@ -258,17 +294,17 @@ function runMetaLabel(
   elapsed: string,
 ): string {
   switch (task.status) {
-    case "complete": return `Completed · ${totalSteps}/${totalSteps} steps`;
-    case "blocked":  return `Failed · ${doneCount}/${totalSteps} steps`;
-    case "active":   return `Running ${elapsed} · ${doneCount}/${totalSteps} steps`;
-    default:         return `${doneCount}/${totalSteps} steps`;
+    case "not_started":  return `${totalSteps} steps · not started`;
+    case "complete":     return `Completed · ${totalSteps}/${totalSteps} steps`;
+    case "blocked":      return `Failed · ${doneCount}/${totalSteps} steps`;
+    case "active":       return `Running ${elapsed} · ${doneCount}/${totalSteps} steps`;
+    default:             return `${doneCount}/${totalSteps} steps`;
   }
 }
 
 // ── Props ─────────────────────────────────────────────────────────────────────
 
 export interface AgentRunPanelProps {
-  /** null = panel closed */
   task: WorkflowTask | null;
   instance: WorkflowInstanceDetail;
   open: boolean;
@@ -288,6 +324,16 @@ export function AgentRunPanel({
   const [isPending, startTransition] = useTransition();
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
+  const run = useMemo(() => (task ? pickSeedRun(task) : SEED_NOT_STARTED), [task?.id, task?.status]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Reset expanded state whenever task or run changes.
+  const [expandedSteps, setExpandedSteps] = useState<Set<string>>(
+    () => (task ? initialExpanded(task, run.steps) : new Set()),
+  );
+  useEffect(() => {
+    if (task) setExpandedSteps(initialExpanded(task, run.steps));
+  }, [task?.id, task?.status]); // eslint-disable-line react-hooks/exhaustive-deps
+
   // Analytics on open.
   useEffect(() => {
     if (open && task) {
@@ -295,14 +341,20 @@ export function AgentRunPanel({
     }
   }, [open, task?.id]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  function toggleStep(id: string) {
+    setExpandedSteps((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id); else next.add(id);
+      return next;
+    });
+  }
+
   if (!task) {
     return <div className="arp" aria-hidden />;
   }
 
-  const run = pickSeedRun(task);
-
-  const agentName  = task.agent   ?? run.agentName;
-  const skill      = task.skill   ?? run.skill;
+  const agentName  = task.agent    ?? run.agentName;
+  const skill      = task.skill    ?? run.skill;
   const playbook   = task.playbook ?? run.playbook;
   const elapsed    = formatElapsed(task.updatedAt);
   const doneCount  = run.steps.filter((s) => s.status === "done").length;
@@ -383,7 +435,6 @@ export function AgentRunPanel({
           {runMetaLabel(task, doneCount, totalSteps, elapsed)}
         </div>
 
-        {/* Progress bar */}
         <div className="arp-progress" aria-hidden>
           <div
             className={cn(
@@ -398,8 +449,28 @@ export function AgentRunPanel({
 
       {/* Body */}
       <div className="arp-body" data-testid="agent-run-body">
+
+        {/* Triggers — shown at the top of the timeline */}
+        {task.triggers.length > 0 && (
+          <div className="arp-tg-row arp-tg-row--top">
+            <span className="arp-tg-label">Triggered by</span>
+            <div className="arp-tg-chips">
+              {task.triggers.map((t, i) => (
+                <span key={i} className="arp-tg-chip">
+                  <span className="arp-chip-type">{t.type}</span>
+                  {t.label && <><span className="arp-chip-sep">·</span><span className="arp-chip-val">{t.label}</span></>}
+                </span>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* Step list */}
         {run.steps.map((step) => {
           const icon = stepStatusIcon(step.status);
+          const isExpanded = expandedSteps.has(step.id);
+          const hasContent = (step.output && step.output.length > 0) ||
+            (step.status === "waiting" && run.checkpoint);
           const isWaiting = step.status === "waiting";
           const showCheckpointCard = isWaiting && run.checkpoint;
 
@@ -409,14 +480,26 @@ export function AgentRunPanel({
               className={cn("arp-step", `arp-step--${step.status}`)}
               data-testid={`arp-step-${step.id}`}
             >
-              {/* Step row */}
-              <div className="arp-step-row">
+              {/* Step header — always visible, clickable when there's content */}
+              <div
+                className={cn(
+                  "arp-step-row",
+                  hasContent && "arp-step-row--toggle",
+                  step.status === "active" && "arp-step-row--live",
+                )}
+                role={hasContent ? "button" : undefined}
+                tabIndex={hasContent ? 0 : undefined}
+                aria-expanded={hasContent ? isExpanded : undefined}
+                onClick={hasContent ? () => toggleStep(step.id) : undefined}
+                onKeyDown={hasContent ? (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); toggleStep(step.id); } } : undefined}
+              >
                 <span className={cn("arp-step-icon", icon.className)} aria-hidden>
                   {icon.symbol}
                 </span>
                 <span className={cn(
                   "arp-step-label",
                   step.status === "pending" && "arp-step-label--pending",
+                  step.status === "done"    && "arp-step-label--done",
                 )}>
                   {step.label}
                 </span>
@@ -426,92 +509,83 @@ export function AgentRunPanel({
                 {step.status === "active" && (
                   <span className="arp-live-pill" aria-label="live">live</span>
                 )}
+                {hasContent && (
+                  <span className="arp-step-chevron" aria-hidden>
+                    {isExpanded
+                      ? <ChevronDown size={11} />
+                      : <ChevronRight size={11} />}
+                  </span>
+                )}
               </div>
 
-              {/* Output block */}
-              {step.output && step.output.length > 0 && (
-                <div className="arp-output" data-testid={`arp-output-${step.id}`}>
-                  {step.output.map((line, i) => (
-                    <div
-                      key={i}
-                      className={cn("arp-output-line", `arp-output-line--${line.kind}`)}
-                    >
-                      {line.text}
+              {/* Expanded content */}
+              {isExpanded && (
+                <>
+                  {step.output && step.output.length > 0 && (
+                    <div className="arp-output" data-testid={`arp-output-${step.id}`}>
+                      {step.output.map((line, i) => (
+                        <div
+                          key={i}
+                          className={cn("arp-output-line", `arp-output-line--${line.kind}`)}
+                        >
+                          {line.text}
+                        </div>
+                      ))}
                     </div>
-                  ))}
-                </div>
-              )}
+                  )}
 
-              {/* Checkpoint card */}
-              {showCheckpointCard && (
-                <div className="arp-checkpoint-card" data-testid="arp-checkpoint-card">
-                  <div className="arp-cp-heading">⚠ Checkpoint</div>
-                  {run.checkpointSubstatus && (
-                    <div className="arp-cp-sub">{run.checkpointSubstatus}</div>
-                  )}
-                  {isApproved ? (
-                    <div className="arp-cp-approved" data-testid="arp-cp-approved">
-                      ✓ Approved
+                  {showCheckpointCard && (
+                    <div className="arp-checkpoint-card" data-testid="arp-checkpoint-card">
+                      <div className="arp-cp-heading">⚠ Checkpoint</div>
+                      {run.checkpointSubstatus && (
+                        <div className="arp-cp-sub">{run.checkpointSubstatus}</div>
+                      )}
+                      {isApproved ? (
+                        <div className="arp-cp-approved" data-testid="arp-cp-approved">
+                          ✓ Approved
+                        </div>
+                      ) : (
+                        <div className="arp-cp-actions">
+                          <button
+                            type="button"
+                            className="arp-cp-btn arp-cp-btn--approve"
+                            disabled={isPending}
+                            onClick={handleApprove}
+                            data-testid="arp-approve-btn"
+                          >
+                            {isPending ? "…" : "Approve"}
+                          </button>
+                          <button
+                            type="button"
+                            className="arp-cp-btn arp-cp-btn--reject"
+                            disabled={isPending}
+                            onClick={handleReject}
+                            data-testid="arp-reject-btn"
+                          >
+                            Reject
+                          </button>
+                        </div>
+                      )}
                     </div>
-                  ) : (
-                    <div className="arp-cp-actions">
-                      <button
-                        type="button"
-                        className="arp-cp-btn arp-cp-btn--approve"
-                        disabled={isPending}
-                        onClick={handleApprove}
-                        data-testid="arp-approve-btn"
-                      >
-                        {isPending ? "…" : "Approve"}
-                      </button>
-                      <button
-                        type="button"
-                        className="arp-cp-btn arp-cp-btn--reject"
-                        disabled={isPending}
-                        onClick={handleReject}
-                        data-testid="arp-reject-btn"
-                      >
-                        Reject
-                      </button>
-                    </div>
                   )}
-                </div>
+                </>
               )}
             </div>
           );
         })}
 
-        {/* Trigger / Gate — read-only chips from task config */}
-        {(task.triggers.length > 0 || task.gates.length > 0) && (
-          <div className="arp-tg-section">
-            {task.triggers.length > 0 && (
-              <div className="arp-tg-row">
-                <span className="arp-tg-label">Triggered by</span>
-                <div className="arp-tg-chips">
-                  {task.triggers.map((t, i) => (
-                    <span key={i} className="arp-tg-chip">
-                      <span className="arp-chip-type">{t.type}</span>
-                      {t.label && <span className="arp-chip-sep">·</span>}
-                      {t.label && <span className="arp-chip-val">{t.label}</span>}
-                    </span>
-                  ))}
-                </div>
-              </div>
-            )}
-            {task.gates.length > 0 && (
-              <div className="arp-tg-row">
-                <span className="arp-tg-label">Gate (output)</span>
-                <div className="arp-tg-chips">
-                  {task.gates.map((g, i) => (
-                    <span key={i} className="arp-tg-chip">
-                      <span className="arp-chip-type">{g.type}</span>
-                      {g.label && <span className="arp-chip-sep">·</span>}
-                      {g.label && <span className="arp-chip-val">{g.label}</span>}
-                    </span>
-                  ))}
-                </div>
-              </div>
-            )}
+        {/* Gates — shown at the bottom once the task has completed */}
+        {task.gates.length > 0 && (
+          <div className="arp-tg-row arp-tg-row--bottom">
+            <span className="arp-tg-label">Gate (output)</span>
+            <div className="arp-tg-chips">
+              {task.gates.map((g, i) => (
+                <span key={i} className="arp-tg-chip">
+                  <span className="arp-chip-type">{g.type}</span>
+                  {g.label && <><span className="arp-chip-sep">·</span><span className="arp-chip-val">{g.label}</span></>}
+                </span>
+              ))}
+            </div>
           </div>
         )}
       </div>

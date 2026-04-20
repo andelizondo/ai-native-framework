@@ -195,7 +195,7 @@ function DetailsTab({
   const isPendingApproval = task.status === "pending_approval";
   const isActive = task.status === "active";
   const isNotStarted = task.status === "not_started";
-  const playbookCardClickable = !isNotStarted && !!onViewLiveRun;
+  const playbookCardClickable = !!onViewLiveRun;
   const skillIcon = task.skill ? (SKILL_ICONS[task.skill] ?? "🤖") : "🤖";
   const skillItem = task.skill
     ? skillOptions.find((item) => item.name === task.skill || item.id === task.skill)
@@ -322,13 +322,15 @@ function DetailsTab({
               </div>
               {playbookCardClickable && (
                 <div className="td-pb-open-hint">
-                  {isActive
-                    ? "● Running · view steps"
-                    : task.status === "complete"
-                      ? "✓ Completed · view run"
-                      : task.status === "blocked"
-                        ? "✗ Failed · view run"
-                        : "View run →"}
+                  {isNotStarted
+                    ? "○ Not started · view steps"
+                    : isActive
+                      ? "● Running · view steps"
+                      : task.status === "complete"
+                        ? "✓ Completed · view run"
+                        : task.status === "blocked"
+                          ? "✗ Failed · view run"
+                          : "View run →"}
                 </div>
               )}
             </div>
