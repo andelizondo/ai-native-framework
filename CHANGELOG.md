@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.15.0](https://github.com/andelizondo/ai-native-framework/compare/v0.14.0...v0.15.0) (2026-04-20)
+
+
+### Features
+
+* **dashboard:** workflow run controls, sidebar collapse, Failed label ([#137](https://github.com/andelizondo/ai-native-framework/issues/137)) ([#139](https://github.com/andelizondo/ai-native-framework/issues/139)) ([96a5381](https://github.com/andelizondo/ai-native-framework/commit/96a53815112fd7a91653e3d97f698648588c0b16))
+
 ## [0.14.0](https://github.com/andelizondo/ai-native-framework/compare/v0.13.0...v0.14.0) (2026-04-19)
 
 
