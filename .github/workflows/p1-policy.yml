@@ -125,7 +125,28 @@ jobs:
               return;
             }
 
-            const isReleasePleaseAutomation = (pr.headRefName ?? '').startsWith('release-please');
+            const headRefName = pr.headRefName ?? '';
+            const baseRefName = context.payload.pull_request?.base?.ref ?? '';
+            const prActorLogin = (context.payload.pull_request?.user?.login ?? '').toLowerCase();
+            const prActorType = context.payload.pull_request?.user?.type ?? '';
+            const triggerActorLogin = (context.actor ?? '').toLowerCase();
+            const trustedAutomationLogins = new Set([
+              'github-actions[bot]',
+              'dependabot[bot]',
+              'release-please[bot]',
+            ]);
+            const isTrustedAutomationActor =
+              prActorType === 'Bot' ||
+              trustedAutomationLogins.has(prActorLogin) ||
+              trustedAutomationLogins.has(triggerActorLogin);
+            const isReleasePleaseAutomation =
+              headRefName.startsWith('release-please') && isTrustedAutomationActor;
+            const isStagingPromotion =
+              headRefName === 'staging' && baseRefName === 'main' && isTrustedAutomationActor;
+            const isBackMergeAutomation =
+              /^chore\/back-merge-main-after-/.test(headRefName) &&
+              baseRefName === 'staging' &&
+              isTrustedAutomationActor;
 
             const marker = '<!-- p1-policy-decision -->';
 
@@ -310,7 +331,7 @@ jobs:
               .split(',')
               .map((s) => s.trim())
               .filter(Boolean);
-            if (isReleasePleaseAutomation) {
+            if (isReleasePleaseAutomation || isStagingPromotion || isBackMergeAutomation) {
               reviewStatusContexts = [];
             }
 
@@ -464,6 +485,8 @@ jobs:
 
             const hasFreshAiReview =
               isReleasePleaseAutomation ||
+              isStagingPromotion ||
+              isBackMergeAutomation ||
               latestAiEvidence != null ||
               (reviewerStatusesSatisfied && reviewStatusContexts.length > 0 && !hasChangesRequestedOnHead);
 

@@ -24,5 +24,7 @@ reviews:
       - staging
     ignore_title_keywords:
       - "chore: release"
+      - "Promote staging to main"
+      - "chore: back-merge main into staging after release"
 chat:
   auto_reply: true
