@@ -1549,6 +1549,443 @@ body {
 }
 
 /*
+ * Agent Run Panel.
+ *
+ * 560px wide fixed panel that slides in from the right, sitting above the
+ * Task Drawer (z-65 vs z-60). No separate overlay — it visually covers the
+ * 420px task drawer since it is wider.
+ */
+.arp {
+  position: fixed;
+  right: 0;
+  top: 0;
+  bottom: 0;
+  width: 560px;
+  background: var(--bg-2);
+  border-left: 1px solid var(--border-hi);
+  box-shadow: var(--shadow);
+  z-index: 65;
+  display: flex;
+  flex-direction: column;
+  transform: translateX(105%);
+  transition: transform 0.26s cubic-bezier(0.4, 0, 0.2, 1);
+}
+.arp--open {
+  transform: translateX(0);
+}
+@media (prefers-reduced-motion: reduce) {
+  .arp { transition: none; }
+}
+/* Header */
+.arp-header {
+  padding: 18px 20px 14px;
+  border-bottom: 1px solid var(--border);
+  flex-shrink: 0;
+  background: var(--bg-2);
+}
+.arp-header-top {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 7px;
+}
+.arp-agent-row {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  flex-wrap: wrap;
+  flex: 1;
+  min-width: 0;
+}
+.arp-agent-name {
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--t1);
+  letter-spacing: -0.01em;
+}
+.arp-skill-playbook {
+  font-family: "JetBrains Mono", monospace;
+  font-size: 11px;
+  color: var(--accent);
+}
+.arp-meta-sep {
+  color: var(--t3);
+  font-size: 11px;
+}
+.arp-close {
+  width: 26px;
+  height: 26px;
+  border-radius: 6px;
+  border: 1px solid var(--border);
+  background: var(--bg-3);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--t2);
+  flex-shrink: 0;
+  transition: all 0.14s;
+  padding: 0;
+}
+.arp-close:hover { background: var(--bg-4); color: var(--t1); }
+.arp-close:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.arp-breadcrumb {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  margin-bottom: 5px;
+}
+.arp-crumb {
+  font-size: 11px;
+  color: var(--t3);
+  font-family: "JetBrains Mono", monospace;
+}
+.arp-crumb-sep {
+  font-size: 11px;
+  color: var(--t3);
+}
+.arp-run-meta {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 10.5px;
+  color: var(--t3);
+  font-family: "JetBrains Mono", monospace;
+}
+/* Body */
+.arp-body {
+  flex: 1;
+  overflow-y: auto;
+  padding: 16px 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+/* Step */
+.arp-step {
+  padding: 8px 0;
+  border-bottom: 1px solid var(--border-2);
+}
+.arp-step:last-child { border-bottom: none; }
+.arp-step-row {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+}
+.arp-step-icon {
+  width: 18px;
+  flex-shrink: 0;
+  font-size: 12px;
+  text-align: center;
+  line-height: 1;
+}
+.arp-step-icon--done    { color: #10b981; }
+.arp-step-icon--active  { color: var(--accent); }
+.arp-step-icon--waiting { color: #f59e0b; }
+.arp-step-icon--pending { color: var(--t3); }
+.arp-step-label {
+  flex: 1;
+  font-size: 12.5px;
+  font-weight: 500;
+  color: var(--t1);
+}
+.arp-step-label--pending { color: var(--t3); }
+.arp-step-dur {
+  font-family: "JetBrains Mono", monospace;
+  font-size: 10px;
+  color: var(--t3);
+  white-space: nowrap;
+}
+.arp-live-pill {
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: #f59e0b;
+  background: rgba(245, 158, 11, 0.12);
+  border: 1px solid rgba(245, 158, 11, 0.28);
+  border-radius: 4px;
+  padding: 1px 5px;
+  flex-shrink: 0;
+}
+/* Output block */
+.arp-output {
+  margin-top: 7px;
+  margin-left: 27px;
+  background: var(--bg-3);
+  border: 1px solid var(--border-2);
+  border-radius: 6px;
+  padding: 8px 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.arp-output-line {
+  font-family: "JetBrains Mono", monospace;
+  font-size: 10.5px;
+  line-height: 1.5;
+  white-space: pre-wrap;
+  word-break: break-all;
+}
+.arp-output-line--ok    { color: #10b981; }
+.arp-output-line--info  { color: var(--t2); }
+.arp-output-line--muted { color: var(--t3); }
+/* Checkpoint card */
+.arp-checkpoint-card {
+  margin-top: 10px;
+  margin-left: 27px;
+  background: rgba(245, 158, 11, 0.06);
+  border: 1px solid rgba(245, 158, 11, 0.22);
+  border-radius: 8px;
+  padding: 12px 14px;
+}
+.arp-cp-heading {
+  font-size: 12px;
+  font-weight: 700;
+  color: #fbbf24;
+  margin-bottom: 5px;
+}
+.arp-cp-sub {
+  font-size: 12px;
+  color: var(--t2);
+  line-height: 1.5;
+  margin-bottom: 10px;
+}
+.arp-cp-actions {
+  display: flex;
+  gap: 7px;
+}
+.arp-cp-btn {
+  padding: 7px 16px;
+  border-radius: 7px;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  border: 1px solid transparent;
+  transition: all 0.14s;
+  font-family: inherit;
+}
+.arp-cp-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+.arp-cp-btn--approve {
+  background: #10b981;
+  color: #fff;
+  border-color: #10b981;
+}
+.arp-cp-btn--approve:hover:not(:disabled) { opacity: 0.88; }
+.arp-cp-btn--reject {
+  background: transparent;
+  color: var(--t2);
+  border-color: var(--border-hi);
+}
+.arp-cp-btn--reject:hover:not(:disabled) { background: var(--bg-4); color: var(--t1); }
+.arp-cp-approved {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 12px;
+  font-weight: 600;
+  color: #34d399;
+  background: rgba(16, 185, 129, 0.1);
+  border: 1px solid rgba(16, 185, 129, 0.22);
+  border-radius: 6px;
+  padding: 5px 10px;
+}
+/* "View live run" button in task drawer */
+.td-btn-live-run {
+  background: rgba(129, 140, 248, 0.08);
+  border-color: rgba(129, 140, 248, 0.28);
+  color: var(--accent);
+  font-family: "JetBrains Mono", monospace;
+  font-size: 12px;
+}
+.td-btn-live-run:hover:not(:disabled) {
+  background: rgba(129, 140, 248, 0.16);
+  border-color: rgba(129, 140, 248, 0.45);
+}
+
+/*
+ * Checkpoint Panel (My Tasks).
+ *
+ * 380px fixed-right panel, topmost z-layer (z-80 / overlay z-75) so it
+ * sits above the task drawer and agent run panel.
+ */
+.cp-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 75;
+  background: var(--overlay);
+}
+.cp-panel {
+  position: fixed;
+  right: 0;
+  top: 0;
+  bottom: 0;
+  width: 380px;
+  background: var(--bg-2);
+  border-left: 1px solid var(--border-hi);
+  box-shadow: var(--shadow);
+  z-index: 80;
+  display: flex;
+  flex-direction: column;
+  transform: translateX(105%);
+  transition: transform 0.26s cubic-bezier(0.4, 0, 0.2, 1);
+}
+.cp-panel--open {
+  transform: translateX(0);
+}
+@media (prefers-reduced-motion: reduce) {
+  .cp-panel { transition: none; }
+}
+.cp-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 16px 20px;
+  border-bottom: 1px solid var(--border);
+  flex-shrink: 0;
+}
+.cp-title {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--t1);
+  letter-spacing: -0.01em;
+}
+.cp-close {
+  width: 26px;
+  height: 26px;
+  border-radius: 6px;
+  border: 1px solid var(--border);
+  background: var(--bg-3);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--t2);
+  flex-shrink: 0;
+  transition: all 0.14s;
+  padding: 0;
+}
+.cp-close:hover { background: var(--bg-4); color: var(--t1); }
+.cp-close:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.cp-body {
+  flex: 1;
+  overflow-y: auto;
+}
+.cp-error {
+  font-size: 11.5px;
+  color: var(--pill-blocked-t);
+  background: rgba(239, 68, 68, 0.07);
+  border-bottom: 1px solid rgba(239, 68, 68, 0.15);
+  padding: 10px 20px;
+}
+.cp-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 48px 20px;
+}
+.cp-empty-icon {
+  font-size: 22px;
+  color: #10b981;
+  opacity: 0.7;
+}
+.cp-empty-text {
+  font-size: 12.5px;
+  color: var(--t3);
+}
+.cp-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.cp-item {
+  padding: 14px 20px;
+  border-bottom: 1px solid var(--border-2);
+}
+.cp-item:last-child { border-bottom: none; }
+.cp-item-process {
+  font-family: "JetBrains Mono", monospace;
+  font-size: 9.5px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: var(--t3);
+  margin-bottom: 3px;
+}
+.cp-item-title {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--t1);
+  line-height: 1.3;
+  margin-bottom: 3px;
+}
+.cp-item-desc {
+  font-size: 11.5px;
+  color: var(--t2);
+  line-height: 1.4;
+  margin-bottom: 4px;
+}
+.cp-item-meta {
+  font-size: 10.5px;
+  color: var(--t3);
+  margin-bottom: 10px;
+}
+.cp-actions {
+  display: flex;
+  gap: 6px;
+}
+.cp-btn {
+  padding: 6px 14px;
+  border-radius: 6px;
+  font-size: 11.5px;
+  font-weight: 600;
+  cursor: pointer;
+  border: 1px solid transparent;
+  transition: all 0.14s;
+  font-family: inherit;
+}
+.cp-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+.cp-btn--approve {
+  background: #10b981;
+  color: #fff;
+  border-color: #10b981;
+}
+.cp-btn--approve:hover:not(:disabled) { opacity: 0.88; }
+.cp-btn--reject {
+  background: transparent;
+  color: var(--t2);
+  border-color: var(--border-hi);
+}
+.cp-btn--reject:hover:not(:disabled) { background: var(--bg-4); color: var(--t1); }
+.cp-approved-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 11.5px;
+  font-weight: 600;
+  color: #34d399;
+  background: rgba(16, 185, 129, 0.1);
+  border: 1px solid rgba(16, 185, 129, 0.22);
+  border-radius: 6px;
+  padding: 5px 10px;
+}
+.cp-rejected-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 11.5px;
+  font-weight: 600;
+  color: var(--t2);
+  background: var(--bg-3);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 5px 10px;
+}
+
+/*
  * Tooltip enter animation. Used by the collapsed-mode workflow dots
  * (`SidebarWorkflowTree.CollapsedInstanceDot`) which render their
  * tooltip via a portal, so the keyframe lives in global CSS rather

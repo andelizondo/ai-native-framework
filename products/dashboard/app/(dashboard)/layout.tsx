@@ -7,6 +7,7 @@ import { AuthIdentitySync } from "@/components/auth-identity-sync";
 import { captureError } from "@/lib/monitoring";
 import { getServerWorkflowRepository } from "@/lib/workflows/repository.server";
 import type { WorkflowInstance, WorkflowTemplate } from "@/lib/workflows/types";
+import { pickPendingCheckpoints } from "@/lib/workflows/aggregate";
 
 /**
  * Server-side load of the workflow tree data the sidebar renders.
@@ -19,28 +20,50 @@ import type { WorkflowInstance, WorkflowTemplate } from "@/lib/workflows/types";
 async function loadSidebarWorkflowTree(): Promise<{
   templates: WorkflowTemplate[];
   instancesByTemplate: Record<string, SidebarInstanceView[]>;
+  pendingCount: number;
 }> {
-  try {
-    const repo = await getServerWorkflowRepository();
-    const [templates, instances] = await Promise.all([
-      repo.getTemplates(),
-      repo.listInstances(),
-    ]);
+  const repo = await getServerWorkflowRepository();
 
-    const instancesByTemplate: Record<string, SidebarInstanceView[]> = {};
-    for (const instance of instances satisfies WorkflowInstance[]) {
-      const bucket = instancesByTemplate[instance.templateId] ?? [];
-      // PR 5 has no per-task aggregation yet; `hasPending` and `progress`
-      // light up automatically when PR 8 wires task state.
-      bucket.push({ ...instance });
-      instancesByTemplate[instance.templateId] = bucket;
-    }
+  // Sidebar data and badge count are independent — failures in one must not
+  // wipe the other. Run them as separate best-effort fetches.
+  const [sidebarResult, pendingCount] = await Promise.all([
+    (async () => {
+      try {
+        const [templates, instances] = await Promise.all([
+          repo.getTemplates(),
+          repo.listInstances(),
+        ]);
+        const instancesByTemplate: Record<string, SidebarInstanceView[]> = {};
+        for (const instance of instances satisfies WorkflowInstance[]) {
+          const bucket = instancesByTemplate[instance.templateId] ?? [];
+          bucket.push({ ...instance });
+          instancesByTemplate[instance.templateId] = bucket;
+        }
+        return { templates, instancesByTemplate };
+      } catch (error) {
+        captureError(error, { feature: "sidebar.workflow_tree" });
+        return { templates: [] as WorkflowTemplate[], instancesByTemplate: {} as Record<string, SidebarInstanceView[]> };
+      }
+    })(),
+    (async () => {
+      try {
+        const [templates, instances, tasks] = await Promise.all([
+          repo.getTemplates(),
+          repo.listInstances(),
+          repo.listAllTasks(),
+        ]);
+        return pickPendingCheckpoints({ templates, instances, tasks, events: [] }).length;
+      } catch (error) {
+        captureError(error, {
+          feature: "sidebar.pending_count",
+          action: "loadBadgeCount",
+        });
+        return 0;
+      }
+    })(),
+  ]);
 
-    return { templates, instancesByTemplate };
-  } catch (error) {
-    captureError(error, { feature: "sidebar.workflow_tree" });
-    return { templates: [], instancesByTemplate: {} };
-  }
+  return { ...sidebarResult, pendingCount };
 }
 
 /**
@@ -63,7 +86,7 @@ export default async function DashboardLayout({
     redirect("/login");
   }
 
-  const { templates, instancesByTemplate } = await loadSidebarWorkflowTree();
+  const { templates, instancesByTemplate, pendingCount } = await loadSidebarWorkflowTree();
 
   return (
     <>
@@ -74,7 +97,7 @@ export default async function DashboardLayout({
         instancesByTemplate={instancesByTemplate}
       />
       <div className="flex min-w-0 flex-1 flex-col overflow-hidden">
-        <TopBar />
+        <TopBar initialPendingCount={pendingCount} />
         <main className="min-h-0 flex-1 overflow-y-auto bg-bg">{children}</main>
       </div>
     </>

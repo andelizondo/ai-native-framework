@@ -175,6 +175,8 @@ interface DetailsTabProps {
   onGatesChange: (gates: WorkflowGate[]) => void;
   /** Playbook row (post–not_started) — opens chat/prompt when wired. */
   onOpenPlaybookPrompt?: () => void;
+  /** Opens the AgentRun panel for this task's live run. */
+  onViewLiveRun?: () => void;
 }
 
 function DetailsTab({
@@ -191,6 +193,7 @@ function DetailsTab({
   onTriggersChange,
   onGatesChange,
   onOpenPlaybookPrompt,
+  onViewLiveRun,
 }: DetailsTabProps) {
   const isPendingApproval = task.status === "pending_approval";
   const isActive = task.status === "active";
@@ -401,6 +404,20 @@ function DetailsTab({
         </div>
       )}
 
+      {/* View live run — active tasks only */}
+      {isActive && onViewLiveRun && (
+        <div className="td-sec">
+          <button
+            type="button"
+            className="td-btn td-btn-live-run"
+            onClick={onViewLiveRun}
+            data-testid="td-view-live-run-btn"
+          >
+            ● View live run
+          </button>
+        </div>
+      )}
+
       {/* Triggers */}
       <TriggerGateEditor
         items={task.triggers}
@@ -486,6 +503,8 @@ export interface TaskDrawerProps {
    * `not_started`) to open the agent chat / prompt surface (implemented later).
    */
   onOpenPlaybookPrompt?: () => void;
+  /** Opens the AgentRun panel for this task's live run. */
+  onViewLiveRun?: () => void;
 }
 
 export function TaskDrawer({
@@ -498,6 +517,7 @@ export function TaskDrawer({
   onClose,
   onTaskUpdate,
   onOpenPlaybookPrompt,
+  onViewLiveRun,
 }: TaskDrawerProps) {
   const [activeTab, setActiveTab] = useState<DrawerTab>("details");
   const [isPending, startTransition] = useTransition();
@@ -730,6 +750,7 @@ export function TaskDrawer({
               onTriggersChange={handleTriggersChange}
               onGatesChange={handleGatesChange}
               onOpenPlaybookPrompt={onOpenPlaybookPrompt}
+              onViewLiveRun={onViewLiveRun}
             />
           )}
           {activeTab === "events" && <EventsTab events={taskEvents} />}

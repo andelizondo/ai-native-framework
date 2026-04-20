@@ -1,17 +1,19 @@
 "use client";
 
+import { useState } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { Bell, Pencil } from "lucide-react";
+
+import { CheckpointPanel } from "@/components/workflows/checkpoint-panel";
+import { cn } from "@/lib/utils";
 
 /**
  * Dashboard top bar.
  *
- * The shell ships before any real workflow / instance routing exists.
- * The top bar therefore renders a route-derived breadcrumb (Overview,
- * Skills, Playbooks, Event Feed, Settings) and an inert "My Tasks"
- * pill so the prototype's chrome is in place; PRs that introduce
- * workflow instances and the My-Tasks list will replace the
- * placeholder values.
+ * Renders a route-derived breadcrumb and the My Tasks pill. The pill shows an
+ * amber badge when there are pending checkpoints and opens CheckpointPanel on
+ * click. `initialPendingCount` is server-rendered for a fast first paint;
+ * the panel refreshes from the DB when opened.
  *
  * Visual contract: prototype `TopBar` (`Process Canvas.html`).
  */
@@ -24,14 +26,6 @@ const ROUTE_LABELS: ReadonlyArray<{ test: (path: string) => boolean; crumbs: str
   { test: (p) => p === "/framework/playbooks" || p.startsWith("/framework/playbooks/"), crumbs: ["Playbooks"] },
   { test: (p) => p === "/events" || p.startsWith("/events/"), crumbs: ["Event Feed"] },
   { test: (p) => p === "/settings" || p.startsWith("/settings/"), crumbs: ["Settings"] },
-  // Workflow instance routes carry the instance label in the page itself,
-  // so the breadcrumb stays generic until per-instance metadata is wired.
-  // Match exactly one segment after `/workflows/` so sub-routes like
-  // `/workflows/templates/new` (PR11 stub) don't pick up the instance crumb.
-  // The negative lookahead excludes known reserved roots (currently just
-  // `templates`) so future top-level workflow sections — added before
-  // they get their own ROUTE_LABELS entry — don't get mis-labelled as
-  // an instance crumb.
   {
     test: (p) => WORKFLOW_INSTANCE_ROUTE_REGEX.test(p),
     crumbs: ["Workflows", "Instance"],
@@ -43,13 +37,16 @@ function deriveCrumbs(pathname: string | null): string[] {
   for (const entry of ROUTE_LABELS) {
     if (entry.test(pathname)) return entry.crumbs;
   }
-  // Fallback: humanise the last path segment so future routes that land
-  // before they're added to the table still get a sensible breadcrumb.
   const last = pathname.split("/").filter(Boolean).pop() ?? "Overview";
   return [last.replace(/[-_]/g, " ").replace(/\b\w/g, (c) => c.toUpperCase())];
 }
 
-export function TopBar() {
+export interface TopBarProps {
+  /** Server-rendered initial count for fast first paint. */
+  initialPendingCount?: number;
+}
+
+export function TopBar({ initialPendingCount = 0 }: TopBarProps) {
   const pathname = usePathname();
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -57,6 +54,8 @@ export function TopBar() {
   const isWorkflowInstanceRoute =
     !!pathname && WORKFLOW_INSTANCE_ROUTE_REGEX.test(pathname);
   const editMode = searchParams.get("edit") === "1";
+
+  const [panelOpen, setPanelOpen] = useState(false);
 
   function toggleEditMode() {
     if (!pathname) return;
@@ -70,57 +69,83 @@ export function TopBar() {
     router.replace(query ? `${pathname}?${query}` : pathname, { scroll: false });
   }
 
-  return (
-    <header className="flex h-[52px] shrink-0 items-center gap-2.5 border-b border-border bg-bg px-5">
-      <nav aria-label="Breadcrumb" className="flex min-w-0 flex-1 items-center gap-1.5">
-        {crumbs.map((crumb, idx) => {
-          const isLast = idx === crumbs.length - 1;
-          return (
-            <span key={`${crumb}-${idx}`} className="flex items-center gap-1.5">
-              {idx > 0 && <span className="text-t3">›</span>}
-              <span
-                className={
-                  isLast
-                    ? "truncate text-[13px] font-semibold text-t1"
-                    : "truncate text-[13px] font-medium text-t2"
-                }
-                aria-current={isLast ? "page" : undefined}
-              >
-                {crumb}
-              </span>
-            </span>
-          );
-        })}
-      </nav>
+  const hasPending = initialPendingCount > 0;
 
-      <div className="flex shrink-0 items-center gap-1.5">
-        {isWorkflowInstanceRoute ? (
+  return (
+    <>
+      <header className="flex h-[52px] shrink-0 items-center gap-2.5 border-b border-border bg-bg px-5">
+        <nav aria-label="Breadcrumb" className="flex min-w-0 flex-1 items-center gap-1.5">
+          {crumbs.map((crumb, idx) => {
+            const isLast = idx === crumbs.length - 1;
+            return (
+              <span key={`${crumb}-${idx}`} className="flex items-center gap-1.5">
+                {idx > 0 && <span className="text-t3">›</span>}
+                <span
+                  className={
+                    isLast
+                      ? "truncate text-[13px] font-semibold text-t1"
+                      : "truncate text-[13px] font-medium text-t2"
+                  }
+                  aria-current={isLast ? "page" : undefined}
+                >
+                  {crumb}
+                </span>
+              </span>
+            );
+          })}
+        </nav>
+
+        <div className="flex shrink-0 items-center gap-1.5">
+          {isWorkflowInstanceRoute ? (
+            <button
+              type="button"
+              aria-pressed={editMode}
+              onClick={toggleEditMode}
+              title={editMode ? "Finish editing tasks" : "Edit workflow tasks"}
+              className={
+                editMode
+                  ? "flex cursor-pointer items-center gap-1.5 rounded-md border border-primary bg-primary-bg px-2.5 py-1.5 text-[11.5px] font-medium text-accent shadow-[inset_0_0_0_1px_rgba(99,102,241,0.08)] transition hover:bg-[rgba(99,102,241,0.16)] hover:text-white focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
+                  : "flex cursor-pointer items-center gap-1.5 rounded-md border border-border bg-bg-2 px-2.5 py-1.5 text-[11.5px] font-medium text-t2 transition hover:border-border-hi hover:bg-bg-3 hover:text-t1 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
+              }
+            >
+              <Pencil className="h-3.5 w-3.5" />
+              {editMode ? "Done" : "Edit"}
+            </button>
+          ) : null}
+
           <button
             type="button"
-            aria-pressed={editMode}
-            onClick={toggleEditMode}
-            title={editMode ? "Finish editing tasks" : "Edit workflow tasks"}
-            className={
-              editMode
-                ? "flex cursor-pointer items-center gap-1.5 rounded-md border border-primary bg-primary-bg px-2.5 py-1.5 text-[11.5px] font-medium text-accent shadow-[inset_0_0_0_1px_rgba(99,102,241,0.08)] transition hover:bg-[rgba(99,102,241,0.16)] hover:text-white focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
-                : "flex cursor-pointer items-center gap-1.5 rounded-md border border-border bg-bg-2 px-2.5 py-1.5 text-[11.5px] font-medium text-t2 transition hover:border-border-hi hover:bg-bg-3 hover:text-t1 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
-            }
+            aria-label={`My Tasks${hasPending ? ` — ${initialPendingCount} pending` : ""}`}
+            aria-expanded={panelOpen}
+            onClick={() => setPanelOpen((v) => !v)}
+            data-testid="topbar-my-tasks-btn"
+            className={cn(
+              "relative flex cursor-pointer items-center gap-1.5 rounded-md border px-2.5 py-1.5 text-[11.5px] font-medium transition",
+              "focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent",
+              hasPending
+                ? "border-[rgba(245,158,11,0.35)] bg-[rgba(245,158,11,0.08)] text-[#fbbf24] hover:bg-[rgba(245,158,11,0.14)]"
+                : "border-border bg-bg-2 text-t2 hover:border-border-hi hover:bg-bg-3 hover:text-t1",
+            )}
           >
-            <Pencil className="h-3.5 w-3.5" />
-            {editMode ? "Done" : "Edit"}
+            <Bell className="h-3.5 w-3.5" />
+            My Tasks
+            {hasPending && (
+              <span
+                className="flex h-4 min-w-4 items-center justify-center rounded-full bg-[#f59e0b] px-1 font-mono text-[9px] font-bold text-white"
+                aria-hidden
+                data-testid="topbar-pending-badge"
+              >
+                {initialPendingCount}
+              </span>
+            )}
           </button>
-        ) : null}
-        <button
-          type="button"
-          disabled
-          aria-label="My Tasks (coming soon)"
-          title="My Tasks — coming soon"
-          className="relative flex cursor-not-allowed items-center gap-1.5 rounded-md border border-border bg-bg-2 px-2.5 py-1.5 text-[11.5px] font-medium text-t2 opacity-70"
-        >
-          <Bell className="h-3.5 w-3.5" />
-          My Tasks
-        </button>
-      </div>
-    </header>
+        </div>
+      </header>
+
+      <CheckpointPanel
+        open={panelOpen}
+        onClose={() => setPanelOpen(false)}
+      />
+    </>
   );
 }

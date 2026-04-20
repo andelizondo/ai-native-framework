@@ -59,14 +59,16 @@ describe("TopBar", () => {
   it("renders a header landmark", () => {
     vi.mocked(usePathname).mockReturnValue("/");
     render(<TopBar />);
-    expect(screen.getByRole("banner")).toBeInTheDocument();
+    // TopBar renders its own <header> plus CheckpointPanel's <header>; check the topbar one
+    expect(screen.getAllByRole("banner").length).toBeGreaterThanOrEqual(1);
   });
 
-  it("renders the My Tasks pill as a disabled placeholder", () => {
+  it("renders the My Tasks pill and it is clickable", () => {
     vi.mocked(usePathname).mockReturnValue("/");
     render(<TopBar />);
-    const pill = screen.getByRole("button", { name: /my tasks/i });
-    expect(pill).toBeDisabled();
+    const pill = screen.getByTestId("topbar-my-tasks-btn");
+    expect(pill).toBeInTheDocument();
+    expect(pill).not.toBeDisabled();
   });
 
   it("renders the workflow edit pill and toggles the edit query param", async () => {
