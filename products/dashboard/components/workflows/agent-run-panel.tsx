@@ -209,6 +209,7 @@ export function AgentRunPanel({
     startTransition(async () => {
       try {
         await rejectDrawerCheckpointAction(task!.id);
+        onClose();
         emitEvent("workflow.checkpoint_rejected", {
           task_id: task!.id,
           instance_id: instance.id,
@@ -225,6 +226,7 @@ export function AgentRunPanel({
     <div
       role="dialog"
       aria-modal="true"
+      aria-hidden={!open}
       aria-label={`Agent run: ${task.title}`}
       className={cn("arp", open && "arp--open")}
       data-testid="agent-run-panel"

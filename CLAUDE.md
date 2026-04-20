@@ -53,10 +53,10 @@ This repository is two things at once: the **framework** (schema, policy, interf
 3. `spec/policy/` — event naming, PII, idempotency rules
 4. `interfaces/interfaces.yaml` — provider-agnostic logical contracts
 5. `ai/playbooks/` — unitary procedure bodies
-6. `docs/` — framework prose
+6. `docs/` — framework prose; **exception**: self-declared normative standards (`docs/ANALYTICS_STANDARD.md`, `docs/QUALITY_STANDARD.md`) outrank `ai/playbooks/` within their own domain
 7. `AGENTS.md`, `ai/SKILLS.md`, `ai/skills/`, `ai/MEMORY.md` — bootstrap/routing
 
-When two sources conflict, follow the higher source and update the lower one.
+When two sources conflict, follow the higher source and update the lower one. For domain-normative `docs/*` standards, treat them as authoritative within their domain even if a playbook conflicts.
 
 ### Framework Layer (`spec/`, `interfaces/`, `ai/`, `docs/`)
 
@@ -86,11 +86,16 @@ Sentry is expected for every product feature (frontend and backend). See `ai/ski
 - `staging` → `main` is automated by release-please (regular merge, not squash) — never open a feature PR directly to `main`
 - After each release, `main` is back-merged into `staging` via `.github/workflows/back-merge-to-staging.yml`
 
-**Merge gates** (all must be green): `validate`, `test`, `e2e`, `decide`, `migrate-validate`
+**Feature → staging** (staging-integration queue)
+Required gates: `validate`, `test`, `e2e`, `decide`, `migrate-validate`
+CodeRabbit review is soft-mandatory; every thread must be closed with a fix or a visible decision before merge.
 
-**CodeRabbit** is soft-mandatory. Every review thread must be closed with a code fix or a visible decision (`fix` / `accept as follow-up` / `won't change`) before merge. Reply directly on each thread; do not silently resolve. See `ai/playbooks/pull-request-execution-loop.md` for the full closure protocol.
+**Staging → main** (staging-promotion queue)
+Driven by release-please; CodeRabbit skips promotion PRs automatically. Gate set differs from feature PRs — promotion is not subject to CodeRabbit gating.
 
-**Mergify** handles automatic merge for `staging-integration` (feature→staging) and `staging-promotion` (staging→main) queues. If a PR is dequeued, remove the `dequeued` label and re-queue with `@mergifyio queue <queue-name>`.
+**CodeRabbit** closure protocol: reply directly on each thread with `fix` / `accept as follow-up` / `won't change`. Do not silently resolve. See `ai/playbooks/pull-request-execution-loop.md` for details.
+
+**Mergify** handles automatic merge for both queues. If a PR is dequeued, remove the `dequeued` label and re-queue with `@mergifyio queue <queue-name>`.
 
 ## Testing Conventions
 

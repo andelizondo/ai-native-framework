@@ -26,7 +26,7 @@ export function CheckpointPanel({
   const [checkpoints, setCheckpoints] = useState<PendingCheckpoint[]>(initialCheckpoints);
   const [loadError, setLoadError] = useState(false);
   const [isPending, startTransition] = useTransition();
-  const [resolvedIds, setResolvedIds] = useState<Set<string>>(new Set());
+  const [resolvedById, setResolvedById] = useState<Record<string, "approved" | "rejected">>({});
 
   // Refresh checkpoints on open.
   useEffect(() => {
@@ -36,7 +36,7 @@ export function CheckpointPanel({
       try {
         const fresh = await fetchPendingCheckpointsAction();
         setCheckpoints(fresh);
-        setResolvedIds(new Set());
+        setResolvedById({});
         setLoadError(false);
       } catch (err) {
         captureError(err, { feature: "checkpoint_panel.load" });
@@ -50,7 +50,7 @@ export function CheckpointPanel({
     startTransition(async () => {
       try {
         await resolveCheckpointAction(taskId, resolution);
-        setResolvedIds((prev) => new Set([...prev, taskId]));
+        setResolvedById((prev) => ({ ...prev, [taskId]: resolution }));
       } catch (err) {
         captureError(err, {
           feature: "checkpoint_panel.resolve",
@@ -77,6 +77,7 @@ export function CheckpointPanel({
       <div
         role="dialog"
         aria-modal="true"
+        aria-hidden={!open}
         aria-label="My Tasks"
         className={cn("cp-panel", open && "cp-panel--open")}
         data-testid="checkpoint-panel"
@@ -111,7 +112,7 @@ export function CheckpointPanel({
           {checkpoints.length > 0 && (
             <ul className="cp-list">
               {checkpoints.map(({ task, instance, template }) => {
-                const isResolved = resolvedIds.has(task.id);
+                const resolution = resolvedById[task.id];
                 const disabled = isPending;
                 return (
                   <li
@@ -134,9 +135,12 @@ export function CheckpointPanel({
                       })}
                     </p>
 
-                    {isResolved ? (
-                      <div className="cp-approved-badge" data-testid={`cp-approved-${task.id}`}>
-                        ✓ Approved
+                    {resolution ? (
+                      <div
+                        className={resolution === "approved" ? "cp-approved-badge" : "cp-rejected-badge"}
+                        data-testid={`cp-resolved-${task.id}`}
+                      >
+                        {resolution === "approved" ? "✓ Approved" : "✗ Rejected"}
                       </div>
                     ) : (
                       <div className="cp-actions">

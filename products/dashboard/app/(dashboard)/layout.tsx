@@ -22,33 +22,44 @@ async function loadSidebarWorkflowTree(): Promise<{
   instancesByTemplate: Record<string, SidebarInstanceView[]>;
   pendingCount: number;
 }> {
-  try {
-    const repo = await getServerWorkflowRepository();
-    const [templates, instances, tasks] = await Promise.all([
-      repo.getTemplates(),
-      repo.listInstances(),
-      repo.listAllTasks(),
-    ]);
+  const repo = await getServerWorkflowRepository();
 
-    const instancesByTemplate: Record<string, SidebarInstanceView[]> = {};
-    for (const instance of instances satisfies WorkflowInstance[]) {
-      const bucket = instancesByTemplate[instance.templateId] ?? [];
-      bucket.push({ ...instance });
-      instancesByTemplate[instance.templateId] = bucket;
-    }
+  // Sidebar data and badge count are independent — failures in one must not
+  // wipe the other. Run them as separate best-effort fetches.
+  const [sidebarResult, pendingCount] = await Promise.all([
+    (async () => {
+      try {
+        const [templates, instances] = await Promise.all([
+          repo.getTemplates(),
+          repo.listInstances(),
+        ]);
+        const instancesByTemplate: Record<string, SidebarInstanceView[]> = {};
+        for (const instance of instances satisfies WorkflowInstance[]) {
+          const bucket = instancesByTemplate[instance.templateId] ?? [];
+          bucket.push({ ...instance });
+          instancesByTemplate[instance.templateId] = bucket;
+        }
+        return { templates, instancesByTemplate };
+      } catch (error) {
+        captureError(error, { feature: "sidebar.workflow_tree" });
+        return { templates: [] as WorkflowTemplate[], instancesByTemplate: {} as Record<string, SidebarInstanceView[]> };
+      }
+    })(),
+    (async () => {
+      try {
+        const [templates, instances, tasks] = await Promise.all([
+          repo.getTemplates(),
+          repo.listInstances(),
+          repo.listAllTasks(),
+        ]);
+        return pickPendingCheckpoints({ templates, instances, tasks, events: [] }).length;
+      } catch {
+        return 0;
+      }
+    })(),
+  ]);
 
-    const pendingCount = pickPendingCheckpoints({
-      templates,
-      instances,
-      tasks,
-      events: [],
-    }).length;
-
-    return { templates, instancesByTemplate, pendingCount };
-  } catch (error) {
-    captureError(error, { feature: "sidebar.workflow_tree" });
-    return { templates: [], instancesByTemplate: {}, pendingCount: 0 };
-  }
+  return { ...sidebarResult, pendingCount };
 }
 
 /**
