@@ -151,7 +151,7 @@ function renderDrawer(
   events: WorkflowEvent[] = [],
   onClose = vi.fn(),
   onTaskUpdate = vi.fn(),
-  onOpenPlaybookPrompt?: () => void,
+  onViewLiveRun?: () => void,
 ) {
   const task = makeTask(taskOverrides);
   const instance = makeInstance([task], events);
@@ -164,7 +164,7 @@ function renderDrawer(
       template={TEMPLATE}
       onClose={onClose}
       onTaskUpdate={onTaskUpdate}
-      onOpenPlaybookPrompt={onOpenPlaybookPrompt}
+      onViewLiveRun={onViewLiveRun}
     />,
   );
 
@@ -306,21 +306,21 @@ describe("TaskDrawer", () => {
       expect(screen.getByTestId("td-playbook-card")).not.toHaveAttribute("role", "button");
     });
 
-    it("invokes onOpenPlaybookPrompt when the playbook card is clicked", async () => {
-      const onOpenPlaybookPrompt = vi.fn();
+    it("invokes onViewLiveRun when the playbook card is clicked for non-not_started tasks", async () => {
+      const onViewLiveRun = vi.fn();
       const user = userEvent.setup();
       renderDrawer(
         { status: "complete", checkpoint: false, playbook: "demo-pb" },
         [],
         vi.fn(),
         vi.fn(),
-        onOpenPlaybookPrompt,
+        onViewLiveRun,
       );
 
       const playbookCard = screen.getByTestId("td-playbook-card");
       expect(playbookCard).toHaveAttribute("role", "button");
       await user.click(playbookCard);
-      expect(onOpenPlaybookPrompt).toHaveBeenCalledTimes(1);
+      expect(onViewLiveRun).toHaveBeenCalledTimes(1);
     });
   });
 

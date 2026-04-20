@@ -986,6 +986,21 @@ body {
 .td-playbook-clickable:hover {
   border-color: var(--border-hi);
 }
+.td-pb-open-hint {
+  margin-top: 4px;
+  font-size: 10.5px;
+  color: var(--t3);
+  font-family: "JetBrains Mono", monospace;
+  letter-spacing: 0.01em;
+  transition: color 0.15s;
+}
+.td-playbook-clickable:hover .td-pb-open-hint { color: var(--accent); }
+.td-pb-chevron {
+  color: var(--t3);
+  margin-left: 2px;
+  transition: color 0.15s;
+}
+.td-playbook-clickable:hover .td-pb-chevron { color: var(--accent); }
 .td-agent-profile-icon,
 .td-pb-icon {
   width: 32px;
@@ -1653,6 +1668,22 @@ body {
   color: var(--t3);
   font-family: "JetBrains Mono", monospace;
 }
+/* Progress bar */
+.arp-progress {
+  margin-top: 10px;
+  height: 3px;
+  border-radius: 99px;
+  background: var(--bg-4);
+  overflow: hidden;
+}
+.arp-progress-fill {
+  height: 100%;
+  border-radius: 99px;
+  background: var(--accent);
+  transition: width 0.5s ease;
+}
+.arp-progress-fill--complete { background: #10b981; }
+.arp-progress-fill--failed   { background: #f87171; }
 /* Body */
 .arp-body {
   flex: 1;
@@ -1683,6 +1714,7 @@ body {
 .arp-step-icon--done    { color: #10b981; }
 .arp-step-icon--active  { color: var(--accent); }
 .arp-step-icon--waiting { color: #f59e0b; }
+.arp-step-icon--failed  { color: #f87171; }
 .arp-step-icon--pending { color: var(--t3); }
 .arp-step-label {
   flex: 1;
@@ -1791,7 +1823,115 @@ body {
   border-radius: 6px;
   padding: 5px 10px;
 }
-/* "View live run" button in task drawer */
+/* Trigger / Gate chips */
+.arp-tg-section {
+  padding: 14px 18px;
+  border-top: 1px solid var(--border-2);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.arp-tg-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+}
+.arp-tg-label {
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--t3);
+  white-space: nowrap;
+  padding-top: 2px;
+  min-width: 80px;
+}
+.arp-tg-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+}
+.arp-tg-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 8px;
+  border-radius: 99px;
+  border: 1px solid var(--border);
+  background: var(--bg-3);
+  font-size: 10.5px;
+}
+.arp-chip-type {
+  color: var(--t3);
+  font-family: "JetBrains Mono", monospace;
+}
+.arp-chip-sep { color: var(--t3); }
+.arp-chip-val { color: var(--t2); }
+/* Chat footer */
+.arp-chat-footer {
+  border-top: 1px solid var(--border);
+  padding: 10px 14px;
+  display: flex;
+  align-items: flex-end;
+  gap: 8px;
+  flex-shrink: 0;
+  background: var(--bg-2);
+}
+.arp-model-select {
+  appearance: none;
+  background: var(--bg-3) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath d='M0 0l5 6 5-6z' fill='%236b7280'/%3E%3C/svg%3E") no-repeat right 7px center;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  color: var(--t2);
+  cursor: pointer;
+  font-size: 10.5px;
+  padding: 5px 22px 5px 8px;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+.arp-model-select:focus { outline: 2px solid var(--accent); outline-offset: 2px; }
+.arp-chat-input-wrap {
+  flex: 1;
+  display: flex;
+  align-items: flex-end;
+  gap: 6px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--bg-3);
+  padding: 5px 6px 5px 10px;
+  transition: border-color 0.15s;
+}
+.arp-chat-input-wrap:focus-within { border-color: var(--accent); }
+.arp-chat-input {
+  flex: 1;
+  background: transparent;
+  border: none;
+  outline: none;
+  color: var(--t1);
+  font-size: 12px;
+  resize: none;
+  line-height: 1.5;
+  max-height: 80px;
+  overflow-y: auto;
+}
+.arp-chat-input::placeholder { color: var(--t3); }
+.arp-chat-send {
+  width: 26px;
+  height: 26px;
+  border-radius: 6px;
+  border: none;
+  background: var(--accent);
+  color: #fff;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  transition: opacity 0.15s;
+}
+.arp-chat-send:hover { opacity: 0.85; }
+.arp-chat-send:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+/* "View live run" button in task drawer (kept for legacy — no longer rendered) */
 .td-btn-live-run {
   background: rgba(129, 140, 248, 0.08);
   border-color: rgba(129, 140, 248, 0.28);

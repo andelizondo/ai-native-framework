@@ -20,6 +20,12 @@ describe("stepStatusIcon", () => {
     expect(result.className).toBe("arp-step-icon--waiting");
   });
 
+  it("returns red cross for failed", () => {
+    const result = stepStatusIcon("failed");
+    expect(result.symbol).toBe("✗");
+    expect(result.className).toBe("arp-step-icon--failed");
+  });
+
   it("returns empty circle for pending", () => {
     const result = stepStatusIcon("pending");
     expect(result.symbol).toBe("○");

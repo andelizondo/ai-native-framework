@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState, useTransition } from "react";
-import { BookOpen, Check, CircleAlert, Play, RotateCw, Square, X } from "lucide-react";
+import { BookOpen, Check, ChevronRight, CircleAlert, Play, RotateCw, Square, X } from "lucide-react";
 
 import { captureError } from "@/lib/monitoring";
 import { emitEvent } from "@/lib/events";
@@ -173,9 +173,7 @@ interface DetailsTabProps {
   onReject: () => void;
   onTriggersChange: (triggers: WorkflowTrigger[]) => void;
   onGatesChange: (gates: WorkflowGate[]) => void;
-  /** Playbook row (post–not_started) — opens chat/prompt when wired. */
-  onOpenPlaybookPrompt?: () => void;
-  /** Opens the AgentRun panel for this task's live run. */
+  /** Opens the AgentRun panel — active, complete, blocked, pending_approval. */
   onViewLiveRun?: () => void;
 }
 
@@ -192,14 +190,12 @@ function DetailsTab({
   onReject,
   onTriggersChange,
   onGatesChange,
-  onOpenPlaybookPrompt,
   onViewLiveRun,
 }: DetailsTabProps) {
   const isPendingApproval = task.status === "pending_approval";
   const isActive = task.status === "active";
   const isNotStarted = task.status === "not_started";
-  const playbookCardClickable =
-    !isNotStarted && typeof onOpenPlaybookPrompt === "function";
+  const playbookCardClickable = !isNotStarted && !!onViewLiveRun;
   const skillIcon = task.skill ? (SKILL_ICONS[task.skill] ?? "🤖") : "🤖";
   const skillItem = task.skill
     ? skillOptions.find((item) => item.name === task.skill || item.id === task.skill)
@@ -294,27 +290,14 @@ function DetailsTab({
             data-testid="td-playbook-card"
             role={playbookCardClickable ? "button" : undefined}
             tabIndex={playbookCardClickable ? 0 : undefined}
-            aria-label={playbookCardClickable ? "Open playbook chat" : undefined}
-            title={
-              playbookCardClickable
-                ? isActive
-                  ? "Open playbook chat — live run surface ships in a later release"
-                  : "Open playbook chat"
-                : undefined
-            }
-            onClick={
-              playbookCardClickable
-                ? () => {
-                    onOpenPlaybookPrompt?.();
-                  }
-                : undefined
-            }
+            aria-label={playbookCardClickable ? "View playbook run steps" : undefined}
+            onClick={playbookCardClickable ? onViewLiveRun : undefined}
             onKeyDown={
               playbookCardClickable
                 ? (e) => {
                     if (e.key === "Enter" || e.key === " ") {
                       e.preventDefault();
-                      onOpenPlaybookPrompt?.();
+                      onViewLiveRun?.();
                     }
                   }
                 : undefined
@@ -337,6 +320,17 @@ function DetailsTab({
               >
                 {playbookDescription || "No description"}
               </div>
+              {playbookCardClickable && (
+                <div className="td-pb-open-hint">
+                  {isActive
+                    ? "● Running · view steps"
+                    : task.status === "complete"
+                      ? "✓ Completed · view run"
+                      : task.status === "blocked"
+                        ? "✗ Failed · view run"
+                        : "View run →"}
+                </div>
+              )}
             </div>
             <div className="td-pb-action">
               {isNotStarted && (
@@ -376,6 +370,7 @@ function DetailsTab({
               {task.status === "complete" && (
                 <div className="td-pb-state-done" aria-label="Done">
                   <Check size={10} aria-hidden />
+                  {playbookCardClickable && <ChevronRight size={11} aria-hidden className="td-pb-chevron" />}
                 </div>
               )}
               {task.status === "blocked" && (
@@ -401,20 +396,6 @@ function DetailsTab({
               )}
             </div>
           </div>
-        </div>
-      )}
-
-      {/* View live run — active tasks only */}
-      {isActive && onViewLiveRun && (
-        <div className="td-sec">
-          <button
-            type="button"
-            className="td-btn td-btn-live-run"
-            onClick={onViewLiveRun}
-            data-testid="td-view-live-run-btn"
-          >
-            ● View live run
-          </button>
         </div>
       )}
 
@@ -498,12 +479,7 @@ export interface TaskDrawerProps {
   playbookOptions?: FrameworkItem[];
   onClose: () => void;
   onTaskUpdate: (task: WorkflowTask) => void;
-  /**
-   * Invoked when the user activates the playbook row (any status except
-   * `not_started`) to open the agent chat / prompt surface (implemented later).
-   */
-  onOpenPlaybookPrompt?: () => void;
-  /** Opens the AgentRun panel for this task's live run. */
+  /** Opens the AgentRun panel — active, complete, blocked, pending_approval. */
   onViewLiveRun?: () => void;
 }
 
@@ -516,7 +492,6 @@ export function TaskDrawer({
   playbookOptions = [],
   onClose,
   onTaskUpdate,
-  onOpenPlaybookPrompt,
   onViewLiveRun,
 }: TaskDrawerProps) {
   const [activeTab, setActiveTab] = useState<DrawerTab>("details");
@@ -749,7 +724,6 @@ export function TaskDrawer({
               onReject={handleReject}
               onTriggersChange={handleTriggersChange}
               onGatesChange={handleGatesChange}
-              onOpenPlaybookPrompt={onOpenPlaybookPrompt}
               onViewLiveRun={onViewLiveRun}
             />
           )}

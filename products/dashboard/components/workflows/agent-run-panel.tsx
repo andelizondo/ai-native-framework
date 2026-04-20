@@ -1,7 +1,7 @@
 "use client";
 
-import { useEffect, useTransition } from "react";
-import { X } from "lucide-react";
+import { useEffect, useRef, useTransition } from "react";
+import { Send, X } from "lucide-react";
 
 import {
   approveDrawerCheckpointAction,
@@ -14,7 +14,7 @@ import type { WorkflowInstanceDetail, WorkflowTask } from "@/lib/workflows/types
 
 // ── Seed data types ───────────────────────────────────────────────────────────
 
-type StepStatus = "done" | "active" | "waiting" | "pending";
+export type StepStatus = "done" | "active" | "waiting" | "failed" | "pending";
 
 interface AgentRunOutput {
   kind: "ok" | "info" | "muted";
@@ -41,7 +41,6 @@ interface AgentRun {
 
 // ── Seed ─────────────────────────────────────────────────────────────────────
 // Seed data used until real agent integration lands (later PR).
-// Two variants: a running run and a checkpoint-waiting run.
 
 const SEED_RUNNING: AgentRun = {
   agentName: "PM Agent",
@@ -98,8 +97,8 @@ const SEED_CHECKPOINT: AgentRun = {
       status: "done",
       duration: "0m 12s",
       output: [
-        { kind: "ok",   text: "✓ Loaded platform-product.yaml" },
-        { kind: "ok",   text: "✓ Context loaded — 3 prior events found" },
+        { kind: "ok", text: "✓ Loaded platform-product.yaml" },
+        { kind: "ok", text: "✓ Context loaded — 3 prior events found" },
       ],
     },
     {
@@ -108,8 +107,8 @@ const SEED_CHECKPOINT: AgentRun = {
       status: "done",
       duration: "1m 08s",
       output: [
-        { kind: "ok",   text: "✓ Identified 4 key stakeholders" },
-        { kind: "ok",   text: "✓ Risk classification: medium" },
+        { kind: "ok", text: "✓ Identified 4 key stakeholders" },
+        { kind: "ok", text: "✓ Risk classification: medium" },
       ],
     },
     {
@@ -120,10 +119,115 @@ const SEED_CHECKPOINT: AgentRun = {
         { kind: "muted", text: "  Awaiting approval..." },
       ],
     },
-    { id: "s4", label: "Draft acceptance criteria",         status: "pending" },
+    { id: "s4", label: "Draft acceptance criteria", status: "pending" },
+    { id: "s5", label: "Surface for founder review", status: "pending" },
+  ],
+};
+
+const SEED_COMPLETE: AgentRun = {
+  agentName: "PM Agent",
+  skill: "pm",
+  playbook: "backlog-refinement",
+  checkpoint: false,
+  steps: [
+    {
+      id: "s1",
+      label: "Load spec and context",
+      status: "done",
+      duration: "0m 12s",
+      output: [
+        { kind: "ok", text: "✓ Loaded platform-product.yaml" },
+        { kind: "ok", text: "✓ Context loaded — 3 prior events found" },
+      ],
+    },
+    {
+      id: "s2",
+      label: "Analyse stakeholders and scope",
+      status: "done",
+      duration: "1m 08s",
+      output: [
+        { kind: "ok", text: "✓ Identified 4 key stakeholders" },
+        { kind: "ok", text: "✓ Risk classification: medium" },
+      ],
+    },
+    {
+      id: "s3",
+      label: "Draft acceptance criteria",
+      status: "done",
+      duration: "2m 34s",
+      output: [
+        { kind: "ok",   text: "✓ 6 acceptance criteria drafted" },
+        { kind: "ok",   text: "✓ Aligned with framework policy" },
+      ],
+    },
+    {
+      id: "s4",
+      label: "Validate against framework policy",
+      status: "done",
+      duration: "0m 45s",
+      output: [
+        { kind: "ok", text: "✓ All criteria pass policy gate" },
+      ],
+    },
+    {
+      id: "s5",
+      label: "Surface for founder review",
+      status: "done",
+      duration: "0m 05s",
+      output: [
+        { kind: "ok", text: "✓ Checkpoint raised for founder review" },
+      ],
+    },
+  ],
+};
+
+const SEED_FAILED: AgentRun = {
+  agentName: "PM Agent",
+  skill: "pm",
+  playbook: "backlog-refinement",
+  checkpoint: false,
+  steps: [
+    {
+      id: "s1",
+      label: "Load spec and context",
+      status: "done",
+      duration: "0m 12s",
+      output: [
+        { kind: "ok", text: "✓ Loaded platform-product.yaml" },
+        { kind: "ok", text: "✓ Context loaded — 3 prior events found" },
+      ],
+    },
+    {
+      id: "s2",
+      label: "Analyse stakeholders and scope",
+      status: "done",
+      duration: "1m 08s",
+      output: [
+        { kind: "ok", text: "✓ Identified 4 key stakeholders" },
+        { kind: "ok", text: "✓ Risk classification: medium" },
+      ],
+    },
+    {
+      id: "s3",
+      label: "Draft acceptance criteria",
+      status: "failed",
+      duration: "0m 52s",
+      output: [
+        { kind: "muted", text: "  Error: Policy validation failed" },
+        { kind: "muted", text: "  Missing required gate: finance-approval" },
+      ],
+    },
+    { id: "s4", label: "Validate against framework policy", status: "pending" },
     { id: "s5", label: "Surface for founder review",        status: "pending" },
   ],
 };
+
+function pickSeedRun(task: WorkflowTask): AgentRun {
+  if (task.status === "complete") return SEED_COMPLETE;
+  if (task.status === "blocked")  return SEED_FAILED;
+  if (task.checkpoint)            return SEED_CHECKPOINT;
+  return SEED_RUNNING;
+}
 
 // ── Step icon ─────────────────────────────────────────────────────────────────
 
@@ -132,6 +236,7 @@ export function stepStatusIcon(status: StepStatus): { symbol: string; className:
     case "done":    return { symbol: "✓", className: "arp-step-icon--done" };
     case "active":  return { symbol: "●", className: "arp-step-icon--active" };
     case "waiting": return { symbol: "⏳", className: "arp-step-icon--waiting" };
+    case "failed":  return { symbol: "✗", className: "arp-step-icon--failed" };
     default:        return { symbol: "○", className: "arp-step-icon--pending" };
   }
 }
@@ -144,6 +249,20 @@ function formatElapsed(startedAt: string): string {
   const h = Math.floor(totalSecs / 3600);
   const m = Math.floor((totalSecs % 3600) / 60);
   return `${h}h ${m}m`;
+}
+
+function runMetaLabel(
+  task: WorkflowTask,
+  doneCount: number,
+  totalSteps: number,
+  elapsed: string,
+): string {
+  switch (task.status) {
+    case "complete": return `Completed · ${totalSteps}/${totalSteps} steps`;
+    case "blocked":  return `Failed · ${doneCount}/${totalSteps} steps`;
+    case "active":   return `Running ${elapsed} · ${doneCount}/${totalSteps} steps`;
+    default:         return `${doneCount}/${totalSteps} steps`;
+  }
 }
 
 // ── Props ─────────────────────────────────────────────────────────────────────
@@ -167,6 +286,7 @@ export function AgentRunPanel({
   onTaskUpdate,
 }: AgentRunPanelProps) {
   const [isPending, startTransition] = useTransition();
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
 
   // Analytics on open.
   useEffect(() => {
@@ -179,16 +299,15 @@ export function AgentRunPanel({
     return <div className="arp" aria-hidden />;
   }
 
-  // Choose seed run based on task checkpoint state.
-  const run: AgentRun = task.checkpoint ? SEED_CHECKPOINT : SEED_RUNNING;
+  const run = pickSeedRun(task);
 
-  // Derive display values from live task data.
-  const agentName = task.agent ?? run.agentName;
-  const skill     = task.skill ?? run.skill;
-  const playbook  = task.playbook ?? run.playbook;
-  const elapsed   = formatElapsed(task.updatedAt);
-  const doneCount = run.steps.filter((s) => s.status === "done").length;
+  const agentName  = task.agent   ?? run.agentName;
+  const skill      = task.skill   ?? run.skill;
+  const playbook   = task.playbook ?? run.playbook;
+  const elapsed    = formatElapsed(task.updatedAt);
+  const doneCount  = run.steps.filter((s) => s.status === "done").length;
   const totalSteps = run.steps.length;
+  const progressPct = totalSteps > 0 ? Math.round((doneCount / totalSteps) * 100) : 0;
 
   function handleApprove() {
     startTransition(async () => {
@@ -261,9 +380,19 @@ export function AgentRunPanel({
         </div>
 
         <div className="arp-run-meta">
-          Running {elapsed}
-          <span className="arp-meta-sep" aria-hidden>·</span>
-          {doneCount}/{totalSteps} steps
+          {runMetaLabel(task, doneCount, totalSteps, elapsed)}
+        </div>
+
+        {/* Progress bar */}
+        <div className="arp-progress" aria-hidden>
+          <div
+            className={cn(
+              "arp-progress-fill",
+              task.status === "complete" && "arp-progress-fill--complete",
+              task.status === "blocked"  && "arp-progress-fill--failed",
+            )}
+            style={{ width: `${progressPct}%` }}
+          />
         </div>
       </header>
 
@@ -282,10 +411,7 @@ export function AgentRunPanel({
             >
               {/* Step row */}
               <div className="arp-step-row">
-                <span
-                  className={cn("arp-step-icon", icon.className)}
-                  aria-hidden
-                >
+                <span className={cn("arp-step-icon", icon.className)} aria-hidden>
                   {icon.symbol}
                 </span>
                 <span className={cn(
@@ -354,7 +480,76 @@ export function AgentRunPanel({
             </div>
           );
         })}
+
+        {/* Trigger / Gate — read-only chips from task config */}
+        {(task.triggers.length > 0 || task.gates.length > 0) && (
+          <div className="arp-tg-section">
+            {task.triggers.length > 0 && (
+              <div className="arp-tg-row">
+                <span className="arp-tg-label">Triggered by</span>
+                <div className="arp-tg-chips">
+                  {task.triggers.map((t, i) => (
+                    <span key={i} className="arp-tg-chip">
+                      <span className="arp-chip-type">{t.type}</span>
+                      {t.label && <span className="arp-chip-sep">·</span>}
+                      {t.label && <span className="arp-chip-val">{t.label}</span>}
+                    </span>
+                  ))}
+                </div>
+              </div>
+            )}
+            {task.gates.length > 0 && (
+              <div className="arp-tg-row">
+                <span className="arp-tg-label">Gate (output)</span>
+                <div className="arp-tg-chips">
+                  {task.gates.map((g, i) => (
+                    <span key={i} className="arp-tg-chip">
+                      <span className="arp-chip-type">{g.type}</span>
+                      {g.label && <span className="arp-chip-sep">·</span>}
+                      {g.label && <span className="arp-chip-val">{g.label}</span>}
+                    </span>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+        )}
       </div>
+
+      {/* Chat footer — stub until real agent integration lands */}
+      <footer className="arp-chat-footer">
+        <select
+          className="arp-model-select"
+          aria-label="Model"
+          defaultValue="claude-sonnet-4-6"
+        >
+          <option value="claude-sonnet-4-6">Sonnet 4.6</option>
+          <option value="claude-opus-4-7">Opus 4.7</option>
+          <option value="claude-haiku-4-5">Haiku 4.5</option>
+        </select>
+        <div className="arp-chat-input-wrap">
+          <textarea
+            ref={textareaRef}
+            className="arp-chat-input"
+            placeholder="Ask or instruct the agent…"
+            rows={1}
+            onKeyDown={(e) => {
+              if (e.key === "Enter" && !e.shiftKey) {
+                e.preventDefault();
+                // TODO: wire to real agent integration
+              }
+            }}
+          />
+          <button
+            type="button"
+            className="arp-chat-send"
+            aria-label="Send message"
+            data-testid="arp-chat-send"
+          >
+            <Send size={13} aria-hidden />
+          </button>
+        </div>
+      </footer>
     </div>
   );
 }
