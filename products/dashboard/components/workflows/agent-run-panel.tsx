@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState, useTransition } from "react";
-import { ChevronDown, ChevronRight, Send, X } from "lucide-react";
+import { ChevronDown, ChevronRight, ChevronUp, X } from "lucide-react";
 
 import {
   approveDrawerCheckpointAction,
@@ -322,6 +322,8 @@ export function AgentRunPanel({
   onTaskUpdate,
 }: AgentRunPanelProps) {
   const [isPending, startTransition] = useTransition();
+  const [model, setModel] = useState("claude-sonnet-4-6");
+  const [chatFocused, setChatFocused] = useState(false);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
   const run = useMemo(() => (task ? pickSeedRun(task) : SEED_NOT_STARTED), [task?.id, task?.status]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -450,21 +452,6 @@ export function AgentRunPanel({
       {/* Body */}
       <div className="arp-body" data-testid="agent-run-body">
 
-        {/* Triggers — shown at the top of the timeline */}
-        {task.triggers.length > 0 && (
-          <div className="arp-tg-row arp-tg-row--top">
-            <span className="arp-tg-label">Triggered by</span>
-            <div className="arp-tg-chips">
-              {task.triggers.map((t, i) => (
-                <span key={i} className="arp-tg-chip">
-                  <span className="arp-chip-type">{t.type}</span>
-                  {t.label && <><span className="arp-chip-sep">·</span><span className="arp-chip-val">{t.label}</span></>}
-                </span>
-              ))}
-            </div>
-          </div>
-        )}
-
         {/* Step list */}
         {run.steps.map((step) => {
           const icon = stepStatusIcon(step.status);
@@ -574,39 +561,54 @@ export function AgentRunPanel({
           );
         })}
 
-        {/* Gates — shown at the bottom once the task has completed */}
+        {/* Gates — rendered as a goal step at the end of the timeline */}
         {task.gates.length > 0 && (
-          <div className="arp-tg-row arp-tg-row--bottom">
-            <span className="arp-tg-label">Gate (output)</span>
-            <div className="arp-tg-chips">
-              {task.gates.map((g, i) => (
-                <span key={i} className="arp-tg-chip">
-                  <span className="arp-chip-type">{g.type}</span>
-                  {g.label && <><span className="arp-chip-sep">·</span><span className="arp-chip-val">{g.label}</span></>}
-                </span>
-              ))}
+          <div
+            className={cn(
+              "arp-step arp-step--gate",
+              task.status === "complete" && "arp-step--gate-done",
+            )}
+            data-testid="arp-gate-step"
+          >
+            <div className="arp-step-row">
+              <span
+                className={cn(
+                  "arp-step-icon",
+                  task.status === "complete" ? "arp-step-icon--done" : "arp-step-icon--pending",
+                )}
+                aria-hidden
+              >
+                {task.status === "complete" ? "✓" : "◇"}
+              </span>
+              <span className={cn(
+                "arp-step-label",
+                task.status !== "complete" && "arp-step-label--pending",
+              )}>
+                {task.gates.map((g) => g.label ?? g.type).join(" · ")}
+              </span>
+              {task.gates[0]?.type && (
+                <span className="arp-gate-type-badge">{task.gates[0].type}</span>
+              )}
             </div>
           </div>
         )}
       </div>
 
-      {/* Chat footer — stub until real agent integration lands */}
-      <footer className="arp-chat-footer">
-        <select
-          className="arp-model-select"
-          aria-label="Model"
-          defaultValue="claude-sonnet-4-6"
-        >
-          <option value="claude-sonnet-4-6">Sonnet 4.6</option>
-          <option value="claude-opus-4-7">Opus 4.7</option>
-          <option value="claude-haiku-4-5">Haiku 4.5</option>
-        </select>
-        <div className="arp-chat-input-wrap">
+      {/* Chat footer */}
+      <footer className={cn("arp-chat-footer", chatFocused && "arp-chat-footer--focused")}>
+        <div className="arp-chat-box">
           <textarea
             ref={textareaRef}
             className="arp-chat-input"
             placeholder="Ask or instruct the agent…"
             rows={1}
+            onFocus={() => setChatFocused(true)}
+            onBlur={() => setChatFocused(false)}
+            onInput={(e) => {
+              const el = e.currentTarget;
+              el.style.height = "auto";
+              el.style.height = `${Math.min(el.scrollHeight, 112)}px`;
+            }}
             onKeyDown={(e) => {
               if (e.key === "Enter" && !e.shiftKey) {
                 e.preventDefault();
@@ -614,14 +616,29 @@ export function AgentRunPanel({
               }
             }}
           />
-          <button
-            type="button"
-            className="arp-chat-send"
-            aria-label="Send message"
-            data-testid="arp-chat-send"
-          >
-            <Send size={13} aria-hidden />
-          </button>
+          <div className="arp-chat-toolbar">
+            <div className="arp-model-select-wrap">
+              <select
+                className="arp-model-select"
+                aria-label="Model"
+                value={model}
+                onChange={(e) => setModel(e.target.value)}
+              >
+                <option value="claude-sonnet-4-6">Sonnet 4.6</option>
+                <option value="claude-opus-4-7">Opus 4.7</option>
+                <option value="claude-haiku-4-5">Haiku 4.5</option>
+              </select>
+              <ChevronDown size={10} className="arp-model-chevron" aria-hidden />
+            </div>
+            <button
+              type="button"
+              className="arp-chat-send"
+              aria-label="Send message"
+              data-testid="arp-chat-send"
+            >
+              <ChevronUp size={14} aria-hidden />
+            </button>
+          </div>
         </div>
       </footer>
     </div>

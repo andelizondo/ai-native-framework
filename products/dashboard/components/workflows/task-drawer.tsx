@@ -173,7 +173,7 @@ interface DetailsTabProps {
   onReject: () => void;
   onTriggersChange: (triggers: WorkflowTrigger[]) => void;
   onGatesChange: (gates: WorkflowGate[]) => void;
-  /** Opens the AgentRun panel — active, complete, blocked, pending_approval. */
+  /** Opens the AgentRun panel — active, complete, blocked, pending_approval, and not-started (hint path: "○ Not started · view steps"). */
   onViewLiveRun?: () => void;
 }
 
@@ -295,6 +295,7 @@ function DetailsTab({
             onKeyDown={
               playbookCardClickable
                 ? (e) => {
+                    if (e.currentTarget !== e.target) return;
                     if (e.key === "Enter" || e.key === " ") {
                       e.preventDefault();
                       onViewLiveRun?.();
@@ -481,7 +482,7 @@ export interface TaskDrawerProps {
   playbookOptions?: FrameworkItem[];
   onClose: () => void;
   onTaskUpdate: (task: WorkflowTask) => void;
-  /** Opens the AgentRun panel — active, complete, blocked, pending_approval. */
+  /** Opens the AgentRun panel — active, complete, blocked, pending_approval, and not-started (hint path: "○ Not started · view steps"). */
   onViewLiveRun?: () => void;
 }
 
