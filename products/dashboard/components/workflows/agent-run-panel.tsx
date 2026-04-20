@@ -325,6 +325,7 @@ export function AgentRunPanel({
   const [model, setModel] = useState("claude-sonnet-4-6");
   const [chatFocused, setChatFocused] = useState(false);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const chatEnabled = false;
 
   const run = useMemo(() => (task ? pickSeedRun(task) : SEED_NOT_STARTED), [task?.id, task?.status, task?.checkpoint]); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -603,8 +604,10 @@ export function AgentRunPanel({
           <textarea
             ref={textareaRef}
             className="arp-chat-input"
-            placeholder="Ask or instruct the agent…"
+            placeholder="Agent chat integration not available yet"
             rows={1}
+            readOnly={!chatEnabled}
+            aria-readonly={!chatEnabled}
             onFocus={() => setChatFocused(true)}
             onBlur={() => setChatFocused(false)}
             onInput={(e) => {
@@ -613,6 +616,7 @@ export function AgentRunPanel({
               el.style.height = `${Math.min(el.scrollHeight, 112)}px`;
             }}
             onKeyDown={(e) => {
+              if (!chatEnabled) return;
               if (e.key === "Enter" && !e.shiftKey) {
                 e.preventDefault();
                 // TODO: wire to real agent integration
@@ -625,6 +629,7 @@ export function AgentRunPanel({
                 className="arp-model-select"
                 aria-label="Model"
                 value={model}
+                disabled={!chatEnabled}
                 onChange={(e) => setModel(e.target.value)}
               >
                 <option value="claude-sonnet-4-6">Sonnet 4.6</option>
@@ -637,6 +642,8 @@ export function AgentRunPanel({
               type="button"
               className="arp-chat-send"
               aria-label="Send message"
+              aria-disabled={!chatEnabled}
+              disabled={!chatEnabled}
               data-testid="arp-chat-send"
             >
               <ChevronUp size={14} aria-hidden />

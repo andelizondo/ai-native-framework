@@ -1973,6 +1973,11 @@ body {
   border-color: var(--border-hi);
   color: var(--t1);
 }
+.arp-model-select:disabled {
+  cursor: not-allowed;
+  color: var(--t3);
+  opacity: 0.72;
+}
 .arp-model-select:focus-visible {
   outline: 2px solid var(--accent);
   outline-offset: 2px;
@@ -1998,6 +2003,9 @@ body {
   padding: 0;
 }
 .arp-chat-input::placeholder { color: var(--t3); }
+.arp-chat-input[readonly] {
+  cursor: default;
+}
 .arp-chat-send {
   width: 28px;
   height: 28px;
@@ -2019,6 +2027,12 @@ body {
   opacity: 0.92;
   transform: translateY(-1px);
   box-shadow: 0 6px 14px color-mix(in srgb, var(--accent) 22%, transparent);
+}
+.arp-chat-send:disabled {
+  cursor: not-allowed;
+  opacity: 0.48;
+  transform: none;
+  box-shadow: none;
 }
 .arp-chat-send:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 /* "View live run" button in task drawer (kept for legacy — no longer rendered) */
