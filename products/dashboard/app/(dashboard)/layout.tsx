@@ -53,7 +53,11 @@ async function loadSidebarWorkflowTree(): Promise<{
           repo.listAllTasks(),
         ]);
         return pickPendingCheckpoints({ templates, instances, tasks, events: [] }).length;
-      } catch {
+      } catch (error) {
+        captureError(error, {
+          feature: "sidebar.pending_count",
+          action: "loadBadgeCount",
+        });
         return 0;
       }
     })(),
