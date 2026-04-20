@@ -326,7 +326,7 @@ export function AgentRunPanel({
   const [chatFocused, setChatFocused] = useState(false);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
-  const run = useMemo(() => (task ? pickSeedRun(task) : SEED_NOT_STARTED), [task?.id, task?.status]); // eslint-disable-line react-hooks/exhaustive-deps
+  const run = useMemo(() => (task ? pickSeedRun(task) : SEED_NOT_STARTED), [task?.id, task?.status, task?.checkpoint]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Reset expanded state whenever task or run changes.
   const [expandedSteps, setExpandedSteps] = useState<Set<string>>(
@@ -334,7 +334,7 @@ export function AgentRunPanel({
   );
   useEffect(() => {
     if (task) setExpandedSteps(initialExpanded(task, run.steps));
-  }, [task?.id, task?.status]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [task?.id, task?.status, task?.checkpoint]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Analytics on open.
   useEffect(() => {

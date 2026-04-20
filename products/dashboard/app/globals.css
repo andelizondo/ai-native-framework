@@ -994,7 +994,9 @@ body {
   letter-spacing: 0.01em;
   transition: color 0.15s;
 }
-.td-playbook-clickable:hover .td-pb-open-hint { color: var(--accent); }
+.td-playbook-clickable:hover .td-pb-open-hint,
+.td-playbook-clickable:focus-visible .td-pb-open-hint,
+.td-playbook-clickable:focus-within .td-pb-open-hint { color: var(--accent); }
 .td-agent-profile-icon,
 .td-pb-icon {
   width: 32px;
