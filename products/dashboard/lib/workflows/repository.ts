@@ -13,6 +13,7 @@ import type {
   WorkflowTask,
   WorkflowTaskCreateInput,
   WorkflowTaskPatch,
+  WorkflowTaskStatus,
   WorkflowTaskTemplate,
   WorkflowTemplate,
 } from "./types";
@@ -458,6 +459,8 @@ export function createWorkflowRepository(
           stage_id: input.stageId,
           title: input.title,
           description: input.description ?? "",
+          status: "not_started",
+          substatus: "",
           checkpoint: input.checkpoint ?? false,
           triggers: input.triggers ?? [],
           gates: input.gates ?? [],
@@ -469,6 +472,33 @@ export function createWorkflowRepository(
         .single();
 
       return mapTask(unwrap("createTask", data, error) as WorkflowTaskRow);
+    },
+
+    async updateTaskIfStatus(
+      taskId: string,
+      expectedStatus: WorkflowTaskStatus,
+      patch: WorkflowTaskPatch,
+    ): Promise<WorkflowTask | null> {
+      const row = patchToRow(patch);
+      if (Object.keys(row).length === 0) {
+        throw new WorkflowRepositoryError("updateTaskIfStatus called with empty patch");
+      }
+
+      const { data, error } = await client
+        .from("workflow_tasks")
+        .update(row)
+        .eq("id", taskId)
+        .eq("status", expectedStatus)
+        .select("*")
+        .maybeSingle();
+
+      if (error) {
+        throw new WorkflowRepositoryError("updateTaskIfStatus failed", error);
+      }
+      if (!data) {
+        return null;
+      }
+      return mapTask(data as WorkflowTaskRow);
     },
 
     async updateTask(taskId: string, patch: WorkflowTaskPatch): Promise<WorkflowTask> {

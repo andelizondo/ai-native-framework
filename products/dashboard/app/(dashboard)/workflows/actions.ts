@@ -436,13 +436,14 @@ export async function startTaskAction(
   if (!trimmedId) throw new Error("startTaskAction: taskId is required");
 
   const repo = await getServerWorkflowRepository();
-  const current = await repo.getTask(trimmedId);
-  if (!current) throw new Error("startTaskAction: task not found");
-  if (current.status !== "not_started") {
+  const task = await repo.updateTaskIfStatus(trimmedId, "not_started", {
+    status: "active",
+  });
+  if (!task) {
+    const current = await repo.getTask(trimmedId);
+    if (!current) throw new Error("startTaskAction: task not found");
     throw new Error("startTaskAction: task is not in not_started state");
   }
-
-  const task = await repo.updateTask(trimmedId, { status: "active" });
 
   try {
     await repo.addEvent(trimmedId, {
@@ -475,15 +476,16 @@ export async function cancelRunningTaskAction(
   }
 
   const repo = await getServerWorkflowRepository();
-  const current = await repo.getTask(trimmedId);
-  if (!current) {
-    throw new Error("cancelRunningTaskAction: task not found");
-  }
-  if (current.status !== "active") {
+  const task = await repo.updateTaskIfStatus(trimmedId, "active", {
+    status: "blocked",
+  });
+  if (!task) {
+    const current = await repo.getTask(trimmedId);
+    if (!current) {
+      throw new Error("cancelRunningTaskAction: task not found");
+    }
     throw new Error("cancelRunningTaskAction: task is not active");
   }
-
-  const task = await repo.updateTask(trimmedId, { status: "blocked" });
 
   try {
     await repo.addEvent(trimmedId, {
@@ -516,15 +518,16 @@ export async function retryBlockedTaskAction(
   }
 
   const repo = await getServerWorkflowRepository();
-  const current = await repo.getTask(trimmedId);
-  if (!current) {
-    throw new Error("retryBlockedTaskAction: task not found");
-  }
-  if (current.status !== "blocked") {
+  const task = await repo.updateTaskIfStatus(trimmedId, "blocked", {
+    status: "active",
+  });
+  if (!task) {
+    const current = await repo.getTask(trimmedId);
+    if (!current) {
+      throw new Error("retryBlockedTaskAction: task not found");
+    }
     throw new Error("retryBlockedTaskAction: task is not blocked");
   }
-
-  const task = await repo.updateTask(trimmedId, { status: "active" });
 
   try {
     await repo.addEvent(trimmedId, {

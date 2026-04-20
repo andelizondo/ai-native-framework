@@ -12,7 +12,7 @@
  */
 
 import { describe, expect, it, vi, beforeEach } from "vitest";
-import { render, screen, within } from "@testing-library/react";
+import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 
 import { ProcessMatrix } from "@/components/workflows/process-matrix";
@@ -241,7 +241,7 @@ describe("ProcessMatrix", () => {
         title: "New task",
       }),
     );
-    expect(screen.getByTestId("task-card-created-1")).toBeInTheDocument();
+    expect(await screen.findByTestId("task-card-created-1")).toBeInTheDocument();
   });
 
   it("removes a task after confirm", async () => {
@@ -257,6 +257,8 @@ describe("ProcessMatrix", () => {
     await user.click(screen.getByRole("button", { name: "Delete" }));
 
     expect(mockDeleteTaskAction).toHaveBeenCalledWith("k-1");
-    expect(screen.queryByTestId("task-card-k-1")).not.toBeInTheDocument();
+    await waitFor(() => {
+      expect(screen.queryByTestId("task-card-k-1")).not.toBeInTheDocument();
+    });
   });
 });

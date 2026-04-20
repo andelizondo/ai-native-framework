@@ -29,6 +29,14 @@ const ALLOWED_EVENTS = new Set([
   "workflow.run_retried",
 ]);
 
+const WORKFLOW_TASK_INSTANCE_EVENTS = new Set([
+  "workflow.checkpoint_approved",
+  "workflow.checkpoint_rejected",
+  "workflow.task_started",
+  "workflow.run_cancelled",
+  "workflow.run_retried",
+]);
+
 type EventBody = {
   event_name: string;
   occurred_at?: string;
@@ -79,13 +87,7 @@ function sanitizePayload(
     return { task_id };
   }
 
-  if (
-    eventName === "workflow.checkpoint_approved" ||
-    eventName === "workflow.checkpoint_rejected" ||
-    eventName === "workflow.task_started" ||
-    eventName === "workflow.run_cancelled" ||
-    eventName === "workflow.run_retried"
-  ) {
+  if (WORKFLOW_TASK_INSTANCE_EVENTS.has(eventName)) {
     const task_id = clampString(payload.task_id, 80);
     const instance_id = clampString(payload.instance_id, 80);
     if (!task_id || !instance_id) return null;

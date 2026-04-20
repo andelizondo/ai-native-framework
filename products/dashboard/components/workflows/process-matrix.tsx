@@ -100,8 +100,24 @@ export function ProcessMatrix({
       apply: (tasks: WorkflowTask[]) => WorkflowTask[],
       commit: () => Promise<WorkflowTask | void>,
     ) => {
-      const previous = localTasks;
-      setLocalTasks(apply(previous));
+      const snapshot = localTasks;
+      const optimistic = apply(snapshot);
+      const snapshotById = new Map(snapshot.map((task) => [task.id, task]));
+      const optimisticById = new Map(optimistic.map((task) => [task.id, task]));
+      const changedTaskIds = new Set<string>();
+
+      for (const task of snapshot) {
+        if (optimisticById.get(task.id) !== task) {
+          changedTaskIds.add(task.id);
+        }
+      }
+      for (const task of optimistic) {
+        if (snapshotById.get(task.id) !== task) {
+          changedTaskIds.add(task.id);
+        }
+      }
+
+      setLocalTasks((current) => apply(current));
 
       startTransition(async () => {
         try {
@@ -114,7 +130,31 @@ export function ProcessMatrix({
             );
           }
         } catch (error) {
-          setLocalTasks(previous);
+          setLocalTasks((current) => {
+            const reverted: WorkflowTask[] = [];
+            const restoredIds = new Set<string>();
+
+            for (const task of current) {
+              if (!changedTaskIds.has(task.id)) {
+                reverted.push(task);
+                continue;
+              }
+
+              const snapshotTask = snapshotById.get(task.id);
+              if (snapshotTask) {
+                reverted.push(snapshotTask);
+                restoredIds.add(task.id);
+              }
+            }
+
+            for (const task of snapshot) {
+              if (changedTaskIds.has(task.id) && !restoredIds.has(task.id)) {
+                reverted.push(task);
+              }
+            }
+
+            return reverted;
+          });
           captureError(error, { feature: "workflows.process_matrix_edit" });
         }
       });

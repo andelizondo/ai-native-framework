@@ -16,6 +16,8 @@ import { Bell, Pencil } from "lucide-react";
  * Visual contract: prototype `TopBar` (`Process Canvas.html`).
  */
 
+const WORKFLOW_INSTANCE_ROUTE_REGEX = /^\/workflows\/(?!templates(?:\/|$))[^/]+\/?$/;
+
 const ROUTE_LABELS: ReadonlyArray<{ test: (path: string) => boolean; crumbs: string[] }> = [
   { test: (p) => p === "/", crumbs: ["Overview"] },
   { test: (p) => p === "/framework/skills" || p.startsWith("/framework/skills/"), crumbs: ["Skills"] },
@@ -31,8 +33,7 @@ const ROUTE_LABELS: ReadonlyArray<{ test: (path: string) => boolean; crumbs: str
   // they get their own ROUTE_LABELS entry — don't get mis-labelled as
   // an instance crumb.
   {
-    test: (p) =>
-      /^\/workflows\/(?!templates(?:\/|$))[^/]+\/?$/.test(p),
+    test: (p) => WORKFLOW_INSTANCE_ROUTE_REGEX.test(p),
     crumbs: ["Workflows", "Instance"],
   },
 ];
@@ -54,7 +55,7 @@ export function TopBar() {
   const searchParams = useSearchParams();
   const crumbs = deriveCrumbs(pathname);
   const isWorkflowInstanceRoute =
-    !!pathname && /^\/workflows\/(?!templates(?:\/|$))[^/]+\/?$/.test(pathname);
+    !!pathname && WORKFLOW_INSTANCE_ROUTE_REGEX.test(pathname);
   const editMode = searchParams.get("edit") === "1";
 
   function toggleEditMode() {

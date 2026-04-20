@@ -231,7 +231,7 @@ describe("TaskDrawer", () => {
     it("shows active playbook row with stop control for running task", () => {
       renderDrawer({ status: "active", checkpoint: false, playbook: "demo-pb" });
       const playbookCard = screen.getByTestId("td-playbook-card");
-      expect(playbookCard).toHaveAttribute("role", "button");
+      expect(playbookCard).not.toHaveAttribute("role", "button");
       expect(screen.getByTestId("td-pb-stop-run-btn")).toBeInTheDocument();
     });
 
@@ -300,6 +300,12 @@ describe("TaskDrawer", () => {
   });
 
   describe("Playbook chat affordance", () => {
+    it("only exposes button semantics when a playbook handler is provided", () => {
+      renderDrawer({ status: "complete", checkpoint: false, playbook: "demo-pb" });
+
+      expect(screen.getByTestId("td-playbook-card")).not.toHaveAttribute("role", "button");
+    });
+
     it("invokes onOpenPlaybookPrompt when the playbook card is clicked", async () => {
       const onOpenPlaybookPrompt = vi.fn();
       const user = userEvent.setup();
@@ -311,7 +317,9 @@ describe("TaskDrawer", () => {
         onOpenPlaybookPrompt,
       );
 
-      await user.click(screen.getByTestId("td-playbook-card"));
+      const playbookCard = screen.getByTestId("td-playbook-card");
+      expect(playbookCard).toHaveAttribute("role", "button");
+      await user.click(playbookCard);
       expect(onOpenPlaybookPrompt).toHaveBeenCalledTimes(1);
     });
   });

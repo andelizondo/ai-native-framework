@@ -141,7 +141,13 @@ export function AddTaskModal({
   onClose,
   onCreate,
 }: AddTaskModalProps) {
-  const [form, setForm] = useState({
+  const [form, setForm] = useState<{
+    title: string;
+    description: string;
+    agent: string | null;
+    skill: string | null;
+    playbook: string;
+  }>({
     title: "",
     description: "",
     agent: "PM",
@@ -235,7 +241,7 @@ export function AddTaskModal({
             label="Agent skill"
             emptyLabel="No skill"
             searchPlaceholder="Search skills"
-            value={form.skill}
+            value={form.skill ?? ""}
             options={normalizedSkillOptions}
             onSelect={(value) => {
               const selected = AGENTS.find((agent) => agent[1] === value);
@@ -244,8 +250,10 @@ export function AddTaskModal({
               );
               setForm((current) => ({
                 ...current,
-                skill: value,
-                agent: selected?.[0] ?? selectedFrameworkSkill?.name ?? current.agent,
+                skill: value || null,
+                agent: value
+                  ? selected?.[0] ?? selectedFrameworkSkill?.name ?? current.agent
+                  : null,
               }));
             }}
           />

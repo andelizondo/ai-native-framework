@@ -225,7 +225,7 @@ test.describe("workflows — matrix edit mode (AEL-52)", () => {
 
     const modal = page.getByRole("dialog", { name: "New task" });
     await expect(modal).toBeVisible();
-    await expect(modal.getByText(/·/)).toBeVisible();
+    await expect(modal.getByPlaceholder("Task title")).toBeVisible();
 
     await modal.getByPlaceholder("Task title").fill("E2E created task");
     await modal.getByRole("button", { name: /create task/i }).click();

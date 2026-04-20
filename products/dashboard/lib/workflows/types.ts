@@ -211,6 +211,17 @@ export interface WorkflowRepository {
     taskId: string,
     nextStatus: WorkflowCheckpointTransitionStatus,
   ): Promise<WorkflowTask | null>;
+  /**
+   * Atomic conditional update for ordinary task writes that depend on
+   * the current task status. Returns the updated row when the status
+   * predicate still matched at write time, or `null` when the row is
+   * missing / hidden / no longer in `expectedStatus`.
+   */
+  updateTaskIfStatus(
+    taskId: string,
+    expectedStatus: WorkflowTaskStatus,
+    patch: WorkflowTaskPatch,
+  ): Promise<WorkflowTask | null>;
   listInstances(templateId?: string): Promise<WorkflowInstance[]>;
   /**
    * All tasks across every instance the caller can read (RLS still

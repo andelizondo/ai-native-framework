@@ -195,7 +195,8 @@ function DetailsTab({
   const isPendingApproval = task.status === "pending_approval";
   const isActive = task.status === "active";
   const isNotStarted = task.status === "not_started";
-  const playbookCardClickable = !isNotStarted;
+  const playbookCardClickable =
+    !isNotStarted && typeof onOpenPlaybookPrompt === "function";
   const skillIcon = task.skill ? (SKILL_ICONS[task.skill] ?? "🤖") : "🤖";
   const skillItem = task.skill
     ? skillOptions.find((item) => item.name === task.skill || item.id === task.skill)

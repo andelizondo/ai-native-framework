@@ -465,6 +465,51 @@ describe("workflow repository", () => {
     });
   });
 
+  describe("createTask + updateTaskIfStatus", () => {
+    it("creates instance tasks with an explicit not_started state", async () => {
+      const repo = createWorkflowRepository(makeFakeClient(store));
+      const instance = await repo.createInstance("client-delivery", "Acme Corp");
+
+      const created = await repo.createTask({
+        instanceId: instance.id,
+        roleId: "sales",
+        stageId: "pre-sales",
+        title: "Follow up",
+        description: "",
+      });
+
+      expect(created.status).toBe("not_started");
+      expect(created.substatus).toBe("");
+    });
+
+    it("updates a task only when the expected status still matches", async () => {
+      const repo = createWorkflowRepository(makeFakeClient(store));
+      const instance = await repo.createInstance("client-delivery", "Acme Corp");
+      const target = instance.tasks[0]!;
+
+      const transitioned = await repo.updateTaskIfStatus(target.id, "not_started", {
+        status: "active",
+      });
+
+      expect(transitioned).not.toBeNull();
+      expect(transitioned!.status).toBe("active");
+      expect((await repo.getTask(target.id))!.status).toBe("active");
+    });
+
+    it("returns null when updateTaskIfStatus sees a stale current status", async () => {
+      const repo = createWorkflowRepository(makeFakeClient(store));
+      const instance = await repo.createInstance("client-delivery", "Acme Corp");
+      const target = instance.tasks[0]!;
+
+      const transitioned = await repo.updateTaskIfStatus(target.id, "active", {
+        status: "blocked",
+      });
+
+      expect(transitioned).toBeNull();
+      expect((await repo.getTask(target.id))!.status).toBe("not_started");
+    });
+  });
+
   describe("addEvent + getInstance", () => {
     it("appends an event and surfaces it via getInstance", async () => {
       const repo = createWorkflowRepository(makeFakeClient(store));
