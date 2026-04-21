@@ -318,6 +318,15 @@ export interface CreateTaskResult {
   task: WorkflowTask;
 }
 
+export interface UpdateTaskDetailsInput {
+  taskId: string;
+  title: string;
+  description?: string;
+  agent?: string | null;
+  skill?: string | null;
+  playbook?: string | null;
+}
+
 export async function createTaskAction(
   input: WorkflowTaskCreateInput,
 ): Promise<CreateTaskResult> {
@@ -367,6 +376,56 @@ export async function createTaskAction(
   } catch (eventError) {
     captureError(eventError, {
       feature: "workflows.create_task",
+      action: "addEvent",
+      extra: { task_id: task.id, instance_id: task.instanceId },
+    });
+  }
+
+  revalidatePath("/", "layout");
+  return { task };
+}
+
+export async function updateTaskDetailsAction(
+  input: UpdateTaskDetailsInput,
+): Promise<{ task: WorkflowTask }> {
+  const taskId = normalizeTaskField(input.taskId, "taskId", 80);
+  const title = normalizeTaskField(input.title, "title", MAX_TASK_TITLE_LENGTH);
+  const description = normalizeTaskField(
+    input.description ?? "",
+    "description",
+    MAX_TASK_DESCRIPTION_LENGTH,
+  );
+  const playbook = normalizeTaskField(
+    input.playbook ?? "",
+    "playbook",
+    MAX_PLAYBOOK_LENGTH,
+  );
+
+  if (!taskId || !title) {
+    throw new Error("updateTaskDetailsAction: taskId and title are required");
+  }
+
+  const repo = await getServerWorkflowRepository();
+  const task = await repo.updateTask(taskId, {
+    title,
+    description,
+    agent: input.agent ?? null,
+    skill: input.skill ?? null,
+    playbook: playbook || null,
+  });
+
+  try {
+    await repo.addEvent(task.id, {
+      name: "workflow.task_updated",
+      description: `Updated task: ${task.title}`,
+      payload: {
+        task_id: task.id,
+        instance_id: task.instanceId,
+      },
+    });
+  } catch (eventError) {
+    captureError(eventError, {
+      feature: "workflows.update_task_details",
       action: "addEvent",
       extra: { task_id: task.id, instance_id: task.instanceId },
     });

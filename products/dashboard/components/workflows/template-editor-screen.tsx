@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useRef, useState, useTransition } from "react";
-import { useRouter } from "next/navigation";
 import { Pencil, Plus, Trash2 } from "lucide-react";
 
 import { updateTemplateAction } from "@/app/(dashboard)/workflows/actions";
@@ -174,7 +173,6 @@ export function TemplateEditorScreen({
   skillOptions,
   playbookOptions,
 }: TemplateEditorScreenProps) {
-  const router = useRouter();
   const { setConfig } = useDashboardTopBar();
   const { capture } = useAnalytics();
   const draftRef = useRef(template);
@@ -269,7 +267,6 @@ export function TemplateEditorScreen({
           template_id: result.template.id,
           edited_by: "founder",
         });
-        router.push("/");
       } catch (error) {
         setSaveError(
           error instanceof Error && error.message

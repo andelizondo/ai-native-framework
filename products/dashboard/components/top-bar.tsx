@@ -121,9 +121,21 @@ export function TopBar({ initialPendingCount = 0 }: TopBarProps) {
               type="button"
               onClick={config.onSave}
               disabled={config.saveDisabled}
-              className="flex items-center gap-1.5 rounded-md border border-[#10b981] bg-[rgba(16,185,129,0.12)] px-2.5 py-1.5 text-[11.5px] font-semibold text-[#34d399] transition hover:bg-[rgba(16,185,129,0.18)] disabled:cursor-not-allowed disabled:opacity-50"
+              className={cn(
+                "flex items-center gap-1.5 rounded-md px-2.5 py-1.5 text-[11.5px] font-semibold transition focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent",
+                config.saveDisabled
+                  ? "cursor-not-allowed border border-border bg-bg-2 text-t3 opacity-70"
+                  : "border border-[#10b981] bg-[#10b981] text-white shadow-[0_0_0_1px_rgba(16,185,129,0.16),0_8px_22px_rgba(16,185,129,0.24)] hover:bg-[#22c55e]",
+              )}
             >
-              ✓ Save workflow
+              <span
+                aria-hidden
+                className={cn(
+                  "h-1.5 w-1.5 rounded-full",
+                  config.saveDisabled ? "bg-t3" : "bg-white shadow-[0_0_10px_rgba(255,255,255,0.7)]",
+                )}
+              />
+              Save
             </button>
           ) : null}
 

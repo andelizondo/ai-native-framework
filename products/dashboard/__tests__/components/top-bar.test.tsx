@@ -129,7 +129,7 @@ describe("TopBar", () => {
     expect(
       screen.getByRole("textbox", { name: "Workflow template name" }),
     ).toHaveValue("Client Project Delivery");
-    expect(screen.getByRole("button", { name: /save workflow/i })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /save/i })).toBeInTheDocument();
     expect(screen.queryByTestId("topbar-my-tasks-btn")).not.toBeInTheDocument();
   });
 });

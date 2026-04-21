@@ -7,6 +7,7 @@ import {
   createTaskAction,
   deleteTaskAction,
   moveTaskAction,
+  updateTaskDetailsAction,
 } from "@/app/(dashboard)/workflows/actions";
 import { ConfirmModal } from "@/components/ui/confirm-modal";
 import { captureError } from "@/lib/monitoring";
@@ -47,10 +48,19 @@ export function ProcessMatrix({
   const [dragTaskId, setDragTaskId] = useState<string | null>(null);
   const [dragOverCell, setDragOverCell] = useState<string | null>(null);
   const [addTaskFor, setAddTaskFor] = useState<{
+    mode: "create" | "edit";
+    taskId?: string;
     roleId: string;
     roleName: string;
     stageId: string;
     stageName: string;
+    initialTask?: {
+      title: string;
+      description?: string;
+      agent?: string | null;
+      skill?: string | null;
+      playbook?: string | null;
+    };
   } | null>(null);
   const [confirmDeleteTask, setConfirmDeleteTask] = useState<WorkflowTask | null>(
     null,
@@ -340,7 +350,26 @@ export function ProcessMatrix({
                             editMode={editMode}
                             draggable
                             onClick={() => setSelectedTaskId(task.id)}
-                            onEdit={editMode ? () => setSelectedTaskId(task.id) : undefined}
+                            onEdit={
+                              editMode
+                                ? () =>
+                                    setAddTaskFor({
+                                      mode: "edit",
+                                      taskId: task.id,
+                                      roleId: role.id,
+                                      roleName: role.label,
+                                      stageId: stage.id,
+                                      stageName: stage.label,
+                                      initialTask: {
+                                        title: task.title,
+                                        description: task.description,
+                                        agent: task.agent ?? null,
+                                        skill: task.skill ?? null,
+                                        playbook: task.playbook ?? null,
+                                      },
+                                    })
+                                : undefined
+                            }
                             onRemove={
                               editMode ? () => setConfirmDeleteTask(task) : undefined
                             }
@@ -366,6 +395,7 @@ export function ProcessMatrix({
                             className="mx-empty-cell"
                             onClick={() =>
                               setAddTaskFor({
+                                mode: "create",
                                 roleId: role.id,
                                 roleName: role.label,
                                 stageId: stage.id,
@@ -415,16 +445,48 @@ export function ProcessMatrix({
 
       {addTaskFor ? (
         <AddTaskModal
+          mode={addTaskFor.mode}
           instanceId={instance.id}
           roleId={addTaskFor.roleId}
           roleName={addTaskFor.roleName}
           stageId={addTaskFor.stageId}
           stageName={addTaskFor.stageName}
+          initialTask={addTaskFor.initialTask}
           skillOptions={skillOptions}
           playbookOptions={playbookOptions}
           onClose={() => setAddTaskFor(null)}
           onSubmit={(input) => {
             setAddTaskFor(null);
+            if (addTaskFor.mode === "edit" && addTaskFor.taskId) {
+              runMutation(
+                (tasks) =>
+                  tasks.map((task) =>
+                    task.id === addTaskFor.taskId
+                      ? {
+                          ...task,
+                          title: input.title.trim(),
+                          description: input.description?.trim() ?? "",
+                          agent: input.agent ?? null,
+                          skill: input.skill ?? null,
+                          playbook: input.playbook ?? null,
+                        }
+                      : task,
+                  ),
+                async () => {
+                  const result = await updateTaskDetailsAction({
+                    taskId: addTaskFor.taskId!,
+                    title: input.title,
+                    description: input.description,
+                    agent: input.agent,
+                    skill: input.skill,
+                    playbook: input.playbook,
+                  });
+                  return result.task;
+                },
+              );
+              return;
+            }
+
             runMutation(
               (tasks) => tasks,
               async () => {
