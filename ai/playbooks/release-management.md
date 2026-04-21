@@ -1,121 +1,48 @@
 # Release management
 
-## Objective
+## Use When
 
-Automate repository-level semantic version tags and GitHub Releases with a reviewable release PR, while keeping release governance aligned with the repository's pull-request policy.
-
-## When to use
-
-- enabling release automation for this repository
-- changing versioning, changelog, release-tag, or GitHub Release behavior
-- auditing why release PRs, tags, or Releases are not being created
+- enabling or changing repo-level release automation
+- auditing missing release PRs, tags, or GitHub Releases
+- changing versioning, changelog, or release-token behavior
 
 ## Inputs
 
-- default release branch (`main` in this repository)
-- canonical merge policy from `ai/playbooks/pull-request-execution-loop.md`
-- release strategy (`release-please` + Conventional Commits for this repository)
-- current release baseline and tag history
-- GitHub Actions token configuration for release automation
+- default release branch
+- release strategy
+- current version baseline and tag history
+- token configuration
+- merge policy
 
 ## Outputs
 
-- a release workflow under `.github/workflows/`
-- repository release configuration (`release-please-config.json`, `.release-please-manifest.json`, optional `.github/release.yml`)
-- a canonical repo release version file (`version.txt`) that runtime telemetry can consume without tool-specific boilerplate
-- documented operator setup requirements
-- deterministic repo tags and GitHub Releases
+- release workflow
+- release configuration
+- canonical repo release source
+- documented operator setup
+
+## Steps
+
+1. Treat the repository, not a subpackage, as the released unit unless policy changes.
+2. Keep Conventional Commits as the release signal.
+3. Configure `release-please` in manifest mode.
+4. Keep root `version.txt` as the canonical runtime release value.
+5. Require `RELEASE_PLEASE_TOKEN` when downstream workflows must trigger.
+6. Keep changelog and GitHub Releases driven by the same release flow.
+7. For runtime consumers, derive production release from the repo tag and allow non-production SHA fallback.
+8. If Sentry release sync exists, publish the same release identifier the app emits.
+9. Validate the repo after release-config changes.
 
 ## Constraints
 
-- Treat the repository as the released unit; do not version `products/dashboard/` independently unless policy changes.
-- Use a dedicated automation token for release creation when downstream PR or tag workflows must trigger. `GITHUB_TOKEN` does not trigger most follow-on workflows created by the workflow itself.
-- Keep release tags SemVer-shaped and repo-level (`vX.Y.Z`).
-- Release automation is control-plane work. Route changes through the normal PR loop and required checks.
+- release tags stay repo-level and SemVer-shaped
+- control-plane changes still go through the normal PR loop
+- `GITHUB_TOKEN` is insufficient when follow-on workflows must trigger
 
-## Procedure
+## References
 
-1. Confirm the released unit is the whole repository, not a subpackage.
-2. Keep Conventional Commits as the release signal:
-   - `feat:` => minor
-   - `fix:` => patch
-   - `!` or `BREAKING CHANGE:` => major
-3. Configure `release-please` in manifest mode for repo-root releases.
-4. Keep root `version.txt` as the canonical repo release value for runtime consumers; `simple` release strategy updates this file automatically.
-5. Seed `.release-please-manifest.json` with the current baseline version so the first automated release starts from an explicit point.
-6. Add a release workflow on `main` and `workflow_dispatch`.
-7. Require a dedicated `RELEASE_PLEASE_TOKEN` secret before automation runs:
-   - this token should belong to a GitHub App or PAT that is allowed to open PRs and create tags
-   - skipping on missing token is preferable to silently creating release PRs that bypass downstream checks
-8. Keep changelog ownership with release automation:
-   - `CHANGELOG.md` should be updated by the release PR
-   - GitHub Release entries should be generated from the same release flow
-9. Derive runtime release metadata from the canonical repo version instead of duplicating per-tool version files:
-   - production builds should emit the GitHub-tag form (`vX.Y.Z`)
-   - non-production environments may fall back to commit SHA
-10. If Sentry release sync is enabled, publish a release on `release.published` using the same identifier the app emits at runtime.
-11. If release notes need category grouping for manual GitHub Releases, maintain `.github/release.yml`.
-12. Validate the repository after configuration changes with `npm run validate`.
-
-## Observability alignment for products
-
-When wiring a new product to the canonical release source, follow these rules so all services stay in sync:
-
-1. **Read `version.txt` at build time using `__dirname`-relative candidate paths**, not `process.cwd()`:
-   ```typescript
-   const candidates = [
-     path.resolve(__dirname, "../../version.txt"), // repo root version.txt
-     path.resolve(__dirname, "version.txt"),        // local fallback beside config file
-   ];
-   ```
-   This is stable across build entrypoints regardless of invocation directory.
-
-2. **Inject the resolved release at build time** (e.g., via `next.config.ts` `env` block) so client, server, and edge runtimes all receive the same baked-in value. Also set `SENTRY_RELEASE` / `NEXT_PUBLIC_SENTRY_RELEASE` from the same resolved value if not already set externally.
-
-3. **Production → named tag; all other environments → commit SHA fallback.** Never let a non-production build emit a named release version.
-
-4. **Use a single release resolver call per Sentry runtime.** Assign it once and use it for both `Sentry.init({ release })` and `initialScope.tags.app_release` so they are guaranteed to match even when `SENTRY_RELEASE` is overridden externally:
-   ```typescript
-   const release = getServerSentryRelease();
-   Sentry.init({ release, initialScope: { tags: { app_release: release } } });
-   ```
-   Never call `getAppRelease()` and `getServerSentryRelease()` separately and assign them to different fields — they can diverge.
-
-5. **For PostHog**, call `ph.register(getReleaseProperties())` in the client `loaded` callback, and spread `getReleaseProperties()` into every server-side capture call.
-
-6. **`lib/release.ts` is the shared resolution abstraction.** Do not re-implement release reading per-service; extend that module if new resolution logic is needed.
-
-## Staging → main promotion
-
-The detailed operating loop for opening and merging the production-publish PR now lives in `ai/playbooks/publish-to-production.md`. This section keeps only the release-specific constraints that promotion must preserve.
-
-When the repository uses a 3-tier environment model (`staging` as the integration branch):
-
-1. **Do not squash** when merging `staging` → `main`. Squashing collapses conventional commit history and breaks release-please version detection. Use a regular merge commit.
-2. **No separate code review required** for the promotion PR when CI is green on `staging`. The code was already reviewed when it landed on `staging`.
-3. **release-please monitors `main`**. Conventional commits that land on `main` via the `staging` promotion trigger release PR creation or updates automatically.
-4. **Mergify staging-promotion queue** (if configured) handles the merge with `merge_method: merge`. See `.mergify.yml` for the `staging-promotion` queue rule.
-5. If the promotion PR is created manually, ensure the PR title is descriptive but does not need to follow conventional commit format — the individual feature commits on `staging` already carry the semantic version signals.
-
-## Failure modes
-
-- No release PR appears after merge to `main`:
-  - verify `RELEASE_PLEASE_TOKEN` is configured
-  - verify the workflow ran on the current `main` SHA
-  - verify merged commits follow Conventional Commits
-- Release PR opens but required checks do not run:
-  - confirm the workflow is using `RELEASE_PLEASE_TOKEN`, not `GITHUB_TOKEN`
-- Tags or Releases are missing after a release PR merge:
-  - inspect the `release-please` workflow on the merge commit
-  - verify the manifest and config paths still match the workflow inputs
-
-## Related artifacts
-
+- `version.txt`
 - `.github/workflows/release-please.yml`
 - `release-please-config.json`
 - `.release-please-manifest.json`
-- `version.txt`
-- `.github/release.yml`
-- `.github/workflows/sentry-release.yml`
-- `ai/playbooks/pull-request-execution-loop.md`
 - `ai/playbooks/publish-to-production.md`

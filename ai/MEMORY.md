@@ -1,106 +1,55 @@
 # MEMORY.md
 
-This file stores durable repository memory for agents. It is not a transcript and it is not a dumping ground for temporary notes.
+Durable repository memory only. Keep one-line facts, open loops, and dated decisions. Move normative detail into playbooks, docs, or schema.
 
 ## Stable Facts
 
-- This repository is the canonical home of an AI-native operating framework for product-led companies.
-- Canonical truth is ordered by the authority ladder in `AGENTS.md`, with schema and policy above explanatory Markdown.
-- The repository currently defines the following first-class operating playbooks (each is atomic; see `ai/PLAYBOOKS.md` for optional bootstrap order):
-  - `ai/playbooks/repository-foundation.md`
-  - `ai/playbooks/pull-request-execution-loop.md`
-  - `ai/playbooks/agent-context-bundle.md`
-  - `ai/playbooks/framework-review.md`
-  - `ai/playbooks/release-management.md`
-  - `ai/playbooks/publish-to-production.md`
-  - `ai/playbooks/resolve-github-issues.md`
-  - `ai/playbooks/resolve-sentry-issues.md`
-- The canonical validation command is `npm run validate`.
-- The framework is explicitly provider-agnostic at the core layer.
-- Provider-agnostic logical tool contracts live under `interfaces/` (`interfaces/interfaces.yaml`), separate from the repository-local agent runtime bundle under `ai/`.
-- Repository release versioning now uses root `version.txt` as the canonical repo-level runtime release source, with production telemetry expected to align to the GitHub tag form `vX.Y.Z`.
-- For this repository, pull requests should be opened ready for review by default unless the user explicitly asks for a draft PR.
-- For this repository, agents must wait for every configured merge gate on the current head SHA to complete successfully before merging, even if host branch protection is missing or misconfigured.
-- For this repository, CodeRabbit should be allowed to start automatically; `@coderabbitai review` is only for stalled automatic runs (no signal after ~15 s, or operator agrees after the in-progress wait). When `CHANGES_REQUESTED` persists after threads are addressed, use the canonical prompt in `ai/playbooks/pull-request-execution-loop.md` section 3 item 6 instead.
-- Agent runtime layout: root `AGENTS.md` only; `ai/SKILLS.md` and `ai/skills/` for skills; `ai/PLAYBOOKS.md` and `ai/playbooks/` for unitary procedures; `ai/MEMORY.md` for durable memory.
-- The top-level repository-local skills are `Designer`, `PM`, `Developer`, and `Framework Keeper`.
-- Keep `spec/policy/event-taxonomy.yaml` aligned with runtime emitters (event names, envelope fields, and payload shapes must stay consistent across policy, specs, and product code).
-- For product features in this repository, Sentry should be considered part of the default implementation surface for both frontend and backend work; detailed feature-level expectations live in `ai/skills/developer.md`.
-- The framework defines two first-class governed documentation standards: `docs/ANALYTICS_STANDARD.md` (events, PII, error monitoring) and `docs/QUALITY_STANDARD.md` (verification, testing, evals, release confidence). They are separate surfaces that cross-reference each other; do not collapse them.
-- The Quality Standard defines 3 maturity phases for products: Phase 1 (Tooling Foundation), Phase 2 (AI Reliability), Phase 3 (Scaling Confidence). Phase advancement requires checking off the required list in the standard; agents must not self-advance a phase.
-- For `products/dashboard`, authentication is now a canonical product slice. Product code should depend on the repo-owned auth boundary under `products/dashboard/lib/auth/`; provider-specific Supabase calls belong only inside that adapter layer.
-- For dashboard auth flows, identity lifecycle is part of the canonical implementation surface: successful sign-in should flow through `lib/analytics/identity.ts` and `lib/monitoring`, and sign-out should clear both analytics and monitoring identity state.
-- The Quality Standard allows a guarded E2E-only authenticated-session bypass when external auth providers make deterministic preview-browser setup impractical, but the public login flow, callback error state, and protected-route redirect behavior must still remain in the blocking browser suite.
-- GitHub issue triage in this repository now has a governed batching pattern: when multiple open issues share the same failing workflow step, file, or root cause, they should be treated as one fix group, with intent commented on every issue before editing and outcome commented on every issue after the PR exists.
-- Sentry issues in this repository are treated as active governed work items, not passive observability artifacts: assign the issue, keep it `unresolved` while the fix is in flight, leave a triage note linked to the PR, and leave a resolution note before marking it `resolved`.
-- Closing a Sentry issue requires explicit evidence: the linked PR merge timestamp, the issue `lastSeen` timestamp, and the recent issue events and releases must support closure.
-
-## Current Bundle State
-
-- `AGENTS.md` at the repository root is the first-read bootstrap file for agents.
-- `ai/SKILLS.md` is the discovery index for role- and task-oriented skills.
-- `ai/skills/` contains the full skill bodies loaded only when selected from the index.
-- `ai/PLAYBOOKS.md` indexes unitary procedures; bodies live in `ai/playbooks/`.
-- `ai/MEMORY.md` is reserved for durable facts, dated decisions, and open loops worth carrying across sessions.
+- Canonical framework home: this repository.
+- Authority order: schema -> validated examples/processes -> policy -> interfaces -> playbooks -> docs -> agent bundle.
+- Canonical validation command: `npm run validate`.
+- Provider-agnostic core is mandatory.
+- Provider-agnostic tool contracts live in `interfaces/interfaces.yaml`; repo-local agent runtime lives under `ai/`.
+- Agent runtime layout: root `AGENTS.md`; `ai/SKILLS.md`; `ai/skills/`; `ai/PLAYBOOKS.md`; `ai/playbooks/`; `ai/MEMORY.md`.
+- Top-level repo-local skills: `Designer`, `PM`, `Developer`, `Framework Keeper`, `Quality Engineer`.
+- Root `version.txt` is the canonical repo release value; production telemetry should align with tag form `vX.Y.Z`.
+- Feature PRs open ready for review by default unless the user asks for draft.
+- Feature branches target `staging`; `staging` -> `main` is the governed production path.
+- Pull requests must not merge until every configured gate on the current head SHA is green.
+- CodeRabbit is substance-gating: thread closure needs a visible outcome, not just a green check.
+- Wait for CodeRabbit auto-review first; use `@coderabbitai review` only for stalled runs.
+- If current-head thread closure is complete but `CHANGES_REQUESTED` persists, use the canonical approval prompt from the PR playbook.
+- Stale bot reviews on older SHAs may be dismissed by a maintainer only after current-head closure is complete and documented.
+- Keep `spec/policy/event-taxonomy.yaml` aligned with runtime emitters.
+- Sentry is part of the default implementation surface for frontend and backend feature work in this repo.
+- `docs/ANALYTICS_STANDARD.md` and `docs/QUALITY_STANDARD.md` are separate governed standards; do not collapse them.
+- Quality maturity phases are defined in `docs/QUALITY_STANDARD.md`; agents do not self-advance phases.
+- For `products/dashboard`, auth code outside adapters must depend on `products/dashboard/lib/auth/`.
+- Dashboard auth lifecycle must flow through shared analytics and monitoring identity helpers.
+- GitHub issue resolution uses grouped fixes when issues share a real root cause.
+- Sentry issue resolution requires assignment, in-flight notes, evidence-based closure, and PR linkage.
 
 ## Active Open Loops
 
-- Encode the current framework playbooks as machine-readable process artifacts under future `spec/processes/`.
-- Add `spec/processes/quality-standard-process.yaml` once process schemas exist, to machine-validate phase criteria and gate rules.
+- Encode playbooks as machine-readable process artifacts under future `spec/processes/`.
+- Add a process artifact for the Quality Standard once process schemas exist.
 
 ## Recent Decisions
 
-- 2026-04-11: Pull request playbook and `AGENTS.md` now state explicitly that the **executing agent** owns **merge completion** (or verifying merge-queue merge) when gates are green and policy allows; bounded polling or operator signal preferred over endless waits.
-- 2026-04-11: Agent bundle consolidated under `ai/` (indices, `playbooks/`, `skills/`, `MEMORY.md`); root keeps only `AGENTS.md` as the common entry point for tools. P0/P1/P2 remain de-emphasized as playbook identity (workflows may still use `p1-*` / `P1_*` names for traceability).
-- 2026-04-10: Adopted a repository-local agent context bundle built around `AGENTS.md` and files under `ai/`.
-- 2026-04-10: Added the agent context bundle as a first-class playbook in the framework.
-- 2026-04-11: Standardized the repository-local skills system on a low-cost `ai/SKILLS.md` index plus on-demand `ai/skills/` files, and seeded the first role-oriented skills as `Designer`, `PM`, and `Developer`.
-- 2026-04-11: Standardized pull request review policy on CodeRabbit auto-review via `.coderabbit.yaml` and moved low-risk merge execution to Mergify via `.mergify.yml`.
-- 2026-04-11: Tightened Dependabot scheduling for `npm` and GitHub Actions on `main`, grouped routine version updates, and labeled dependency PRs for the low-risk automation path.
-- 2026-04-11: Set repository-local agent behavior to open pull requests ready for review by default; draft PRs require an explicit user request.
-- 2026-04-11: Tightened pull request merge policy and `main` protection so merges wait for the full merge-gate set (`validate`, `decide`, and reviewer status) even if host protection is misconfigured.
-- 2026-04-11: Standardized CodeRabbit handling so automatic review is the default path and manual `@coderabbitai review` comments are only for stalled-review recovery.
-- 2026-04-11: Refined CodeRabbit recovery policy: auto-trigger only if no reviewer signal appears after about 15 seconds; once review has clearly started, poll up to 5 minutes and then ask the user before posting `@coderabbitai review`.
-- 2026-04-17: Documented canonical `@coderabbitai` approval prompt for clearing stale `CHANGES_REQUESTED` when threads are addressed; see playbook section 3 item 6. Reserve `@coderabbitai review` for stalled auto-runs only.
-- 2026-04-11: CodeRabbit `request_changes_workflow` enabled; pull request playbook and `AGENTS.md` require visible per-finding closure (fix or stated decision) before merge—green status alone is not enough.
-- 2026-04-11: CodeRabbit finding closure should be recorded in the review thread itself when possible, and stale or cancelled required jobs should be rerun on the current head before considering control-plane changes.
-- 2026-04-11: `p1-policy` `decide` polls required reviewer commit statuses (shared wait budget across contexts; `P1_POLICY_REVIEWER_STATUS_*` vars) so the check stays in progress while CodeRabbit is pending instead of failing immediately.
-- 2026-04-11: `decide` refreshes issue labels after earlier gates and polls for a `residual:*` label (`P1_POLICY_RESIDUAL_LABEL_*` vars) so the residual risk engine can land slightly after `decide` starts without failing red on a stale label read.
-- 2026-04-11: Added `Framework Keeper` as a repository-local skill and `ai/playbooks/framework-review.md` as the canonical procedure for auditing the framework itself for consistency, efficiency, and predictability.
-- 2026-04-12: Renamed `agents/` to `interfaces/` so provider-agnostic logical tool contracts are named for their actual role and remain distinct from the runtime bootstrap bundle under `ai/`.
-- 2026-04-12: When repository work is requested “via PR” or to “open a PR,” default execution should follow the pull request execution loop playbook rather than treating PR creation as a standalone publication step.
-- 2026-04-12: Tightened `docs/AI_NATIVE_FRAMEWORK.md` to prefer summary-level routing in large framework sections, keep detailed operating logic in canonical playbooks, pair `ai/SKILLS.md` with `ai/PLAYBOOKS.md` as adjacent but distinct surfaces, and use `skill layer` / `workflow library` terminology instead of the older `capability layer` / `process library` wording.
-- 2026-04-12: Recorded in Stable Facts that `spec/policy/event-taxonomy.yaml` must stay aligned with runtime emitters (PR #44 / dashboard product wiring).
-- 2026-04-12: Standardized repository-local developer guidance so Sentry is expected for frontend and backend feature work by default; the detailed required features and decision rules live in `ai/skills/developer.md`.
-- 2026-04-12: For review-finding closure, agents should reply directly on each CodeRabbit thread when they fix or disposition a finding; consolidated PR comments do not replace per-thread accounting, and agents should still post the direct reply even if CodeRabbit later auto-resolves the thread after re-review.
-- 2026-04-12 (PR #46 closure): **CodeRabbit rate limits** and **stale submitted reviews** can block merge even when the reviewer **status** is green. If `CHANGES_REQUESTED` remains only from older SHAs after thread closure, a maintainer may dismiss stale submissions (see playbook finding closure item 7). For **Mergify**, re-queue with `@mergifyio queue` and the queue name from `.mergify.yml`; clear a **`dequeued`** label if it blocks retry.
-- 2026-04-13: Standardized repository-level release automation on `release-please` in manifest mode with repo-wide SemVer tags, a dedicated `RELEASE_PLEASE_TOKEN` requirement for triggering downstream workflows, and a canonical release-management playbook under `ai/playbooks/release-management.md`.
-- 2026-04-13: Standardized dashboard release telemetry on a single app-release value derived from root `version.txt` for production builds and commit SHA fallback elsewhere; Sentry release sync on GitHub `release.published` is optional and activates only when Sentry secrets/vars are configured.
-- 2026-04-13: Established single-release-source principle for Sentry configurations: one `const release = getServerSentryRelease()` call drives both `Sentry.init({ release })` and `initialScope.tags.app_release` so the two values can never diverge when `SENTRY_RELEASE` is overridden externally. Never call `getAppRelease()` and a Sentry-specific resolver separately and assign them to different fields.
-- 2026-04-13: Standardized file-path resolution for repo-root artifacts consumed by nested packages: use `__dirname`-relative candidate paths (primary: `path.resolve(__dirname, "../../version.txt")`; fallback: `path.resolve(__dirname, "version.txt")`) rather than `process.cwd()`-relative paths so lookups are stable across build entrypoints regardless of invocation directory.
-- 2026-04-13: Configured CodeRabbit to skip automated review of release-please PRs via `ignore_title_patterns: ["^chore: release"]` in `.coderabbit.yaml` to eliminate review overhead on machine-generated release commits. Pattern matches the configured `pull-request-title-pattern` in `release-please-config.json` (`"chore: release ${version}"`).
-- 2026-04-13: Added `docs/QUALITY_STANDARD.md` as a first-class framework standard covering verification layers, merge-gate model, CI execution model, 3-phase maturity (Tooling Foundation → AI Reliability → Scaling Confidence), dashboard reference expectations, agent responsibilities, and incident-to-regression discipline. Default stack: Vitest, RTL, MSW, Playwright, Sentry, PostHog, Vercel previews. Keep Analytics Standard as a separate governed surface; the two cross-reference each other at observability and production feedback loop boundaries.
-- 2026-04-13: Implemented Phase 1 (Tooling Foundation) for products/dashboard: Vitest + RTL + MSW unit/component/integration tests, Playwright critical-path E2E + axe accessibility, `test.yml` and `e2e.yml` CI workflows (both added as blocking gates in `.mergify.yml`), nightly.yml for full suite. Framework artifacts: `ai/playbooks/quality-standard-execution.md` (PR gate loop, nightly triage, incident-to-regression), `ai/skills/quality-engineer.md` (skill body). Merge gate model now requires: validate + test + e2e + CodeRabbit + decide.
-- 2026-04-13: The `e2e` CI check triggers via GitHub `deployment_status` event (Vercel preview must be active). `BASE_URL` env var is passed from `github.event.deployment_status.environment_url`. If Vercel is not connected, the e2e check will not run — escalate to human operator rather than skipping the gate.
-- 2026-04-17: Canonicalized dashboard auth as a governed product slice. Durable rules: keep provider-specific auth logic inside `products/dashboard/lib/auth/`, use shared analytics/monitoring identity helpers for sign-in and sign-out lifecycle, and allow only a secret-gated E2E authenticated-session bypass for deterministic browser verification when external auth setup is otherwise unstable on previews.
-- 2026-04-17: When rebasing a PR branch that conflicts in `ai/playbooks/` or `ai/skills/`, prefer the HEAD (main) version — those files were already user-reviewed and merged; the branch copy is stale.
-- 2026-04-17: E2E tests that require an external backend need two independent skip guards: app-config visibility (e.g. `isVisible()` on the form) to check whether the feature is enabled in the deployed app, and runner env vars (e.g. `NEXT_PUBLIC_SUPABASE_URL`) to check whether the backend is reachable from the test runner. Neither guard alone is sufficient.
-- 2026-04-18: Added first-class issue-resolution playbooks for GitHub and Sentry. GitHub issue work now standardizes batching by shared root cause with required pre-edit and post-PR comments on every issue; Sentry issue work now standardizes assignment, unresolved-in-flight status, triage and resolution notes, and evidence-based closure using PR merge time plus `lastSeen` and recent event data.
-- 2026-04-19: Mergify `staging-integration` queue requires `residual:low` label + `check-success = CodeRabbit` status + all gate checks (`validate`, `test`, `e2e`, `decide`). When Mergify shows NEUTRAL on a feature→staging PR, verify the `residual:low` label is present; if it is and the queue still does not pick up the PR, try `@mergifyio queue staging-integration`; if that also fails, squash-merge manually via `gh pr merge --squash`. The Mergify merge queue is only guaranteed to auto-trigger when all queue_conditions in `.mergify.yml` are simultaneously satisfied.
-- 2026-04-19: When a Linear issue tracks an implementation task, keep it in sync at every milestone throughout the PR loop — not just at the start and end. Required touchpoints: In Progress + plan comment (start), In Review + PR link attachment (PR open), CodeRabbit round comment (each review cycle), Done + closed checklist + next-issue pointer (merge). Each comment must be self-contained so any agent can resume cold. This pattern is codified in `ai/skills/developer.md` step 16.
-- 2026-04-18: Adopted a 3-tier deployment model (production / staging / development): `staging` is a long-lived protected branch mirroring `main`; feature PRs target `staging`; `staging` → `main` is the release gate using regular merge (not squash) to preserve conventional commit history for release-please; nightly CI targets `STAGING_URL` (never production); PostHog is Production-only (token unset on Preview/Development); Sentry remains active on staging with environment tags for filtering. Full procedure in `ai/playbooks/environment-separation.md`.
-- 2026-04-19: Added `ai/playbooks/publish-to-production.md` as the canonical answer to "how do I open a PR to `main`?" in this repository. Direct feature PRs to `main` remain invalid; the governed production path is a ready-for-review `staging` -> `main` promotion PR merged through the `staging-promotion` queue with a regular merge commit, followed by release-please verification on the new `main` head.
-- 2026-04-19: Tightened PR publication discipline so agents must refresh their branch against the intended base branch before creating a PR; the post-publication branch-sync workflow remains a safety net, not a substitute for opening from a stale head.
-- 2026-04-19: Added an automated `main` → `staging` back-merge as the canonical closer of every production publish (`ai/playbooks/publish-to-production.md` §8). The publish sequence is now three PRs: feature → `staging` (squash), `staging` → `main` (merge), and `chore/back-merge-main-after-vX.Y.Z` → `staging` (merge). The third PR is opened and admin-merged by `.github/workflows/back-merge-to-staging.yml` on `release: published`, using `RELEASE_PLEASE_TOKEN` to bypass branch protection. `.mergify.yml` carries a `back-merge-to-staging` queue (`merge_method: merge`) as a fallback, and `staging-integration` now explicitly excludes `chore/back-merge-main-after-*` so a back-merge can never accidentally squash. Squashing the back-merge is the failure mode that leaves `staging` content-equal but history-divergent from `main` and forces every subsequent promotion PR open in `BEHIND`.
-- 2026-04-19: Mergify negation syntax is the `-` prefix on the whole condition, not `!~=`. An earlier `head !~= ^chore/back-merge-main-after-` exclusion in `.mergify.yml` was silently treated as a no-op, which let `staging-integration` admit back-merge PR #110 and squash it — re-breaking ancestry exactly the way the workflow was supposed to prevent. Always write `-head ~= ^pattern` for "head does not match". Also: when running the §8 manual back-merge fallback, **open the PR as draft** until checks settle, then `gh pr ready` + `gh pr merge --merge --admin` in the same step. Drafting locks Mergify out so a queue-selection race cannot squash the back-merge while you wait for checks.
-- 2026-04-19: Mergify condition strings that contain a colon (e.g. `title ~= ^chore: ...`) **MUST** be YAML-quoted, otherwise YAML parses the colon as a mapping key/value separator and the entire condition (and silently the entire queue config) becomes invalid. Mergify's `Configuration changed` check is the only signal that surfaces this — locally `.mergify.yml` looks fine. PR #109 shipped with `- title ~= ^chore: back-merge main into staging after release` (unquoted) and the `back-merge-to-staging` queue was silently dead from merge until PR #112 (promotion) failed `Configuration changed`. Always quote any Mergify condition value containing `:` and run `mergify config-check` (or rely on the GitHub `Configuration changed` status) before assuming a config change is live.
-- 2026-04-19 (PR #119 / AEL-47): For any PR initially classified `risk:high` that the residual-risk engine later downgrades to `residual:low`, the original `pull_request_review`-triggered `p1-policy` `decide` run will have failed as "human approval required" before the `residual:*` label existed. Newer `pull_request_target`-triggered `decide` runs succeed, but the older `FAILURE` rows stay in GitHub's check rollup, branch protection blocks merge, and Mergify dequeues with a `dequeued` label. **Recovery (do not wait for self-heal):** rerun the failed `decide` runs on the current head SHA, remove the `dequeued` label, and re-queue with `@mergifyio queue <queue-name>` (e.g. `staging-integration`). Codified in `ai/playbooks/pull-request-execution-loop.md` finding-closure item 6 and `ai/skills/developer.md` step 11; do not reach for admin merge or settings changes as a workaround.
-- 2026-04-19: Extended the 3-tier environment model to the data tier. One Supabase project per environment (`<product>-staging`, `<product>-production`) under one organization. CI in `.github/workflows/supabase-migrate.yml` exposes three stable check names: `migrate-validate` (PR-time lint + local apply, no-ops when migrations folder untouched), `migrate-staging` (push to `staging`, `supabase db push` against staging project via env-scoped secrets), `migrate-production` (push to `main`, same against production project, gated on the `production` GitHub Environment with required reviewers). `.mergify.yml` requires `migrate-validate` on `staging-integration` and `migrate-staging` on `staging-promotion` — the promotion PR cannot merge until staging migrations are green on the head SHA. Vercel env vars: production scope points at the production Supabase project, preview scope at staging; never share URLs across scopes. Migrations are forward-only and must be backwards-compatible across a release boundary because `migrate-production` runs in parallel with the Vercel production deploy. Full procedure in `ai/playbooks/environment-separation.md` Database tier section.
-- 2026-04-19 (post-v0.12.0 release): Each release-please cut produced two `migrate-production` runs that both required manual environment approval — one against the promotion merge commit (real `db push`) and one against the immediately following `chore: release X.Y.Z` commit (guaranteed no-op, since release-please only bumps version/CHANGELOG and never carries new migrations). Fixed by skipping the `migrate-production` job at the job-level `if:` when `github.event.head_commit.message` starts with `chore: release` followed by a space on push events (workflow_dispatch is intentionally exempt — manual operator action). `migrate-staging` is intentionally NOT subject to this skip because the `staging-promotion` Mergify queue requires `check-success = migrate-staging` on the staging head SHA — a job-level skip would produce no check and starve the next promotion. `supabase db push` is idempotent on staging so the always-runs cost there is just CI seconds. Skip rule lives only in the workflow's `if:` (job is gated before the GitHub Environment approval prompt fires); a step-level skip would still trigger the approval gate and not solve the friction.
+- 2026-04-10: Adopted the repository-local agent context bundle built around root `AGENTS.md` plus `ai/`.
+- 2026-04-11: Standardized repository-local skills and playbooks as index + on-demand body surfaces under `ai/`.
+- 2026-04-11: Standardized PR policy on CodeRabbit auto-review, Mergify execution, and executing-agent merge ownership.
+- 2026-04-12: Renamed `agents/` to `interfaces/` for provider-agnostic capability contracts.
+- 2026-04-13: Standardized repo-level release automation on `release-please`, manifest mode, and root `version.txt`.
+- 2026-04-13: Added `docs/QUALITY_STANDARD.md` and Phase 1 verification surfaces for `products/dashboard`.
+- 2026-04-17: Canonicalized dashboard auth as a governed product slice with adapter isolation and shared identity lifecycle helpers.
+- 2026-04-18: Added governed playbooks for resolving GitHub issues and Sentry incidents.
+- 2026-04-18: Adopted the 3-tier environment model: production, staging, development.
+- 2026-04-19: Canonicalized `staging` -> `main` promotion, back-merge rules, Mergify queue behavior, and Supabase environment separation.
+- 2026-04-21: Default bootstrap no longer loads `docs/AI_NATIVE_FRAMEWORK.md` unless the user references The Framework or the task needs framework prose; always-loaded surfaces were compacted to reduce token cost.
 
 ## Update Rules
 
-- Add facts only if they are likely to matter in future sessions.
-- Remove or rewrite facts when they become stale.
-- Close open loops instead of letting this file grow indefinitely.
-- If a memory item becomes normative policy, move it into schema, playbook, or framework docs and leave only a short pointer here.
+- Add only facts likely to matter in future sessions.
+- Rewrite or remove stale facts.
+- Close open loops instead of accumulating historical detail.
+- If an item becomes normative policy, move it into a playbook, doc, or schema and leave only a pointer here.
