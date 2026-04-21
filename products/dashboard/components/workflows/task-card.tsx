@@ -1,4 +1,4 @@
-import { AlertTriangle, X } from "lucide-react";
+import { AlertTriangle, Pencil, Trash2 } from "lucide-react";
 
 import { cn } from "@/lib/utils";
 import type { TaskBarState } from "@/lib/workflows/matrix";
@@ -53,6 +53,7 @@ export interface TaskCardProps {
   /** Opens the Task Drawer for this card. */
   onClick?: () => void;
   editMode?: boolean;
+  onEdit?: () => void;
   onRemove?: () => void;
   draggable?: boolean;
   onDragStart?: React.DragEventHandler<HTMLDivElement>;
@@ -66,6 +67,7 @@ export function TaskCard({
   barState,
   onClick,
   editMode = false,
+  onEdit,
   onRemove,
   draggable = false,
   onDragStart,
@@ -74,6 +76,7 @@ export function TaskCard({
 }: TaskCardProps) {
   const statusClass = STATUS_PILL_CLASS[task.status];
   const statusLabel = STATUS_LABEL[task.status];
+  const showTaskActions = editMode && (Boolean(onEdit) || Boolean(onRemove));
 
   return (
     <div
@@ -106,19 +109,6 @@ export function TaskCard({
       }
       aria-label={onClick ? `Open task: ${task.title}` : undefined}
     >
-      {editMode ? (
-        <button
-          type="button"
-          className="tc-remove"
-          aria-label={`Remove task: ${task.title}`}
-          onClick={(event) => {
-            event.stopPropagation();
-            onRemove?.();
-          }}
-        >
-          <X aria-hidden size={11} strokeWidth={2.2} />
-        </button>
-      ) : null}
       <div className="tc-top">
         <div className="tc-title">{task.title}</div>
         {task.checkpoint && (
@@ -147,7 +137,40 @@ export function TaskCard({
             <div className="s-text">{statusLabel}</div>
           </div>
         )}
-        {task.agent ? <div className="tc-agent">{task.agent}</div> : null}
+        {showTaskActions ? (
+          <div className="tc-actions mx-entity-actions mx-entity-actions-group">
+            {onEdit ? (
+              <button
+                type="button"
+                className="mx-entity-action"
+                aria-label={`Edit task: ${task.title}`}
+                title={`Edit ${task.title}`}
+                onClick={(event) => {
+                  event.stopPropagation();
+                  onEdit();
+                }}
+              >
+                <Pencil aria-hidden size={11} strokeWidth={2.1} />
+              </button>
+            ) : null}
+            {onRemove ? (
+              <button
+                type="button"
+                className="mx-entity-action mx-entity-action-danger"
+                aria-label={`Remove task: ${task.title}`}
+                title={`Delete ${task.title}`}
+                onClick={(event) => {
+                  event.stopPropagation();
+                  onRemove();
+                }}
+              >
+                <Trash2 aria-hidden size={11} strokeWidth={2.1} />
+              </button>
+            ) : null}
+          </div>
+        ) : task.agent ? (
+          <div className="tc-agent">{task.agent}</div>
+        ) : null}
       </div>
     </div>
   );

@@ -21,15 +21,23 @@ const AGENTS = [
 ] as const;
 
 interface AddTaskModalProps {
+  mode?: "create" | "edit";
   instanceId: string;
   roleId: string;
   stageId: string;
   roleName: string;
   stageName: string;
+  initialTask?: {
+    title: string;
+    description?: string;
+    agent?: string | null;
+    skill?: string | null;
+    playbook?: string | null;
+  };
   skillOptions?: FrameworkItem[];
   playbookOptions?: FrameworkItem[];
   onClose: () => void;
-  onCreate: (input: WorkflowTaskCreateInput) => void;
+  onSubmit: (input: WorkflowTaskCreateInput) => void;
 }
 
 interface PickerProps {
@@ -131,15 +139,17 @@ function SearchablePicker({
 }
 
 export function AddTaskModal({
+  mode = "create",
   instanceId,
   roleId,
   stageId,
   roleName,
   stageName,
+  initialTask,
   skillOptions = [],
   playbookOptions = [],
   onClose,
-  onCreate,
+  onSubmit,
 }: AddTaskModalProps) {
   const [form, setForm] = useState<{
     title: string;
@@ -148,11 +158,11 @@ export function AddTaskModal({
     skill: string | null;
     playbook: string;
   }>({
-    title: "",
-    description: "",
-    agent: "PM",
-    skill: "pm",
-    playbook: "",
+    title: initialTask?.title ?? "",
+    description: initialTask?.description ?? "",
+    agent: initialTask?.agent ?? "PM",
+    skill: initialTask?.skill ?? "pm",
+    playbook: initialTask?.playbook ?? "",
   });
 
   const normalizedSkillOptions = useMemo(
@@ -204,7 +214,7 @@ export function AddTaskModal({
           id="add-task-modal-title"
           className="text-[16px] font-bold tracking-tight text-t1"
         >
-          New task
+          {mode === "edit" ? "Edit task" : "New task"}
         </div>
         <div className="mb-[18px] mt-1 text-[12.5px] text-t3">
           {roleName} · {stageName}
@@ -284,7 +294,7 @@ export function AddTaskModal({
             disabled={!form.title.trim()}
             onClick={() => {
               if (!form.title.trim()) return;
-              onCreate({
+              onSubmit({
                 instanceId,
                 roleId,
                 stageId,
@@ -296,7 +306,7 @@ export function AddTaskModal({
               });
             }}
           >
-            Create task →
+            {mode === "edit" ? "Save task →" : "Create task →"}
           </button>
         </div>
       </div>

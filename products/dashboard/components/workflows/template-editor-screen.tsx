@@ -25,6 +25,10 @@ import { cn } from "@/lib/utils";
 
 import { TaskCard } from "./task-card";
 
+const ROLE_COLUMN_WIDTH = 172;
+const STAGE_COLUMN_WIDTH = 192;
+const STAGE_INSERT_WIDTH = 6;
+
 interface TemplateEditorScreenProps {
   template: WorkflowTemplate;
   skillOptions: FrameworkItem[];
@@ -149,15 +153,29 @@ export function TemplateEditorScreen({
     null,
   );
   const [addTaskFor, setAddTaskFor] = useState<{
+    mode: "create" | "edit";
+    taskId?: string;
     roleId: string;
     roleName: string;
     stageId: string;
     stageName: string;
+    initialTask?: {
+      title: string;
+      description?: string;
+      agent?: string | null;
+      skill?: string | null;
+      playbook?: string | null;
+    };
   } | null>(null);
   const [pending, startTransition] = useTransition();
   const [saveError, setSaveError] = useState<string | null>(null);
 
   const isDirty = JSON.stringify(draft) !== JSON.stringify(template);
+  const rowInsertWidth = `${
+    ROLE_COLUMN_WIDTH +
+    draft.stages.length * STAGE_COLUMN_WIDTH +
+    Math.max(draft.stages.length - 1, 0) * STAGE_INSERT_WIDTH
+  }px`;
 
   useEffect(() => {
     draftRef.current = draft;
@@ -264,14 +282,14 @@ export function TemplateEditorScreen({
             {draft.stages.map((stage, index) => (
               <div key={stage.id} className="contents">
                 <div className="mx-stage-hd" role="columnheader">
-                  <div className="flex items-start justify-between gap-2">
-                    <div className="min-w-0 flex-1">
+                  <div className="mx-entity-content">
+                    <div className="min-w-0">
                       <div className="mx-stage-name">{stage.label}</div>
                       <div className="mx-stage-sub mx-stage-sub-plain">
                         {stage.sub?.trim() || "No description"}
                       </div>
                     </div>
-                    <div className="mx-entity-actions">
+                    <div className="mx-entity-actions mx-entity-actions-group">
                       <button
                         type="button"
                         aria-label={`Edit stage ${stage.label}`}
@@ -354,52 +372,54 @@ export function TemplateEditorScreen({
                       }))
                     }
                   />
-                  <div className="min-w-0 flex-1">
-                    <div className="mx-role-name">{role.label}</div>
-                    <div className="mx-role-owner mx-role-owner-plain">
-                      {role.owner?.trim() || "No owner"}
+                  <div className="mx-entity-content">
+                    <div className="min-w-0">
+                      <div className="mx-role-name">{role.label}</div>
+                      <div className="mx-role-owner mx-role-owner-plain">
+                        {role.owner?.trim() || "No owner"}
+                      </div>
                     </div>
-                  </div>
-                  <div className="mx-entity-actions">
-                    <button
-                      type="button"
-                      className="mx-entity-action"
-                      aria-label={`Edit role ${role.label}`}
-                      onClick={() =>
-                        setRoleModalState({
-                          mode: "edit",
-                          index: roleIndex,
-                          roleId: role.id,
-                          initialRole: { label: role.label, owner: role.owner },
-                        })
-                      }
-                    >
-                      <Pencil className="h-3.5 w-3.5" />
-                    </button>
-                    <button
-                      type="button"
-                      className="mx-entity-action mx-entity-action-danger"
-                      aria-label={`Remove role ${role.label}`}
-                      onClick={() =>
-                        setConfirmState({
-                          title: `Remove role "${role.label}"?`,
-                          description:
-                            "All tasks assigned to this role in this template will be removed.",
-                          onConfirm: () => {
-                            setDraft((current) => ({
-                              ...current,
-                              roles: current.roles.filter((item) => item.id !== role.id),
-                              taskTemplates: current.taskTemplates.filter(
-                                (task) => task.role !== role.id,
-                              ),
-                            }));
-                            setConfirmState(null);
-                          },
-                        })
-                      }
-                    >
-                      <Trash2 className="h-3.5 w-3.5" />
-                    </button>
+                    <div className="mx-entity-actions mx-entity-actions-group">
+                      <button
+                        type="button"
+                        className="mx-entity-action"
+                        aria-label={`Edit role ${role.label}`}
+                        onClick={() =>
+                          setRoleModalState({
+                            mode: "edit",
+                            index: roleIndex,
+                            roleId: role.id,
+                            initialRole: { label: role.label, owner: role.owner },
+                          })
+                        }
+                      >
+                        <Pencil className="h-3.5 w-3.5" />
+                      </button>
+                      <button
+                        type="button"
+                        className="mx-entity-action mx-entity-action-danger"
+                        aria-label={`Remove role ${role.label}`}
+                        onClick={() =>
+                          setConfirmState({
+                            title: `Remove role "${role.label}"?`,
+                            description:
+                              "All tasks assigned to this role in this template will be removed.",
+                            onConfirm: () => {
+                              setDraft((current) => ({
+                                ...current,
+                                roles: current.roles.filter((item) => item.id !== role.id),
+                                taskTemplates: current.taskTemplates.filter(
+                                  (task) => task.role !== role.id,
+                                ),
+                              }));
+                              setConfirmState(null);
+                            },
+                          })
+                        }
+                      >
+                        <Trash2 className="h-3.5 w-3.5" />
+                      </button>
+                    </div>
                   </div>
                 </div>
 
@@ -420,13 +440,38 @@ export function TemplateEditorScreen({
                             barState="bar-ready"
                             editMode
                             showDefaultPill
+                            onEdit={() =>
+                              setAddTaskFor({
+                                mode: "edit",
+                                taskId: templateTask?.id,
+                                roleId: role.id,
+                                roleName: role.label,
+                                stageId: stage.id,
+                                stageName: stage.label,
+                                initialTask: {
+                                  title: templateTask?.title ?? "",
+                                  description: templateTask?.desc ?? "",
+                                  agent: templateTask?.agent ?? null,
+                                  skill: templateTask?.skill ?? null,
+                                  playbook: templateTask?.playbook ?? null,
+                                },
+                              })
+                            }
                             onRemove={() =>
-                              setDraft((current) => ({
-                                ...current,
-                                taskTemplates: current.taskTemplates.filter(
-                                  (item) => item.id !== templateTask?.id,
-                                ),
-                              }))
+                              setConfirmState({
+                                title: `Delete "${task.title}"?`,
+                                description:
+                                  "This task and its default configuration will be removed from the template.",
+                                onConfirm: () => {
+                                  setDraft((current) => ({
+                                    ...current,
+                                    taskTemplates: current.taskTemplates.filter(
+                                      (item) => item.id !== templateTask?.id,
+                                    ),
+                                  }));
+                                  setConfirmState(null);
+                                },
+                              })
                             }
                           />
                         ) : (
@@ -435,6 +480,7 @@ export function TemplateEditorScreen({
                             data-testid={`matrix-add-task-${role.id}-${stage.id}`}
                             onClick={() =>
                               setAddTaskFor({
+                                mode: "create",
                                 roleId: role.id,
                                 roleName: role.label,
                                 stageId: stage.id,
@@ -443,7 +489,7 @@ export function TemplateEditorScreen({
                             }
                             className="mx-empty-cell w-full"
                           >
-                            <span className="mx-add-btn opacity-100">
+                            <span className="mx-add-btn">
                               <Plus className="h-3.5 w-3.5" />
                             </span>
                           </button>
@@ -475,6 +521,8 @@ export function TemplateEditorScreen({
               <button
                 type="button"
                 className="mx-row-insert"
+                data-testid={`matrix-insert-role-${roleIndex + 1}`}
+                style={{ width: rowInsertWidth }}
                 onClick={() =>
                   setRoleModalState({
                     mode: "create",
@@ -492,6 +540,8 @@ export function TemplateEditorScreen({
           <button
             type="button"
             className="mx-row-insert"
+            data-testid="matrix-insert-role-end"
+            style={{ width: rowInsertWidth }}
             onClick={() =>
               setRoleModalState({
                 mode: "create",
@@ -538,34 +588,56 @@ export function TemplateEditorScreen({
 
       {addTaskFor ? (
         <AddTaskModal
+          mode={addTaskFor.mode}
           instanceId={`template:${draft.id}`}
           roleId={addTaskFor.roleId}
           roleName={addTaskFor.roleName}
           stageId={addTaskFor.stageId}
           stageName={addTaskFor.stageName}
+          initialTask={addTaskFor.initialTask}
           skillOptions={skillOptions}
           playbookOptions={playbookOptions}
           onClose={() => setAddTaskFor(null)}
-          onCreate={(input) => {
-            setDraft((current) => ({
-              ...current,
-              taskTemplates: [
-                ...current.taskTemplates,
-                {
-                  id: createId("task"),
-                  role: input.roleId,
-                  stage: input.stageId,
-                  title: input.title.trim(),
-                  desc: input.description?.trim(),
-                  checkpoint: Boolean(input.checkpoint),
-                  triggers: input.triggers ?? [],
-                  gates: input.gates ?? [],
-                  agent: input.agent ?? undefined,
-                  skill: input.skill ?? undefined,
-                  playbook: input.playbook ?? undefined,
-                },
-              ],
-            }));
+          onSubmit={(input) => {
+            setDraft((current) => {
+              if (addTaskFor.mode === "edit" && addTaskFor.taskId) {
+                return {
+                  ...current,
+                  taskTemplates: current.taskTemplates.map((item) =>
+                    item.id === addTaskFor.taskId
+                      ? {
+                          ...item,
+                          title: input.title.trim(),
+                          desc: input.description?.trim(),
+                          agent: input.agent ?? undefined,
+                          skill: input.skill ?? undefined,
+                          playbook: input.playbook ?? undefined,
+                        }
+                      : item,
+                  ),
+                };
+              }
+
+              return {
+                ...current,
+                taskTemplates: [
+                  ...current.taskTemplates,
+                  {
+                    id: createId("task"),
+                    role: input.roleId,
+                    stage: input.stageId,
+                    title: input.title.trim(),
+                    desc: input.description?.trim(),
+                    checkpoint: Boolean(input.checkpoint),
+                    triggers: input.triggers ?? [],
+                    gates: input.gates ?? [],
+                    agent: input.agent ?? undefined,
+                    skill: input.skill ?? undefined,
+                    playbook: input.playbook ?? undefined,
+                  },
+                ],
+              };
+            });
             setAddTaskFor(null);
           }}
         />

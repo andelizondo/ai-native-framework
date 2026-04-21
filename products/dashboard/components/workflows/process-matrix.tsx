@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState, useTransition } from "react";
-import { ChevronsLeftRight } from "lucide-react";
+import { ChevronsLeftRight, Plus } from "lucide-react";
 
 import {
   createTaskAction,
@@ -340,6 +340,7 @@ export function ProcessMatrix({
                             editMode={editMode}
                             draggable
                             onClick={() => setSelectedTaskId(task.id)}
+                            onEdit={editMode ? () => setSelectedTaskId(task.id) : undefined}
                             onRemove={
                               editMode ? () => setConfirmDeleteTask(task) : undefined
                             }
@@ -378,7 +379,7 @@ export function ProcessMatrix({
                               data-testid={`matrix-add-task-${role.id}-${stage.id}`}
                               aria-label={`Add task for ${role.label} in ${stage.label}`}
                             >
-                              +
+                              <Plus className="h-3.5 w-3.5" />
                             </button>
                           </div>
                         ) : null}
@@ -422,7 +423,7 @@ export function ProcessMatrix({
           skillOptions={skillOptions}
           playbookOptions={playbookOptions}
           onClose={() => setAddTaskFor(null)}
-          onCreate={(input) => {
+          onSubmit={(input) => {
             setAddTaskFor(null);
             runMutation(
               (tasks) => tasks,
