@@ -369,6 +369,10 @@ body {
   min-height: 106px;
   transition: width 0.2s;
 }
+.mx-role-cell:has([data-role-color-open="true"]) {
+  z-index: 25;
+  overflow: visible;
+}
 .mx-entity-content {
   min-width: 0;
   flex: 1;

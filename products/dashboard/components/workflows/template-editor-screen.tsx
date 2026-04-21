@@ -100,19 +100,52 @@ function ColorDot({
   color: string;
   onChange: (color: string) => void;
 }) {
+  const rootRef = useRef<HTMLDivElement | null>(null);
   const [open, setOpen] = useState(false);
 
+  useEffect(() => {
+    if (!open) return;
+
+    function handlePointerDown(event: MouseEvent) {
+      if (!rootRef.current?.contains(event.target as Node)) {
+        setOpen(false);
+      }
+    }
+
+    function handleKeyDown(event: KeyboardEvent) {
+      if (event.key === "Escape") {
+        setOpen(false);
+      }
+    }
+
+    document.addEventListener("mousedown", handlePointerDown);
+    document.addEventListener("keydown", handleKeyDown);
+
+    return () => {
+      document.removeEventListener("mousedown", handlePointerDown);
+      document.removeEventListener("keydown", handleKeyDown);
+    };
+  }, [open]);
+
   return (
-    <div className="relative shrink-0">
+    <div
+      ref={rootRef}
+      data-role-color-open={open ? "true" : "false"}
+      className={cn("relative shrink-0", open && "z-30")}
+    >
       <button
         type="button"
         aria-label="Change role color"
         onClick={() => setOpen((current) => !current)}
-        className="h-3 w-3 rounded-full transition-transform hover:scale-110"
-        style={{ backgroundColor: color, boxShadow: `0 0 0 2px ${color}30` }}
+        className="flex h-5 w-5 items-center justify-center rounded-full border border-border bg-bg-3 shadow-[inset_0_1px_0_rgba(255,255,255,0.03)] transition hover:border-border-hi hover:bg-bg-4 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
+      />
+      <span
+        aria-hidden
+        className="pointer-events-none absolute left-1/2 top-1/2 h-2.5 w-2.5 -translate-x-1/2 -translate-y-1/2 rounded-full transition-transform duration-150"
+        style={{ backgroundColor: color, boxShadow: `0 0 0 2px ${color}28` }}
       />
       {open ? (
-        <div className="absolute left-0 top-[calc(100%+6px)] z-20 grid w-[100px] grid-cols-4 gap-1 rounded-lg border border-border-hi bg-bg-3 p-2 shadow-[var(--shadow-canvas)]">
+        <div className="absolute left-0 top-[calc(100%+8px)] z-40 grid w-[100px] grid-cols-4 gap-1 rounded-lg border border-border-hi bg-bg-3 p-2 shadow-[var(--shadow-canvas)]">
           {ROLE_COLORS.map((swatch) => (
             <button
               key={swatch}
@@ -303,7 +336,7 @@ export function TemplateEditorScreen({
                           })
                         }
                       >
-                        <Pencil className="h-3.5 w-3.5" />
+                        <Pencil className="h-[11px] w-[11px]" />
                       </button>
                       <button
                         type="button"
@@ -326,7 +359,7 @@ export function TemplateEditorScreen({
                           })
                         }
                       >
-                        <Trash2 className="h-3.5 w-3.5" />
+                        <Trash2 className="h-[11px] w-[11px]" />
                       </button>
                     </div>
                   </div>
@@ -393,7 +426,7 @@ export function TemplateEditorScreen({
                           })
                         }
                       >
-                        <Pencil className="h-3.5 w-3.5" />
+                        <Pencil className="h-[11px] w-[11px]" />
                       </button>
                       <button
                         type="button"
@@ -417,7 +450,7 @@ export function TemplateEditorScreen({
                           })
                         }
                       >
-                        <Trash2 className="h-3.5 w-3.5" />
+                        <Trash2 className="h-[11px] w-[11px]" />
                       </button>
                     </div>
                   </div>
