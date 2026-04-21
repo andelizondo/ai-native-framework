@@ -388,6 +388,40 @@ body {
 .mx-role-owner-plain {
   font-style: normal;
 }
+.mx-entity-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+}
+.mx-entity-action {
+  width: 22px;
+  height: 22px;
+  border-radius: 6px;
+  border: 1px solid var(--border);
+  background: var(--bg-3);
+  color: var(--t3);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition:
+    background 0.14s,
+    border-color 0.14s,
+    color 0.14s,
+    transform 0.14s;
+}
+.mx-entity-action:hover {
+  background: var(--bg-4);
+  border-color: var(--border-hi);
+  color: var(--t1);
+  transform: translateY(-1px);
+}
+.mx-entity-action-danger:hover {
+  background: rgba(239, 68, 68, 0.12);
+  border-color: rgba(239, 68, 68, 0.28);
+  color: #f87171;
+}
 .mx-task-cell {
   width: 192px;
   flex-shrink: 0;
@@ -470,6 +504,104 @@ body {
   outline: 2px solid var(--accent);
   outline-offset: 2px;
 }
+.mx-col-insert {
+  width: 6px;
+  flex-shrink: 0;
+  border: none;
+  cursor: pointer;
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: transparent;
+  color: var(--accent);
+  transition:
+    width 0.18s cubic-bezier(0.16, 1, 0.3, 1),
+    background 0.18s cubic-bezier(0.16, 1, 0.3, 1),
+    opacity 0.18s cubic-bezier(0.16, 1, 0.3, 1);
+}
+.mx-col-insert:hover,
+.mx-col-insert.mx-col-insert-active {
+  width: 34px;
+  background: var(--primary-bg);
+}
+.mx-col-insert-icon {
+  opacity: 0;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 10px;
+  white-space: nowrap;
+  transition:
+    opacity 0.18s cubic-bezier(0.16, 1, 0.3, 1),
+    transform 0.18s cubic-bezier(0.16, 1, 0.3, 1);
+  transform: translateX(-4px);
+}
+.mx-col-insert:hover .mx-col-insert-icon,
+.mx-col-insert.mx-col-insert-active .mx-col-insert-icon {
+  opacity: 1;
+  transform: translateX(0);
+}
+.mx-col-insert-body {
+  width: 6px;
+  flex-shrink: 0;
+  border: none;
+  padding: 0;
+  cursor: pointer;
+  background: transparent;
+  transition:
+    width 0.18s cubic-bezier(0.16, 1, 0.3, 1),
+    background 0.18s cubic-bezier(0.16, 1, 0.3, 1);
+}
+.mx-col-insert-body:hover,
+.mx-col-insert-body.mx-col-insert-active {
+  width: 34px;
+  background: var(--primary-bg);
+}
+.mx-row-insert {
+  height: 8px;
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+  width: 100%;
+  margin-top: -4px;
+  margin-bottom: -4px;
+  padding: 0;
+  border: none;
+  cursor: pointer;
+  background: transparent;
+  position: relative;
+  z-index: 2;
+  transition:
+    height 0.18s cubic-bezier(0.16, 1, 0.3, 1),
+    margin 0.18s cubic-bezier(0.16, 1, 0.3, 1),
+    background 0.18s cubic-bezier(0.16, 1, 0.3, 1);
+}
+.mx-row-insert:hover {
+  height: 28px;
+  margin-top: 0;
+  margin-bottom: 0;
+  background: var(--primary-bg);
+}
+.mx-row-insert-label {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  width: 100%;
+  height: 100%;
+  font-size: 11px;
+  color: var(--accent);
+  opacity: 0;
+  transform: translateY(4px);
+  transition:
+    opacity 0.18s cubic-bezier(0.16, 1, 0.3, 1),
+    transform 0.18s cubic-bezier(0.16, 1, 0.3, 1);
+}
+.mx-row-insert:hover .mx-row-insert-label {
+  opacity: 1;
+  transform: translateY(0);
+}
 
 /* ── Task card ── */
 .task-card {
@@ -521,6 +653,16 @@ body {
 /* DB `blocked` / UI "failed" — keep role accent, not error red */
 .task-card.bar-cancelled::before {
   opacity: 0.4;
+}
+.task-card.task-card-default::before {
+  opacity: 0.14;
+  box-shadow: none;
+}
+.task-card.task-card-default {
+  opacity: 1;
+}
+.task-card.task-card-default:hover {
+  background: var(--bg-3);
 }
 @keyframes ainative-bar-pulse {
   0%,

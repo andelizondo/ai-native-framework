@@ -36,5 +36,5 @@ export function getRoleColor(roleId: string, roles: WorkflowRole[]): string {
   if (idx < 0) {
     return ROLE_COLORS[0];
   }
-  return ROLE_COLORS[idx % ROLE_COLORS.length];
+  return roles[idx]?.color || ROLE_COLORS[idx % ROLE_COLORS.length];
 }

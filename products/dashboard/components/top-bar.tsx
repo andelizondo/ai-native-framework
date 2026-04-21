@@ -4,6 +4,7 @@ import { useState } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { Bell, Pencil } from "lucide-react";
 
+import { useDashboardTopBar } from "@/components/dashboard-topbar-context";
 import { CheckpointPanel } from "@/components/workflows/checkpoint-panel";
 import { cn } from "@/lib/utils";
 
@@ -19,6 +20,7 @@ import { cn } from "@/lib/utils";
  */
 
 const WORKFLOW_INSTANCE_ROUTE_REGEX = /^\/workflows\/(?!templates(?:\/|$))[^/]+\/?$/;
+const WORKFLOW_TEMPLATE_EDIT_ROUTE_REGEX = /^\/workflows\/templates\/[^/]+\/edit\/?$/;
 
 const ROUTE_LABELS: ReadonlyArray<{ test: (path: string) => boolean; crumbs: string[] }> = [
   { test: (p) => p === "/", crumbs: ["Overview"] },
@@ -29,6 +31,10 @@ const ROUTE_LABELS: ReadonlyArray<{ test: (path: string) => boolean; crumbs: str
   {
     test: (p) => WORKFLOW_INSTANCE_ROUTE_REGEX.test(p),
     crumbs: ["Workflows", "Instance"],
+  },
+  {
+    test: (p) => WORKFLOW_TEMPLATE_EDIT_ROUTE_REGEX.test(p),
+    crumbs: ["Workflows", "Template editor"],
   },
 ];
 
@@ -50,6 +56,7 @@ export function TopBar({ initialPendingCount = 0 }: TopBarProps) {
   const pathname = usePathname();
   const router = useRouter();
   const searchParams = useSearchParams();
+  const { config } = useDashboardTopBar();
   const crumbs = deriveCrumbs(pathname);
   const isWorkflowInstanceRoute =
     !!pathname && WORKFLOW_INSTANCE_ROUTE_REGEX.test(pathname);
@@ -84,22 +91,42 @@ export function TopBar({ initialPendingCount = 0 }: TopBarProps) {
             return (
               <span key={`${crumb}-${idx}`} className="flex items-center gap-1.5">
                 {idx > 0 && <span className="text-t3">›</span>}
-                <span
-                  className={
-                    isLast
-                      ? "truncate text-[13px] font-semibold text-t1"
-                      : "truncate text-[13px] font-medium text-t2"
-                  }
-                  aria-current={isLast ? "page" : undefined}
-                >
-                  {crumb}
-                </span>
+                {isLast && config?.mode === "template-editor" ? (
+                  <input
+                    value={config.label}
+                    onChange={(event) => config.onLabelChange(event.target.value)}
+                    className="tb-crumb-editable min-w-[140px]"
+                    aria-label="Workflow template name"
+                  />
+                ) : (
+                  <span
+                    className={
+                      isLast
+                        ? "truncate text-[13px] font-semibold text-t1"
+                        : "truncate text-[13px] font-medium text-t2"
+                    }
+                    aria-current={isLast ? "page" : undefined}
+                  >
+                    {crumb}
+                  </span>
+                )}
               </span>
             );
           })}
         </nav>
 
         <div className="flex shrink-0 items-center gap-1.5">
+          {config?.mode === "template-editor" ? (
+            <button
+              type="button"
+              onClick={config.onSave}
+              disabled={config.saveDisabled}
+              className="flex items-center gap-1.5 rounded-md border border-[#10b981] bg-[rgba(16,185,129,0.12)] px-2.5 py-1.5 text-[11.5px] font-semibold text-[#34d399] transition hover:bg-[rgba(16,185,129,0.18)] disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              ✓ Save workflow
+            </button>
+          ) : null}
+
           {isWorkflowInstanceRoute ? (
             <button
               type="button"
@@ -117,32 +144,34 @@ export function TopBar({ initialPendingCount = 0 }: TopBarProps) {
             </button>
           ) : null}
 
-          <button
-            type="button"
-            aria-label={`My Tasks${hasPending ? ` — ${pendingCount} pending` : ""}`}
-            aria-expanded={panelOpen}
-            onClick={() => setPanelOpen((v) => !v)}
-            data-testid="topbar-my-tasks-btn"
-            className={cn(
-              "relative flex cursor-pointer items-center gap-1.5 rounded-md border px-2.5 py-1.5 text-[11.5px] font-medium transition",
-              "focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent",
-              hasPending
-                ? "border-[rgba(245,158,11,0.35)] bg-[rgba(245,158,11,0.08)] text-[#fbbf24] hover:bg-[rgba(245,158,11,0.14)]"
-                : "border-border bg-bg-2 text-t2 hover:border-border-hi hover:bg-bg-3 hover:text-t1",
-            )}
-          >
-            <Bell className="h-3.5 w-3.5" />
-            My Tasks
-            {hasPending && (
-              <span
-                className="flex h-4 min-w-4 items-center justify-center rounded-full bg-[#f59e0b] px-1 font-mono text-[9px] font-bold text-white"
-                aria-hidden
-                data-testid="topbar-pending-badge"
-              >
-                {pendingCount}
-              </span>
-            )}
-          </button>
+          {config?.mode !== "template-editor" ? (
+            <button
+              type="button"
+              aria-label={`My Tasks${hasPending ? ` — ${pendingCount} pending` : ""}`}
+              aria-expanded={panelOpen}
+              onClick={() => setPanelOpen((v) => !v)}
+              data-testid="topbar-my-tasks-btn"
+              className={cn(
+                "relative flex cursor-pointer items-center gap-1.5 rounded-md border px-2.5 py-1.5 text-[11.5px] font-medium transition",
+                "focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent",
+                hasPending
+                  ? "border-[rgba(245,158,11,0.35)] bg-[rgba(245,158,11,0.08)] text-[#fbbf24] hover:bg-[rgba(245,158,11,0.14)]"
+                  : "border-border bg-bg-2 text-t2 hover:border-border-hi hover:bg-bg-3 hover:text-t1",
+              )}
+            >
+              <Bell className="h-3.5 w-3.5" />
+              My Tasks
+              {hasPending && (
+                <span
+                  className="flex h-4 min-w-4 items-center justify-center rounded-full bg-[#f59e0b] px-1 font-mono text-[9px] font-bold text-white"
+                  aria-hidden
+                  data-testid="topbar-pending-badge"
+                >
+                  {pendingCount}
+                </span>
+              )}
+            </button>
+          ) : null}
         </div>
       </header>
 

@@ -13,6 +13,7 @@ import type {
   WorkflowInstance,
   WorkflowTask,
   WorkflowTaskCreateInput,
+  WorkflowTemplate,
   WorkflowTrigger,
 } from "@/lib/workflows/types";
 
@@ -608,4 +609,80 @@ export async function deleteTaskAction(taskId: string): Promise<void> {
   }
 
   revalidatePath("/", "layout");
+}
+
+function trimTemplateLabel(value: string): string {
+  return value.trim().slice(0, MAX_LABEL_LENGTH);
+}
+
+function normalizeTemplateStages(
+  stages: WorkflowTemplate["stages"],
+): WorkflowTemplate["stages"] {
+  return stages
+    .map((stage) => ({
+      id: normalizeTaskField(stage.id, "stage.id", 80),
+      label: trimTemplateLabel(stage.label),
+      sub: trimTemplateLabel(stage.sub ?? ""),
+    }))
+    .filter((stage) => stage.id && stage.label);
+}
+
+function normalizeTemplateRoles(
+  roles: WorkflowTemplate["roles"],
+): WorkflowTemplate["roles"] {
+  return roles
+    .map((role) => ({
+      id: normalizeTaskField(role.id, "role.id", 80),
+      label: trimTemplateLabel(role.label),
+      owner: trimTemplateLabel(role.owner ?? ""),
+      color: role.color?.trim() || undefined,
+    }))
+    .filter((role) => role.id && role.label);
+}
+
+function normalizeTemplateTaskTemplates(
+  taskTemplates: WorkflowTemplate["taskTemplates"],
+): WorkflowTemplate["taskTemplates"] {
+  return taskTemplates
+    .map((task) => ({
+      ...task,
+      id: normalizeTaskField(task.id ?? "", "taskTemplate.id", 120),
+      role: normalizeTaskField(task.role, "taskTemplate.role", 80),
+      stage: normalizeTaskField(task.stage, "taskTemplate.stage", 80),
+      title: trimTemplateLabel(task.title),
+      desc: trimTemplateLabel(task.desc ?? ""),
+      agent: trimTemplateLabel(task.agent ?? ""),
+      skill: trimTemplateLabel(task.skill ?? ""),
+      playbook: trimTemplateLabel(task.playbook ?? ""),
+      triggers: task.triggers ?? [],
+      gates: task.gates ?? [],
+      checkpoint: Boolean(task.checkpoint),
+    }))
+    .filter((task) => task.id && task.role && task.stage && task.title);
+}
+
+export async function updateTemplateAction(
+  templateId: string,
+  template: WorkflowTemplate,
+): Promise<{ template: WorkflowTemplate }> {
+  const trimmedTemplateId = normalizeTaskField(templateId, "templateId", 120);
+  if (!trimmedTemplateId) {
+    throw new Error("updateTemplateAction: templateId is required");
+  }
+  if (!template.label.trim()) {
+    throw new Error("updateTemplateAction: template label is required");
+  }
+
+  const repo = await getServerWorkflowRepository();
+  const updatedTemplate = await repo.updateTemplate(trimmedTemplateId, {
+    label: trimTemplateLabel(template.label),
+    stages: normalizeTemplateStages(template.stages),
+    roles: normalizeTemplateRoles(template.roles),
+    taskTemplates: normalizeTemplateTaskTemplates(template.taskTemplates),
+  });
+
+  revalidatePath("/", "layout");
+  revalidatePath(`/workflows/templates/${trimmedTemplateId}/edit`);
+
+  return { template: updatedTemplate };
 }
