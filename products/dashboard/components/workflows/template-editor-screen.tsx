@@ -531,7 +531,7 @@ export function TemplateEditorScreen({
                 }
               >
                 <span className="mx-row-insert-label">
-                  <Plus className="h-3 w-3" /> Insert role
+                  <Plus className="h-3 w-3" />
                 </span>
               </button>
             </div>
@@ -550,7 +550,7 @@ export function TemplateEditorScreen({
             }
           >
             <span className="mx-row-insert-label">
-              <Plus className="h-3 w-3" /> Insert role
+              <Plus className="h-3 w-3" />
             </span>
           </button>
         </div>
