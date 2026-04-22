@@ -174,6 +174,32 @@ function ColorDot({
   );
 }
 
+function MatrixHeaderInsertButton({
+  axis,
+  ariaLabel,
+  onClick,
+}: {
+  axis: "column" | "row";
+  ariaLabel: string;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      aria-label={ariaLabel}
+      className={cn(
+        "mx-header-insert",
+        axis === "column" ? "mx-header-insert-column" : "mx-header-insert-row",
+      )}
+      onClick={onClick}
+    >
+      <span className="mx-header-insert-icon">
+        <Plus className="h-3 w-3" />
+      </span>
+    </button>
+  );
+}
+
 export function TemplateEditorScreen({
   template,
   instanceCount,
@@ -427,6 +453,18 @@ export function TemplateEditorScreen({
                     </button>
                   </div>
                 </div>
+                {index < draft.stages.length - 1 ? (
+                  <MatrixHeaderInsertButton
+                    axis="column"
+                    ariaLabel={`Add stage after ${stage.label}`}
+                    onClick={() =>
+                      setStageModalState({
+                        mode: "create",
+                        index: index + 1,
+                      })
+                    }
+                  />
+                ) : null}
               </div>
             ))}
           </div>
@@ -494,6 +532,18 @@ export function TemplateEditorScreen({
                     </button>
                   </div>
                 </div>
+                {roleIndex < draft.roles.length - 1 ? (
+                  <MatrixHeaderInsertButton
+                    axis="row"
+                    ariaLabel={`Add role after ${role.label}`}
+                    onClick={() =>
+                      setRoleModalState({
+                        mode: "create",
+                        index: roleIndex + 1,
+                      })
+                    }
+                  />
+                ) : null}
               </div>
 
               {draft.stages.map((stage) => {
