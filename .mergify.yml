@@ -5,7 +5,6 @@ queue_rules:
   # release-please opens branches named release-please--* (changelog / version bump only).
   # Dashboard test, e2e (Vercel preview), and CodeRabbit are not required for this path.
   - name: release-please
-    autoqueue: true
     batch_size: 1
     merge_method: squash
     update_method: rebase
@@ -37,7 +36,6 @@ queue_rules:
   # Requiring this check here means we cannot promote app code that depends on
   # a migration that failed (or never reached) the staging Supabase project.
   - name: staging-promotion
-    autoqueue: true
     batch_size: 1
     merge_method: merge
     update_method: rebase
@@ -72,7 +70,6 @@ queue_rules:
   # follow the same naming so they hit this queue (or be admin-merged directly
   # per ai/playbooks/publish-to-production.md §8).
   - name: back-merge-to-staging
-    autoqueue: true
     batch_size: 1
     merge_method: merge
     update_method: rebase
@@ -112,7 +109,6 @@ queue_rules:
   # to be admitted to this squash queue and break ancestry. Always use the
   # `-` prefix for negation.
   - name: staging-integration
-    autoqueue: true
     batch_size: 1
     merge_method: squash
     update_method: rebase
@@ -142,7 +138,6 @@ queue_rules:
       - check-success = migrate-validate
 
   - name: low-risk
-    autoqueue: true
     batch_size: 1
     merge_method: squash
     update_method: rebase
@@ -169,3 +164,4 @@ queue_rules:
 
 merge_protections_settings:
   reporting_method: check-runs
+  auto_merge: true
