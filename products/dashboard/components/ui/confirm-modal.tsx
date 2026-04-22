@@ -1,10 +1,11 @@
 "use client";
 
+import type { ReactNode } from "react";
 import { useEffect, useId, useRef } from "react";
 
 interface ConfirmModalProps {
   title: string;
-  description: string;
+  description: ReactNode;
   confirmLabel?: string;
   onConfirm: () => void;
   onCancel: () => void;

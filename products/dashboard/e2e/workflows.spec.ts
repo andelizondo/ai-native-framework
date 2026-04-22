@@ -234,3 +234,42 @@ test.describe("workflows — matrix edit mode (AEL-52)", () => {
     await expect(page.getByText("E2E created task")).toBeVisible();
   });
 });
+
+test.describe("workflows — template editor (AEL-55)", () => {
+  test("opens the template editor, renames a stage, saves, and sees the change on next visit", async ({
+    page,
+  }) => {
+    test.skip(
+      !hasSupabaseRuntime,
+      "Supabase runtime credentials required for the template-editor happy path",
+    );
+
+    await authenticateWithBypass(page);
+    await page.goto("/");
+
+    const editTemplate = page
+      .locator('[data-testid^="workflow-template-count-"]')
+      .first();
+    await expect(editTemplate).toBeVisible();
+    await editTemplate.click();
+
+    await expect(page).toHaveURL(/\/workflows\/templates\/[^/]+\/edit$/);
+
+    const firstStage = page.locator(".mx-stage-name").first();
+    await firstStage.click();
+
+    const uniqueLabel = `Discovery ${Date.now()}`;
+    const preferredEditor = page.locator('input[value="Pre-Sales"]').first();
+    const fallbackEditor = page.locator(".mx-stage-hd input").first();
+    const editor = (await preferredEditor.count()) > 0 ? preferredEditor : fallbackEditor;
+    await editor.fill(uniqueLabel);
+    await editor.press("Enter");
+
+    await page.getByRole("button", { name: /save workflow/i }).click();
+    await expect(page).toHaveURL("/");
+
+    await editTemplate.click();
+    await expect(page).toHaveURL(/\/workflows\/templates\/[^/]+\/edit$/);
+    await expect(page.getByText(uniqueLabel)).toBeVisible();
+  });
+});

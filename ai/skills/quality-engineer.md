@@ -1,127 +1,62 @@
 # Quality Engineer
 
-## Purpose
-
-Implement, maintain, and execute the verification system for framework-aligned products. The Quality Engineer skill covers the full scope of `docs/QUALITY_STANDARD.md`: writing tests at the correct layer, running CI gates, triaging failures, executing the incident-to-regression loop, and advancing the product's quality maturity phase.
-
 ## Use When
 
-- Writing or reviewing tests for a new feature (unit, component, integration, E2E)
-- Triaging a failing CI check (`test`, `e2e`, `validate`)
-- Executing the incident-to-regression loop after a production issue
-- Auditing a product's Phase 1/2/3 readiness against the Quality Standard checklist
-- Setting up or configuring the test stack (Vitest, Playwright, MSW) for a new product
-- Reviewing accessibility failures from axe-core and deciding fix vs. defer
-
-## Environment model
-
-- **Production** (`main` / `ai-native-framework.app`): real users only. PostHog and Sentry reflect genuine user behavior. No automated test traffic ever targets production.
-- **Staging** (`staging` branch / `staging.ai-native-framework.app`): nightly CI target and E2E gate for PRs. PostHog token is unset — no analytics events generated. Sentry is active for real integration errors.
-- **Development** (local): PostHog auto-opts out in `NODE_ENV=development`. Sentry traces at full sample rate.
-
-When diagnosing nightly failures, the target is `STAGING_URL` (repo variable), not the production origin. Do not manually point nightly runs at production.
-
-## Do Not Use When
-
-- The task is purely about event capture, PII rules, or PostHog/Sentry wiring — that is `docs/ANALYTICS_STANDARD.md` territory
-- The task is a framework-level architecture audit — use the `Framework Keeper` skill
-- The task is implementing a new product feature with no quality/test focus — use the `Developer` skill
+- writing or reviewing tests
+- triaging `test`, `e2e`, or `validate` failures
+- running the incident-to-regression loop
+- auditing phase readiness against `docs/QUALITY_STANDARD.md`
+- setting up or refining the test stack
 
 ## Inputs
 
-- The product's current phase (from `docs/QUALITY_STANDARD.md §8`)
-- The failing check name, error output, and Playwright report (if E2E)
-- The incident ID and reproduction steps (for incident-to-regression work)
-- Spec entry for the behavior under test
-- Vitest and Playwright configs for the target product
+- current product phase
+- failing check name and error output
+- incident ID and repro steps when relevant
+- spec entry for the behavior under test
+- target Vitest and Playwright configuration
 
 ## Outputs
 
-- Tests that pass in CI and are anchored to a spec entry
-- A passing `test` check and `e2e` check on the PR
-- A regression test merged before incident closure
-- A phase readiness evidence bundle (for phase advancement)
+- correct-layer tests
+- green `test` and `e2e` gates
+- merged regression coverage for incidents
+- phase-readiness evidence bundle when requested
 
-## Workflow
+## Steps
 
-### Writing a new test
+1. Trace the behavior to a spec entry; create or update the spec first if needed.
+2. Choose the lowest correct test layer: unit, component, integration, then E2E.
+3. Write or fix the test and run it locally.
+4. For failing CI, diagnose from the error or trace before changing code.
+5. Treat critical-path accessibility failures as blockers.
+6. For incidents, write the regression so it fails on the broken behavior and passes after the fix.
+7. For operational loops, also load `ai/playbooks/quality-standard-execution.md`.
 
-1. Identify the spec entry the behavior traces to. If none exists, create it first.
-2. Choose the correct layer (see decision tree below).
-3. Write the test. Run it locally: `npm test` (Vitest) or `npx playwright test` (E2E).
-4. Confirm the test is green before opening a PR.
-5. Check that coverage of new lines is reasonable — don't chase a percentage, but untested critical paths should have at least one test.
+## Rules
 
-### Layer decision tree
-
-```text
-Is it a pure function / data transform / utility?
-  → Unit test in __tests__/lib/
-
-Is it a React component (rendering, interaction, accessibility semantics)?
-  → Component test in __tests__/components/
-
-Is it a server action / API route handler / multi-component flow?
-  → Integration test in __tests__/api/ or a Vitest integration test
-
-Is it a user-visible browser flow requiring navigation or real HTTP?
-  → E2E test in e2e/
-    Critical path (≤10 scenarios)? → e2e/critical-paths.spec.ts (blocking gate)
-    Non-critical? → nightly suite or separate spec file
-```
-
-### Diagnosing a failing `test` check
-
-1. Read the error output in CI. Identify the file, test name, and assertion.
-2. Run the same test locally: `npm test -- --reporter=verbose`.
-3. If the assertion is wrong (spec changed): update the test.
-4. If the code is wrong: fix the code, not the test.
-5. Never skip or mark the test as `todo` to unblock a PR.
-
-### Diagnosing a failing `e2e` check
-
-1. Download the Playwright HTML report from the CI artifact.
-2. Check the trace viewer for the failing step.
-3. Classify: app bug, flaky selector, accessibility violation, or smoke failure.
-4. Accessibility violations on critical flows: fix in the component, don't exclude the rule.
-5. Flaky selector: use `getByRole` or `getByText` over CSS selectors; add `await expect(...).toBeVisible()` before interactions.
-
-### Incident-to-regression loop
-
-Follow `ai/playbooks/quality-standard-execution.md §3` exactly. The key invariant: the regression test must **fail** on the incident-era code and **pass** after the fix. Do not write a test that only validates the fixed behavior without demonstrating it would have caught the regression.
-
-## Decision Rules
-
-- Never skip a blocking gate to unblock a PR. If a gate is broken, fix it.
-- Accessibility violations on critical flows are non-negotiable blockers. Fix in the component.
-- Tests must trace to a spec entry. If no spec entry exists, create it first.
-- Non-blocking failures (nightly, non-critical a11y) still require a tracked issue within 24 hours.
-- Visual regression is not introduced without explicit scope — don't add screenshot tests "while you're here."
-- Phase advancement is a human decision. Present the evidence bundle; do not self-advance.
+- Never skip a blocking gate to unblock a PR.
+- Tests should trace to spec entries.
+- Critical-flow accessibility violations are non-deferrable.
+- Non-blocking failures still need tracked follow-up.
+- Phase advancement is a human decision.
 
 ## Escalate When
 
-- A blocking gate failure cannot be attributed to the current change.
-- An accessibility violation requires a significant architectural change to fix.
-- The nightly suite is flaky across multiple nights without a clear root cause.
-- An AI eval drops below threshold and the degradation is ambiguous.
-- Phase advancement requires a governance decision.
+- a blocking failure cannot be attributed to the current change
+- an accessibility fix requires major architectural change
+- nightly instability lacks a clear root cause
+- AI eval degradation is ambiguous
+- phase advancement needs governance approval
 
-## Completion Criteria
+## Done
 
-- The relevant tests exist, are anchored to spec entries, and pass in CI.
-- The `test` and `e2e` blocking gates are green on the PR.
-- Any new accessibility scan passes on critical flows.
-- Nightly failures are tracked as open issues (not silently ignored).
-- For incident work: regression test is merged and the incident is closed with a PR reference.
+- the relevant tests exist at the right layer and pass
+- blocking quality gates are green
+- incident work includes merged regression coverage
 
-## Canonical References
+## References
 
-- `docs/QUALITY_STANDARD.md` — normative standard
-- `docs/ANALYTICS_STANDARD.md` — cross-reference for observability/PII boundary
-- `ai/playbooks/quality-standard-execution.md` — operational procedure
-- `products/dashboard/vitest.config.ts` — Vitest config (dashboard reference)
-- `products/dashboard/playwright.config.ts` — Playwright config (dashboard reference)
-- `products/dashboard/__tests__/` — test suite (dashboard reference)
-- `products/dashboard/e2e/` — E2E suite (dashboard reference)
-- `products/dashboard/tests/msw/` — MSW handlers (dashboard reference)
+- `docs/QUALITY_STANDARD.md`
+- `docs/ANALYTICS_STANDARD.md`
+- `ai/playbooks/quality-standard-execution.md`

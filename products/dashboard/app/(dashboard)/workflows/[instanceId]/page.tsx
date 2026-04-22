@@ -2,6 +2,7 @@ import { notFound } from "next/navigation";
 
 import { ShellEvents } from "@/components/shell-events";
 import { ProcessMatrix } from "@/components/workflows/process-matrix";
+import { WorkflowInstanceHeader } from "@/components/workflows/workflow-instance-header";
 import { getServerWorkflowRepository } from "@/lib/workflows/repository.server";
 
 /**
@@ -57,21 +58,12 @@ export default async function WorkflowInstancePage({
       <ShellEvents route="/workflows/[instanceId]" />
 
       <div className="flex h-full flex-col overflow-hidden">
-        <header className="flex-shrink-0 border-b border-border bg-bg px-6 py-4">
-          <p className="font-mono text-[10px] uppercase tracking-[0.13em] text-t3">
-            Workflow instance
-          </p>
-          <h1 className="mt-1 text-[20px] font-bold tracking-tight text-t1">
-            {instance.label}
-          </h1>
-          <p className="mt-1 text-[13px] text-t2">
-            {instance.tasks.length}{" "}
-            {instance.tasks.length === 1 ? "task" : "tasks"} ·{" "}
-            {instance.roles.length}{" "}
-            {instance.roles.length === 1 ? "role" : "roles"} · status{" "}
-            <span className="font-medium text-t1">{instance.status}</span>
-          </p>
-        </header>
+        <WorkflowInstanceHeader
+          instanceLabel={instance.label}
+          taskCount={instance.tasks.length}
+          roleCount={instance.roles.length}
+          stageCount={template?.stages.length ?? 0}
+        />
 
         <ProcessMatrix
           instance={instance}

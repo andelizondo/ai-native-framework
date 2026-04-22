@@ -13,6 +13,7 @@ import type {
   WorkflowInstance,
   WorkflowTask,
   WorkflowTaskCreateInput,
+  WorkflowTemplate,
   WorkflowTrigger,
 } from "@/lib/workflows/types";
 
@@ -62,6 +63,36 @@ export async function createInstanceAction(
   // the modal only needs the persisted id + label to navigate.
   const { tasks: _tasks, events: _events, ...instance } = detail;
   return { instance };
+}
+
+export async function renameInstanceAction(
+  instanceId: string,
+  rawLabel: string,
+): Promise<{ instance: WorkflowInstance }> {
+  const trimmedInstanceId = normalizeTaskField(instanceId, "instanceId", 80);
+  const label = normalizeTaskField(rawLabel, "label", MAX_LABEL_LENGTH);
+  if (!trimmedInstanceId || !label) {
+    throw new Error("renameInstanceAction: instanceId and label are required");
+  }
+
+  const repo = await getServerWorkflowRepository();
+  const instance = await repo.updateInstance(trimmedInstanceId, { label });
+
+  revalidatePath("/", "layout");
+  revalidatePath(`/workflows/${trimmedInstanceId}`);
+  return { instance };
+}
+
+export async function deleteInstanceAction(instanceId: string): Promise<void> {
+  const trimmedInstanceId = normalizeTaskField(instanceId, "instanceId", 80);
+  if (!trimmedInstanceId) {
+    throw new Error("deleteInstanceAction: instanceId is required");
+  }
+
+  const repo = await getServerWorkflowRepository();
+  await repo.deleteInstance(trimmedInstanceId);
+
+  revalidatePath("/", "layout");
 }
 
 /**
@@ -317,6 +348,15 @@ export interface CreateTaskResult {
   task: WorkflowTask;
 }
 
+export interface UpdateTaskDetailsInput {
+  taskId: string;
+  title: string;
+  description?: string;
+  agent?: string | null;
+  skill?: string | null;
+  playbook?: string | null;
+}
+
 export async function createTaskAction(
   input: WorkflowTaskCreateInput,
 ): Promise<CreateTaskResult> {
@@ -366,6 +406,56 @@ export async function createTaskAction(
   } catch (eventError) {
     captureError(eventError, {
       feature: "workflows.create_task",
+      action: "addEvent",
+      extra: { task_id: task.id, instance_id: task.instanceId },
+    });
+  }
+
+  revalidatePath("/", "layout");
+  return { task };
+}
+
+export async function updateTaskDetailsAction(
+  input: UpdateTaskDetailsInput,
+): Promise<{ task: WorkflowTask }> {
+  const taskId = normalizeTaskField(input.taskId, "taskId", 80);
+  const title = normalizeTaskField(input.title, "title", MAX_TASK_TITLE_LENGTH);
+  const description = normalizeTaskField(
+    input.description ?? "",
+    "description",
+    MAX_TASK_DESCRIPTION_LENGTH,
+  );
+  const playbook = normalizeTaskField(
+    input.playbook ?? "",
+    "playbook",
+    MAX_PLAYBOOK_LENGTH,
+  );
+
+  if (!taskId || !title) {
+    throw new Error("updateTaskDetailsAction: taskId and title are required");
+  }
+
+  const repo = await getServerWorkflowRepository();
+  const task = await repo.updateTask(taskId, {
+    title,
+    description,
+    agent: input.agent ?? null,
+    skill: input.skill ?? null,
+    playbook: playbook || null,
+  });
+
+  try {
+    await repo.addEvent(task.id, {
+      name: "workflow.task_updated",
+      description: `Updated task: ${task.title}`,
+      payload: {
+        task_id: task.id,
+        instance_id: task.instanceId,
+      },
+    });
+  } catch (eventError) {
+    captureError(eventError, {
+      feature: "workflows.update_task_details",
       action: "addEvent",
       extra: { task_id: task.id, instance_id: task.instanceId },
     });
@@ -606,6 +696,116 @@ export async function deleteTaskAction(taskId: string): Promise<void> {
       extra: { task_id: task.id, instance_id: task.instanceId },
     });
   }
+
+  revalidatePath("/", "layout");
+}
+
+function trimTemplateLabel(value: string): string {
+  return value.trim().slice(0, MAX_LABEL_LENGTH);
+}
+
+function normalizeTemplateStages(
+  stages: WorkflowTemplate["stages"],
+): WorkflowTemplate["stages"] {
+  return stages
+    .map((stage) => ({
+      id: normalizeTaskField(stage.id, "stage.id", 80),
+      label: trimTemplateLabel(stage.label),
+      sub: trimTemplateLabel(stage.sub ?? ""),
+    }))
+    .filter((stage) => stage.id && stage.label);
+}
+
+function normalizeTemplateRoles(
+  roles: WorkflowTemplate["roles"],
+): WorkflowTemplate["roles"] {
+  return roles
+    .map((role) => ({
+      id: normalizeTaskField(role.id, "role.id", 80),
+      label: trimTemplateLabel(role.label),
+      owner: trimTemplateLabel(role.owner ?? ""),
+      color: role.color?.trim() || undefined,
+    }))
+    .filter((role) => role.id && role.label);
+}
+
+function normalizeTemplateTaskTemplates(
+  taskTemplates: WorkflowTemplate["taskTemplates"],
+): WorkflowTemplate["taskTemplates"] {
+  return taskTemplates
+    .map((task) => ({
+      ...task,
+      id: normalizeTaskField(task.id ?? "", "taskTemplate.id", 120),
+      role: normalizeTaskField(task.role, "taskTemplate.role", 80),
+      stage: normalizeTaskField(task.stage, "taskTemplate.stage", 80),
+      title: trimTemplateLabel(task.title),
+      desc: normalizeTaskField(
+        task.desc ?? "",
+        "taskTemplate.desc",
+        MAX_TASK_DESCRIPTION_LENGTH,
+      ),
+      agent: trimTemplateLabel(task.agent ?? ""),
+      skill: trimTemplateLabel(task.skill ?? ""),
+      playbook: trimTemplateLabel(task.playbook ?? ""),
+      triggers: task.triggers ?? [],
+      gates: task.gates ?? [],
+      checkpoint: Boolean(task.checkpoint),
+    }))
+    .filter((task) => task.id && task.role && task.stage && task.title);
+}
+
+export async function updateTemplateAction(
+  templateId: string,
+  template: WorkflowTemplate,
+): Promise<{ template: WorkflowTemplate }> {
+  const trimmedTemplateId = normalizeTaskField(templateId, "templateId", 120);
+  if (!trimmedTemplateId) {
+    throw new Error("updateTemplateAction: templateId is required");
+  }
+  if (!template.label.trim()) {
+    throw new Error("updateTemplateAction: template label is required");
+  }
+
+  const repo = await getServerWorkflowRepository();
+  const updatedTemplate = await repo.updateTemplate(trimmedTemplateId, {
+    label: trimTemplateLabel(template.label),
+    stages: normalizeTemplateStages(template.stages),
+    roles: normalizeTemplateRoles(template.roles),
+    taskTemplates: normalizeTemplateTaskTemplates(template.taskTemplates),
+  });
+
+  revalidatePath("/", "layout");
+  revalidatePath(`/workflows/templates/${trimmedTemplateId}/edit`);
+
+  return { template: updatedTemplate };
+}
+
+export async function renameTemplateAction(
+  templateId: string,
+  rawLabel: string,
+): Promise<{ template: WorkflowTemplate }> {
+  const trimmedTemplateId = normalizeTaskField(templateId, "templateId", 120);
+  const label = normalizeTaskField(rawLabel, "label", MAX_LABEL_LENGTH);
+  if (!trimmedTemplateId || !label) {
+    throw new Error("renameTemplateAction: templateId and label are required");
+  }
+
+  const repo = await getServerWorkflowRepository();
+  const template = await repo.updateTemplate(trimmedTemplateId, { label });
+
+  revalidatePath("/", "layout");
+  revalidatePath(`/workflows/templates/${trimmedTemplateId}/edit`);
+  return { template };
+}
+
+export async function deleteTemplateAction(templateId: string): Promise<void> {
+  const trimmedTemplateId = normalizeTaskField(templateId, "templateId", 120);
+  if (!trimmedTemplateId) {
+    throw new Error("deleteTemplateAction: templateId is required");
+  }
+
+  const repo = await getServerWorkflowRepository();
+  await repo.deleteTemplate(trimmedTemplateId);
 
   revalidatePath("/", "layout");
 }
