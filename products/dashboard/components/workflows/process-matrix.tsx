@@ -131,7 +131,7 @@ export function ProcessMatrix({
     });
 
     return () => setConfig(null);
-  }, [instance.label, setConfig, template?.label]);
+  }, [instance.id, instance.label, setConfig, template?.label]);
 
   const runMutation = useCallback(
     async (

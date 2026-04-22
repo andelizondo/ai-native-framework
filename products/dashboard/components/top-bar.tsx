@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { Bell, Pencil } from "lucide-react";
 
@@ -64,6 +64,13 @@ export function TopBar({ initialPendingCount = 0 }: TopBarProps) {
 
   const [panelOpen, setPanelOpen] = useState(false);
   const [pendingCount, setPendingCount] = useState(initialPendingCount);
+  const [templateLabelDraft, setTemplateLabelDraft] = useState("");
+
+  useEffect(() => {
+    if (config?.mode === "template-editor") {
+      setTemplateLabelDraft(config.label);
+    }
+  }, [config]);
 
   function toggleEditMode() {
     if (!pathname) return;
@@ -93,8 +100,23 @@ export function TopBar({ initialPendingCount = 0 }: TopBarProps) {
                 {idx > 0 && <span className="text-t3">›</span>}
                 {isLast && config?.mode === "template-editor" ? (
                   <input
-                    value={config.label}
-                    onChange={(event) => config.onLabelChange(event.target.value)}
+                    value={templateLabelDraft}
+                    onChange={(event) => {
+                      const nextValue = event.target.value;
+                      setTemplateLabelDraft(nextValue);
+                      config.onLabelChange(nextValue);
+                    }}
+                    onKeyDown={(event) => {
+                      if (event.key === "Enter") {
+                        event.preventDefault();
+                        void config.onSave();
+                      }
+                      if (event.key === "Escape") {
+                        event.preventDefault();
+                        setTemplateLabelDraft(config.label);
+                        config.onLabelChange(config.label);
+                      }
+                    }}
                     className="min-w-[140px] bg-transparent p-0 text-[13px] font-semibold text-t1 outline-none placeholder:text-t3"
                     aria-label="Workflow template name"
                   />

@@ -3,6 +3,14 @@
 import type { ReactNode } from "react";
 import { useEffect, useId, useRef, useState } from "react";
 
+function getFocusableElements(container: HTMLElement): HTMLElement[] {
+  return Array.from(
+    container.querySelectorAll<HTMLElement>(
+      'button:not([disabled]), [href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])',
+    ),
+  );
+}
+
 interface TextInputModalProps {
   title: string;
   description?: ReactNode;
@@ -27,6 +35,7 @@ export function TextInputModal({
   const titleId = useId();
   const descriptionId = useId();
   const inputId = useId();
+  const dialogRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const previousFocusRef = useRef<HTMLElement | null>(null);
   const [value, setValue] = useState(initialValue);
@@ -41,6 +50,28 @@ export function TextInputModal({
     function handleKeyDown(event: KeyboardEvent) {
       if (event.key === "Escape") {
         onClose();
+        return;
+      }
+
+      if (event.key !== "Tab" || !dialogRef.current) {
+        return;
+      }
+
+      const focusable = getFocusableElements(dialogRef.current);
+      if (focusable.length === 0) {
+        return;
+      }
+
+      const first = focusable[0];
+      const last = focusable[focusable.length - 1];
+      const active = document.activeElement;
+
+      if (event.shiftKey && active === first) {
+        event.preventDefault();
+        last.focus();
+      } else if (!event.shiftKey && active === last) {
+        event.preventDefault();
+        first.focus();
       }
     }
 
@@ -62,6 +93,7 @@ export function TextInputModal({
       }}
     >
       <div
+        ref={dialogRef}
         className="w-full max-w-[420px] rounded-[14px] border border-border-hi bg-bg-2 p-7 shadow-[var(--shadow-canvas)]"
         role="dialog"
         aria-modal="true"

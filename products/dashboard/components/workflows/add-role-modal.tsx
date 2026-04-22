@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 
 import type { WorkflowRole } from "@/lib/workflows/types";
 import { cn } from "@/lib/utils";
@@ -49,6 +49,17 @@ export function AddRoleModal({
     ? customRole.trim() || initialRole?.label?.trim() || ""
     : selectedPreset?.label || "";
   const canSubmit = roleName.length > 0;
+
+  useEffect(() => {
+    function handleKeyDown(event: KeyboardEvent) {
+      if (event.key === "Escape") {
+        onClose();
+      }
+    }
+
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [onClose]);
 
   return (
     <div

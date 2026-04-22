@@ -561,24 +561,34 @@ export function createWorkflowRepository(
     },
 
     async deleteTask(taskId: string): Promise<void> {
-      const { error } = await client
+      const { data, error } = await client
         .from("workflow_tasks")
         .delete()
-        .eq("id", taskId);
+        .eq("id", taskId)
+        .select("*")
+        .maybeSingle();
 
       if (error) {
         throw new WorkflowRepositoryError("deleteTask failed", error);
       }
+      if (!data) {
+        throw new WorkflowRepositoryError("deleteTask returned no row");
+      }
     },
 
     async deleteInstance(instanceId: string): Promise<void> {
-      const { error } = await client
+      const { data, error } = await client
         .from("workflow_instances")
         .delete()
-        .eq("id", instanceId);
+        .eq("id", instanceId)
+        .select("*")
+        .maybeSingle();
 
       if (error) {
         throw new WorkflowRepositoryError("deleteInstance failed", error);
+      }
+      if (!data) {
+        throw new WorkflowRepositoryError("deleteInstance returned no row");
       }
     },
 
