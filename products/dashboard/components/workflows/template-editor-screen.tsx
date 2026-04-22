@@ -184,19 +184,21 @@ function MatrixHeaderInsertButton({
   onClick: () => void;
 }) {
   return (
-    <button
-      type="button"
-      aria-label={ariaLabel}
+    <div
       className={cn(
-        "mx-header-insert",
+        "mx-header-insert-zone",
         axis === "column" ? "mx-header-insert-column" : "mx-header-insert-row",
       )}
-      onClick={onClick}
     >
-      <span className="mx-header-insert-icon">
+      <button
+        type="button"
+        aria-label={ariaLabel}
+        className="mx-header-insert"
+        onClick={onClick}
+      >
         <Plus className="h-3 w-3" />
-      </span>
-    </button>
+      </button>
+    </div>
   );
 }
 
