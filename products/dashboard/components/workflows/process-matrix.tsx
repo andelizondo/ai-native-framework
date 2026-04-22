@@ -115,7 +115,11 @@ export function ProcessMatrix({
   useEffect(() => {
     setConfig({
       mode: "workflow-instance",
-      crumbs: ["Workflows", template?.label ?? "Workflow", instance.label],
+      crumbs: [
+        { label: "Workflows" },
+        { label: template?.label ?? "Workflow" },
+        { label: instance.label },
+      ],
       actions: (
         <HeaderActionsMenu
           entityLabel={instance.label}

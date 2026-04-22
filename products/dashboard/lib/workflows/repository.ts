@@ -718,5 +718,21 @@ export function createWorkflowRepository(
 
       return mapFrameworkItem(unwrap("upsertFrameworkItem", data, error) as FrameworkItemRow);
     },
+
+    async deleteFrameworkItem(itemId: string): Promise<void> {
+      const { data, error } = await client
+        .from("framework_items")
+        .delete()
+        .eq("id", itemId)
+        .select("*")
+        .maybeSingle();
+
+      if (error) {
+        throw new WorkflowRepositoryError("deleteFrameworkItem failed", error);
+      }
+      if (!data) {
+        throw new WorkflowRepositoryError("deleteFrameworkItem returned no row");
+      }
+    },
   };
 }

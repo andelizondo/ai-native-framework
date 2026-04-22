@@ -4,7 +4,10 @@ import { useEffect, useRef, useState } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { Bell, Pencil } from "lucide-react";
 
-import { useDashboardTopBar } from "@/components/dashboard-topbar-context";
+import {
+  type DashboardTopBarCrumb,
+  useDashboardTopBar,
+} from "@/components/dashboard-topbar-context";
 import { CheckpointPanel } from "@/components/workflows/checkpoint-panel";
 import { cn } from "@/lib/utils";
 
@@ -38,13 +41,15 @@ const ROUTE_LABELS: ReadonlyArray<{ test: (path: string) => boolean; crumbs: str
   },
 ];
 
-function deriveCrumbs(pathname: string | null): string[] {
-  if (!pathname) return ["Overview"];
+function deriveCrumbs(pathname: string | null): DashboardTopBarCrumb[] {
+  if (!pathname) return [{ label: "Overview" }];
   for (const entry of ROUTE_LABELS) {
-    if (entry.test(pathname)) return entry.crumbs;
+    if (entry.test(pathname)) {
+      return entry.crumbs.map((label) => ({ label }));
+    }
   }
   const last = pathname.split("/").filter(Boolean).pop() ?? "Overview";
-  return [last.replace(/[-_]/g, " ").replace(/\b\w/g, (c) => c.toUpperCase())];
+  return [{ label: last.replace(/[-_]/g, " ").replace(/\b\w/g, (c) => c.toUpperCase()) }];
 }
 
 export interface TopBarProps {
@@ -96,7 +101,7 @@ export function TopBar({ initialPendingCount = 0 }: TopBarProps) {
           {crumbs.map((crumb, idx) => {
             const isLast = idx === crumbs.length - 1;
             return (
-              <span key={`${crumb}-${idx}`} className="flex items-center gap-1.5">
+              <span key={`${crumb.label}-${idx}`} className="flex items-center gap-1.5">
                 {idx > 0 && <span className="text-t3">›</span>}
                 {isLast && config?.mode === "template-editor" ? (
                   <input
@@ -121,16 +126,24 @@ export function TopBar({ initialPendingCount = 0 }: TopBarProps) {
                     aria-label="Workflow template name"
                   />
                 ) : (
-                  <span
+                  <button
+                    type="button"
+                    onClick={crumb.onClick}
+                    disabled={!crumb.onClick || isLast}
                     className={
                       isLast
                         ? "truncate text-[13px] font-semibold text-t1"
-                        : "truncate text-[13px] font-medium text-t2"
+                        : cn(
+                            "truncate text-[13px] font-medium text-t2 transition",
+                            crumb.onClick
+                              ? "cursor-pointer hover:text-t1"
+                              : "cursor-default",
+                          )
                     }
                     aria-current={isLast ? "page" : undefined}
                   >
-                    {crumb}
-                  </span>
+                    {crumb.label}
+                  </button>
                 )}
               </span>
             );

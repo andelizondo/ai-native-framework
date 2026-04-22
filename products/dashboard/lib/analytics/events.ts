@@ -54,6 +54,10 @@ export type AnalyticsEvent =
       event: "workflow.template_edited";
       properties: { template_id: string; edited_by: string };
     }
+  | {
+      event: "framework.skill_edited";
+      properties: { item_id: string; edited_by: string };
+    }
   // ── Agent run panel ───────────────────────────────────────────────────────
   | { event: "dashboard.agent_run_opened"; properties: { task_id: string } }
   // ── My Tasks panel ────────────────────────────────────────────────────────

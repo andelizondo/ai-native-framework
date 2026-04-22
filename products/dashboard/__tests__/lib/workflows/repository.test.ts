@@ -25,6 +25,7 @@ interface FilterState {
   pendingInsert?: Record<string, unknown>[];
   pendingUpdate?: Record<string, unknown>;
   pendingUpsert?: Record<string, unknown>[];
+  pendingDelete: boolean;
   selecting: boolean;
 }
 
@@ -56,6 +57,10 @@ function makeQueryBuilder(state: FilterState, store: RowMap) {
     },
     upsert(rows: Record<string, unknown> | Record<string, unknown>[]) {
       state.pendingUpsert = Array.isArray(rows) ? rows : [rows];
+      return builder;
+    },
+    delete() {
+      state.pendingDelete = true;
       return builder;
     },
     async maybeSingle() {
@@ -134,6 +139,22 @@ function applyOperation(
     return updated;
   }
 
+  if (state.pendingDelete) {
+    const removed: Record<string, unknown>[] = [];
+    const kept: Record<string, unknown>[] = [];
+
+    for (const row of tableRows) {
+      if (state.filters.every((f) => f(row))) {
+        removed.push(row);
+      } else {
+        kept.push(row);
+      }
+    }
+
+    store[state.table] = kept;
+    return removed;
+  }
+
   // Read path
   let rows = tableRows.filter((row) => state.filters.every((f) => f(row)));
 
@@ -163,6 +184,7 @@ function makeFakeClient(store: RowMap): SupabaseClient {
         rows: [],
         filters: [],
         orderBy: [],
+        pendingDelete: false,
         selecting: false,
       };
       return makeQueryBuilder(state, store);
@@ -618,6 +640,15 @@ describe("workflow repository", () => {
       expect(updated.description).toBe("Updated description");
       expect(updated.content).toBe("# Updated PM Skill");
       expect(store.framework_items).toHaveLength(2);
+    });
+
+    it("deleteFrameworkItem removes the row", async () => {
+      const repo = createWorkflowRepository(makeFakeClient(store));
+
+      await repo.deleteFrameworkItem("sk-pm");
+
+      expect(store.framework_items).toHaveLength(1);
+      expect(store.framework_items[0]?.id).toBe("pb-presales");
     });
   });
 });

@@ -314,7 +314,7 @@ export function TemplateEditorScreen({
   useEffect(() => {
     setConfig({
       mode: "template-editor",
-      crumbs: ["Workflows", draft.label],
+      crumbs: [{ label: "Workflows" }, { label: draft.label }],
       label: draft.label,
       onLabelChange: (value) =>
         setDraft((current) => ({ ...current, label: value })),

@@ -265,4 +265,5 @@ export interface WorkflowRepository {
   ): Promise<WorkflowEvent>;
   getFrameworkItems(type?: FrameworkItemType): Promise<FrameworkItem[]>;
   upsertFrameworkItem(item: FrameworkItem): Promise<FrameworkItem>;
+  deleteFrameworkItem(itemId: string): Promise<void>;
 }
