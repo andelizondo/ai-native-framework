@@ -101,9 +101,11 @@ function insertAt<T>(items: T[], index: number, value: T): T[] {
 function ColorDot({
   color,
   onChange,
+  ariaLabel = "Change role color",
 }: {
   color: string;
   onChange: (color: string) => void;
+  ariaLabel?: string;
 }) {
   const rootRef = useRef<HTMLDivElement | null>(null);
   const [open, setOpen] = useState(false);
@@ -140,7 +142,7 @@ function ColorDot({
     >
       <button
         type="button"
-        aria-label="Change role color"
+        aria-label={ariaLabel}
         onClick={() => setOpen((current) => !current)}
         className="flex h-5 w-5 cursor-pointer items-center justify-center rounded-full border border-border bg-bg-3 shadow-[inset_0_1px_0_rgba(255,255,255,0.03)] transition hover:border-border-hi hover:bg-bg-4 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
       />
@@ -335,27 +337,36 @@ export function TemplateEditorScreen({
     <div className="flex h-full flex-col overflow-hidden">
       <div className="shrink-0 border-b border-border bg-bg px-6 py-4">
         <div className="min-w-0">
-            <p className="font-mono text-[10px] uppercase tracking-[0.13em] text-t3">
-              Workflow template
-            </p>
-            <div className="mt-1 flex items-center gap-2">
-              <h1 className="truncate text-[20px] font-bold tracking-tight text-t1">{draft.label}</h1>
-              <div className="group relative">
+            <div className="flex items-center gap-1.5 leading-none">
+              <p className="font-mono text-[10px] uppercase tracking-[0.13em] text-t3">
+                Workflow template
+              </p>
+              <div className="group relative inline-flex items-center">
                 <button
                   type="button"
                   aria-label="Template editing information"
-                  className="flex h-5 w-5 items-center justify-center rounded-full text-[#fbbf24] transition hover:bg-[rgba(245,158,11,0.08)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#fbbf24]"
+                  className="inline-flex h-3.5 w-3.5 cursor-help items-center justify-center text-[#fbbf24] transition hover:text-[#fcd34d] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#fbbf24]"
                 >
-                  <CircleAlert className="h-3.5 w-3.5" />
+                  <CircleAlert className="h-3 w-3" />
                 </button>
                 <div
                   role="tooltip"
-                  className="pointer-events-none absolute left-[calc(100%+8px)] top-1/2 z-30 hidden w-[280px] -translate-y-1/2 rounded-lg border border-[rgba(245,158,11,0.28)] bg-bg-2 px-3 py-2 text-[12px] leading-5 text-[#fbbf24] shadow-[var(--shadow-canvas)] group-hover:block group-focus-within:block"
+                  className="pointer-events-none absolute left-0 top-[calc(100%+8px)] z-30 hidden w-[280px] rounded-lg border border-[rgba(245,158,11,0.28)] bg-bg-2 px-3 py-2 text-[12px] leading-5 text-[#fbbf24] shadow-[var(--shadow-canvas)] group-hover:block group-focus-within:block"
                 >
                   Modifying this workflow updates defaults for new instances. Existing
                   instances keep their current tasks.
                 </div>
               </div>
+            </div>
+            <div className="mt-1 flex items-center gap-2">
+              <h1 className="truncate text-[20px] font-bold tracking-tight text-t1">{draft.label}</h1>
+              <ColorDot
+                color={draft.color}
+                ariaLabel="Change workflow template color"
+                onChange={(color) =>
+                  setDraft((current) => ({ ...current, color }))
+                }
+              />
             </div>
             <p className="mt-1 text-[13px] text-t2">
               {draft.taskTemplates.length}{" "}

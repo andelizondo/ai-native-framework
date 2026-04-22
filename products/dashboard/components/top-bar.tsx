@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { Bell, Pencil } from "lucide-react";
 
@@ -138,7 +138,13 @@ export function TopBar({ initialPendingCount = 0 }: TopBarProps) {
         </nav>
 
         <div className="flex shrink-0 items-center gap-1.5">
-          {config?.actions ?? null}
+          {config?.mode === "template-editor" ? (
+            <>
+              {config.actions ?? null}
+            </>
+          ) : (
+            config?.actions ?? null
+          )}
 
           {config?.mode === "template-editor" ? (
             <button
