@@ -246,7 +246,7 @@ export interface WorkflowRepository {
   createInstance(templateId: string, label: string): Promise<WorkflowInstanceDetail>;
   updateInstance(
     instanceId: string,
-    patch: Pick<WorkflowInstance, "label" | "status">,
+    patch: Partial<Pick<WorkflowInstance, "label" | "status">>,
   ): Promise<WorkflowInstance>;
   deleteInstance(instanceId: string): Promise<void>;
   createTask(input: WorkflowTaskCreateInput): Promise<WorkflowTask>;

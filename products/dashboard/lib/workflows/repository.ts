@@ -474,7 +474,7 @@ export function createWorkflowRepository(
 
     async updateInstance(
       instanceId: string,
-      patch: Pick<WorkflowInstance, "label" | "status">,
+      patch: Partial<Pick<WorkflowInstance, "label" | "status">>,
     ): Promise<WorkflowInstance> {
       const row: Record<string, unknown> = {};
       if (patch.label !== undefined) row.label = patch.label;
