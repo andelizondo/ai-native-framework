@@ -41,6 +41,7 @@ export interface WorkflowRole {
   id: string;
   label: string;
   owner?: string;
+  color?: string;
 }
 
 export interface WorkflowTrigger {
@@ -57,6 +58,7 @@ export interface WorkflowGate {
 }
 
 export interface WorkflowTaskTemplate {
+  id?: string;
   role: string;
   stage: string;
   title: string;
@@ -165,6 +167,13 @@ export interface WorkflowTaskPatch {
   playbook?: string | null;
 }
 
+export interface WorkflowTemplatePatch {
+  label?: string;
+  stages?: WorkflowStage[];
+  roles?: WorkflowRole[];
+  taskTemplates?: WorkflowTaskTemplate[];
+}
+
 export interface WorkflowEventInput {
   name: string;
   description?: string;
@@ -235,9 +244,19 @@ export interface WorkflowRepository {
    */
   listRecentEvents(limit: number): Promise<WorkflowEvent[]>;
   createInstance(templateId: string, label: string): Promise<WorkflowInstanceDetail>;
+  updateInstance(
+    instanceId: string,
+    patch: Partial<Pick<WorkflowInstance, "label" | "status">>,
+  ): Promise<WorkflowInstance>;
+  deleteInstance(instanceId: string): Promise<void>;
   createTask(input: WorkflowTaskCreateInput): Promise<WorkflowTask>;
   updateTask(taskId: string, patch: WorkflowTaskPatch): Promise<WorkflowTask>;
   deleteTask(taskId: string): Promise<void>;
+  updateTemplate(
+    templateId: string,
+    patch: WorkflowTemplatePatch,
+  ): Promise<WorkflowTemplate>;
+  deleteTemplate(templateId: string): Promise<void>;
   addEvent(taskId: string, event: WorkflowEventInput): Promise<WorkflowEvent>;
   addInstanceEvent(
     instanceId: string,

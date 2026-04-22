@@ -27,6 +27,7 @@ const ALLOWED_EVENTS = new Set([
   "workflow.task_started",
   "workflow.run_cancelled",
   "workflow.run_retried",
+  "workflow.template_edited",
 ]);
 
 const WORKFLOW_TASK_INSTANCE_EVENTS = new Set([
@@ -92,6 +93,13 @@ function sanitizePayload(
     const instance_id = clampString(payload.instance_id, 80);
     if (!task_id || !instance_id) return null;
     return { task_id, instance_id };
+  }
+
+  if (eventName === "workflow.template_edited") {
+    const template_id = clampString(payload.template_id, 120);
+    const edited_by = clampString(payload.edited_by, 120);
+    if (!template_id || !edited_by) return null;
+    return { template_id, edited_by };
   }
 
   return null;

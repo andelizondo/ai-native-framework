@@ -368,6 +368,61 @@ describe("workflow repository", () => {
     });
   });
 
+  describe("updateTemplate", () => {
+    it("updates template label, stages, roles, and task templates", async () => {
+      const repo = createWorkflowRepository(makeFakeClient(store));
+
+      const updated = await repo.updateTemplate("client-delivery", {
+        label: "Client Delivery v2",
+        stages: [
+          { id: "pre-sales", label: "Pre-Sales", sub: "Qualification" },
+          { id: "delivery", label: "Delivery", sub: "Execution" },
+        ],
+        roles: [
+          { id: "sales", label: "Sales", owner: "Hans / Dave", color: "#6366f1" },
+          { id: "project", label: "Project Mgmt", owner: "Patrick", color: "#10b981" },
+        ],
+        taskTemplates: [
+          {
+            id: "tt-1",
+            role: "sales",
+            stage: "pre-sales",
+            title: "Updated discovery",
+            desc: "Fresh intake",
+            agent: "Sales Ops",
+            skill: "sales-ops",
+            playbook: "presales-qualification",
+          },
+        ],
+      });
+
+      expect(updated.label).toBe("Client Delivery v2");
+      expect(updated.stages[1]).toMatchObject({
+        id: "delivery",
+        label: "Delivery",
+        sub: "Execution",
+      });
+      expect(updated.roles[1]).toMatchObject({
+        id: "project",
+        owner: "Patrick",
+        color: "#10b981",
+      });
+      expect(updated.taskTemplates[0]).toMatchObject({
+        id: "tt-1",
+        title: "Updated discovery",
+        stage: "pre-sales",
+      });
+    });
+
+    it("throws when updateTemplate receives an empty patch", async () => {
+      const repo = createWorkflowRepository(makeFakeClient(store));
+
+      await expect(repo.updateTemplate("client-delivery", {})).rejects.toThrow(
+        /empty patch/i,
+      );
+    });
+  });
+
   describe("getTask", () => {
     it("returns a single task mapped to camelCase shape", async () => {
       const repo = createWorkflowRepository(makeFakeClient(store));

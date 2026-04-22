@@ -1,82 +1,60 @@
 # Developer
 
-## Purpose
-
-Implement the selected change in the repository and carry it through validation, review closure, and publication per the pull request execution playbook.
-
 ## Use When
 
-- the task requires code, asset, documentation, or configuration changes in this repository
-- a selected concept or scoped brief is ready to be implemented
-- the work must be published through a pull request and merged per the pull request execution playbook
-
-## Do Not Use When
-
-- the task is still in open-ended exploration
-- the task is mostly product framing or design iteration
-- the only missing step is a human decision that cannot be automated
+- implementing code, docs, assets, or config changes in this repo
+- a selected concept or scoped brief is ready to ship
+- the work must go through validation, review, and merge
 
 ## Inputs
 
-- approved scope or selected artifact
-- affected files and repository constraints
-- relevant playbooks, especially pull request execution and the agent context bundle
-- live PR state when the work is already under review
+- approved scope
+- affected files and repo constraints
+- relevant playbooks
+- live PR state when review is already in flight
 
 ## Outputs
 
 - repository changes with verification evidence
-- a ready-for-review PR unless the user explicitly asks for draft
-- visible review resolution details and a merge-ready PR state
+- ready-for-review PR unless the user asked for draft
+- merged PR or explicit escalation
 
-## Workflow
+## Steps
 
-1. Inspect the repo, the affected files, and the governing artifacts before editing.
-2. Implement the smallest coherent change that satisfies the requested outcome.
+1. Read the affected files and governing artifacts before editing.
+2. Implement the smallest coherent change.
 3. Run the required validation for the changed artifact class.
-4. Before creating the PR, refresh the work branch against its intended base branch (`git fetch origin` plus rebase or fast-forward as the repo allows), then rerun validation if the branch head changed.
-5. Publish through a PR targeting `staging` (not `main`) and follow the pull request execution playbook until the PR is **merged** (or you have confirmed the merge queue merged it) when policy authorizes automation to complete the loop. The only PRs that target `main` directly are release-please release PRs and `staging` → `main` promotion PRs.
-6. Reply directly on each CodeRabbit thread with the resolution details when a finding is fixed, deferred, or intentionally unchanged.
-7. Use the exact canonical outcome text from `.coderabbit.yaml` in every thread reply: `fix`, `accept as follow-up`, or `won't change`. Prefer starting the reply with `fix:`, `accept as follow-up:`, or `won't change:` so the closure is machine- and human-scannable. Do not substitute synonyms like "fixed", "addressed", or "deferred", and do not rely on a commit hash alone.
-8. If you push a commit that addresses review findings, post those per-thread outcome replies in the same work cycle before moving on to waiting for checks, reviewer reruns, or merge decisions. Do this even if CodeRabbit may auto-resolve the thread after re-review; thread history still needs the human-visible resolution note. Do not treat "fix committed" as sufficient closure by itself, and do not replace per-thread replies with a consolidated PR comment.
-9. Before considering the PR loop complete, explicitly verify that every active CodeRabbit finding has one of those exact outcome replies on the thread or is outdated/resolved by reviewer confirmation on the current head.
-10. When **`CHANGES_REQUESTED`** persists after per-thread outcomes are on the threads, post the **canonical approval prompt** from `ai/playbooks/pull-request-execution-loop.md` section 3 item 6. Do **not** post `@coderabbitai review`—it triggers a slow full re-review. Reserve that for stalled automatic runs only.
-11. If a required check is stale, cancelled, or a **superseded `FAILURE`** on the current head, rerun that job immediately before diagnosing anything else. A cancelled or superseded-failure check on the current head SHA almost always clears with a rerun in under a minute — do not reach for workarounds first. The most common case is `p1-policy` `decide` running first on `pull_request_review` (before `residual:*` is labeled, so it fails as `risk:high`) and then succeeding on later `pull_request_target` runs after the residual engine downgrades to `residual:low`; the older `FAILURE` rows stay in the rollup, GitHub branch protection blocks merge, and Mergify dequeues. Rerun every failed `decide` run on the current head, remove any `dequeued` label, and re-queue with `@mergifyio queue <queue-name>` (e.g. `staging-integration`) — do not wait for automatic re-pickup, and do not reach for admin merge.
-12. When runtime behavior changes, include observability in-slice rather than as a follow-up: baseline exception capture, release and environment tagging, and main-path trace coverage. Follow the canonical observability guidance in framework tooling reference §10 for deeper Sentry requirements such as Replay, monitors/check-ins, source maps, and AI/tool-flow instrumentation.
-13. When the task is an operational issue loop rather than a feature PR, load the matching procedure playbook instead of improvising:
-   - GitHub issues or nightly-failure batching → `ai/playbooks/resolve-github-issues.md`
-   - Sentry production incident triage and closure → `ai/playbooks/resolve-sentry-issues.md`
-   - Production publish / `staging` -> `main` promotion → `ai/playbooks/publish-to-production.md`
-14. For Sentry-backed production issues, treat the incident as an active workflow, not just a source of evidence: assign it, keep it `unresolved` while the fix is in flight, leave a triage note linked to the PR, and resolve it only after explicit post-merge evidence review (`mergedAt`, `lastSeen`, recent events, recent releases).
-15. Before treating the work as fully closed, ask whether the completed workflow revealed durable learnings that should update the framework bundle or a playbook.
-16. When every configured merge gate for the current head is green and review threads are handled per playbook, **also** confirm the latest **submitted** GitHub review from each configured AI reviewer on **that same head SHA** is not **`CHANGES_REQUESTED`** (checks alone are not enough—use the PR Reviews tab or `gh api repos/<owner>/<repo>/pulls/<n>/reviews`). If aggregate **`CHANGES_REQUESTED`** remains only on **superseded** submissions from earlier SHAs after fixes and thread closure on the current head (for example reviewer rate limit prevented a new submission), escalate to a **maintainer** to **dismiss** those stale reviews with a documented message per `ai/playbooks/pull-request-execution-loop.md`—do not treat dismissal as a substitute for substance. Then **complete the merge** using a method the repository allows; if `gh pr merge` fails for merge-method policy, read the host error, then retry **squash** first and **rebase** second unless docs say otherwise, and leave a short operator-visible note of what was tried. If the PR still does not land, diagnose queue stalls, labels, draft state, base-branch drift, or escalate with evidence. If the repo uses a merge queue (such as Mergify), **verify** the PR merged once queue conditions are met; if the PR left the queue, use `@mergifyio queue` with the queue name from `.mergify.yml` after gates are green again. Do not stop at “PR opened” or “checks running.” Prefer bounded waits or the operator signaling that checks finished over endless polling.
-17. **Linear issue tracking (when a Linear issue backs this work):** Keep the issue in sync throughout the loop — do not batch updates at the end. Milestones and required actions:
-    - **Start:** transition Backlog → In Progress; assign to self; post a plan comment that is self-contained enough for any agent to resume cold (branch, inputs read, steps planned).
-    - **PR open:** transition In Progress → In Review; attach the PR link to the issue; post a comment with branch, head SHA, and what changed.
-    - **Each CodeRabbit round:** post a comment summarising the finding, the fix commit, and the in-thread outcome reply so the next agent knows review state without reading the PR.
-    - **Merge:** transition In Review → Done; post a final comment with merge commit, closed checklist, and the identifier of the next issue in sequence.
+4. Refresh the branch against its base before opening the PR; rerun validation if the head changed.
+5. Open the PR against `staging` unless this is an allowed `main`-targeting exception.
+6. Follow `ai/playbooks/pull-request-execution-loop.md` until the PR merges or policy requires a human decision.
+7. Reply directly on every CodeRabbit thread with one canonical outcome: `fix`, `accept as follow-up`, or `won't change`.
+8. If `CHANGES_REQUESTED` persists after current-head thread closure, post the canonical approval prompt from the PR playbook; do not force a full re-review.
+9. Rerun stale, cancelled, or superseded required checks on the current head before diagnosing anything else.
+10. Include required observability work in-slice when runtime behavior changes.
+11. Use the matching issue- or incident-resolution playbook when the task is an operational loop.
+12. Before closing, ask whether durable learnings should update the agent bundle or a playbook.
 
-## Decision Rules
+## Rules
 
-- Prefer repository edits and evidence over long explanations of what could be done.
+- Prefer repo edits and evidence over long explanation.
 - Treat review findings as work items, not commentary.
-- Do not treat repository settings changes as ordinary remediation; they are separate control-plane work unless explicitly requested.
-- Do not bypass branch protection or required checks to make progress.
-- For product code, do not treat observability as optional polish. A feature is incomplete if its failure modes are materially opaque in production when the framework expects Sentry-class error monitoring.
+- Do not use settings changes as ordinary remediation.
+- Do not bypass branch protection or required checks.
+- The executing agent owns convergence through merge when policy allows it.
 
 ## Escalate When
 
 - the task conflicts with schema, policy, or playbook rules
 - the remaining blocker is a human judgment call
-- automation would need new authority or repository settings changes to continue
+- new automation authority or settings changes would be required
 
-## Completion Criteria
+## Done
 
-- the repo change is implemented and validated
-- review findings are visibly addressed in-thread
-- the PR is **merged** into the protected branch when policy allows the executing agent to finish the loop, or an explicit human decision / escalation is posted when it does not
+- changes are implemented and validated
+- review findings are visibly closed on-thread
+- the PR is merged, or an explicit human decision request is posted
 
-## Canonical References
+## References
 
 - `AGENTS.md`
 - `ai/playbooks/pull-request-execution-loop.md`
