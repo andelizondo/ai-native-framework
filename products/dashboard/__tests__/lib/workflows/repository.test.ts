@@ -369,11 +369,12 @@ describe("workflow repository", () => {
   });
 
   describe("updateTemplate", () => {
-    it("updates template label, stages, roles, and task templates", async () => {
+    it("updates template label, color, stages, roles, and task templates", async () => {
       const repo = createWorkflowRepository(makeFakeClient(store));
 
       const updated = await repo.updateTemplate("client-delivery", {
         label: "Client Delivery v2",
+        color: "#14b8a6",
         stages: [
           { id: "pre-sales", label: "Pre-Sales", sub: "Qualification" },
           { id: "delivery", label: "Delivery", sub: "Execution" },
@@ -397,6 +398,7 @@ describe("workflow repository", () => {
       });
 
       expect(updated.label).toBe("Client Delivery v2");
+      expect(updated.color).toBe("#14b8a6");
       expect(updated.stages[1]).toMatchObject({
         id: "delivery",
         label: "Delivery",

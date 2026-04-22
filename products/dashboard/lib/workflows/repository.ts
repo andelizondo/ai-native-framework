@@ -198,6 +198,7 @@ function templatePatchToRow(
 ): Record<string, unknown> {
   const row: Record<string, unknown> = {};
   if (patch.label !== undefined) row.label = patch.label;
+  if (patch.color !== undefined) row.color = patch.color;
   if (patch.stages !== undefined) row.stages = patch.stages;
   if (patch.roles !== undefined) row.roles = patch.roles;
   if (patch.taskTemplates !== undefined) row.task_templates = patch.taskTemplates;

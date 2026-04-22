@@ -366,6 +366,7 @@ describe("workflow matrix edit actions", () => {
     const result = await updateTemplateAction(" client-delivery ", {
       ...updatedTemplate,
       label: "  Client Project Delivery  ",
+      color: "  #14b8a6  ",
       stages: [{ id: " stage-1 ", label: " Planning ", sub: " Scope " }],
       roles: [{ id: " role-1 ", label: " Product ", owner: " Andres ", color: "#6366f1" }],
       taskTemplates: [
@@ -384,6 +385,7 @@ describe("workflow matrix edit actions", () => {
 
     expect(updateTemplate).toHaveBeenCalledWith("client-delivery", {
       label: "Client Project Delivery",
+      color: "#14b8a6",
       stages: [{ id: "stage-1", label: "Planning", sub: "Scope" }],
       roles: [{ id: "role-1", label: "Product", owner: "Andres", color: "#6366f1" }],
       taskTemplates: [
