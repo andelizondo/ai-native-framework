@@ -152,13 +152,12 @@ export function TopBar({ initialPendingCount = 0 }: TopBarProps) {
                   : "border border-[#10b981] bg-[#10b981] text-white shadow-[0_0_0_1px_rgba(16,185,129,0.16),0_8px_22px_rgba(16,185,129,0.24)] hover:bg-[#22c55e]",
               )}
             >
-              <span
-                aria-hidden
-                className={cn(
-                  "h-1.5 w-1.5 rounded-full",
-                  config.saveDisabled ? "bg-t3" : "bg-white shadow-[0_0_10px_rgba(255,255,255,0.7)]",
-                )}
-              />
+              {!config.saveDisabled ? (
+                <span
+                  aria-hidden
+                  className="h-1.5 w-1.5 rounded-full bg-white shadow-[0_0_10px_rgba(255,255,255,0.7)]"
+                />
+              ) : null}
               Save
             </button>
           ) : null}

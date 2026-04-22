@@ -142,7 +142,7 @@ function ColorDot({
         type="button"
         aria-label="Change role color"
         onClick={() => setOpen((current) => !current)}
-        className="flex h-5 w-5 items-center justify-center rounded-full border border-border bg-bg-3 shadow-[inset_0_1px_0_rgba(255,255,255,0.03)] transition hover:border-border-hi hover:bg-bg-4 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
+        className="flex h-5 w-5 cursor-pointer items-center justify-center rounded-full border border-border bg-bg-3 shadow-[inset_0_1px_0_rgba(255,255,255,0.03)] transition hover:border-border-hi hover:bg-bg-4 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
       />
       <span
         aria-hidden
@@ -160,7 +160,7 @@ function ColorDot({
                 onChange(swatch);
                 setOpen(false);
               }}
-              className="h-4 w-4 rounded-full"
+              className="h-4 w-4 cursor-pointer rounded-full"
               style={{
                 backgroundColor: swatch,
                 outline: swatch === color ? `2px solid ${swatch}` : undefined,
