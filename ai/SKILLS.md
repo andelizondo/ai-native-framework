@@ -1,162 +1,154 @@
 # SKILLS.md
 
-This file is the skill discovery index for the repository-local agent bundle under **`ai/`** (root `AGENTS.md` is the only agent file outside this folder). Read it to decide which skill to load, then open only the specific `skills/*.md` file next to this index or a playbook under `playbooks/` for the current task. For playbook routing alone, you may start from `PLAYBOOKS.md` in this directory instead.
+Skill discovery index. Choose one skill or routed playbook, then open only that file.
 
-## How To Use This File
+## Use
 
-1. Match the task to the closest skill or playbook entry below.
-2. Open only the linked skill file or canonical source for the selected entry.
-3. Load deeper references only when the selected skill says they are needed.
-4. If no entry fits, work conservatively and consider whether the workflow deserves a new skill after the task is complete.
+1. Match the task to the closest entry.
+2. Open only the linked skill or playbook.
+3. Load deeper references only when that file requires them.
+4. If nothing fits, work conservatively and consider whether the framework needs a new skill.
 
-Discovery should stay broad and cheap. Execution should stay narrow and deep.
-
-## Skill Index
+## Index
 
 ### Framework Bootstrap
 
-- **When to use:** orienting a new agent or starting substantial work in this repository
-- **Inputs:** repository purpose, current task, affected files
-- **Outputs:** correct read order, authority map, and validation plan
-- **Load:** `AGENTS.md`, `README.md`, `docs/AI_NATIVE_FRAMEWORK.md`, `PLAYBOOKS.md` (in this directory)
-- **Notes:** use this before making policy, playbook, or workflow changes
+- When to use: orient a new agent before substantial work
+- Inputs: repo purpose, task, affected files
+- Outputs: read path, authority map, validation plan
+- Load: `AGENTS.md`, `README.md`, `PLAYBOOKS.md`
+- Constraints: open `docs/AI_NATIVE_FRAMEWORK.md` only when the task explicitly needs The Framework
 
 ### Designer
 
-- **When to use:** creating or refining visual assets, brand elements, and design directions
-- **Inputs:** goal, brand intent, target surface, references, human feedback
-- **Outputs:** concrete design directions, selected asset, implementation-ready handoff
-- **Load:** `skills/designer.md`
+- When to use: create or refine visual assets and design directions
+- Inputs: goal, target surface, references, feedback
+- Outputs: selected direction or asset-ready handoff
+- Load: `skills/designer.md`
+- Constraints: visual exploration, not implementation
 
 ### PM
 
-- **When to use:** shaping a requested change into scope, rationale, acceptance criteria, and implementation guidance
-- **Inputs:** goal, constraints, selected concept, affected surfaces
-- **Outputs:** concise change brief, scope, non-goals, acceptance criteria
-- **Load:** `skills/pm.md`
+- When to use: turn intent into scope, rationale, and acceptance criteria
+- Inputs: goal, constraints, selected concept, affected surfaces
+- Outputs: concise brief, scope, non-goals, acceptance criteria
+- Load: `skills/pm.md`
+- Constraints: do not invent PM work when scope is already clear
 
 ### Developer
 
-- **When to use:** implementing repository changes and carrying them through validation, PR review, and merge per the pull request execution playbook
-- **Inputs:** approved scope, affected files, repository constraints, live PR state
-- **Outputs:** implementation, verification evidence, review closure, published PR state
-- **Load:** `skills/developer.md`
-
-### Feature implementation (dashboard product)
-
-- **When to use:** implementing a new feature in `products/dashboard/` from a completed `templates/feature-request.md`
-- **Inputs:** completed feature request, current spec YAML, current `AnalyticsEvent` type registry
-- **Outputs:** updated spec, updated type registry, wired component(s), passing validation, PR
-- **Load:** `playbooks/feature-implementation.md`
-- **Constraints:** spec-first; events required before code; `npm run validate` before PR
+- When to use: implement repo changes and carry them through validation, review, and merge
+- Inputs: approved scope, affected files, repo constraints, live PR state
+- Outputs: implementation, verification evidence, merged PR or explicit escalation
+- Load: `skills/developer.md`
+- Constraints: the executing agent owns convergence through merge when policy allows it
 
 ### Framework Keeper
 
-- **When to use:** auditing the framework itself for contradiction, duplication, unnecessary complexity, or underspecified decision paths
-- **Inputs:** audit scope, relevant authoritative artifacts, known operator pain points, recent framework changes
-- **Outputs:** structured findings, recommended remediations, and explicit decisions on what should remain unchanged
-- **Load:** `skills/framework-keeper.md`
-
-### Repository foundation (playbook)
-
-- **When to use:** establishing or auditing repository governance, CI, branch protection, security defaults, and contributor surfaces
-- **Inputs:** repository owner, default branch, canonical validation command, maintainer identity
-- **Outputs:** governed repo baseline and recorded settings
-- **Load:** `playbooks/repository-foundation.md`
-- **Constraints:** do not guess required check names; read real emitted checks
-
-### Pull request execution loop (playbook)
-
-- **When to use:** designing, implementing, or reviewing PR automation, risk policy, branch freshness, or merge authority behavior
-- **Inputs:** PR metadata, labels, required checks, review state, branch freshness state, threshold policy
-- **Outputs:** residual-risk decision, merge authority, or structured escalation request
-- **Load:** `playbooks/pull-request-execution-loop.md`
-- **Constraints:** machines verify, humans decide; do not convert timing gaps into human-review work
-
-### Release management (playbook)
-
-- **When to use:** enabling or revising repository-level releases, semantic version tags, release PR behavior, or GitHub Release notes.
-- **Inputs:** release branch, version baseline, token strategy, and merge policy.
-- **Outputs:** release workflow, changelog/version config, and documented operator setup.
-- **Load:** `playbooks/release-management.md`
-- **Constraints:** release the whole repository, not `products/dashboard/` alone; prefer dedicated automation credentials over `GITHUB_TOKEN`
-
-### Publish to production (playbook)
-
-- **When to use:** promoting reviewed changes from `staging` to `main`, publishing to production, or answering how a PR to `main` should work in this repository.
-- **Inputs:** current `staging` and `main` SHAs, promotion PR state, queue state, and release automation state.
-- **Outputs:** open or merged `staging` -> `main` promotion PR and post-merge release verification evidence.
-- **Load:** `playbooks/publish-to-production.md`
-- **Constraints:** feature PRs still target `staging`; `staging` -> `main` must use a regular merge commit and the promotion-specific gate
-
-### Agent context bundle (playbook)
-
-- **When to use:** creating or updating root `AGENTS.md`, or files under `ai/` (`SKILLS.md`, `skills/*.md`, `MEMORY.md`, `PLAYBOOKS.md`, `playbooks/`), or making agent bootstrap behavior explicit in a repository
-- **Inputs:** authority ladder, canonical commands, playbooks, glossary, durable facts, open loops
-- **Outputs:** maintained agent runtime bundle (`AGENTS.md` + `ai/`)
-- **Load:** `playbooks/agent-context-bundle.md`
-- **Constraints:** keep the bundle concise, index-shaped inside `ai/`, and subordinate to schema and policy
+- When to use: audit the framework for contradiction, duplication, ambiguity, or drag
+- Inputs: audit scope, authoritative artifacts, recent changes, pain points
+- Outputs: findings, remediations, and no-change decisions
+- Load: `skills/framework-keeper.md`
+- Constraints: framework work only
 
 ### Quality Engineer
 
-- **When to use:** writing or reviewing tests, triaging `test` or `e2e` CI failures, executing the incident-to-regression loop, auditing phase readiness, or setting up the test stack for a new product
-- **Inputs:** spec entry or incident ID, current test suite state, phase level, failing check output or Playwright report
-- **Outputs:** tests at the correct layer, passing `test` and `e2e` gates, regression coverage, phase evidence bundle
-- **Load:** `skills/quality-engineer.md`
-- **Notes:** for operational procedures (PR gate loop, nightly triage, incident closure), also load `playbooks/quality-standard-execution.md`.
+- When to use: write or review tests, triage `test`/`e2e` failures, run incident-to-regression work, audit phase readiness
+- Inputs: spec entry or incident ID, suite state, phase, failing output
+- Outputs: correct-layer tests, green gates, regression coverage, or phase evidence
+- Load: `skills/quality-engineer.md`
+- Constraints: follow `docs/QUALITY_STANDARD.md`; for operational loops also load `playbooks/quality-standard-execution.md`
 
-### Resolve GitHub issues (playbook)
+### Feature implementation (dashboard)
 
-- **When to use:** triaging and resolving open GitHub issues, especially when several issues appear to share the same workflow failure, file, or root cause
-- **Inputs:** open issue set, issue metadata, workflow evidence, validation command, branch and PR policy
-- **Outputs:** grouped issue plan, required issue comments, one fix PR per group, and explicit issue outcome updates
-- **Load:** `playbooks/resolve-github-issues.md`
-- **Constraints:** comment intent on every issue before editing; batch only when one fix really serves the same root cause
+- When to use: implement a dashboard feature from a completed feature request
+- Inputs: feature request, spec YAML, analytics event registry
+- Outputs: updated spec, registry, implementation, validation evidence
+- Load: `playbooks/feature-implementation.md`
+- Constraints: spec first; events required before code
 
-### Resolve Sentry issues (playbook)
+### Repository foundation
 
-- **When to use:** triaging and resolving Sentry issues that need assignment, incident notes, linked PR tracking, and evidence-based closure
-- **Inputs:** Sentry issue metadata, write-capable token, linked PR, recent events, releases, and merge timing
-- **Outputs:** assigned issue, triage note, resolution note, and final `resolved` or continued `unresolved` state
-- **Load:** `playbooks/resolve-sentry-issues.md`
-- **Constraints:** do not resolve from intuition; use merge time, `lastSeen`, and recent events/releases to justify closure
+- When to use: establish or audit repo governance, CI, protection, and contributor surfaces
+- Inputs: repo owner, default branch, validation command, maintainer identity
+- Outputs: governed repo baseline
+- Load: `playbooks/repository-foundation.md`
+- Constraints: use real emitted checks
 
-### Service wiring (playbook)
+### Pull request execution loop
 
-- **When to use:** configuring Supabase auth, Vercel environment variables, or OAuth providers for a new or existing deployment environment; or debugging auth failures that originate from external service misconfiguration rather than code
-- **Inputs:** target domain, auth providers to enable, Supabase project ref, Vercel project details
-- **Outputs:** correct Supabase URL config and provider settings, aligned env vars in `.env.local` and Vercel, working auth flow
-- **Load:** `playbooks/service-wiring.md`
-- **Constraints:** Supabase auth config and Vercel env vars require dashboard steps — no MCP tool covers them; the playbook's tooling coverage map lists exactly what is and is not automatable
+- When to use: PR automation, risk policy, freshness, review closure, or merge authority work
+- Inputs: PR metadata, labels, checks, review state, threshold policy
+- Outputs: residual-risk decision, merge path, or escalation request
+- Load: `playbooks/pull-request-execution-loop.md`
+- Constraints: machines verify, humans decide
+
+### Release management
+
+- When to use: enable or revise repo-level releases, tags, changelogs, or GitHub Releases
+- Inputs: release branch, version baseline, token strategy, merge policy
+- Outputs: release workflow, config, and operator setup
+- Load: `playbooks/release-management.md`
+- Constraints: release the whole repo, not one subpackage
+
+### Publish to production
+
+- When to use: promote reviewed changes from `staging` to `main`
+- Inputs: `staging` and `main` SHAs, promotion PR state, queue state, release state
+- Outputs: open or merged promotion PR and release verification
+- Load: `playbooks/publish-to-production.md`
+- Constraints: feature PRs still target `staging`
+
+### Agent context bundle
+
+- When to use: create or update `AGENTS.md` or files under `ai/`
+- Inputs: authority ladder, commands, inventories, durable facts, open loops
+- Outputs: maintained agent runtime bundle
+- Load: `playbooks/agent-context-bundle.md`
+- Constraints: keep the bundle concise and index-shaped
+
+### Resolve GitHub issues
+
+- When to use: triage and resolve open GitHub issues, especially shared-failure batches
+- Inputs: issue set, workflow evidence, validation command, PR policy
+- Outputs: grouped plan, issue comments, fix PR, explicit issue outcomes
+- Load: `playbooks/resolve-github-issues.md`
+- Constraints: batch only on real shared root cause
+
+### Resolve Sentry issues
+
+- When to use: triage and resolve Sentry issues with assignment and evidence-based closure
+- Inputs: Sentry issue metadata, linked PR, events, releases, merge timing
+- Outputs: triage note, resolution note, final issue state
+- Load: `playbooks/resolve-sentry-issues.md`
+- Constraints: do not resolve on intuition
+
+### Service wiring
+
+- When to use: configure deployment-service auth and env surfaces or debug service-side misconfiguration
+- Inputs: target domain, auth providers, Supabase ref, Vercel project details
+- Outputs: aligned dashboard config and env vars
+- Load: `playbooks/service-wiring.md`
+- Constraints: respect tooling coverage boundaries
 
 ### Spec Evolution
 
-- **When to use:** changing framework structure, required fields, or examples under `spec/`
-- **Inputs:** desired behavioral change, schema updates, example updates, policy impact
-- **Outputs:** aligned schema, examples, and documentation
-- **Load:** `spec/schema/product-spec.schema.json`, `spec/examples/`, `docs/AI_NATIVE_FRAMEWORK.md`
-- **Constraints:** avoid spec theater; machine validation is the source of truth
+- When to use: change framework structure, schema requirements, or examples under `spec/`
+- Inputs: desired behavior change, schema updates, example updates, policy impact
+- Outputs: aligned schema, examples, and docs
+- Load: `spec/schema/product-spec.schema.json`, `spec/examples/`, `docs/AI_NATIVE_FRAMEWORK.md`
+- Constraints: machine validation is the source of truth
 
 ### Interface Evolution
 
-- **When to use:** changing logical tool contracts or capability boundaries
-- **Inputs:** workflow need, capability boundary, interface change rationale
-- **Outputs:** updated `interfaces/interfaces.yaml` and aligned docs
-- **Load:** `interfaces/interfaces.yaml`, `docs/AI_NATIVE_FRAMEWORK.md`
-- **Constraints:** express capabilities, not mascots or vendor-specific personas
+- When to use: change logical tool contracts or capability boundaries
+- Inputs: workflow need, boundary, rationale
+- Outputs: updated `interfaces/interfaces.yaml` and aligned docs
+- Load: `interfaces/interfaces.yaml`, `docs/AI_NATIVE_FRAMEWORK.md`
+- Constraints: express capabilities, not vendor-specific personas
 
-## Adding A New Skill
+## Maintenance
 
-Add a new `ai/skills/*.md` file when all of these are true:
-
-- the workflow recurs
-- the workflow has a stable trigger
-- the workflow benefits from a reusable operating harness
-- loading the skill only when needed will save ambiguity or token cost
-
-For each new skill:
-
-- keep `ai/SKILLS.md` as the discovery pointer, not the full body
-- make the skill file operational and concise
-- include triggers, inputs, outputs, workflow steps, decision rules, escalations, and completion criteria
-- point to the canonical docs or playbooks the skill relies on
+- Add a skill only for recurring work with a stable trigger.
+- Keep this file index-shaped: when to use, inputs, outputs, load, constraints.
+- Put the operating body in `ai/skills/*.md` or the relevant playbook.

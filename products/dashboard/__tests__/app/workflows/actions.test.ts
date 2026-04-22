@@ -32,6 +32,7 @@ import type {
   WorkflowEvent,
   WorkflowRepository,
   WorkflowTask,
+  WorkflowTemplate,
 } from "@/lib/workflows/types";
 
 const { mockGetRepo, mockRevalidatePath, mockCaptureError } = vi.hoisted(() => ({
@@ -60,6 +61,7 @@ import {
   resolveCheckpointAction,
   retryBlockedTaskAction,
   startTaskAction,
+  updateTemplateAction,
 } from "@/app/(dashboard)/workflows/actions";
 
 function makeTask(overrides: Partial<WorkflowTask> = {}): WorkflowTask {
@@ -329,6 +331,82 @@ describe("workflow matrix edit actions", () => {
     expect(addInstanceEvent.mock.calls[0]?.[0]).toBe(existing.instanceId);
     expect(addInstanceEvent.mock.calls[0]?.[1].name).toBe("workflow.task_deleted");
     expect(mockRevalidatePath).toHaveBeenCalledWith("/", "layout");
+  });
+
+  it("updateTemplateAction normalizes and persists template edits", async () => {
+    const updatedTemplate: WorkflowTemplate = {
+      id: "client-delivery",
+      label: "Client Project Delivery",
+      color: "#6366f1",
+      multiInstance: true,
+      stages: [{ id: "stage-1", label: "Planning", sub: "Scope" }],
+      roles: [{ id: "role-1", label: "Product", owner: "Andres", color: "#6366f1" }],
+      taskTemplates: [
+        {
+          id: "tt-1",
+          role: "role-1",
+          stage: "stage-1",
+          title: "Define scope",
+          desc: "Trimmed",
+          agent: "PM",
+          skill: "pm",
+          playbook: "slice-spec",
+        },
+      ],
+      createdAt: "2026-04-19T12:00:00Z",
+      updatedAt: "2026-04-19T12:00:00Z",
+    };
+
+    const updateTemplate = vi.fn().mockResolvedValue(updatedTemplate);
+
+    mockGetRepo.mockResolvedValue({
+      updateTemplate,
+    } satisfies Partial<WorkflowRepository>);
+
+    const result = await updateTemplateAction(" client-delivery ", {
+      ...updatedTemplate,
+      label: "  Client Project Delivery  ",
+      stages: [{ id: " stage-1 ", label: " Planning ", sub: " Scope " }],
+      roles: [{ id: " role-1 ", label: " Product ", owner: " Andres ", color: "#6366f1" }],
+      taskTemplates: [
+        {
+          id: " tt-1 ",
+          role: " role-1 ",
+          stage: " stage-1 ",
+          title: " Define scope ",
+          desc: " Trimmed ",
+          agent: " PM ",
+          skill: " pm ",
+          playbook: " slice-spec ",
+        },
+      ],
+    });
+
+    expect(updateTemplate).toHaveBeenCalledWith("client-delivery", {
+      label: "Client Project Delivery",
+      stages: [{ id: "stage-1", label: "Planning", sub: "Scope" }],
+      roles: [{ id: "role-1", label: "Product", owner: "Andres", color: "#6366f1" }],
+      taskTemplates: [
+        {
+          id: "tt-1",
+          role: "role-1",
+          stage: "stage-1",
+          title: "Define scope",
+          desc: "Trimmed",
+          agent: "PM",
+          skill: "pm",
+          playbook: "slice-spec",
+          checkpoint: false,
+          triggers: [],
+          gates: [],
+        },
+      ],
+    });
+    expect(mockRevalidatePath).toHaveBeenCalledWith("/", "layout");
+    expect(mockRevalidatePath).toHaveBeenCalledWith(
+      "/workflows/templates/client-delivery/edit",
+    );
+    expect(result.template.id).toBe("client-delivery");
   });
 
   it("startTaskAction uses the atomic status transition and records an event", async () => {

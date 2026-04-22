@@ -1,6 +1,7 @@
 import { redirect } from "next/navigation";
 import { getCurrentUser } from "@/lib/auth/service.server";
 import { Sidebar } from "@/components/sidebar";
+import { DashboardTopBarProvider } from "@/components/dashboard-topbar-context";
 import type { SidebarInstanceView } from "@/components/workflows/sidebar-workflow-tree";
 import { TopBar } from "@/components/top-bar";
 import { AuthIdentitySync } from "@/components/auth-identity-sync";
@@ -91,15 +92,17 @@ export default async function DashboardLayout({
   return (
     <>
       <AuthIdentitySync user={user} provider={user.provider} />
-      <Sidebar
-        user={user}
-        templates={templates}
-        instancesByTemplate={instancesByTemplate}
-      />
-      <div className="flex min-w-0 flex-1 flex-col overflow-hidden">
-        <TopBar initialPendingCount={pendingCount} />
-        <main className="min-h-0 flex-1 overflow-y-auto bg-bg">{children}</main>
-      </div>
+      <DashboardTopBarProvider>
+        <Sidebar
+          user={user}
+          templates={templates}
+          instancesByTemplate={instancesByTemplate}
+        />
+        <div className="flex min-w-0 flex-1 flex-col overflow-hidden">
+          <TopBar initialPendingCount={pendingCount} />
+          <main className="min-h-0 flex-1 overflow-y-auto bg-bg">{children}</main>
+        </div>
+      </DashboardTopBarProvider>
     </>
   );
 }

@@ -34,6 +34,11 @@ type WorkflowTaskInstancePayload = {
   instance_id: string;
 };
 
+type WorkflowTemplateEditedPayload = {
+  template_id: string;
+  edited_by: string;
+};
+
 /**
  * Discriminated map — enforces name/payload pairing at compile time.
  * Adding a new event requires updating this map; TypeScript will catch mismatches.
@@ -49,6 +54,7 @@ type EventMap = {
   "workflow.task_started": WorkflowTaskInstancePayload;
   "workflow.run_cancelled": WorkflowTaskInstancePayload;
   "workflow.run_retried": WorkflowTaskInstancePayload;
+  "workflow.template_edited": WorkflowTemplateEditedPayload;
   "dashboard.agent_run_opened": { task_id: string };
   "dashboard.my_tasks_opened": Record<string, never>;
 };

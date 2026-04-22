@@ -84,7 +84,7 @@ Most agent tools default to **root [AGENTS.md](AGENTS.md)**. After that, the lay
 | Location                                                     | Role                                                       |
 | ------------------------------------------------------------ | ---------------------------------------------------------- |
 | [AGENTS.md](AGENTS.md)                                     | First read: authority, commands, merge and review rules    |
-| [docs/AI_NATIVE_FRAMEWORK.md](docs/AI_NATIVE_FRAMEWORK.md) | Full framework narrative (human- and agent-oriented prose) |
+| [docs/AI_NATIVE_FRAMEWORK.md](docs/AI_NATIVE_FRAMEWORK.md) | Full framework narrative; load on demand when the task explicitly needs framework prose |
 | [ai/PLAYBOOKS.md](ai/PLAYBOOKS.md)                         | Which **unitary procedure** to open under `ai/playbooks/`  |
 | [ai/SKILLS.md](ai/SKILLS.md)                               | Which **role/task skill** to open under `ai/skills/`       |
 | [ai/MEMORY.md](ai/MEMORY.md)                               | Durable repo facts and open loops                          |
@@ -170,9 +170,10 @@ Today that validates example specs against the product schema. As the framework 
 **Agents:** start at [AGENTS.md](AGENTS.md), then follow its read order (summarized here):
 
 1. [README.md](README.md)
-2. [docs/AI_NATIVE_FRAMEWORK.md](docs/AI_NATIVE_FRAMEWORK.md)
-3. [ai/PLAYBOOKS.md](ai/PLAYBOOKS.md)
-4. The specific files under [ai/playbooks/](ai/playbooks/) or `spec/` relevant to the task
-5. [ai/SKILLS.md](ai/SKILLS.md)
-6. Only the specific files under [ai/skills/](ai/skills/) selected from the index
-7. [ai/MEMORY.md](ai/MEMORY.md)
+2. [ai/PLAYBOOKS.md](ai/PLAYBOOKS.md)
+3. The specific files under [ai/playbooks/](ai/playbooks/) or `spec/` relevant to the task
+4. [ai/SKILLS.md](ai/SKILLS.md)
+5. Only the specific files under [ai/skills/](ai/skills/) selected from the index
+6. [ai/MEMORY.md](ai/MEMORY.md)
+
+Open [docs/AI_NATIVE_FRAMEWORK.md](docs/AI_NATIVE_FRAMEWORK.md) only when the task explicitly needs The Framework or lower-order artifacts do not answer the question.

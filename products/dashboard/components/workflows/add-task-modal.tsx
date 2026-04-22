@@ -20,16 +20,31 @@ const AGENTS = [
   ["QA Engineer", "qa"],
 ] as const;
 
+function hasSkillOption(
+  options: Array<{ id: string }>,
+  skill: string | null | undefined,
+): skill is string {
+  return Boolean(skill) && options.some((option) => option.id === skill);
+}
+
 interface AddTaskModalProps {
+  mode?: "create" | "edit";
   instanceId: string;
   roleId: string;
   stageId: string;
   roleName: string;
   stageName: string;
+  initialTask?: {
+    title: string;
+    description?: string;
+    agent?: string | null;
+    skill?: string | null;
+    playbook?: string | null;
+  };
   skillOptions?: FrameworkItem[];
   playbookOptions?: FrameworkItem[];
   onClose: () => void;
-  onCreate: (input: WorkflowTaskCreateInput) => void;
+  onSubmit: (input: WorkflowTaskCreateInput) => void;
 }
 
 interface PickerProps {
@@ -131,30 +146,18 @@ function SearchablePicker({
 }
 
 export function AddTaskModal({
+  mode = "create",
   instanceId,
   roleId,
   stageId,
   roleName,
   stageName,
+  initialTask,
   skillOptions = [],
   playbookOptions = [],
   onClose,
-  onCreate,
+  onSubmit,
 }: AddTaskModalProps) {
-  const [form, setForm] = useState<{
-    title: string;
-    description: string;
-    agent: string | null;
-    skill: string | null;
-    playbook: string;
-  }>({
-    title: "",
-    description: "",
-    agent: "PM",
-    skill: "pm",
-    playbook: "",
-  });
-
   const normalizedSkillOptions = useMemo(
     () =>
       (skillOptions.length > 0
@@ -184,6 +187,34 @@ export function AddTaskModal({
     [playbookOptions],
   );
 
+  const [form, setForm] = useState<{
+    title: string;
+    description: string;
+    agent: string | null;
+    skill: string | null;
+    playbook: string;
+  }>(() => {
+    const initialSkill = hasSkillOption(normalizedSkillOptions, initialTask?.skill)
+      ? initialTask?.skill
+      : skillOptions.length === 0
+        ? "pm"
+        : null;
+    const fallbackAgent = initialSkill
+      ? AGENTS.find((agent) => agent[1] === initialSkill)?.[0] ?? null
+      : null;
+
+    return {
+      title: initialTask?.title ?? "",
+      description: initialTask?.description ?? "",
+      agent:
+        initialTask?.agent ??
+        fallbackAgent ??
+        (skillOptions.length === 0 ? "PM" : null),
+      skill: initialSkill,
+      playbook: initialTask?.playbook ?? "",
+    };
+  });
+
   return (
     <div
       className="fixed inset-0 z-[70] flex items-center justify-center bg-(--overlay) p-4 backdrop-blur-[3px]"
@@ -204,7 +235,7 @@ export function AddTaskModal({
           id="add-task-modal-title"
           className="text-[16px] font-bold tracking-tight text-t1"
         >
-          New task
+          {mode === "edit" ? "Edit task" : "New task"}
         </div>
         <div className="mb-[18px] mt-1 text-[12.5px] text-t3">
           {roleName} · {stageName}
@@ -284,19 +315,20 @@ export function AddTaskModal({
             disabled={!form.title.trim()}
             onClick={() => {
               if (!form.title.trim()) return;
-              onCreate({
+              const hasValidSkill = hasSkillOption(normalizedSkillOptions, form.skill);
+              onSubmit({
                 instanceId,
                 roleId,
                 stageId,
-                title: form.title,
+                title: form.title.trim(),
                 description: form.description,
-                agent: form.agent,
-                skill: form.skill,
+                agent: hasValidSkill ? form.agent : null,
+                skill: hasValidSkill ? form.skill : null,
                 playbook: form.playbook,
               });
             }}
           >
-            Create task →
+            {mode === "edit" ? "Save task →" : "Create task →"}
           </button>
         </div>
       </div>

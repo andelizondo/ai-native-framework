@@ -15,6 +15,7 @@ import type {
   WorkflowTaskPatch,
   WorkflowTaskStatus,
   WorkflowTaskTemplate,
+  WorkflowTemplatePatch,
   WorkflowTemplate,
 } from "./types";
 
@@ -94,6 +95,16 @@ function toJsonObject(value: unknown): Record<string, unknown> {
 }
 
 function mapTemplate(row: WorkflowTemplateRow): WorkflowTemplate {
+  const taskTemplates = toJsonArray<WorkflowTaskTemplate>(row.task_templates).map(
+    (task, index) => ({
+      ...task,
+      id:
+        typeof task.id === "string" && task.id.trim()
+          ? task.id
+          : `${row.id}::${task.role}::${task.stage}::${index}`,
+    }),
+  );
+
   return {
     id: row.id,
     label: row.label,
@@ -101,7 +112,7 @@ function mapTemplate(row: WorkflowTemplateRow): WorkflowTemplate {
     multiInstance: row.multi_instance,
     stages: toJsonArray(row.stages),
     roles: toJsonArray(row.roles),
-    taskTemplates: toJsonArray(row.task_templates),
+    taskTemplates,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
   };
@@ -179,6 +190,17 @@ function patchToRow(patch: WorkflowTaskPatch): Record<string, unknown> {
   if (patch.agent !== undefined) row.agent = patch.agent;
   if (patch.skill !== undefined) row.skill = patch.skill;
   if (patch.playbook !== undefined) row.playbook = patch.playbook;
+  return row;
+}
+
+function templatePatchToRow(
+  patch: WorkflowTemplatePatch,
+): Record<string, unknown> {
+  const row: Record<string, unknown> = {};
+  if (patch.label !== undefined) row.label = patch.label;
+  if (patch.stages !== undefined) row.stages = patch.stages;
+  if (patch.roles !== undefined) row.roles = patch.roles;
+  if (patch.taskTemplates !== undefined) row.task_templates = patch.taskTemplates;
   return row;
 }
 
@@ -450,6 +472,27 @@ export function createWorkflowRepository(
       return { ...instance, tasks, events: [] };
     },
 
+    async updateInstance(
+      instanceId: string,
+      patch: Partial<Pick<WorkflowInstance, "label" | "status">>,
+    ): Promise<WorkflowInstance> {
+      const row: Record<string, unknown> = {};
+      if (patch.label !== undefined) row.label = patch.label;
+      if (patch.status !== undefined) row.status = patch.status;
+      if (Object.keys(row).length === 0) {
+        throw new WorkflowRepositoryError("updateInstance called with empty patch");
+      }
+
+      const { data, error } = await client
+        .from("workflow_instances")
+        .update(row)
+        .eq("id", instanceId)
+        .select("*")
+        .single();
+
+      return mapInstance(unwrap("updateInstance", data, error) as WorkflowInstanceRow);
+    },
+
     async createTask(input: WorkflowTaskCreateInput): Promise<WorkflowTask> {
       const { data, error } = await client
         .from("workflow_tasks")
@@ -518,13 +561,78 @@ export function createWorkflowRepository(
     },
 
     async deleteTask(taskId: string): Promise<void> {
-      const { error } = await client
+      const { data, error } = await client
         .from("workflow_tasks")
         .delete()
-        .eq("id", taskId);
+        .eq("id", taskId)
+        .select("*")
+        .maybeSingle();
 
       if (error) {
         throw new WorkflowRepositoryError("deleteTask failed", error);
+      }
+      if (!data) {
+        throw new WorkflowRepositoryError("deleteTask returned no row");
+      }
+    },
+
+    async deleteInstance(instanceId: string): Promise<void> {
+      const { data, error } = await client
+        .from("workflow_instances")
+        .delete()
+        .eq("id", instanceId)
+        .select("*")
+        .maybeSingle();
+
+      if (error) {
+        throw new WorkflowRepositoryError("deleteInstance failed", error);
+      }
+      if (!data) {
+        throw new WorkflowRepositoryError("deleteInstance returned no row");
+      }
+    },
+
+    async updateTemplate(
+      templateId: string,
+      patch: WorkflowTemplatePatch,
+    ): Promise<WorkflowTemplate> {
+      const row = templatePatchToRow(patch);
+      if (Object.keys(row).length === 0) {
+        throw new WorkflowRepositoryError("updateTemplate called with empty patch");
+      }
+
+      const { data, error } = await client
+        .from("workflow_templates")
+        .update(row)
+        .eq("id", templateId)
+        .select("*")
+        .single();
+
+      return mapTemplate(
+        unwrap("updateTemplate", data, error) as WorkflowTemplateRow,
+      );
+    },
+
+    async deleteTemplate(templateId: string): Promise<void> {
+      const { error: deleteInstancesError } = await client
+        .from("workflow_instances")
+        .delete()
+        .eq("template_id", templateId);
+
+      if (deleteInstancesError) {
+        throw new WorkflowRepositoryError(
+          "deleteTemplate instances cleanup failed",
+          deleteInstancesError,
+        );
+      }
+
+      const { error } = await client
+        .from("workflow_templates")
+        .delete()
+        .eq("id", templateId);
+
+      if (error) {
+        throw new WorkflowRepositoryError("deleteTemplate failed", error);
       }
     },
 

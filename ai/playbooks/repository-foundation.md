@@ -1,178 +1,43 @@
 # Repository foundation
 
-## Objective
+## Use When
 
-Create a repository that is safe to collaborate in before product, growth, or operations workflows start shipping changes.
-
-This playbook converts a raw repository into a governed execution surface with validation, review controls, security defaults, and contributor guidance.
-
-## When to run
-
-Run it when you create a new repository and before opening normal feature branches, or whenever you need to audit or repair the same surfaces in an existing repository.
-
-## Outcomes
-
-At the end of this playbook, the repository should have:
-
-- A default branch pushed and treated as the protected source of truth.
-- CI running on push and pull request.
-- Branch protection bound to real required checks.
-- Merge strategy and branch cleanup defaults configured.
-- Repository rulesets configured for any default automated review behavior.
-- Basic governance files for ownership, contribution flow, security reporting, issues, and pull requests.
-- Dependency and security automation enabled.
-- CODEOWNERS scoped to protected repository surfaces if low-risk PR automation will be allowed later.
+- creating a new governed repository
+- auditing or repairing governance, CI, protection, or contributor surfaces
 
 ## Inputs
 
-- Repository name and owner.
-- Default branch name (`main` unless policy requires otherwise).
-- At least one passing validation workflow.
-- Initial maintainer or owner handle for CODEOWNERS.
+- repo owner and name
+- default branch
+- at least one passing validation workflow
+- maintainer handle for ownership surfaces
 
-## Procedure
+## Outputs
 
-### 1. Publish the repository
+- governed repo baseline
+- required governance files
+- branch protection bound to real checks
+- security automation enabled
 
-1. Initialize git history if needed and push the default branch to GitHub.
-2. Confirm the remote URL and authenticated GitHub identity are correct.
-3. Ensure workflow publishing has the required token scopes before pushing `.github/workflows/*`.
+## Steps
 
-## 2. Establish a minimum CI baseline
+1. Publish the repository and confirm the remote and identity are correct.
+2. Add a minimum CI workflow that runs the canonical validation command and confirm a passing check on the default branch.
+3. Add governance files: `CODEOWNERS`, PR template, issue templates, `CONTRIBUTING.md`, `SECURITY.md`, `dependabot.yml`.
+4. Configure repo defaults: merge strategy, branch cleanup, issues, description, and automated reviewer setup if used.
+5. Protect the default branch with real required checks, stale-review handling, conversation resolution, linear history, and admin enforcement.
+6. Enable security automation: alerts, automated fixes, secret scanning, push protection.
+7. Verify the configuration from GitHub and record the durable baseline.
+8. If the repo uses the 3-tier model, establish protected `staging`, redirect feature PRs there, scope observability by environment, and wire release/promotion behavior.
 
-1. Add a workflow that runs on `push` and `pull_request`.
-2. Make the workflow execute the repository's canonical validation command.
-3. Prefer deterministic installs and caching where available.
-4. Push the workflow and verify at least one successful run on the default branch.
+## Constraints
 
-For this repository, the required validation command is `npm run validate` and the required check context is `validate`.
+- never guess required check names
+- CODEOWNERS should protect sensitive surfaces without blocking low-risk automation everywhere
+- control-plane behavior must be observable on real PRs, not assumed from settings alone
 
-When the golden dashboard (`products/dashboard`) is present, Vitest coverage may upload to **Codecov** from the `test` workflow. Store the repository upload token as the GitHub Actions secret `CODECOV_TOKEN`, and keep Codecov’s GitHub check **informational** unless branch protection intentionally requires it (this repository defaults to informational status in `codecov.yml`). For Dependabot pull requests, duplicate the secret under **Dependabot secrets** if uploads should run on those PRs.
+## References
 
-## 3. Add repository governance files
-
-Create the following files before broader collaboration begins:
-
-- `.github/CODEOWNERS`
-- `.github/pull_request_template.md`
-- `.github/ISSUE_TEMPLATE/*`
-- `.github/dependabot.yml`
-- `CONTRIBUTING.md`
-- `SECURITY.md`
-
-These files establish who must review changes, how work enters the repo, and how vulnerabilities are handled.
-
-If the repository will later allow low-risk automated PR approval or merge, CODEOWNERS **SHOULD** target protected surfaces instead of every file in the repository. A blanket `*` owner rule blocks low-risk automation by forcing owner review on every change.
-
-## 4. Configure repository defaults on GitHub
-
-Apply the following repository settings:
-
-- Enable squash merge.
-- Disable merge commits unless the repo has a specific reason to preserve them.
-- Disable rebase merge unless the team explicitly prefers it.
-- Enable delete branch on merge.
-- Enable issues if they are part of the operating loop.
-- Disable wiki unless it is intentionally used.
-- Set the repository description.
-- Configure automated PR review for the repository if pull request automation will depend on a repository-configured AI reviewer.
-
-These choices keep history readable and prevent the repo from accumulating unmanaged side channels.
-
-If automated PR review is enabled at the repository level, the trigger configuration belongs in repository settings, rulesets, or app configuration, while repository-specific review behavior **SHOULD** remain in versioned configuration files such as `.coderabbit.yaml` or equivalent reviewer config.
-
-If residual-risk decisions in the pull request execution playbook will depend on host-native reviewer output, that reviewer **SHOULD** be configured while applying this playbook so automated review arrives before downstream agent policy or approval actions run. This playbook **SHOULD** also verify that the expected review artifact is observable on PRs for the current head SHA, because repository configuration alone is not sufficient evidence that review actually ran.
-
-If the repository is a personal repository with a single human operator, this playbook **SHOULD** also decide which risk tiers permit an owner-decision path so pull request policy does not deadlock on a nonexistent second human reviewer.
-
-## 5. Protect the default branch
-
-Bind branch protection to the actual successful CI check emitted by GitHub Actions.
-
-Recommended minimum protection:
-
-- Require pull requests before merging.
-- Require the repository's real merge-gate checks on the protected branch.
-- Dismiss stale approvals on new commits.
-- Require conversation resolution before merge.
-- Enforce rules for administrators.
-- Require linear history.
-- Disallow force pushes.
-- Disallow branch deletion.
-- Require strict status checks so the PR branch must be up to date before merge.
-
-Do not guess the required check name. Read it from the repository's check runs after the workflow has succeeded.
-If repository policy intentionally delegates merge authority to a policy check instead of GitHub's built-in approval count, branch protection **MUST** still require every concrete merge gate status context that agents depend on. Missing branch protection is a control-plane incident and should be corrected immediately.
-
-Repositories that shift merge authority from GitHub's built-in required-review gate to a repository-specific policy check **SHOULD** document that explicitly. In that mode, GitHub branch protection may require zero built-in approvals while still requiring a policy check such as `decide` before merge.
-
-## 6. Enable security automation
-
-Enable:
-
-- Dependabot alerts
-- Automated security fixes
-- Secret scanning
-- Push protection
-
-Security automation should be on before contributors begin adding integrations, secrets, or deployment credentials.
-
-## 7. Verify and record
-
-1. Run the validation command locally.
-2. Confirm the default branch is clean and tracking the remote.
-3. Read back repository settings and branch protection from GitHub.
-4. Record the applied configuration in the framework playbook so future repos reuse the same baseline.
-
-## 8. Establish the 3-tier environment model
-
-For products with observability instrumentation (PostHog, Sentry), establish environment separation before any real user traffic lands:
-
-1. **Create a long-lived `staging` branch** from `main`. Apply identical branch protection rules to `staging` as to `main` (required checks, linear history, no force pushes, no deletions, conversation resolution, enforce admins).
-2. **Redirect feature PR targets** to `staging`. Feature branches are created from `staging` and PRs target `staging`. `main` receives feature code via the `staging` release gate (exception: repository-managed release-please release PRs).
-3. **Configure a stable Vercel alias** for the `staging` branch (e.g. `staging.{domain}`). Vercel treats `staging` as a Preview deployment; assign the stable alias in Vercel → Settings → Domains.
-4. **Scope analytics tokens to Production only.** In Vercel → Environment Variables, set `NEXT_PUBLIC_POSTHOG_PROJECT_TOKEN` (and `NEXT_PUBLIC_POSTHOG_HOST`) to Production environment only. PostHog guards initialization on `Boolean(token)` — no code change required. Sentry remains enabled in Preview/staging for real error visibility; rely on environment tags for dashboard filtering.
-5. **Redirect nightly CI** from the production URL to the staging URL. Set a `STAGING_URL` repository variable pointing at the stable staging alias. Update nightly workflow defaults to use `STAGING_URL` as the fallback target instead of the production origin.
-6. **Wire release automation.** `staging` → `main` is promoted via release-please using a regular merge (not squash) to preserve conventional commit history. No separate code review is required when CI is green on `staging`.
-7. **Separate the data tier.** For products with a hosted database (e.g. Supabase), provision one project per environment (`<product>-staging`, `<product>-production`) under the same organization, set per-environment GitHub Environment secrets (`SUPABASE_PROJECT_REF`, `SUPABASE_DB_PASSWORD`) plus a repo-level access token, wire `.github/workflows/supabase-migrate.yml` (validate / apply-staging / apply-production), require the `migrate-staging` check on the `staging-promotion` Mergify queue, and scope `NEXT_PUBLIC_SUPABASE_URL` / `NEXT_PUBLIC_SUPABASE_ANON_KEY` per Vercel environment so Preview points at staging and Production at production.
-
-See `ai/playbooks/environment-separation.md` for the full reusable procedure (including the Database tier section).
-
-## Baseline applied in this repository
-
-The current repository-foundation baseline in this repository applies the following concrete settings:
-
-- Default branch: `main`
-- Integration branch: `staging` (protected, identical rules to `main`)
-- Feature PR target: `staging` (not `main`)
-- Release gate: `staging` → `main` via release-please (regular merge, no squash)
-- Required checks: `validate`, `test`, `e2e`, `CodeRabbit`, `decide`
-- Merge strategy: squash only (feature branches to `staging`); regular merge for `staging` → `main`
-- Delete branch on merge: enabled
-- Branch protection: enabled on `main` and `staging`
-- Strict status checks: enabled
-- Built-in GitHub approvals required: 0
-- Merge authority delegated to policy check: yes (`decide`)
-- CODEOWNERS review required by branch protection: no
-- CODEOWNERS scope: protected surfaces only
-- Stale review dismissal: enabled
-- Conversation resolution: required
-- Linear history: required
-- Force pushes: disabled
-- Branch deletions: disabled
-- Security automation: enabled
-- Automated PR review: CodeRabbit via `.coderabbit.yaml`
-- CodeRabbit review on new pushes: enabled
-- CodeRabbit review on draft PRs: disabled
-- Policy gate for observed CodeRabbit review artifact on the current head SHA before residual-low merge authority: enabled
-- Nightly CI target: `staging.ai-native-framework.app` (`STAGING_URL` repo variable)
-- PostHog token: Vercel Production environment only
-- Sentry: active on all environments; environment tag used for dashboard filtering
-- Data tier: one Supabase project per environment (staging + production) under one organization; migrations applied via `.github/workflows/supabase-migrate.yml`; `migrate-validate` required on `staging-integration`, `migrate-staging` required on `staging-promotion`; `production` GitHub Environment requires reviewer approval before `migrate-production` runs
-
-## Notes for future variants
-
-- Organizations may add team-based CODEOWNERS, signed-commit requirements, deployment environments, or release workflows on top of this baseline.
-- Repositories that want low-risk auto-merge should keep CODEOWNERS focused on protected paths, not documentation-only surfaces.
-- Repositories with multiple validation lanes may require more than one status check.
-- If the framework later introduces machine-readable process schemas under `spec/processes/`, this playbook should be encoded there as well as in Markdown.
+- `AGENTS.md`
+- `ai/playbooks/environment-separation.md`
+- `ai/playbooks/pull-request-execution-loop.md`
