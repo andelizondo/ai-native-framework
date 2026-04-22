@@ -363,11 +363,13 @@ export function TemplateEditorScreen({
                 <button
                   type="button"
                   aria-label="Template editing information"
+                  aria-describedby="template-editor-help"
                   className="inline-flex h-3.5 w-3.5 cursor-help items-center justify-center text-[#fbbf24] transition hover:text-[#fcd34d] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#fbbf24]"
                 >
                   <CircleAlert className="h-3 w-3" />
                 </button>
                 <div
+                  id="template-editor-help"
                   role="tooltip"
                   className="pointer-events-none absolute left-0 top-[calc(100%+8px)] z-30 hidden w-[280px] rounded-lg border border-[rgba(245,158,11,0.28)] bg-bg-2 px-3 py-2 text-[12px] leading-5 text-[#fbbf24] shadow-[var(--shadow-canvas)] group-hover:block group-focus-within:block"
                 >

@@ -439,6 +439,33 @@ body {
 .mx-header-insert-row .mx-header-insert:focus-visible {
   transform: translate(-50%, -50%) scale(1);
 }
+.mx-empty-state-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 34px;
+  padding: 0 12px;
+  border: 1px dashed var(--border-hi);
+  border-radius: 9999px;
+  background: color-mix(in srgb, var(--accent) 8%, var(--bg));
+  color: var(--accent);
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 1;
+  transition:
+    border-color 0.18s cubic-bezier(0.16, 1, 0.3, 1),
+    background 0.18s cubic-bezier(0.16, 1, 0.3, 1),
+    color 0.18s cubic-bezier(0.16, 1, 0.3, 1),
+    box-shadow 0.18s cubic-bezier(0.16, 1, 0.3, 1);
+}
+.mx-empty-state-btn:hover {
+  border-color: color-mix(in srgb, var(--accent) 46%, var(--border-hi));
+  background: color-mix(in srgb, var(--accent) 12%, var(--bg));
+}
+.mx-empty-state-btn:focus-visible {
+  outline: 2px solid color-mix(in srgb, var(--accent) 76%, white 24%);
+  outline-offset: 2px;
+}
 .mx-header-insert:focus-visible {
   outline: none;
 }
@@ -788,10 +815,21 @@ body {
 }
 @media (pointer: coarse) {
   .mx-add-btn,
-  .mx-header-insert,
   .mx-col-insert-icon {
     opacity: 1;
     transform: translateY(0) scale(1);
+  }
+
+  .mx-header-insert {
+    opacity: 1;
+  }
+
+  .mx-header-insert-column .mx-header-insert {
+    transform: translateY(0) scale(1);
+  }
+
+  .mx-header-insert-row .mx-header-insert {
+    transform: translate(-50%, -50%) scale(1);
   }
 
   .mx-col-insert,

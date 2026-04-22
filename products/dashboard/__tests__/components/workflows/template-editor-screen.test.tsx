@@ -62,6 +62,11 @@ describe("TemplateEditorScreen", () => {
     expect(screen.getByLabelText("Add stage after Validation")).toBeInTheDocument();
     expect(screen.getByLabelText("Add role after Sales")).toBeInTheDocument();
     expect(screen.getByLabelText("Add role after Product")).toBeInTheDocument();
+    expect(screen.getByLabelText("Template editing information")).toHaveAttribute(
+      "aria-describedby",
+      "template-editor-help",
+    );
+    expect(screen.getByRole("tooltip")).toHaveAttribute("id", "template-editor-help");
   });
 
   it("renders empty-state affordances when stages or roles are missing", () => {
