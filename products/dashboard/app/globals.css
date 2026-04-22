@@ -317,6 +317,162 @@ body {
 .mx-stage-hd:last-child {
   border-right: none;
 }
+.mx-header-insert-zone {
+  position: absolute;
+  z-index: 12;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  overflow: visible;
+}
+.mx-header-insert-zone::before {
+  content: "";
+  position: absolute;
+  border-radius: 9999px;
+  opacity: 0;
+  transition:
+    opacity 0.22s cubic-bezier(0.16, 1, 0.3, 1),
+    background 0.22s cubic-bezier(0.16, 1, 0.3, 1),
+    transform 0.22s cubic-bezier(0.16, 1, 0.3, 1);
+}
+.mx-header-insert-column {
+  top: 8px;
+  right: -17px;
+  bottom: 8px;
+  width: 34px;
+}
+.mx-header-insert-column::before {
+  top: 10px;
+  bottom: 10px;
+  left: 50%;
+  width: 1px;
+  transform: translateX(-50%) scaleY(0.7);
+  background: color-mix(in srgb, var(--border-hi) 70%, transparent);
+}
+.mx-header-insert-row {
+  left: 0;
+  right: 0;
+  bottom: -17px;
+  width: 100%;
+  height: 34px;
+}
+.mx-header-insert-row::before {
+  left: 8px;
+  right: 8px;
+  top: 50%;
+  height: 1px;
+  transform: translateY(-50%) scaleX(0.72);
+  background: color-mix(in srgb, var(--border-hi) 74%, transparent);
+}
+.mx-header-insert-zone:hover::before,
+.mx-header-insert-zone:focus-within::before {
+  opacity: 1;
+  background: color-mix(in srgb, var(--accent) 26%, transparent);
+}
+.mx-header-insert-column:hover::before,
+.mx-header-insert-column:focus-within::before {
+  transform: translateX(-50%) scaleY(1);
+}
+.mx-header-insert-row:hover::before,
+.mx-header-insert-row:focus-within::before {
+  transform: translateY(-50%) scaleX(1);
+}
+.mx-header-insert {
+  position: relative;
+  z-index: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  padding: 0;
+  border-radius: 9999px;
+  border: 1px solid transparent;
+  background: rgba(129, 140, 248, 0.04);
+  color: var(--t3);
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  box-shadow: none;
+  opacity: 0;
+  transition:
+    opacity 0.24s cubic-bezier(0.16, 1, 0.3, 1),
+    transform 0.24s cubic-bezier(0.16, 1, 0.3, 1),
+    background 0.24s cubic-bezier(0.16, 1, 0.3, 1),
+    border-color 0.24s cubic-bezier(0.16, 1, 0.3, 1),
+    color 0.24s cubic-bezier(0.16, 1, 0.3, 1),
+    box-shadow 0.24s cubic-bezier(0.16, 1, 0.3, 1);
+  transform: scale(0.84);
+  backdrop-filter: blur(10px);
+}
+.mx-header-insert-column .mx-header-insert {
+  transform: translateY(4px) scale(0.84);
+}
+.mx-header-insert-row .mx-header-insert {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, calc(-50% - 4px)) scale(0.84);
+}
+.mx-header-insert-zone:hover .mx-header-insert,
+.mx-header-insert-zone:focus-within .mx-header-insert {
+  opacity: 1;
+}
+.mx-header-insert:hover,
+.mx-header-insert:focus-visible {
+  opacity: 1;
+  color: var(--accent);
+  background: rgba(129, 140, 248, 0.1);
+  border-color: rgba(129, 140, 248, 0.16);
+  box-shadow:
+    0 0 0 1px rgba(129, 140, 248, 0.08),
+    0 8px 18px rgba(99, 102, 241, 0.08);
+}
+.mx-header-insert-column:hover .mx-header-insert,
+.mx-header-insert-column:focus-within .mx-header-insert {
+  transform: translateY(0) scale(1);
+}
+.mx-header-insert-row:hover .mx-header-insert,
+.mx-header-insert-row:focus-within .mx-header-insert {
+  transform: translate(-50%, -50%) scale(1);
+}
+.mx-header-insert-row .mx-header-insert:hover,
+.mx-header-insert-row .mx-header-insert:focus-visible {
+  transform: translate(-50%, -50%) scale(1);
+}
+.mx-empty-state-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 34px;
+  padding: 0 12px;
+  border: 1px dashed var(--border-hi);
+  border-radius: 9999px;
+  background: color-mix(in srgb, var(--accent) 8%, var(--bg));
+  color: var(--accent);
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 1;
+  transition:
+    border-color 0.18s cubic-bezier(0.16, 1, 0.3, 1),
+    background 0.18s cubic-bezier(0.16, 1, 0.3, 1),
+    color 0.18s cubic-bezier(0.16, 1, 0.3, 1),
+    box-shadow 0.18s cubic-bezier(0.16, 1, 0.3, 1);
+}
+.mx-empty-state-btn:hover {
+  border-color: color-mix(in srgb, var(--accent) 46%, var(--border-hi));
+  background: color-mix(in srgb, var(--accent) 12%, var(--bg));
+}
+.mx-empty-state-btn:focus-visible {
+  outline: 2px solid color-mix(in srgb, var(--accent) 76%, white 24%);
+  outline-offset: 2px;
+}
+.mx-header-insert:focus-visible {
+  outline: none;
+}
+.mx-header-insert:focus-visible {
+  outline: 2px solid color-mix(in srgb, var(--accent) 76%, white 24%);
+  outline-offset: 2px;
+}
 .mx-stage-name {
   font-size: 12px;
   font-weight: 600;
@@ -367,7 +523,12 @@ body {
   align-items: center;
   gap: 7px;
   min-height: 106px;
+  overflow: visible;
   transition: width 0.2s;
+}
+.mx-role-cell:hover,
+.mx-role-cell:focus-within {
+  z-index: 14;
 }
 .mx-role-cell:has([data-role-color-open="true"]) {
   z-index: 25;
@@ -659,6 +820,18 @@ body {
     transform: translateY(0) scale(1);
   }
 
+  .mx-header-insert {
+    opacity: 1;
+  }
+
+  .mx-header-insert-column .mx-header-insert {
+    transform: translateY(0) scale(1);
+  }
+
+  .mx-header-insert-row .mx-header-insert {
+    transform: translate(-50%, -50%) scale(1);
+  }
+
   .mx-col-insert,
   .mx-col-insert-body {
     width: 34px;
@@ -677,18 +850,44 @@ body {
   border: none;
   cursor: pointer;
   background: transparent;
-  position: relative;
-  z-index: 2;
+  position: sticky;
+  left: 0;
+  z-index: 6;
   transition:
     height 0.18s cubic-bezier(0.16, 1, 0.3, 1),
     margin 0.18s cubic-bezier(0.16, 1, 0.3, 1),
     background 0.18s cubic-bezier(0.16, 1, 0.3, 1);
+}
+.mx-row-insert::before {
+  content: "";
+  position: absolute;
+  left: 12px;
+  right: 12px;
+  top: 50%;
+  height: 1px;
+  background: color-mix(in srgb, var(--border-hi) 72%, transparent);
+  transform: translateY(-50%);
+  transition:
+    opacity 0.18s cubic-bezier(0.16, 1, 0.3, 1),
+    background 0.18s cubic-bezier(0.16, 1, 0.3, 1);
+}
+.mx-row-insert-empty {
+  height: 40px;
+  margin-top: 0;
+  margin-bottom: 0;
+  justify-content: center;
+  gap: 8px;
+  background: var(--primary-bg);
 }
 .mx-row-insert:hover {
   height: 24px;
   margin-top: 0;
   margin-bottom: 0;
   background: var(--primary-bg);
+}
+.mx-row-insert:hover::before,
+.mx-row-insert:focus-visible::before {
+  opacity: 0;
 }
 .mx-row-insert-label {
   display: inline-flex;
@@ -741,6 +940,24 @@ body {
   outline: 2px solid var(--accent);
   outline-offset: 2px;
   transform: translateY(-50%) scale(1);
+}
+.mx-row-insert-empty::before {
+  display: none;
+}
+.mx-row-insert-empty .mx-row-insert-label,
+.mx-row-insert-empty:hover .mx-row-insert-label,
+.mx-row-insert-empty:focus-visible .mx-row-insert-label {
+  position: static;
+  opacity: 1;
+  transform: none;
+  background: rgba(129, 140, 248, 0.1);
+  border-color: rgba(129, 140, 248, 0.16);
+  color: var(--accent);
+  box-shadow: none;
+}
+.mx-row-insert-empty:focus-visible .mx-row-insert-label {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
 }
 
 /* ── Task card ── */

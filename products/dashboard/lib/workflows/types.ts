@@ -169,6 +169,7 @@ export interface WorkflowTaskPatch {
 
 export interface WorkflowTemplatePatch {
   label?: string;
+  color?: string;
   stages?: WorkflowStage[];
   roles?: WorkflowRole[];
   taskTemplates?: WorkflowTaskTemplate[];
