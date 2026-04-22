@@ -49,7 +49,7 @@ const TEMPLATE: WorkflowTemplate = {
 };
 
 describe("TemplateEditorScreen", () => {
-  it("matches the instance matrix chrome without header add buttons", () => {
+  it("renders insert affordances between and after existing headers", () => {
     render(
       <TemplateEditorScreen
         template={TEMPLATE}
@@ -58,19 +58,22 @@ describe("TemplateEditorScreen", () => {
       />,
     );
 
-    expect(screen.queryByLabelText("Add role")).not.toBeInTheDocument();
-    expect(screen.queryByTestId("matrix-add-stage-header")).not.toBeInTheDocument();
+    expect(screen.getByLabelText("Add stage after Pre-Sales")).toBeInTheDocument();
+    expect(screen.getByLabelText("Add stage after Validation")).toBeInTheDocument();
+    expect(screen.getByLabelText("Add role after Sales")).toBeInTheDocument();
+    expect(screen.getByLabelText("Add role after Product")).toBeInTheDocument();
   });
 
-  it("does not show a header add-stage button when stages are empty", () => {
+  it("renders empty-state affordances when stages or roles are missing", () => {
     render(
       <TemplateEditorScreen
-        template={{ ...TEMPLATE, stages: [] }}
+        template={{ ...TEMPLATE, stages: [], roles: [] }}
         skillOptions={[]}
         playbookOptions={[]}
       />,
     );
 
-    expect(screen.queryByText("Add first stage")).not.toBeInTheDocument();
+    expect(screen.getByText("Add first stage")).toBeInTheDocument();
+    expect(screen.getByText("Add first role")).toBeInTheDocument();
   });
 });

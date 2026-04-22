@@ -357,11 +357,11 @@ body {
   height: 34px;
 }
 .mx-header-insert-row::before {
-  left: 50%;
+  left: 8px;
+  right: 8px;
   top: 50%;
   height: 1px;
-  width: 1px;
-  transform: translate(-50%, -50%) scaleY(0.72);
+  transform: translateY(-50%) scaleX(0.72);
   background: color-mix(in srgb, var(--border-hi) 74%, transparent);
 }
 .mx-header-insert-zone:hover::before,
@@ -375,7 +375,7 @@ body {
 }
 .mx-header-insert-row:hover::before,
 .mx-header-insert-row:focus-within::before {
-  transform: translate(-50%, -50%) scaleY(1);
+  transform: translateY(-50%) scaleX(1);
 }
 .mx-header-insert {
   position: relative;

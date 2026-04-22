@@ -705,7 +705,11 @@ function trimTemplateLabel(value: string): string {
 }
 
 function normalizeTemplateColor(value: string): string {
-  return value.trim();
+  const normalized = value.trim();
+  if (!normalized) {
+    throw new Error("updateTemplateAction: template color is required");
+  }
+  return normalized;
 }
 
 function normalizeTemplateStages(

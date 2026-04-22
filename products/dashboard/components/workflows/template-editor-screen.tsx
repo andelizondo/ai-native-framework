@@ -405,6 +405,22 @@ export function TemplateEditorScreen({
               <span className="flex-1">Roles</span>
             </div>
 
+            {draft.stages.length === 0 ? (
+              <div className="mx-stage-hd" role="columnheader">
+                <button
+                  type="button"
+                  className="mx-empty-state-btn"
+                  onClick={() =>
+                    setStageModalState({
+                      mode: "create",
+                      index: 0,
+                    })
+                  }
+                >
+                  Add first stage
+                </button>
+              </div>
+            ) : null}
             {draft.stages.map((stage, index) => (
               <div key={stage.id} className="mx-stage-hd" role="columnheader">
                 <div className="mx-entity-content">
@@ -467,10 +483,43 @@ export function TemplateEditorScreen({
                     }
                   />
                 ) : null}
+                {index === draft.stages.length - 1 ? (
+                  <MatrixHeaderInsertButton
+                    axis="column"
+                    ariaLabel={`Add stage after ${stage.label}`}
+                    onClick={() =>
+                      setStageModalState({
+                        mode: "create",
+                        index: draft.stages.length,
+                      })
+                    }
+                  />
+                ) : null}
               </div>
             ))}
           </div>
 
+          {draft.roles.length === 0 ? (
+            <div className="mx-body-row" role="row">
+              <div className="mx-role-cell" role="rowheader">
+                <button
+                  type="button"
+                  className="mx-empty-state-btn"
+                  onClick={() =>
+                    setRoleModalState({
+                      mode: "create",
+                      index: 0,
+                    })
+                  }
+                >
+                  Add first role
+                </button>
+              </div>
+              {draft.stages.map((stage) => (
+                <div key={`empty-role-${stage.id}`} className="mx-task-cell" />
+              ))}
+            </div>
+          ) : null}
           {draft.roles.map((role, roleIndex) => (
             <div key={role.id} className="mx-body-row" role="row">
               <div className="mx-role-cell" role="rowheader">
@@ -542,6 +591,18 @@ export function TemplateEditorScreen({
                       setRoleModalState({
                         mode: "create",
                         index: roleIndex + 1,
+                      })
+                    }
+                  />
+                ) : null}
+                {roleIndex === draft.roles.length - 1 ? (
+                  <MatrixHeaderInsertButton
+                    axis="row"
+                    ariaLabel={`Add role after ${role.label}`}
+                    onClick={() =>
+                      setRoleModalState({
+                        mode: "create",
+                        index: draft.roles.length,
                       })
                     }
                   />

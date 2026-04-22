@@ -411,6 +411,26 @@ describe("workflow matrix edit actions", () => {
     expect(result.template.id).toBe("client-delivery");
   });
 
+  it("updateTemplateAction rejects blank template colors", async () => {
+    mockGetRepo.mockResolvedValue({
+      updateTemplate: vi.fn(),
+    } satisfies Partial<WorkflowRepository>);
+
+    await expect(
+      updateTemplateAction("client-delivery", {
+        id: "client-delivery",
+        label: "Client Project Delivery",
+        color: "   ",
+        multiInstance: true,
+        stages: [],
+        roles: [],
+        taskTemplates: [],
+        createdAt: "2026-04-19T12:00:00Z",
+        updatedAt: "2026-04-19T12:00:00Z",
+      }),
+    ).rejects.toThrow("updateTemplateAction: template color is required");
+  });
+
   it("startTaskAction uses the atomic status transition and records an event", async () => {
     const started = makeTask({ id: "task-start", status: "active", checkpoint: false });
     const updateTaskIfStatus = vi.fn().mockResolvedValue(started);
