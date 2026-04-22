@@ -527,6 +527,10 @@ body {
   opacity: 1;
   transform: translateY(0) scale(1);
 }
+.mx-task-cell:focus-within .mx-add-btn {
+  opacity: 1;
+  transform: translateY(0) scale(1);
+}
 .mx-add-btn:hover {
   background: rgba(129, 140, 248, 0.1);
   border-color: rgba(129, 140, 248, 0.16);
@@ -563,7 +567,8 @@ body {
     opacity 0.18s cubic-bezier(0.16, 1, 0.3, 1);
 }
 .mx-col-insert:hover,
-.mx-col-insert.mx-col-insert-active {
+.mx-col-insert.mx-col-insert-active,
+.mx-col-insert:focus-visible {
   width: 34px;
   background: var(--primary-bg);
 }
@@ -588,7 +593,8 @@ body {
   transform: scale(0.9);
 }
 .mx-col-insert:hover .mx-col-insert-icon,
-.mx-col-insert.mx-col-insert-active .mx-col-insert-icon {
+.mx-col-insert.mx-col-insert-active .mx-col-insert-icon,
+.mx-col-insert:focus-visible .mx-col-insert-icon {
   opacity: 1;
   transform: scale(1);
   background: rgba(129, 140, 248, 0.1);
@@ -598,10 +604,36 @@ body {
     0 0 0 1px rgba(129, 140, 248, 0.08),
     0 8px 18px rgba(99, 102, 241, 0.08);
 }
+.mx-col-insert:focus-visible {
+  outline: none;
+}
+.mx-col-insert:focus-visible .mx-col-insert-icon {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
 .mx-col-insert-icon svg {
   width: 10px;
   height: 10px;
   flex-shrink: 0;
+}
+.mx-col-insert-empty {
+  width: 192px;
+  gap: 8px;
+  justify-content: center;
+}
+.mx-col-insert-empty .mx-col-insert-icon,
+.mx-col-insert-empty:hover .mx-col-insert-icon,
+.mx-col-insert-empty:focus-visible .mx-col-insert-icon {
+  opacity: 1;
+  transform: scale(1);
+  background: rgba(129, 140, 248, 0.1);
+  border-color: rgba(129, 140, 248, 0.16);
+  color: var(--accent);
+}
+.mx-col-insert-label-text {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--t2);
 }
 .mx-col-insert-body {
   width: 6px;
@@ -615,9 +647,23 @@ body {
     background 0.18s cubic-bezier(0.16, 1, 0.3, 1);
 }
 .mx-col-insert-body:hover,
-.mx-col-insert-body.mx-col-insert-active {
+.mx-col-insert-body.mx-col-insert-active,
+.mx-col-insert-body:focus-visible {
   width: 34px;
   background: var(--primary-bg);
+}
+@media (pointer: coarse) {
+  .mx-add-btn,
+  .mx-col-insert-icon {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+
+  .mx-col-insert,
+  .mx-col-insert-body {
+    width: 34px;
+    background: var(--primary-bg);
+  }
 }
 .mx-row-insert {
   height: 8px;

@@ -183,6 +183,7 @@ export function TemplateEditorScreen({
   const { setConfig } = useDashboardTopBar();
   const { capture } = useAnalytics();
   const draftRef = useRef(template);
+  const [lastSaved, setLastSaved] = useState<WorkflowTemplate>(template);
   const [draft, setDraft] = useState<WorkflowTemplate>(template);
   const [confirmState, setConfirmState] = useState<ConfirmState>(null);
   const [roleModalState, setRoleModalState] = useState<RoleModalState>(null);
@@ -208,7 +209,7 @@ export function TemplateEditorScreen({
   const [pending, startTransition] = useTransition();
   const [saveError, setSaveError] = useState<string | null>(null);
 
-  const isDirty = JSON.stringify(draft) !== JSON.stringify(template);
+  const isDirty = JSON.stringify(draft) !== JSON.stringify(lastSaved);
   const rowInsertWidth = `${
     ROLE_COLUMN_WIDTH +
     draft.stages.length * STAGE_COLUMN_WIDTH +
@@ -218,6 +219,11 @@ export function TemplateEditorScreen({
   useEffect(() => {
     draftRef.current = draft;
   }, [draft]);
+
+  useEffect(() => {
+    setDraft(template);
+    setLastSaved(template);
+  }, [template]);
 
   function addRole(role: Pick<WorkflowRole, "label" | "owner">, index: number) {
     setDraft((current) => ({
@@ -266,6 +272,7 @@ export function TemplateEditorScreen({
       try {
         const result = await updateTemplateAction(draftRef.current.id, draftRef.current);
         setDraft(result.template);
+        setLastSaved(result.template);
         emitEvent("workflow.template_edited", {
           template_id: result.template.id,
           edited_by: "founder",
@@ -299,7 +306,8 @@ export function TemplateEditorScreen({
           entityType="template"
           onRename={async (nextLabel) => {
             const result = await renameTemplateAction(draft.id, nextLabel);
-            setDraft(result.template);
+            setDraft((current) => ({ ...current, label: result.template.label }));
+            setLastSaved((current) => ({ ...current, label: result.template.label }));
           }}
           onDelete={async () => {
             await deleteTemplateAction(draft.id);
@@ -367,6 +375,46 @@ export function TemplateEditorScreen({
             <div className="mx-corner" role="columnheader">
               <span className="flex-1">Roles</span>
             </div>
+
+            {draft.stages.length === 0 ? (
+              <button
+                type="button"
+                className="mx-col-insert mx-col-insert-empty"
+                onClick={() =>
+                  setStageModalState({
+                    mode: "create",
+                    index: 0,
+                  })
+                }
+              >
+                <span className="mx-col-insert-icon">
+                  <Plus className="h-3.5 w-3.5" />
+                </span>
+                <span className="mx-col-insert-label-text">Add first stage</span>
+              </button>
+            ) : (
+              <button
+                type="button"
+                className={cn(
+                  "mx-col-insert",
+                  hoveredStageInsertIndex === 0 && "mx-col-insert-active",
+                )}
+                onMouseEnter={() => setHoveredStageInsertIndex(0)}
+                onMouseLeave={() =>
+                  setHoveredStageInsertIndex((current) => (current === 0 ? null : current))
+                }
+                onClick={() =>
+                  setStageModalState({
+                    mode: "create",
+                    index: 0,
+                  })
+                }
+              >
+                <span className="mx-col-insert-icon">
+                  <Plus className="h-3.5 w-3.5" />
+                </span>
+              </button>
+            )}
 
             {draft.stages.map((stage, index) => (
               <div key={stage.id} className="contents">
@@ -688,6 +736,11 @@ export function TemplateEditorScreen({
           playbookOptions={playbookOptions}
           onClose={() => setAddTaskFor(null)}
           onSubmit={(input) => {
+            const safeSkill =
+              input.skill && skillOptions.some((item) => item.id === input.skill)
+                ? input.skill
+                : undefined;
+            const safeAgent = safeSkill ? input.agent ?? undefined : undefined;
             setDraft((current) => {
               if (addTaskFor.mode === "edit" && addTaskFor.taskId) {
                 return {
@@ -698,8 +751,8 @@ export function TemplateEditorScreen({
                           ...item,
                           title: input.title.trim(),
                           desc: input.description?.trim(),
-                          agent: input.agent ?? undefined,
-                          skill: input.skill ?? undefined,
+                          agent: safeAgent,
+                          skill: safeSkill,
                           playbook: input.playbook ?? undefined,
                         }
                       : item,
@@ -720,8 +773,8 @@ export function TemplateEditorScreen({
                     checkpoint: Boolean(input.checkpoint),
                     triggers: input.triggers ?? [],
                     gates: input.gates ?? [],
-                    agent: input.agent ?? undefined,
-                    skill: input.skill ?? undefined,
+                    agent: safeAgent,
+                    skill: safeSkill,
                     playbook: input.playbook ?? undefined,
                   },
                 ],

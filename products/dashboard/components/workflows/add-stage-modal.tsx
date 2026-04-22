@@ -17,6 +17,8 @@ export function AddStageModal({
   onClose,
   onSubmit,
 }: AddStageModalProps) {
+  const nameId = "stage-name";
+  const subId = "stage-sub";
   const [label, setLabel] = useState(initialStage?.label ?? "");
   const [sub, setSub] = useState(initialStage?.sub ?? "");
 
@@ -45,10 +47,11 @@ export function AddStageModal({
           Define the stage label and optional subtitle.
         </div>
 
-        <label className="mb-1.5 block text-[11px] font-medium text-t2">
+        <label htmlFor={nameId} className="mb-1.5 block text-[11px] font-medium text-t2">
           Stage name
         </label>
         <input
+          id={nameId}
           autoFocus
           value={label}
           onChange={(event) => setLabel(event.target.value)}
@@ -56,10 +59,11 @@ export function AddStageModal({
           className="mb-3 block w-full rounded-lg border border-border bg-bg-3 px-3 py-2.5 text-[13px] text-t1 placeholder:text-t3 focus:border-primary focus:outline-none"
         />
 
-        <label className="mb-1.5 block text-[11px] font-medium text-t2">
+        <label htmlFor={subId} className="mb-1.5 block text-[11px] font-medium text-t2">
           Subtitle (optional)
         </label>
         <input
+          id={subId}
           value={sub}
           onChange={(event) => setSub(event.target.value)}
           placeholder="Short description"

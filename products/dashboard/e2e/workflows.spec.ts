@@ -259,7 +259,9 @@ test.describe("workflows — template editor (AEL-55)", () => {
     await firstStage.click();
 
     const uniqueLabel = `Discovery ${Date.now()}`;
-    const editor = page.locator('input[value="Pre-Sales"]').or(page.locator(".mx-stage-hd input").first());
+    const preferredEditor = page.locator('input[value="Pre-Sales"]').first();
+    const fallbackEditor = page.locator(".mx-stage-hd input").first();
+    const editor = (await preferredEditor.count()) > 0 ? preferredEditor : fallbackEditor;
     await editor.fill(uniqueLabel);
     await editor.press("Enter");
 

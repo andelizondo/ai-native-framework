@@ -739,7 +739,11 @@ function normalizeTemplateTaskTemplates(
       role: normalizeTaskField(task.role, "taskTemplate.role", 80),
       stage: normalizeTaskField(task.stage, "taskTemplate.stage", 80),
       title: trimTemplateLabel(task.title),
-      desc: trimTemplateLabel(task.desc ?? ""),
+      desc: normalizeTaskField(
+        task.desc ?? "",
+        "taskTemplate.desc",
+        MAX_TASK_DESCRIPTION_LENGTH,
+      ),
       agent: trimTemplateLabel(task.agent ?? ""),
       skill: trimTemplateLabel(task.skill ?? ""),
       playbook: trimTemplateLabel(task.playbook ?? ""),

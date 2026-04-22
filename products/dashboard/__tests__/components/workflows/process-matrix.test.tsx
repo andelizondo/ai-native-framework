@@ -14,6 +14,7 @@
 import { describe, expect, it, vi, beforeEach } from "vitest";
 import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import type { ReactNode } from "react";
 
 import { DashboardTopBarProvider } from "@/components/dashboard-topbar-context";
 import { ProcessMatrix } from "@/components/workflows/process-matrix";
@@ -102,7 +103,7 @@ function instance(tasks: WorkflowTask[]): WorkflowInstanceDetail {
   };
 }
 
-function renderWithTopBarProvider(ui: React.ReactNode) {
+function renderWithTopBarProvider(ui: ReactNode) {
   return render(<DashboardTopBarProvider>{ui}</DashboardTopBarProvider>);
 }
 

@@ -20,6 +20,13 @@ const AGENTS = [
   ["QA Engineer", "qa"],
 ] as const;
 
+function hasSkillOption(
+  options: Array<{ id: string }>,
+  skill: string | null | undefined,
+): skill is string {
+  return Boolean(skill) && options.some((option) => option.id === skill);
+}
+
 interface AddTaskModalProps {
   mode?: "create" | "edit";
   instanceId: string;
@@ -151,20 +158,6 @@ export function AddTaskModal({
   onClose,
   onSubmit,
 }: AddTaskModalProps) {
-  const [form, setForm] = useState<{
-    title: string;
-    description: string;
-    agent: string | null;
-    skill: string | null;
-    playbook: string;
-  }>({
-    title: initialTask?.title ?? "",
-    description: initialTask?.description ?? "",
-    agent: initialTask?.agent ?? "PM",
-    skill: initialTask?.skill ?? "pm",
-    playbook: initialTask?.playbook ?? "",
-  });
-
   const normalizedSkillOptions = useMemo(
     () =>
       (skillOptions.length > 0
@@ -193,6 +186,34 @@ export function AddTaskModal({
       })),
     [playbookOptions],
   );
+
+  const [form, setForm] = useState<{
+    title: string;
+    description: string;
+    agent: string | null;
+    skill: string | null;
+    playbook: string;
+  }>(() => {
+    const initialSkill = hasSkillOption(normalizedSkillOptions, initialTask?.skill)
+      ? initialTask?.skill
+      : skillOptions.length === 0
+        ? "pm"
+        : null;
+    const fallbackAgent = initialSkill
+      ? AGENTS.find((agent) => agent[1] === initialSkill)?.[0] ?? null
+      : null;
+
+    return {
+      title: initialTask?.title ?? "",
+      description: initialTask?.description ?? "",
+      agent:
+        initialTask?.agent ??
+        fallbackAgent ??
+        (skillOptions.length === 0 ? "PM" : null),
+      skill: initialSkill,
+      playbook: initialTask?.playbook ?? "",
+    };
+  });
 
   return (
     <div
@@ -294,14 +315,15 @@ export function AddTaskModal({
             disabled={!form.title.trim()}
             onClick={() => {
               if (!form.title.trim()) return;
+              const hasValidSkill = hasSkillOption(normalizedSkillOptions, form.skill);
               onSubmit({
                 instanceId,
                 roleId,
                 stageId,
-                title: form.title,
+                title: form.title.trim(),
                 description: form.description,
-                agent: form.agent,
-                skill: form.skill,
+                agent: hasValidSkill ? form.agent : null,
+                skill: hasValidSkill ? form.skill : null,
                 playbook: form.playbook,
               });
             }}
