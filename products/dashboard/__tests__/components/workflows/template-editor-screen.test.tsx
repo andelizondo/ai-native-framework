@@ -49,7 +49,7 @@ const TEMPLATE: WorkflowTemplate = {
 };
 
 describe("TemplateEditorScreen", () => {
-  it("sizes insert-role rows to the role and stage columns only", () => {
+  it("matches the instance matrix chrome without header add buttons", () => {
     render(
       <TemplateEditorScreen
         template={TEMPLATE}
@@ -58,11 +58,19 @@ describe("TemplateEditorScreen", () => {
       />,
     );
 
-    expect(screen.getByTestId("matrix-insert-role-1")).toHaveStyle({
-      width: "562px",
-    });
-    expect(screen.getByTestId("matrix-insert-role-end")).toHaveStyle({
-      width: "562px",
-    });
+    expect(screen.queryByLabelText("Add role")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("matrix-add-stage-header")).not.toBeInTheDocument();
+  });
+
+  it("does not show a header add-stage button when stages are empty", () => {
+    render(
+      <TemplateEditorScreen
+        template={{ ...TEMPLATE, stages: [] }}
+        skillOptions={[]}
+        playbookOptions={[]}
+      />,
+    );
+
+    expect(screen.queryByText("Add first stage")).not.toBeInTheDocument();
   });
 });

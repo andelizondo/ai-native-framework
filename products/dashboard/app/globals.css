@@ -677,18 +677,44 @@ body {
   border: none;
   cursor: pointer;
   background: transparent;
-  position: relative;
-  z-index: 2;
+  position: sticky;
+  left: 0;
+  z-index: 6;
   transition:
     height 0.18s cubic-bezier(0.16, 1, 0.3, 1),
     margin 0.18s cubic-bezier(0.16, 1, 0.3, 1),
     background 0.18s cubic-bezier(0.16, 1, 0.3, 1);
+}
+.mx-row-insert::before {
+  content: "";
+  position: absolute;
+  left: 12px;
+  right: 12px;
+  top: 50%;
+  height: 1px;
+  background: color-mix(in srgb, var(--border-hi) 72%, transparent);
+  transform: translateY(-50%);
+  transition:
+    opacity 0.18s cubic-bezier(0.16, 1, 0.3, 1),
+    background 0.18s cubic-bezier(0.16, 1, 0.3, 1);
+}
+.mx-row-insert-empty {
+  height: 40px;
+  margin-top: 0;
+  margin-bottom: 0;
+  justify-content: center;
+  gap: 8px;
+  background: var(--primary-bg);
 }
 .mx-row-insert:hover {
   height: 24px;
   margin-top: 0;
   margin-bottom: 0;
   background: var(--primary-bg);
+}
+.mx-row-insert:hover::before,
+.mx-row-insert:focus-visible::before {
+  opacity: 0;
 }
 .mx-row-insert-label {
   display: inline-flex;
@@ -741,6 +767,24 @@ body {
   outline: 2px solid var(--accent);
   outline-offset: 2px;
   transform: translateY(-50%) scale(1);
+}
+.mx-row-insert-empty::before {
+  display: none;
+}
+.mx-row-insert-empty .mx-row-insert-label,
+.mx-row-insert-empty:hover .mx-row-insert-label,
+.mx-row-insert-empty:focus-visible .mx-row-insert-label {
+  position: static;
+  opacity: 1;
+  transform: none;
+  background: rgba(129, 140, 248, 0.1);
+  border-color: rgba(129, 140, 248, 0.16);
+  color: var(--accent);
+  box-shadow: none;
+}
+.mx-row-insert-empty:focus-visible .mx-row-insert-label {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
 }
 
 /* ── Task card ── */
