@@ -472,6 +472,27 @@ export function createWorkflowRepository(
       return { ...instance, tasks, events: [] };
     },
 
+    async updateInstance(
+      instanceId: string,
+      patch: Pick<WorkflowInstance, "label" | "status">,
+    ): Promise<WorkflowInstance> {
+      const row: Record<string, unknown> = {};
+      if (patch.label !== undefined) row.label = patch.label;
+      if (patch.status !== undefined) row.status = patch.status;
+      if (Object.keys(row).length === 0) {
+        throw new WorkflowRepositoryError("updateInstance called with empty patch");
+      }
+
+      const { data, error } = await client
+        .from("workflow_instances")
+        .update(row)
+        .eq("id", instanceId)
+        .select("*")
+        .single();
+
+      return mapInstance(unwrap("updateInstance", data, error) as WorkflowInstanceRow);
+    },
+
     async createTask(input: WorkflowTaskCreateInput): Promise<WorkflowTask> {
       const { data, error } = await client
         .from("workflow_tasks")
@@ -550,6 +571,17 @@ export function createWorkflowRepository(
       }
     },
 
+    async deleteInstance(instanceId: string): Promise<void> {
+      const { error } = await client
+        .from("workflow_instances")
+        .delete()
+        .eq("id", instanceId);
+
+      if (error) {
+        throw new WorkflowRepositoryError("deleteInstance failed", error);
+      }
+    },
+
     async updateTemplate(
       templateId: string,
       patch: WorkflowTemplatePatch,
@@ -569,6 +601,29 @@ export function createWorkflowRepository(
       return mapTemplate(
         unwrap("updateTemplate", data, error) as WorkflowTemplateRow,
       );
+    },
+
+    async deleteTemplate(templateId: string): Promise<void> {
+      const { error: deleteInstancesError } = await client
+        .from("workflow_instances")
+        .delete()
+        .eq("template_id", templateId);
+
+      if (deleteInstancesError) {
+        throw new WorkflowRepositoryError(
+          "deleteTemplate instances cleanup failed",
+          deleteInstancesError,
+        );
+      }
+
+      const { error } = await client
+        .from("workflow_templates")
+        .delete()
+        .eq("id", templateId);
+
+      if (error) {
+        throw new WorkflowRepositoryError("deleteTemplate failed", error);
+      }
     },
 
     async addEvent(taskId: string, event: WorkflowEventInput): Promise<WorkflowEvent> {

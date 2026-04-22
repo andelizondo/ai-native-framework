@@ -57,7 +57,7 @@ export function TopBar({ initialPendingCount = 0 }: TopBarProps) {
   const router = useRouter();
   const searchParams = useSearchParams();
   const { config } = useDashboardTopBar();
-  const crumbs = deriveCrumbs(pathname);
+  const crumbs = config?.crumbs ?? deriveCrumbs(pathname);
   const isWorkflowInstanceRoute =
     !!pathname && WORKFLOW_INSTANCE_ROUTE_REGEX.test(pathname);
   const editMode = searchParams.get("edit") === "1";
@@ -95,7 +95,7 @@ export function TopBar({ initialPendingCount = 0 }: TopBarProps) {
                   <input
                     value={config.label}
                     onChange={(event) => config.onLabelChange(event.target.value)}
-                    className="tb-crumb-editable min-w-[140px]"
+                    className="min-w-[140px] bg-transparent p-0 text-[13px] font-semibold text-t1 outline-none placeholder:text-t3"
                     aria-label="Workflow template name"
                   />
                 ) : (
@@ -116,6 +116,8 @@ export function TopBar({ initialPendingCount = 0 }: TopBarProps) {
         </nav>
 
         <div className="flex shrink-0 items-center gap-1.5">
+          {config?.actions ?? null}
+
           {config?.mode === "template-editor" ? (
             <button
               type="button"
@@ -144,7 +146,7 @@ export function TopBar({ initialPendingCount = 0 }: TopBarProps) {
               type="button"
               aria-pressed={editMode}
               onClick={toggleEditMode}
-              title={editMode ? "Finish editing tasks" : "Edit workflow tasks"}
+              title={editMode ? "Save workflow changes" : "Edit workflow tasks"}
               className={
                 editMode
                   ? "flex cursor-pointer items-center gap-1.5 rounded-md border border-primary bg-primary-bg px-2.5 py-1.5 text-[11.5px] font-medium text-accent shadow-[inset_0_0_0_1px_rgba(99,102,241,0.08)] transition hover:bg-[rgba(99,102,241,0.16)] hover:text-white focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
@@ -152,7 +154,7 @@ export function TopBar({ initialPendingCount = 0 }: TopBarProps) {
               }
             >
               <Pencil className="h-3.5 w-3.5" />
-              {editMode ? "Done" : "Edit"}
+              {editMode ? "Save" : "Edit"}
             </button>
           ) : null}
 

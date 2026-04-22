@@ -15,10 +15,11 @@ export default async function WorkflowTemplateEditPage({
   const { templateId } = await params;
   const repo = await getServerWorkflowRepository();
 
-  const [template, skillOptions, playbookOptions] = await Promise.all([
+  const [template, skillOptions, playbookOptions, instances] = await Promise.all([
     repo.getTemplate(templateId),
     repo.getFrameworkItems("skill"),
     repo.getFrameworkItems("playbook"),
+    repo.listInstances(templateId),
   ]);
 
   if (!template) {
@@ -28,6 +29,7 @@ export default async function WorkflowTemplateEditPage({
   return (
     <TemplateEditorScreen
       template={template}
+      instanceCount={instances.length}
       skillOptions={skillOptions}
       playbookOptions={playbookOptions}
     />

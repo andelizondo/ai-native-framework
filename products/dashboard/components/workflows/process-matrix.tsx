@@ -5,10 +5,13 @@ import { ChevronsLeftRight, Plus } from "lucide-react";
 
 import {
   createTaskAction,
+  deleteInstanceAction,
   deleteTaskAction,
   moveTaskAction,
+  renameInstanceAction,
   updateTaskDetailsAction,
 } from "@/app/(dashboard)/workflows/actions";
+import { useDashboardTopBar } from "@/components/dashboard-topbar-context";
 import { ConfirmModal } from "@/components/ui/confirm-modal";
 import { captureError } from "@/lib/monitoring";
 import { cn } from "@/lib/utils";
@@ -25,6 +28,7 @@ import type {
 
 import { AddTaskModal } from "./add-task-modal";
 import { AgentRunPanel } from "./agent-run-panel";
+import { HeaderActionsMenu } from "./header-actions-menu";
 import { TaskCard } from "./task-card";
 import { TaskDrawer } from "./task-drawer";
 
@@ -43,6 +47,7 @@ export function ProcessMatrix({
   skillOptions = [],
   playbookOptions = [],
 }: Props) {
+  const { setConfig } = useDashboardTopBar();
   const [collapsed, setCollapsed] = useState(false);
   const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null);
   const [dragTaskId, setDragTaskId] = useState<string | null>(null);
@@ -106,6 +111,27 @@ export function ProcessMatrix({
     : null;
 
   const isEmpty = stages.length === 0 || roles.length === 0;
+
+  useEffect(() => {
+    setConfig({
+      mode: "workflow-instance",
+      crumbs: ["Workflows", template?.label ?? "Workflow", instance.label],
+      actions: (
+        <HeaderActionsMenu
+          entityLabel={instance.label}
+          entityType="instance"
+          onRename={async (nextLabel) => {
+            await renameInstanceAction(instance.id, nextLabel);
+          }}
+          onDelete={async () => {
+            await deleteInstanceAction(instance.id);
+          }}
+        />
+      ),
+    });
+
+    return () => setConfig(null);
+  }, [instance.label, setConfig, template?.label]);
 
   const runMutation = useCallback(
     async (

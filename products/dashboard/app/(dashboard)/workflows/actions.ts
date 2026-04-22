@@ -65,6 +65,36 @@ export async function createInstanceAction(
   return { instance };
 }
 
+export async function renameInstanceAction(
+  instanceId: string,
+  rawLabel: string,
+): Promise<{ instance: WorkflowInstance }> {
+  const trimmedInstanceId = normalizeTaskField(instanceId, "instanceId", 80);
+  const label = normalizeTaskField(rawLabel, "label", MAX_LABEL_LENGTH);
+  if (!trimmedInstanceId || !label) {
+    throw new Error("renameInstanceAction: instanceId and label are required");
+  }
+
+  const repo = await getServerWorkflowRepository();
+  const instance = await repo.updateInstance(trimmedInstanceId, { label });
+
+  revalidatePath("/", "layout");
+  revalidatePath(`/workflows/${trimmedInstanceId}`);
+  return { instance };
+}
+
+export async function deleteInstanceAction(instanceId: string): Promise<void> {
+  const trimmedInstanceId = normalizeTaskField(instanceId, "instanceId", 80);
+  if (!trimmedInstanceId) {
+    throw new Error("deleteInstanceAction: instanceId is required");
+  }
+
+  const repo = await getServerWorkflowRepository();
+  await repo.deleteInstance(trimmedInstanceId);
+
+  revalidatePath("/", "layout");
+}
+
 /**
  * Inline checkpoint resolution from the Overview "My Tasks" card.
  *
@@ -744,4 +774,34 @@ export async function updateTemplateAction(
   revalidatePath(`/workflows/templates/${trimmedTemplateId}/edit`);
 
   return { template: updatedTemplate };
+}
+
+export async function renameTemplateAction(
+  templateId: string,
+  rawLabel: string,
+): Promise<{ template: WorkflowTemplate }> {
+  const trimmedTemplateId = normalizeTaskField(templateId, "templateId", 120);
+  const label = normalizeTaskField(rawLabel, "label", MAX_LABEL_LENGTH);
+  if (!trimmedTemplateId || !label) {
+    throw new Error("renameTemplateAction: templateId and label are required");
+  }
+
+  const repo = await getServerWorkflowRepository();
+  const template = await repo.updateTemplate(trimmedTemplateId, { label });
+
+  revalidatePath("/", "layout");
+  revalidatePath(`/workflows/templates/${trimmedTemplateId}/edit`);
+  return { template };
+}
+
+export async function deleteTemplateAction(templateId: string): Promise<void> {
+  const trimmedTemplateId = normalizeTaskField(templateId, "templateId", 120);
+  if (!trimmedTemplateId) {
+    throw new Error("deleteTemplateAction: templateId is required");
+  }
+
+  const repo = await getServerWorkflowRepository();
+  await repo.deleteTemplate(trimmedTemplateId);
+
+  revalidatePath("/", "layout");
 }

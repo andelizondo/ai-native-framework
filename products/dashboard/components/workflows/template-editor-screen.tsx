@@ -1,13 +1,18 @@
 "use client";
 
 import { useEffect, useRef, useState, useTransition } from "react";
-import { Pencil, Plus, Trash2 } from "lucide-react";
+import { CircleAlert, Pencil, Plus, Trash2 } from "lucide-react";
 
-import { updateTemplateAction } from "@/app/(dashboard)/workflows/actions";
+import {
+  deleteTemplateAction,
+  renameTemplateAction,
+  updateTemplateAction,
+} from "@/app/(dashboard)/workflows/actions";
 import { useDashboardTopBar } from "@/components/dashboard-topbar-context";
 import { AddRoleModal } from "@/components/workflows/add-role-modal";
 import { AddStageModal } from "@/components/workflows/add-stage-modal";
 import { AddTaskModal } from "@/components/workflows/add-task-modal";
+import { HeaderActionsMenu } from "@/components/workflows/header-actions-menu";
 import { ConfirmModal } from "@/components/ui/confirm-modal";
 import { useAnalytics } from "@/lib/analytics/events";
 import { emitEvent } from "@/lib/events";
@@ -30,6 +35,7 @@ const STAGE_INSERT_WIDTH = 6;
 
 interface TemplateEditorScreenProps {
   template: WorkflowTemplate;
+  instanceCount: number;
   skillOptions: FrameworkItem[];
   playbookOptions: FrameworkItem[];
 }
@@ -170,6 +176,7 @@ function ColorDot({
 
 export function TemplateEditorScreen({
   template,
+  instanceCount,
   skillOptions,
   playbookOptions,
 }: TemplateEditorScreenProps) {
@@ -280,11 +287,37 @@ export function TemplateEditorScreen({
   useEffect(() => {
     setConfig({
       mode: "template-editor",
+      crumbs: ["Workflows", draft.label],
       label: draft.label,
       onLabelChange: (value) =>
         setDraft((current) => ({ ...current, label: value })),
       onSave: saveTemplate,
       saveDisabled: !isDirty || pending,
+      actions: (
+        <HeaderActionsMenu
+          entityLabel={draft.label}
+          entityType="template"
+          onRename={async (nextLabel) => {
+            const result = await renameTemplateAction(draft.id, nextLabel);
+            setDraft(result.template);
+          }}
+          onDelete={async () => {
+            await deleteTemplateAction(draft.id);
+          }}
+          requireDeleteLabelMatch
+          deleteDescription={
+            <>
+              This will permanently delete the workflow template.
+              <strong className="font-semibold text-t1">
+                {" "}
+                It will also delete all {instanceCount} associated{" "}
+                {instanceCount === 1 ? "instance" : "instances"}.
+              </strong>{" "}
+              Type "{draft.label}" to confirm.
+            </>
+          }
+        />
+      ),
     });
 
     return () => setConfig(null);
@@ -292,10 +325,36 @@ export function TemplateEditorScreen({
 
   return (
     <div className="flex h-full flex-col overflow-hidden">
-      <div className="shrink-0 border-b border-border px-5 py-3">
-        <div className="rounded-lg border border-[rgba(245,158,11,0.28)] bg-[rgba(245,158,11,0.08)] px-3 py-2.5 text-[12px] text-[#fbbf24]">
-          Modifying this workflow updates defaults for new instances. Existing
-          instances keep their current tasks.
+      <div className="shrink-0 border-b border-border bg-bg px-6 py-4">
+        <div className="min-w-0">
+            <p className="font-mono text-[10px] uppercase tracking-[0.13em] text-t3">
+              Workflow template
+            </p>
+            <div className="mt-1 flex items-center gap-2">
+              <h1 className="truncate text-[20px] font-bold tracking-tight text-t1">{draft.label}</h1>
+              <div className="group relative">
+                <button
+                  type="button"
+                  aria-label="Template editing information"
+                  className="flex h-5 w-5 items-center justify-center rounded-full text-[#fbbf24] transition hover:bg-[rgba(245,158,11,0.08)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#fbbf24]"
+                >
+                  <CircleAlert className="h-3.5 w-3.5" />
+                </button>
+                <div
+                  role="tooltip"
+                  className="pointer-events-none absolute left-[calc(100%+8px)] top-1/2 z-30 hidden w-[280px] -translate-y-1/2 rounded-lg border border-[rgba(245,158,11,0.28)] bg-bg-2 px-3 py-2 text-[12px] leading-5 text-[#fbbf24] shadow-[var(--shadow-canvas)] group-hover:block group-focus-within:block"
+                >
+                  Modifying this workflow updates defaults for new instances. Existing
+                  instances keep their current tasks.
+                </div>
+              </div>
+            </div>
+            <p className="mt-1 text-[13px] text-t2">
+              {draft.taskTemplates.length}{" "}
+              {draft.taskTemplates.length === 1 ? "task" : "tasks"} ·{" "}
+              {draft.roles.length} {draft.roles.length === 1 ? "role" : "roles"} ·{" "}
+              {draft.stages.length} {draft.stages.length === 1 ? "stage" : "stages"}
+            </p>
         </div>
         {saveError ? (
           <div className="mt-2 text-[11.5px] text-(color:--pill-blocked-t)">{saveError}</div>

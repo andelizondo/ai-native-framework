@@ -10,13 +10,24 @@ import {
 
 interface TemplateEditorTopBarConfig {
   mode: "template-editor";
+  crumbs: string[];
   label: string;
   onLabelChange: (value: string) => void;
   onSave: () => void;
   saveDisabled: boolean;
+  actions?: ReactNode;
 }
 
-type TopBarConfig = TemplateEditorTopBarConfig | null;
+interface WorkflowInstanceTopBarConfig {
+  mode: "workflow-instance";
+  crumbs: string[];
+  actions?: ReactNode;
+}
+
+type TopBarConfig =
+  | TemplateEditorTopBarConfig
+  | WorkflowInstanceTopBarConfig
+  | null;
 
 interface DashboardTopBarContextValue {
   config: TopBarConfig;

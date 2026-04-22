@@ -109,6 +109,7 @@ describe("TopBar", () => {
       React.useEffect(() => {
         setConfig({
           mode: "template-editor",
+          crumbs: ["Workflows", "Client Project Delivery"],
           label: "Client Project Delivery",
           onLabelChange: vi.fn(),
           onSave: vi.fn(),
@@ -129,7 +130,35 @@ describe("TopBar", () => {
     expect(
       screen.getByRole("textbox", { name: "Workflow template name" }),
     ).toHaveValue("Client Project Delivery");
+    expect(screen.getByText("Workflows")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: /save/i })).toBeInTheDocument();
     expect(screen.queryByTestId("topbar-my-tasks-btn")).not.toBeInTheDocument();
+  });
+
+  it("renders configured workflow-instance breadcrumbs", () => {
+    vi.mocked(usePathname).mockReturnValue("/workflows/123");
+
+    function Harness() {
+      const { setConfig } = useDashboardTopBar();
+      React.useEffect(() => {
+        setConfig({
+          mode: "workflow-instance",
+          crumbs: ["Workflows", "Client Project Delivery", "Acme rollout"],
+        });
+        return () => setConfig(null);
+      }, [setConfig]);
+
+      return <TopBar />;
+    }
+
+    render(
+      <DashboardTopBarProvider>
+        <Harness />
+      </DashboardTopBarProvider>,
+    );
+
+    expect(screen.getByText("Workflows")).toBeInTheDocument();
+    expect(screen.getByText("Client Project Delivery")).toBeInTheDocument();
+    expect(screen.getByText("Acme rollout")).toBeInTheDocument();
   });
 });

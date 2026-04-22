@@ -15,6 +15,7 @@ import { describe, expect, it, vi, beforeEach } from "vitest";
 import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 
+import { DashboardTopBarProvider } from "@/components/dashboard-topbar-context";
 import { ProcessMatrix } from "@/components/workflows/process-matrix";
 import type {
   WorkflowInstanceDetail,
@@ -101,6 +102,10 @@ function instance(tasks: WorkflowTask[]): WorkflowInstanceDetail {
   };
 }
 
+function renderWithTopBarProvider(ui: React.ReactNode) {
+  return render(<DashboardTopBarProvider>{ui}</DashboardTopBarProvider>);
+}
+
 describe("ProcessMatrix", () => {
   beforeEach(() => {
     mockCreateTaskAction.mockReset();
@@ -126,7 +131,7 @@ describe("ProcessMatrix", () => {
       }),
     ]);
 
-    render(<ProcessMatrix instance={inst} template={TEMPLATE} />);
+    renderWithTopBarProvider(<ProcessMatrix instance={inst} template={TEMPLATE} />);
 
     expect(
       screen.getByRole("table", { name: "Workflow process matrix" }),
@@ -155,7 +160,7 @@ describe("ProcessMatrix", () => {
       task({ id: "k-3", roleId: "sales", stageId: "validation", status: "complete" }),
     ]);
 
-    render(<ProcessMatrix instance={inst} template={TEMPLATE} />);
+    renderWithTopBarProvider(<ProcessMatrix instance={inst} template={TEMPLATE} />);
 
     const stage1 = screen.getByTestId("matrix-stage-pre-sales");
     const pips = within(stage1).getAllByTestId(/^matrix-pip-/);
@@ -171,7 +176,7 @@ describe("ProcessMatrix", () => {
     ]);
     const user = userEvent.setup();
 
-    render(<ProcessMatrix instance={inst} template={TEMPLATE} />);
+    renderWithTopBarProvider(<ProcessMatrix instance={inst} template={TEMPLATE} />);
 
     expect(screen.getByTestId("matrix-role-label-sales")).toBeInTheDocument();
 
@@ -193,7 +198,7 @@ describe("ProcessMatrix", () => {
 
   it("renders the placeholder when the template is missing", () => {
     const inst = instance([]);
-    render(<ProcessMatrix instance={inst} template={null} />);
+    renderWithTopBarProvider(<ProcessMatrix instance={inst} template={null} />);
 
     const empty = screen.getByTestId("matrix-empty");
     expect(empty).toHaveTextContent(/no longer available/i);
@@ -201,7 +206,7 @@ describe("ProcessMatrix", () => {
 
   it("renders the placeholder when the template has no stages or roles", () => {
     const inst = instance([]);
-    render(
+    renderWithTopBarProvider(
       <ProcessMatrix
         instance={inst}
         template={{ ...TEMPLATE, stages: [], roles: [] }}
@@ -225,7 +230,7 @@ describe("ProcessMatrix", () => {
     });
     mockCreateTaskAction.mockResolvedValue({ task: created });
 
-    render(<ProcessMatrix instance={inst} template={TEMPLATE} editMode />);
+    renderWithTopBarProvider(<ProcessMatrix instance={inst} template={TEMPLATE} editMode />);
 
     await user.click(screen.getByTestId("matrix-add-task-product-validation"));
     expect(screen.getByRole("dialog", { name: "New task" })).toBeInTheDocument();
@@ -249,7 +254,7 @@ describe("ProcessMatrix", () => {
     const user = userEvent.setup();
     mockDeleteTaskAction.mockResolvedValue(undefined);
 
-    render(<ProcessMatrix instance={inst} template={TEMPLATE} editMode />);
+    renderWithTopBarProvider(<ProcessMatrix instance={inst} template={TEMPLATE} editMode />);
 
     await user.click(screen.getByLabelText("Remove task: Project Description"));
     expect(screen.getByRole("dialog", { name: 'Delete "Project Description"?' })).toBeInTheDocument();

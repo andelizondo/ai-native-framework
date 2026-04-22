@@ -244,6 +244,11 @@ export interface WorkflowRepository {
    */
   listRecentEvents(limit: number): Promise<WorkflowEvent[]>;
   createInstance(templateId: string, label: string): Promise<WorkflowInstanceDetail>;
+  updateInstance(
+    instanceId: string,
+    patch: Pick<WorkflowInstance, "label" | "status">,
+  ): Promise<WorkflowInstance>;
+  deleteInstance(instanceId: string): Promise<void>;
   createTask(input: WorkflowTaskCreateInput): Promise<WorkflowTask>;
   updateTask(taskId: string, patch: WorkflowTaskPatch): Promise<WorkflowTask>;
   deleteTask(taskId: string): Promise<void>;
@@ -251,6 +256,7 @@ export interface WorkflowRepository {
     templateId: string,
     patch: WorkflowTemplatePatch,
   ): Promise<WorkflowTemplate>;
+  deleteTemplate(templateId: string): Promise<void>;
   addEvent(taskId: string, event: WorkflowEventInput): Promise<WorkflowEvent>;
   addInstanceEvent(
     instanceId: string,
