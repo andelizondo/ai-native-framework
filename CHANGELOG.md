@@ -1,5 +1,20 @@
 # Changelog
 
+## [0.19.0](https://github.com/andelizondo/ai-native-framework/compare/v0.18.0...v0.19.0) (2026-04-22)
+
+
+### Features
+
+* **dashboard:** agent run panel and my tasks panel ([6546c71](https://github.com/andelizondo/ai-native-framework/commit/6546c717f5e82cf07c6b24a7a493e3465657d000))
+* **dashboard:** checkpoint template editor and workflow polish ([6546c71](https://github.com/andelizondo/ai-native-framework/commit/6546c717f5e82cf07c6b24a7a493e3465657d000))
+* **dashboard:** playbook card to run panel, chat footer, and progress polish ([6546c71](https://github.com/andelizondo/ai-native-framework/commit/6546c717f5e82cf07c6b24a7a493e3465657d000))
+* **dashboard:** workflow run controls, sidebar collapse, and failed label ([6546c71](https://github.com/andelizondo/ai-native-framework/commit/6546c717f5e82cf07c6b24a7a493e3465657d000))
+
+
+### Bug Fixes
+
+* **policy:** skip CodeRabbit on promotion and back-merge PRs ([6546c71](https://github.com/andelizondo/ai-native-framework/commit/6546c717f5e82cf07c6b24a7a493e3465657d000))
+
 ## [0.18.0](https://github.com/andelizondo/ai-native-framework/compare/v0.17.0...v0.18.0) (2026-04-20)
 
 
