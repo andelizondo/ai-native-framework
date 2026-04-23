@@ -7,9 +7,11 @@ export default async function SkillsPage() {
   const items = await repo.getFrameworkItems("skill");
 
   return (
-    <>
+    <div className="flex h-full min-h-0 flex-col">
       <ShellEvents route="/framework/skills" />
-      <FrameworkScreen initialItems={items} type="skill" />
-    </>
+      <div className="min-h-0 flex-1">
+        <FrameworkScreen initialItems={items} type="skill" />
+      </div>
+    </div>
   );
 }

@@ -100,7 +100,7 @@ export default async function DashboardLayout({
         />
         <div className="flex min-w-0 flex-1 flex-col overflow-hidden">
           <TopBar initialPendingCount={pendingCount} />
-          <main className="min-h-0 flex-1 overflow-y-auto bg-bg">{children}</main>
+          <main className="min-h-0 flex-1 overflow-hidden bg-bg">{children}</main>
         </div>
       </DashboardTopBarProvider>
     </>

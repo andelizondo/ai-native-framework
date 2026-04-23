@@ -94,7 +94,7 @@ describe("FrameworkScreen", () => {
 
     await user.upload(input, file);
 
-    const editor = screen.getByTestId("framework-editor-skill");
+    const editor = await screen.findByTestId("framework-editor-skill");
     expect(editor).toHaveValue("# Imported Skill\n\n1. First step");
   });
 });

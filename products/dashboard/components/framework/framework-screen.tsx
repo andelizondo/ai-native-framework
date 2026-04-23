@@ -1,6 +1,14 @@
 "use client";
 
-import { useEffect, useLayoutEffect, useMemo, useRef, useState, useTransition } from "react";
+import {
+  useDeferredValue,
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+  useTransition,
+} from "react";
 import {
   Bold,
   Code,
@@ -15,6 +23,7 @@ import {
   Plus,
   Search,
   Sparkles,
+  X,
   TextQuote,
   Upload,
   WrapText,
@@ -262,11 +271,15 @@ export function FrameworkScreen({
   const [itemModalState, setItemModalState] = useState<FrameworkItemModalState>(null);
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [searchOpen, setSearchOpen] = useState(false);
   const [pending, startTransition] = useTransition();
   const editorTextareaRef = useRef<HTMLTextAreaElement | null>(null);
   const importInputRef = useRef<HTMLInputElement | null>(null);
+  const searchInputRef = useRef<HTMLInputElement | null>(null);
   const pendingSelectionRef = useRef<EditorSelection | null>(null);
   const pendingViewportRef = useRef<EditorViewport | null>(null);
+  const deferredSearchQuery = useDeferredValue(searchQuery);
 
   const routeLabel = type === "skill" ? "Skills" : "Playbooks";
   const routeMetaLabel = type === "skill" ? "Framework library" : "Framework procedures";
@@ -276,20 +289,42 @@ export function FrameworkScreen({
       : "A compact library of reusable execution procedures. Select a playbook to read or edit its markdown source.";
   const createLabel = type === "skill" ? "New skill" : "New playbook";
   const emojiOptions = type === "skill" ? SKILL_EMOJIS : PLAYBOOK_EMOJIS;
-  const filteredItems = useMemo(
+  const typedItems = useMemo(
     () => items.filter((item) => item.type === type),
     [items, type],
+  );
+  const normalizedSearchQuery = deferredSearchQuery.trim().toLowerCase();
+  const filteredItems = useMemo(() => {
+    if (normalizedSearchQuery.length === 0) {
+      return typedItems;
+    }
+
+    return typedItems.filter((item) =>
+      [item.name, item.description, item.content, item.id]
+        .filter(Boolean)
+        .some((value) => value.toLowerCase().includes(normalizedSearchQuery)),
+    );
+  }, [normalizedSearchQuery, typedItems]);
+  const visibleItems = useMemo(
+    () => [...filteredItems].sort((left, right) => left.name.localeCompare(right.name)),
+    [filteredItems],
   );
   const isDirty =
     draftItem !== null &&
     (lastSavedItem === null || !areFrameworkItemsEqual(draftItem, lastSavedItem));
   const deleteTarget =
-    filteredItems.find((item) => item.id === confirmDeleteId) ??
+    typedItems.find((item) => item.id === confirmDeleteId) ??
     (draftItem?.id === confirmDeleteId ? draftItem : null);
 
   useEffect(() => {
     setItems(initialItems);
   }, [initialItems]);
+
+  useEffect(() => {
+    if (searchOpen) {
+      searchInputRef.current?.focus();
+    }
+  }, [searchOpen]);
 
   useLayoutEffect(() => {
     if (editorView !== "plain-text") {
@@ -687,7 +722,10 @@ export function FrameworkScreen({
   }, [createLabel, draftItem, isDirty, pending, routeLabel, setConfig, type]);
 
   return (
-    <div className="flex h-full flex-col overflow-hidden" data-testid={`framework-screen-${type}`}>
+    <div
+      className="flex h-full min-h-0 flex-col overflow-hidden"
+      data-testid={`framework-screen-${type}`}
+    >
       <div className="shrink-0 border-b border-border bg-bg px-6 py-5">
         <div className="min-w-0">
           <p className="font-mono text-[10px] uppercase tracking-[0.13em] text-t3">
@@ -726,7 +764,7 @@ export function FrameworkScreen({
         ) : null}
       </div>
 
-      <div className="min-h-0 flex-1 overflow-hidden bg-bg-2">
+      <div className="flex min-h-0 flex-1 overflow-hidden bg-bg-2">
         {draftItem ? (
           <div className="flex h-full min-h-0 flex-col">
             <div className="flex shrink-0 items-center justify-between gap-3 border-b border-border bg-bg px-6 py-3">
@@ -953,55 +991,144 @@ export function FrameworkScreen({
             </div>
           </div>
         ) : (
-          <div className="flex h-full min-h-0 flex-col p-6">
-            <div className="min-h-0 flex-1 overflow-auto px-1 py-2">
-              <div
-                className="grid gap-3 [grid-template-columns:repeat(auto-fill,minmax(220px,1fr))]"
-                data-testid={`framework-grid-${type}`}
-              >
-                {filteredItems.map((item) => (
-                  <div
-                    key={item.id}
-                    role="button"
-                    tabIndex={0}
-                    onClick={() => beginEdit(item)}
-                    onKeyDown={(event) => {
-                      if (event.key === "Enter" || event.key === " ") {
-                        event.preventDefault();
-                        beginEdit(item);
-                      }
-                    }}
-                    data-testid={`framework-card-${item.id}`}
-                    className="group flex h-[104px] cursor-pointer items-center gap-3 overflow-hidden rounded-[10px] border border-border bg-bg px-4 py-4 text-left transition-all duration-150 hover:border-border-hi hover:bg-bg-3 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
-                  >
-                    <span
-                      className="flex h-10 w-10 shrink-0 items-center justify-center rounded-[10px] border border-border bg-bg-2 text-[18px]"
-                      aria-hidden
-                    >
-                      {item.icon || (type === "skill" ? "🤖" : "📄")}
-                    </span>
-                    <span className="min-w-0 flex-1 overflow-hidden">
-                      <span className="block overflow-hidden text-ellipsis whitespace-nowrap text-[13px] font-semibold text-t1">
-                        {item.name}
-                      </span>
-                      <span className="mt-1 block overflow-hidden text-[11.5px] leading-[1.35] text-t2 [display:-webkit-box] [-webkit-box-orient:vertical] [-webkit-line-clamp:2]">
-                        {item.description}
-                      </span>
-                    </span>
-                  </div>
-                ))}
+          <div className="flex h-full min-h-0 flex-1 flex-col overflow-hidden px-6 py-6">
+            <div className="mx-auto flex h-full min-h-0 w-full max-w-[1180px] flex-col">
+              <div className="flex h-full min-h-0 flex-col overflow-hidden rounded-[22px] border border-border bg-linear-to-b from-bg to-bg-2/92 shadow-[0_24px_80px_rgba(15,23,42,0.08)]">
+                <div className="min-h-0 flex-1 overflow-y-auto">
+                  <div className="sticky top-0 z-10 border-b border-border bg-linear-to-b from-bg via-bg to-bg-2/96 px-3 py-5 backdrop-blur-sm md:px-4">
+                    <div className="flex flex-wrap items-end justify-between gap-4 md:flex-nowrap">
+                      <div className="min-w-0">
+                        <p className="font-mono text-[10px] uppercase tracking-[0.13em] text-t3">
+                          {typedItems.length} {type === "skill" ? "skills" : "playbooks"}
+                        </p>
+                        <p className="mt-2 text-[15px] font-semibold tracking-[-0.01em] text-t1">
+                          {normalizedSearchQuery.length > 0
+                            ? `${filteredItems.length} matching ${
+                                filteredItems.length === 1
+                                  ? type === "skill"
+                                    ? "skill"
+                                    : "playbook"
+                                  : type === "skill"
+                                    ? "skills"
+                                    : "playbooks"
+                              }`
+                            : type === "skill"
+                              ? "Skill Library"
+                              : "Playbook Library"}
+                        </p>
+                      </div>
 
-                {filteredItems.length === 0 ? (
-                  <div className="col-span-full flex min-h-[180px] flex-col items-center justify-center rounded-[14px] border border-dashed border-border-hi bg-bg px-6 text-center">
-                    <Sparkles className="mb-3 h-5 w-5 text-t3" />
-                    <p className="text-[13px] font-medium text-t1">
-                      No {type === "skill" ? "skills" : "playbooks"} yet
-                    </p>
-                    <p className="mt-1 max-w-sm text-[11.5px] leading-5 text-t3">
-                      Create the first {type === "skill" ? "skill" : "playbook"} to populate this library.
-                    </p>
+                      <div className="flex w-full justify-start md:ml-auto md:w-auto md:justify-end">
+                        <div
+                          className={cn(
+                            "flex items-center overflow-hidden rounded-xl border border-border bg-bg-2 transition-[width,border-color,background-color,box-shadow] duration-200",
+                            searchOpen || searchQuery.length > 0
+                              ? "w-full max-w-[360px] border-border-hi bg-bg-3 shadow-[0_12px_30px_rgba(15,23,42,0.08)]"
+                              : "w-12",
+                          )}
+                        >
+                          <button
+                            type="button"
+                            aria-label={`Search ${type === "skill" ? "skills" : "playbooks"}`}
+                            onClick={() => setSearchOpen(true)}
+                            className="flex h-12 w-12 shrink-0 items-center justify-center text-t3 transition hover:text-t1 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
+                          >
+                            <Search className="h-4 w-4" />
+                          </button>
+                          <input
+                            ref={searchInputRef}
+                            value={searchQuery}
+                            onChange={(event) => setSearchQuery(event.target.value)}
+                            onFocus={() => setSearchOpen(true)}
+                            onBlur={() => {
+                              if (searchQuery.trim().length === 0) {
+                                setSearchOpen(false);
+                              }
+                            }}
+                            placeholder={`Search ${type === "skill" ? "skills" : "playbooks"}`}
+                            className={cn(
+                              "min-w-0 bg-transparent pr-4 text-[13px] text-t1 outline-none placeholder:text-t3 transition-[opacity,width,padding] duration-200",
+                              searchOpen || searchQuery.length > 0
+                                ? "w-[min(308px,calc(100vw-10rem))] px-0 opacity-100"
+                                : "w-0 px-0 opacity-0",
+                            )}
+                          />
+                          {searchQuery.length > 0 ? (
+                            <button
+                              type="button"
+                              aria-label="Clear search"
+                              onClick={() => {
+                                setSearchQuery("");
+                                searchInputRef.current?.focus();
+                              }}
+                              className="mr-2 flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-t3 transition hover:bg-bg hover:text-t1 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
+                            >
+                              <X className="h-3.5 w-3.5" />
+                            </button>
+                          ) : null}
+                        </div>
+                      </div>
+                    </div>
                   </div>
-                ) : null}
+
+                  <div className="p-3 md:p-4">
+                  {visibleItems.length > 0 ? (
+                    <div
+                      className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3"
+                      data-testid={`framework-grid-${type}`}
+                    >
+                      {visibleItems.map((item) => (
+                        <button
+                          key={item.id}
+                          type="button"
+                          onClick={() => beginEdit(item)}
+                          data-testid={`framework-card-${item.id}`}
+                          className="group flex min-h-[168px] flex-col justify-between rounded-[18px] border border-border bg-bg-2/88 px-5 py-5 text-left transition-[background-color,border-color,transform,box-shadow] duration-150 hover:border-border-hi hover:bg-bg-3/92 hover:shadow-[0_16px_40px_rgba(15,23,42,0.08)] focus-visible:-translate-y-[1px] focus-visible:border-border-hi focus-visible:bg-bg-3/92 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
+                        >
+                          <div className="flex items-start justify-between gap-4">
+                            <div className="min-w-0 flex-1">
+                              <h2 className="overflow-hidden text-[18px] leading-[1.15] font-semibold tracking-[-0.02em] text-t1 [display:-webkit-box] [-webkit-box-orient:vertical] [-webkit-line-clamp:2]">
+                                {item.name}
+                              </h2>
+                            </div>
+                            <span
+                              className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full border border-border bg-bg text-[18px] text-t1 transition-colors group-hover:border-border-hi group-hover:bg-bg-2"
+                              aria-hidden
+                            >
+                              {item.icon || (type === "skill" ? "🤖" : "📄")}
+                            </span>
+                          </div>
+
+                          <div className="mt-5 min-w-0">
+                            <p className="overflow-hidden text-[13px] leading-6 text-t2 [display:-webkit-box] [-webkit-box-orient:vertical] [-webkit-line-clamp:3]">
+                              {item.description}
+                            </p>
+                          </div>
+                        </button>
+                      ))}
+                    </div>
+                  ) : (
+                    <div
+                      className="flex min-h-full min-w-0 items-center justify-center rounded-[18px] border border-dashed border-border-hi bg-bg-2/72 px-6 py-10 text-center"
+                      data-testid={`framework-grid-${type}`}
+                    >
+                      <div className="max-w-md">
+                        <Sparkles className="mx-auto h-5 w-5 text-t3" />
+                        <p className="mt-4 text-[15px] font-semibold tracking-[-0.01em] text-t1">
+                          {typedItems.length === 0
+                            ? `No ${type === "skill" ? "skills" : "playbooks"} yet`
+                            : `No ${type === "skill" ? "skills" : "playbooks"} match that search`}
+                        </p>
+                        <p className="mt-2 text-[12.5px] leading-6 text-t2">
+                          {typedItems.length === 0
+                            ? `Create the first ${type === "skill" ? "skill" : "playbook"} to start building this library.`
+                            : `Try a different title or keyword to keep scanning the library.`}
+                        </p>
+                      </div>
+                    </div>
+                  )}
+                </div>
+                </div>
               </div>
             </div>
           </div>
