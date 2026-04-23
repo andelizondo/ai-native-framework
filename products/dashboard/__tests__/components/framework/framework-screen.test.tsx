@@ -58,4 +58,25 @@ describe("FrameworkScreen", () => {
 
     expect(screen.getByTestId("framework-markdown-preview-skill")).toBeInTheDocument();
   });
+
+  it("applies markdown formatting from the editor toolbar", async () => {
+    const user = userEvent.setup();
+
+    render(<FrameworkScreen initialItems={ITEMS} type="skill" />);
+
+    await user.click(screen.getByTestId("framework-card-sk-developer"));
+    await user.click(screen.getByRole("tab", { name: "Edit" }));
+
+    const editor = screen.getByTestId("framework-editor-skill") as HTMLTextAreaElement;
+    const selectedText = "Implements code";
+    const start = editor.value.indexOf(selectedText);
+    const end = start + selectedText.length;
+
+    editor.focus();
+    editor.setSelectionRange(start, end);
+
+    await user.click(screen.getByRole("button", { name: "Bold" }));
+
+    expect(editor).toHaveValue("# Developer\n\n- **Implements code**\n- Validates changes");
+  });
 });

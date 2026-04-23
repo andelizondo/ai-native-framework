@@ -1,13 +1,23 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState, useTransition } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState, useTransition } from "react";
 import {
+  Bold,
+  Code,
+  Heading1,
+  Heading2,
   Download,
   Eye,
+  Link2,
+  List,
+  ListOrdered,
   Pencil,
   Plus,
   Search,
   Sparkles,
+  TextQuote,
+  WrapText,
+  Italic,
 } from "lucide-react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
@@ -38,6 +48,16 @@ type FrameworkItemModalState =
       initialName: string;
       initialDescription: string;
     };
+
+type EditorSelection = {
+  start: number;
+  end: number;
+};
+
+type EditorViewport = {
+  scrollTop: number;
+  scrollLeft: number;
+};
 
 const SKILL_EMOJIS = [
   { emoji: "🤖", label: "Robot", keywords: ["agent", "ai", "automation"] },
@@ -242,6 +262,9 @@ export function FrameworkScreen({
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
+  const editorTextareaRef = useRef<HTMLTextAreaElement | null>(null);
+  const pendingSelectionRef = useRef<EditorSelection | null>(null);
+  const pendingViewportRef = useRef<EditorViewport | null>(null);
 
   const routeLabel = type === "skill" ? "Skills" : "Playbooks";
   const routeMetaLabel = type === "skill" ? "Framework library" : "Framework procedures";
@@ -266,6 +289,29 @@ export function FrameworkScreen({
     setItems(initialItems);
   }, [initialItems]);
 
+  useLayoutEffect(() => {
+    if (editorView !== "plain-text") {
+      return;
+    }
+
+    const nextSelection = pendingSelectionRef.current;
+    const nextViewport = pendingViewportRef.current;
+    pendingSelectionRef.current = null;
+    pendingViewportRef.current = null;
+
+    if (!editorTextareaRef.current) return;
+
+    if (nextSelection) {
+      editorTextareaRef.current.focus();
+      editorTextareaRef.current.setSelectionRange(nextSelection.start, nextSelection.end);
+    }
+
+    if (nextViewport) {
+      editorTextareaRef.current.scrollTop = nextViewport.scrollTop;
+      editorTextareaRef.current.scrollLeft = nextViewport.scrollLeft;
+    }
+  }, [draftItem?.content, editorView]);
+
   function emitEditedEvent(itemId: string) {
     if (type === "skill") {
       capture("framework.skill_edited", {
@@ -289,6 +335,199 @@ export function FrameworkScreen({
     setLastSavedItem(null);
     setEditorView("markdown");
   }
+
+  function updateDraftContent(
+    nextContent: string,
+    options?: {
+      selection?: EditorSelection;
+      viewport?: EditorViewport;
+    },
+  ) {
+    setDraftItem((current) => (current ? { ...current, content: nextContent } : current));
+    pendingSelectionRef.current = options?.selection ?? null;
+    pendingViewportRef.current = options?.viewport ?? null;
+  }
+
+  function withEditorSelection(
+    transform: (context: {
+      content: string;
+      selectionStart: number;
+      selectionEnd: number;
+    }) => { content: string; selection: EditorSelection },
+  ) {
+    const textarea = editorTextareaRef.current;
+    if (!draftItem || !textarea) return;
+
+    const result = transform({
+      content: draftItem.content,
+      selectionStart: textarea.selectionStart ?? 0,
+      selectionEnd: textarea.selectionEnd ?? 0,
+    });
+
+    updateDraftContent(result.content, {
+      selection: result.selection,
+      viewport: {
+        scrollTop: textarea.scrollTop,
+        scrollLeft: textarea.scrollLeft,
+      },
+    });
+  }
+
+  function toggleInlineWrap(token: string, placeholder: string) {
+    withEditorSelection(({ content, selectionStart, selectionEnd }) => {
+      const selectedText = content.slice(selectionStart, selectionEnd);
+      const hasSelection = selectionStart !== selectionEnd;
+      const wrappedSelection =
+        selectionStart >= token.length &&
+        content.slice(selectionStart - token.length, selectionStart) === token &&
+        content.slice(selectionEnd, selectionEnd + token.length) === token;
+
+      if (wrappedSelection) {
+        const nextContent =
+          content.slice(0, selectionStart - token.length) +
+          selectedText +
+          content.slice(selectionEnd + token.length);
+        return {
+          content: nextContent,
+          selection: {
+            start: selectionStart - token.length,
+            end: selectionEnd - token.length,
+          },
+        };
+      }
+
+      const insertedText = hasSelection ? selectedText : placeholder;
+      const nextContent =
+        content.slice(0, selectionStart) +
+        token +
+        insertedText +
+        token +
+        content.slice(selectionEnd);
+
+      return {
+        content: nextContent,
+        selection: {
+          start: selectionStart + token.length,
+          end: selectionStart + token.length + insertedText.length,
+        },
+      };
+    });
+  }
+
+  function toggleLinePrefix(prefix: string, placeholder: string) {
+    withEditorSelection(({ content, selectionStart, selectionEnd }) => {
+      const lineStart = content.lastIndexOf("\n", Math.max(selectionStart - 1, 0)) + 1;
+      let lineEnd = content.indexOf("\n", selectionEnd);
+      if (lineEnd === -1) lineEnd = content.length;
+
+      const block = content.slice(lineStart, lineEnd);
+      const lines = block.length > 0 ? block.split("\n") : [""];
+      const shouldRemove = lines.every((line) => line.startsWith(prefix));
+      const normalizedLines = shouldRemove
+        ? lines.map((line) => line.slice(prefix.length))
+        : lines.map((line) => (line.length > 0 ? `${prefix}${line}` : `${prefix}${placeholder}`));
+      const nextBlock = normalizedLines.join("\n");
+      const nextContent = content.slice(0, lineStart) + nextBlock + content.slice(lineEnd);
+
+      return {
+        content: nextContent,
+        selection: {
+          start: lineStart,
+          end: lineStart + nextBlock.length,
+        },
+      };
+    });
+  }
+
+  function insertLink() {
+    withEditorSelection(({ content, selectionStart, selectionEnd }) => {
+      const selectedText = content.slice(selectionStart, selectionEnd) || "link text";
+      const linkText = `[${selectedText}](https://example.com)`;
+      const nextContent =
+        content.slice(0, selectionStart) + linkText + content.slice(selectionEnd);
+
+      return {
+        content: nextContent,
+        selection: {
+          start: selectionStart + 1,
+          end: selectionStart + 1 + selectedText.length,
+        },
+      };
+    });
+  }
+
+  function insertCodeBlock() {
+    withEditorSelection(({ content, selectionStart, selectionEnd }) => {
+      const selectedText = content.slice(selectionStart, selectionEnd).trim() || "code";
+      const prefix = selectionStart > 0 && content[selectionStart - 1] !== "\n" ? "\n" : "";
+      const suffix = selectionEnd < content.length && content[selectionEnd] !== "\n" ? "\n" : "";
+      const block = `${prefix}\`\`\`\n${selectedText}\n\`\`\`${suffix}`;
+      const nextContent =
+        content.slice(0, selectionStart) + block + content.slice(selectionEnd);
+      const codeStart = selectionStart + prefix.length + 4;
+
+      return {
+        content: nextContent,
+        selection: {
+          start: codeStart,
+          end: codeStart + selectedText.length,
+        },
+      };
+    });
+  }
+
+  const toolbarItems = [
+    {
+      label: "Heading",
+      icon: Heading1,
+      onClick: () => toggleLinePrefix("# ", "Heading"),
+    },
+    {
+      label: "Subheading",
+      icon: Heading2,
+      onClick: () => toggleLinePrefix("## ", "Subheading"),
+    },
+    {
+      label: "Bold",
+      icon: Bold,
+      onClick: () => toggleInlineWrap("**", "bold text"),
+    },
+    {
+      label: "Italic",
+      icon: Italic,
+      onClick: () => toggleInlineWrap("*", "italic text"),
+    },
+    {
+      label: "Link",
+      icon: Link2,
+      onClick: insertLink,
+    },
+    {
+      label: "Bulleted list",
+      icon: List,
+      onClick: () => toggleLinePrefix("- ", "List item"),
+    },
+    {
+      label: "Numbered list",
+      icon: ListOrdered,
+      onClick: () => toggleLinePrefix("1. ", "List item"),
+    },
+    {
+      label: "Quote",
+      icon: TextQuote,
+      onClick: () => toggleLinePrefix("> ", "Quoted text"),
+    },
+    {
+      label: "Inline code",
+      icon: Code,
+      onClick: () => toggleInlineWrap("`", "code"),
+    },
+    {
+      label: "Code block",
+      icon: WrapText,
+      onClick: insertCodeBlock,
+    },
+  ] as const;
 
   function saveItem() {
     if (!draftItem) return;
@@ -586,25 +825,37 @@ export function FrameworkScreen({
                       </div>
                     </div>
                   ) : (
-                    <div className="h-full min-h-0 overflow-auto">
-                      <div className="flex min-h-full w-full flex-col">
-                        <div className="flex items-center justify-between gap-3 border-b border-white/8 px-5 py-4 md:px-6">
-                          <div className="flex items-center gap-2" aria-hidden>
-                            <span className="h-2.5 w-2.5 rounded-full bg-[#fb7185]/80" />
-                            <span className="h-2.5 w-2.5 rounded-full bg-[#fbbf24]/80" />
-                            <span className="h-2.5 w-2.5 rounded-full bg-[#4ade80]/80" />
+                    <div className="h-full min-h-0 overflow-hidden">
+                      <div className="flex h-full min-h-0 w-full flex-col">
+                        <div className="flex items-center justify-between gap-3 border-b border-white/8 bg-[#0f172a] px-5 py-4 md:px-6">
+                          <div className="min-w-0 flex-1">
+                            <div
+                              className="flex flex-wrap items-center gap-1.5"
+                              role="toolbar"
+                              aria-label="Markdown formatting"
+                            >
+                              {toolbarItems.map(({ label, icon: Icon, onClick }) => (
+                                <button
+                                  key={label}
+                                  type="button"
+                                  aria-label={label}
+                                  title={label}
+                                  onClick={onClick}
+                                  className="flex h-8 w-8 items-center justify-center rounded-md bg-slate-800/75 text-slate-200 transition hover:bg-slate-700 hover:text-white focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
+                                >
+                                  <Icon className="h-3.5 w-3.5" />
+                                </button>
+                              ))}
+                            </div>
                           </div>
                           <div className="min-w-0 text-right">
-                            <p className="truncate font-mono text-[11px] uppercase tracking-[0.16em] text-slate-400">
+                            <p className="truncate font-mono text-[11px] uppercase tracking-[0.16em] text-slate-300">
                               Markdown editor
-                            </p>
-                            <p className="truncate text-[11.5px] text-slate-500">
-                              Plain text source
                             </p>
                           </div>
                         </div>
 
-                        <div className="min-h-0 flex-1 bg-linear-to-b from-[#111c31] to-[#0b1324]">
+                        <div className="min-h-0 flex-1 overflow-auto bg-linear-to-b from-[#111c31] to-[#0b1324]">
                           <div className="flex min-h-full">
                             <div
                               className="hidden w-14 shrink-0 select-none border-r border-white/7 bg-white/[0.02] px-2 py-5 text-right font-mono text-[11px] leading-7 text-slate-500 md:block"
@@ -624,11 +875,15 @@ export function FrameworkScreen({
                             </div>
 
                             <textarea
+                              ref={editorTextareaRef}
                               value={draftItem.content}
                               onChange={(event) =>
-                                setDraftItem((current) =>
-                                  current ? { ...current, content: event.target.value } : current,
-                                )
+                                updateDraftContent(event.target.value, {
+                                  viewport: {
+                                    scrollTop: event.target.scrollTop,
+                                    scrollLeft: event.target.scrollLeft,
+                                  },
+                                })
                               }
                               spellCheck={false}
                               data-testid={`framework-editor-${type}`}
