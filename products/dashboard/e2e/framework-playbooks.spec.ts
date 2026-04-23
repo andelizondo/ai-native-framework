@@ -61,7 +61,15 @@ test.describe("framework playbooks", () => {
 
     const editor = page.getByTestId("framework-editor-playbook");
     await editor.fill(savedContent);
-    await page.getByRole("button", { name: "Save" }).click();
+    await Promise.all([
+      page.waitForResponse(
+        (response) =>
+          response.request().method() === "POST" &&
+          response.status() === 200 &&
+          response.url().includes("/api/framework-items"),
+      ),
+      page.getByRole("button", { name: "Save" }).click(),
+    ]);
     await page.reload();
 
     const persistedCard = page
