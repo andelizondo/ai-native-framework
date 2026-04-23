@@ -827,7 +827,7 @@ export function FrameworkScreen({
                   ) : (
                     <div className="h-full min-h-0 overflow-hidden">
                       <div className="flex h-full min-h-0 w-full flex-col">
-                        <div className="flex items-center justify-between gap-3 border-b border-white/8 bg-[#0f172a] px-5 py-4 md:px-6">
+                        <div className="flex items-center justify-between gap-3 border-b border-border-hi bg-bg-2 px-5 py-4 md:px-6">
                           <div className="min-w-0 flex-1">
                             <div
                               className="flex flex-wrap items-center gap-1.5"
@@ -841,7 +841,7 @@ export function FrameworkScreen({
                                   aria-label={label}
                                   title={label}
                                   onClick={onClick}
-                                  className="flex h-8 w-8 items-center justify-center rounded-md bg-slate-800/75 text-slate-200 transition hover:bg-slate-700 hover:text-white focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
+                                  className="flex h-8 w-8 items-center justify-center rounded-md bg-bg-3 text-t2 transition hover:bg-bg-4 hover:text-t1 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
                                 >
                                   <Icon className="h-3.5 w-3.5" />
                                 </button>
@@ -849,16 +849,16 @@ export function FrameworkScreen({
                             </div>
                           </div>
                           <div className="min-w-0 text-right">
-                            <p className="truncate font-mono text-[11px] uppercase tracking-[0.16em] text-slate-300">
+                            <p className="truncate font-mono text-[11px] uppercase tracking-[0.16em] text-t2">
                               Markdown editor
                             </p>
                           </div>
                         </div>
 
-                        <div className="min-h-0 flex-1 overflow-auto bg-linear-to-b from-[#111c31] to-[#0b1324]">
+                        <div className="min-h-0 flex-1 overflow-auto bg-linear-to-b from-bg-2 to-bg-3">
                           <div className="flex min-h-full">
                             <div
-                              className="hidden w-14 shrink-0 select-none border-r border-white/7 bg-white/[0.02] px-2 py-5 text-right font-mono text-[11px] leading-7 text-slate-500 md:block"
+                              className="hidden w-14 shrink-0 select-none border-r border-border bg-bg px-2 py-5 text-right font-mono text-[11px] leading-7 text-t3 md:block"
                               aria-hidden
                             >
                               {Array.from(
@@ -887,7 +887,7 @@ export function FrameworkScreen({
                               }
                               spellCheck={false}
                               data-testid={`framework-editor-${type}`}
-                              className="block min-h-full w-full resize-none bg-transparent px-5 py-5 font-mono text-[13px] leading-7 text-slate-100 outline-none transition placeholder:text-slate-500 md:px-6"
+                              className="block min-h-full w-full resize-none bg-transparent px-5 py-5 font-mono text-[13px] leading-7 text-t1 outline-none transition placeholder:text-t3 md:px-6"
                             />
                           </div>
                         </div>
