@@ -40,7 +40,8 @@ export function FrameworkItemModal({
   const previousFocusRef = useRef<HTMLElement | null>(null);
   const [name, setName] = useState(initialName);
   const [summary, setSummary] = useState(initialDescription);
-  const canSubmit = Boolean(name.trim() && summary.trim()) && !pending;
+  const [inFlight, setInFlight] = useState(false);
+  const canSubmit = Boolean(name.trim() && summary.trim()) && !pending && !inFlight;
 
   useEffect(() => {
     previousFocusRef.current =
@@ -48,6 +49,12 @@ export function FrameworkItemModal({
     nameRef.current?.focus();
     nameRef.current?.select();
 
+    return () => {
+      previousFocusRef.current?.focus();
+    };
+  }, []);
+
+  useEffect(() => {
     function handleKeyDown(event: KeyboardEvent) {
       if (event.key === "Escape" && !pending) {
         onClose();
@@ -79,7 +86,6 @@ export function FrameworkItemModal({
     window.addEventListener("keydown", handleKeyDown);
     return () => {
       window.removeEventListener("keydown", handleKeyDown);
-      previousFocusRef.current?.focus();
     };
   }, [onClose, pending]);
 
@@ -149,9 +155,12 @@ export function FrameworkItemModal({
           <button
             type="button"
             onClick={() => {
-              if (!canSubmit) return;
+              if (!canSubmit || inFlight) return;
+              setInFlight(true);
               void Promise.resolve(onSubmit({ name, description: summary })).catch(() => {
                 // Parent handlers surface user-facing errors.
+              }).finally(() => {
+                setInFlight(false);
               });
             }}
             disabled={!canSubmit}
