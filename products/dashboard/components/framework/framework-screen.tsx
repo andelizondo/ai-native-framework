@@ -270,6 +270,7 @@ export function FrameworkScreen({
   const [editorView, setEditorView] = useState<EditorViewMode>("markdown");
   const [itemModalState, setItemModalState] = useState<FrameworkItemModalState>(null);
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
+  const [deletingItemId, setDeletingItemId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
   const [searchOpen, setSearchOpen] = useState(false);
@@ -597,6 +598,9 @@ export function FrameworkScreen({
   }
 
   function deleteItem(itemId: string) {
+    if (deletingItemId === itemId) return;
+
+    setDeletingItemId(itemId);
     startTransition(async () => {
       try {
         await deleteFrameworkItemAction(itemId);
@@ -612,6 +616,8 @@ export function FrameworkScreen({
             ? actionError.message
             : `Could not delete the ${type}.`,
         );
+      } finally {
+        setDeletingItemId((current) => (current === itemId ? null : current));
       }
     });
   }
@@ -1204,6 +1210,7 @@ export function FrameworkScreen({
         <ConfirmModal
           title={`Delete "${deleteTarget.name}"?`}
           description={`This will permanently remove this ${type}. This cannot be undone.`}
+          confirmDisabled={deletingItemId === deleteTarget.id}
           onConfirm={() => deleteItem(deleteTarget.id)}
           onCancel={() => setConfirmDeleteId(null)}
         />

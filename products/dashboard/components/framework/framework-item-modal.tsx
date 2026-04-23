@@ -150,7 +150,9 @@ export function FrameworkItemModal({
             type="button"
             onClick={() => {
               if (!canSubmit) return;
-              void onSubmit({ name, description: summary });
+              void onSubmit({ name, description: summary }).catch(() => {
+                // Parent handlers surface user-facing errors.
+              });
             }}
             disabled={!canSubmit}
             className="rounded-lg bg-primary px-5 py-2 text-[13px] font-semibold text-white transition hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50"
