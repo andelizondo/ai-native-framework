@@ -76,20 +76,27 @@ test.describe("framework playbooks", () => {
       .locator('[data-testid^="framework-card-"]')
       .filter({ hasText: renamedPlaybook });
     await expect(persistedCard).toBeVisible();
-    await persistedCard.click();
-    await page.getByRole("tab", { name: "Edit" }).click();
-    await expect(page.getByTestId("framework-editor-playbook")).toHaveValue(savedContent);
-    await expect(page.getByText(revisedDescription)).toBeVisible();
-    await page.getByRole("button", { name: "Playbooks" }).click();
-    await expect(page.getByTestId("framework-grid-playbook")).toBeVisible();
+    try {
+      await persistedCard.click();
+      await page.getByRole("tab", { name: "Edit" }).click();
+      await expect(page.getByTestId("framework-editor-playbook")).toHaveValue(savedContent);
+      await expect(page.getByText(revisedDescription)).toBeVisible();
+      await page.getByRole("button", { name: "Playbooks" }).click();
+      await expect(page.getByTestId("framework-grid-playbook")).toBeVisible();
+    } finally {
+      await page.getByRole("button", { name: "Playbooks" }).click({ timeout: 2_000 }).catch(() => {});
+      if ((await persistedCard.count()) > 0) {
+        await persistedCard.first().click();
+        await page.getByLabel("Open playbook actions").click();
+        await page.getByRole("button", { name: "Delete" }).click();
+        await expect(page.getByRole("dialog")).toContainText(
+          "This will permanently remove this playbook. This cannot be undone.",
+        );
+        await page.getByRole("button", { name: "Delete" }).click();
+      }
+      await page.reload();
+    }
 
-    await persistedCard.click();
-    await page.getByLabel("Open playbook actions").click();
-    await page.getByRole("button", { name: "Delete" }).click();
-    await expect(page.getByRole("dialog")).toContainText(
-      "This will permanently remove this playbook. This cannot be undone.",
-    );
-    await page.getByRole("button", { name: "Delete" }).click();
     await expect(persistedCard).toHaveCount(0);
   });
 
