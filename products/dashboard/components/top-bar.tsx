@@ -1,23 +1,19 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import { Bell, Pencil } from "lucide-react";
+import { Pencil } from "lucide-react";
 
 import {
   type DashboardTopBarCrumb,
   useDashboardTopBar,
 } from "@/components/dashboard-topbar-context";
-import { CheckpointPanel } from "@/components/workflows/checkpoint-panel";
 import { cn } from "@/lib/utils";
 
 /**
  * Dashboard top bar.
  *
- * Renders a route-derived breadcrumb and the My Tasks pill. The pill shows an
- * amber badge when there are pending checkpoints and opens CheckpointPanel on
- * click. `initialPendingCount` is server-rendered for a fast first paint;
- * the panel refreshes from the DB when opened.
+ * Renders a route-derived breadcrumb plus route-specific controls.
  *
  * Visual contract: prototype `TopBar` (`Process Canvas.html`).
  */
@@ -52,12 +48,7 @@ function deriveCrumbs(pathname: string | null): DashboardTopBarCrumb[] {
   return [{ label: last.replace(/[-_]/g, " ").replace(/\b\w/g, (c) => c.toUpperCase()) }];
 }
 
-export interface TopBarProps {
-  /** Server-rendered initial count for fast first paint. */
-  initialPendingCount?: number;
-}
-
-export function TopBar({ initialPendingCount = 0 }: TopBarProps) {
+export function TopBar() {
   const pathname = usePathname();
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -67,8 +58,6 @@ export function TopBar({ initialPendingCount = 0 }: TopBarProps) {
     !!pathname && WORKFLOW_INSTANCE_ROUTE_REGEX.test(pathname);
   const editMode = searchParams.get("edit") === "1";
 
-  const [panelOpen, setPanelOpen] = useState(false);
-  const [pendingCount, setPendingCount] = useState(initialPendingCount);
   const [templateLabelDraft, setTemplateLabelDraft] = useState("");
 
   useEffect(() => {
@@ -89,7 +78,6 @@ export function TopBar({ initialPendingCount = 0 }: TopBarProps) {
     router.replace(query ? `${pathname}?${query}` : pathname, { scroll: false });
   }
 
-  const hasPending = pendingCount > 0;
   const saveDisabled =
     config?.mode === "template-editor"
       ? config.saveDisabled
@@ -206,43 +194,8 @@ export function TopBar({ initialPendingCount = 0 }: TopBarProps) {
               {editMode ? "Save" : "Edit"}
             </button>
           ) : null}
-
-          {config?.mode !== "template-editor" ? (
-            <button
-              type="button"
-              aria-label={`My Tasks${hasPending ? ` — ${pendingCount} pending` : ""}`}
-              aria-expanded={panelOpen}
-              onClick={() => setPanelOpen((v) => !v)}
-              data-testid="topbar-my-tasks-btn"
-              className={cn(
-                "relative flex cursor-pointer items-center gap-1.5 rounded-md border px-2.5 py-1.5 text-[11.5px] font-medium transition",
-                "focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent",
-                hasPending
-                  ? "border-[rgba(245,158,11,0.35)] bg-[rgba(245,158,11,0.08)] text-[#fbbf24] hover:bg-[rgba(245,158,11,0.14)]"
-                  : "border-border bg-bg-2 text-t2 hover:border-border-hi hover:bg-bg-3 hover:text-t1",
-              )}
-            >
-              <Bell className="h-3.5 w-3.5" />
-              My Tasks
-              {hasPending && (
-                <span
-                  className="flex h-4 min-w-4 items-center justify-center rounded-full bg-[#f59e0b] px-1 font-mono text-[9px] font-bold text-white"
-                  aria-hidden
-                  data-testid="topbar-pending-badge"
-                >
-                  {pendingCount}
-                </span>
-              )}
-            </button>
-          ) : null}
         </div>
       </header>
-
-      <CheckpointPanel
-        open={panelOpen}
-        onClose={() => setPanelOpen(false)}
-        onPendingCountChange={setPendingCount}
-      />
     </>
   );
 }

@@ -766,7 +766,7 @@ export function FrameworkScreen({
 
       <div className="flex min-h-0 flex-1 overflow-hidden bg-bg-2">
         {draftItem ? (
-          <div className="flex h-full min-h-0 flex-col">
+          <div className="flex h-full min-h-0 min-w-0 flex-1 flex-col">
             <div className="flex shrink-0 items-center justify-between gap-3 border-b border-border bg-bg px-6 py-3">
               <div
                 className="inline-flex w-fit items-center rounded-lg border border-border bg-bg-2 p-1"
@@ -1021,19 +1021,19 @@ export function FrameworkScreen({
                       <div className="flex w-full justify-start md:ml-auto md:w-auto md:justify-end">
                         <div
                           className={cn(
-                            "flex items-center overflow-hidden rounded-xl border border-border bg-bg-2 transition-[width,border-color,background-color,box-shadow] duration-200",
+                            "flex items-center overflow-hidden rounded-lg border border-border bg-bg-2 transition-[width,border-color,background-color,box-shadow] duration-200",
                             searchOpen || searchQuery.length > 0
-                              ? "w-full max-w-[360px] border-border-hi bg-bg-3 shadow-[0_12px_30px_rgba(15,23,42,0.08)]"
-                              : "w-12",
+                              ? "w-full max-w-[320px] border-border-hi bg-bg-3 shadow-[0_10px_24px_rgba(15,23,42,0.08)]"
+                              : "w-10",
                           )}
                         >
                           <button
                             type="button"
                             aria-label={`Search ${type === "skill" ? "skills" : "playbooks"}`}
                             onClick={() => setSearchOpen(true)}
-                            className="flex h-12 w-12 shrink-0 items-center justify-center text-t3 transition hover:text-t1 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
+                            className="flex h-10 w-10 shrink-0 items-center justify-center text-t3 transition hover:text-t1 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
                           >
-                            <Search className="h-4 w-4" />
+                            <Search className="h-3.5 w-3.5" />
                           </button>
                           <input
                             ref={searchInputRef}
@@ -1047,9 +1047,9 @@ export function FrameworkScreen({
                             }}
                             placeholder={`Search ${type === "skill" ? "skills" : "playbooks"}`}
                             className={cn(
-                              "min-w-0 bg-transparent pr-4 text-[13px] text-t1 outline-none placeholder:text-t3 transition-[opacity,width,padding] duration-200",
+                              "min-w-0 bg-transparent pr-3 text-[12.5px] text-t1 outline-none placeholder:text-t3 transition-[opacity,width,padding] duration-200",
                               searchOpen || searchQuery.length > 0
-                                ? "w-[min(308px,calc(100vw-10rem))] px-0 opacity-100"
+                                ? "w-[min(274px,calc(100vw-10rem))] px-0 opacity-100"
                                 : "w-0 px-0 opacity-0",
                             )}
                           />
@@ -1061,9 +1061,9 @@ export function FrameworkScreen({
                                 setSearchQuery("");
                                 searchInputRef.current?.focus();
                               }}
-                              className="mr-2 flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-t3 transition hover:bg-bg hover:text-t1 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
+                              className="mr-1.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-t3 transition hover:bg-bg hover:text-t1 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
                             >
-                              <X className="h-3.5 w-3.5" />
+                              <X className="h-3 w-3" />
                             </button>
                           ) : null}
                         </div>
@@ -1083,24 +1083,24 @@ export function FrameworkScreen({
                           type="button"
                           onClick={() => beginEdit(item)}
                           data-testid={`framework-card-${item.id}`}
-                          className="group flex min-h-[168px] flex-col justify-between rounded-[18px] border border-border bg-bg-2/88 px-5 py-5 text-left transition-[background-color,border-color,transform,box-shadow] duration-150 hover:border-border-hi hover:bg-bg-3/92 hover:shadow-[0_16px_40px_rgba(15,23,42,0.08)] focus-visible:-translate-y-[1px] focus-visible:border-border-hi focus-visible:bg-bg-3/92 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
+                          className="group flex min-h-[92px] flex-col justify-center rounded-[16px] border border-border bg-bg-2/88 px-4 py-4 text-left transition-[background-color,border-color,transform,box-shadow] duration-150 hover:border-border-hi hover:bg-bg-3/92 hover:shadow-[0_14px_34px_rgba(15,23,42,0.08)] focus-visible:-translate-y-[1px] focus-visible:border-border-hi focus-visible:bg-bg-3/92 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
                         >
-                          <div className="flex items-start justify-between gap-4">
-                            <div className="min-w-0 flex-1">
-                              <h2 className="overflow-hidden text-[18px] leading-[1.15] font-semibold tracking-[-0.02em] text-t1 [display:-webkit-box] [-webkit-box-orient:vertical] [-webkit-line-clamp:2]">
-                                {item.name}
-                              </h2>
-                            </div>
+                          <div className="flex min-w-0 items-center gap-3">
                             <span
-                              className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full border border-border bg-bg text-[18px] text-t1 transition-colors group-hover:border-border-hi group-hover:bg-bg-2"
+                              className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-border bg-bg text-[15px] text-t1 transition-colors group-hover:border-border-hi group-hover:bg-bg-2"
                               aria-hidden
                             >
                               {item.icon || (type === "skill" ? "🤖" : "📄")}
                             </span>
+                            <div className="min-w-0 flex-1">
+                              <h2 className="overflow-hidden whitespace-nowrap text-[16px] leading-[1.15] font-semibold tracking-[-0.02em] text-t1 text-ellipsis">
+                                {item.name}
+                              </h2>
+                            </div>
                           </div>
 
-                          <div className="mt-5 min-w-0">
-                            <p className="overflow-hidden text-[13px] leading-6 text-t2 [display:-webkit-box] [-webkit-box-orient:vertical] [-webkit-line-clamp:3]">
+                          <div className="mt-2 min-w-0">
+                            <p className="overflow-hidden whitespace-nowrap text-[12.5px] leading-[1.35rem] text-t2 text-ellipsis">
                               {item.description}
                             </p>
                           </div>
