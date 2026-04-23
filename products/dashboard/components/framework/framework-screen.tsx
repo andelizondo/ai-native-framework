@@ -504,82 +504,139 @@ export function FrameworkScreen({
             </div>
 
             <div className="min-h-0 flex-1 overflow-hidden px-6 py-6">
-              <div className="mx-auto flex h-full min-h-0 w-full max-w-[1120px] flex-col">
+              <div className="mx-auto flex h-full min-h-0 w-full max-w-[1180px] flex-col">
                 <div
                   className={cn(
-                    "h-full min-h-0 overflow-auto transition-colors",
+                    "relative h-full min-h-0 overflow-hidden rounded-[22px] border transition-[border-color,box-shadow,background-color]",
                     editorView === "markdown"
-                      ? "bg-bg"
-                      : "rounded-[16px] bg-bg-3/65 ring-1 ring-border",
+                      ? "border-border bg-linear-to-b from-bg to-bg-2/92 shadow-[0_24px_80px_rgba(15,23,42,0.08)]"
+                      : "border-border-hi bg-linear-to-b from-bg to-bg-3/90 shadow-[0_28px_90px_rgba(15,23,42,0.12)]",
                   )}
                 >
+                  <div className="pointer-events-none absolute inset-x-0 top-0 h-14 bg-linear-to-b from-white/6 to-transparent opacity-70" />
                   {editorView === "markdown" ? (
-                    <div
-                      data-testid={`framework-markdown-preview-${type}`}
-                      className="min-h-full px-8 py-7"
-                    >
-                      <div className="max-w-3xl">
+                    <div className="h-full min-h-0 overflow-auto">
+                      <div
+                        data-testid={`framework-markdown-preview-${type}`}
+                        className="mx-auto min-h-full w-full max-w-[920px] px-6 py-7 md:px-8 md:py-9"
+                      >
+                        <div className="max-w-[70ch]">
                         <ReactMarkdown
                           remarkPlugins={[remarkGfm]}
                           components={{
                             h1: ({ node: _node, ...props }) => (
-                              <h1 className="mb-4 text-[28px] font-bold tracking-tight text-t1" {...props} />
+                              <h1
+                                className="mb-5 text-[30px] font-bold tracking-[-0.03em] text-t1"
+                                {...props}
+                              />
                             ),
                             h2: ({ node: _node, ...props }) => (
-                              <h2 className="mb-3 mt-8 text-[22px] font-semibold tracking-tight text-t1" {...props} />
+                              <h2
+                                className="mb-3 mt-10 border-t border-border pt-6 text-[22px] font-semibold tracking-[-0.02em] text-t1 first:mt-0 first:border-t-0 first:pt-0"
+                                {...props}
+                              />
                             ),
                             h3: ({ node: _node, ...props }) => (
-                              <h3 className="mb-2 mt-6 text-[17px] font-semibold text-t1" {...props} />
+                              <h3 className="mb-2 mt-7 text-[17px] font-semibold text-t1" {...props} />
                             ),
                             p: ({ node: _node, ...props }) => (
-                              <p className="mb-4 text-[14px] leading-7 text-t1" {...props} />
+                              <p className="mb-4 text-[14px] leading-7 text-t1/95" {...props} />
                             ),
                             ul: ({ node: _node, ...props }) => (
-                              <ul className="mb-4 list-disc space-y-2 pl-6" {...props} />
+                              <ul className="mb-5 list-disc space-y-2.5 pl-6 marker:text-t3" {...props} />
                             ),
                             ol: ({ node: _node, ...props }) => (
-                              <ol className="mb-4 list-decimal space-y-2 pl-6" {...props} />
+                              <ol className="mb-5 list-decimal space-y-2.5 pl-6 marker:text-t3" {...props} />
                             ),
                             li: ({ node: _node, ...props }) => (
                               <li className="text-[14px] leading-7 text-t1" {...props} />
                             ),
                             blockquote: ({ node: _node, ...props }) => (
-                              <blockquote className="mb-4 border-l-2 border-border-hi pl-4 italic text-t2" {...props} />
+                              <blockquote
+                                className="mb-5 rounded-r-[14px] border-l-[3px] border-border-hi bg-bg-2/65 px-4 py-3 italic text-t2"
+                                {...props}
+                              />
                             ),
                             code: ({ node: _node, className, ...props }) => (
                               <code
                                 className={cn(
-                                  "rounded bg-bg-2 px-1.5 py-0.5 font-mono text-[12px] text-t1",
+                                  "rounded-md bg-bg-2 px-1.5 py-0.5 font-mono text-[12px] text-t1",
                                   className,
                                 )}
                                 {...props}
                               />
                             ),
                             pre: ({ node: _node, ...props }) => (
-                              <pre className="mb-4 overflow-x-auto rounded-xl border border-border bg-bg-2 p-4 font-mono text-[12px] text-t1" {...props} />
+                              <pre
+                                className="mb-5 overflow-x-auto rounded-[16px] border border-border bg-bg-2 p-4 font-mono text-[12px] text-t1 shadow-[inset_0_1px_0_rgba(255,255,255,0.03)]"
+                                {...props}
+                              />
                             ),
                             a: ({ node: _node, ...props }) => (
-                              <a className="text-accent underline underline-offset-2" {...props} />
+                              <a
+                                className="text-accent underline decoration-accent/35 underline-offset-3 transition hover:decoration-accent"
+                                {...props}
+                              />
                             ),
                           }}
                         >
                           {draftItem.content || "_No content yet._"}
                         </ReactMarkdown>
+                        </div>
                       </div>
                     </div>
                   ) : (
-                    <div className="min-h-full px-5 py-5">
-                      <textarea
-                        value={draftItem.content}
-                        onChange={(event) =>
-                          setDraftItem((current) =>
-                            current ? { ...current, content: event.target.value } : current,
-                          )
-                        }
-                        spellCheck={false}
-                        data-testid={`framework-editor-${type}`}
-                        className="block min-h-full w-full resize-none rounded-[12px] bg-bg px-6 py-6 font-mono text-[13px] leading-7 text-t1 outline-none transition placeholder:text-t3"
-                      />
+                    <div className="h-full min-h-0 overflow-auto">
+                      <div className="flex min-h-full w-full flex-col">
+                        <div className="flex items-center justify-between gap-3 border-b border-white/8 px-5 py-4 md:px-6">
+                          <div className="flex items-center gap-2" aria-hidden>
+                            <span className="h-2.5 w-2.5 rounded-full bg-[#fb7185]/80" />
+                            <span className="h-2.5 w-2.5 rounded-full bg-[#fbbf24]/80" />
+                            <span className="h-2.5 w-2.5 rounded-full bg-[#4ade80]/80" />
+                          </div>
+                          <div className="min-w-0 text-right">
+                            <p className="truncate font-mono text-[11px] uppercase tracking-[0.16em] text-slate-400">
+                              Markdown editor
+                            </p>
+                            <p className="truncate text-[11.5px] text-slate-500">
+                              Plain text source
+                            </p>
+                          </div>
+                        </div>
+
+                        <div className="min-h-0 flex-1 bg-linear-to-b from-[#111c31] to-[#0b1324]">
+                          <div className="flex min-h-full">
+                            <div
+                              className="hidden w-14 shrink-0 select-none border-r border-white/7 bg-white/[0.02] px-2 py-5 text-right font-mono text-[11px] leading-7 text-slate-500 md:block"
+                              aria-hidden
+                            >
+                              {Array.from(
+                                {
+                                  length: Math.max(
+                                    (draftItem.content.match(/\n/g)?.length ?? 0) + 1,
+                                    16,
+                                  ),
+                                },
+                                (_, index) => (
+                                  <div key={index}>{index + 1}</div>
+                                ),
+                              )}
+                            </div>
+
+                            <textarea
+                              value={draftItem.content}
+                              onChange={(event) =>
+                                setDraftItem((current) =>
+                                  current ? { ...current, content: event.target.value } : current,
+                                )
+                              }
+                              spellCheck={false}
+                              data-testid={`framework-editor-${type}`}
+                              className="block min-h-full w-full resize-none bg-transparent px-5 py-5 font-mono text-[13px] leading-7 text-slate-100 outline-none transition placeholder:text-slate-500 md:px-6"
+                            />
+                          </div>
+                        </div>
+                      </div>
                     </div>
                   )}
                 </div>
