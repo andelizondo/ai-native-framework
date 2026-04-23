@@ -109,7 +109,7 @@ describe("TopBar", () => {
       React.useEffect(() => {
         setConfig({
           mode: "template-editor",
-          crumbs: ["Workflows", "Client Project Delivery"],
+          crumbs: [{ label: "Workflows" }, { label: "Client Project Delivery" }],
           label: "Client Project Delivery",
           onLabelChange: vi.fn(),
           onSave: vi.fn(),
@@ -143,7 +143,11 @@ describe("TopBar", () => {
       React.useEffect(() => {
         setConfig({
           mode: "workflow-instance",
-          crumbs: ["Workflows", "Client Project Delivery", "Acme rollout"],
+          crumbs: [
+            { label: "Workflows" },
+            { label: "Client Project Delivery" },
+            { label: "Acme rollout" },
+          ],
         });
         return () => setConfig(null);
       }, [setConfig]);
@@ -160,5 +164,34 @@ describe("TopBar", () => {
     expect(screen.getByText("Workflows")).toBeInTheDocument();
     expect(screen.getByText("Client Project Delivery")).toBeInTheDocument();
     expect(screen.getByText("Acme rollout")).toBeInTheDocument();
+  });
+
+  it("renders the page save pill when a page config provides save handlers", () => {
+    vi.mocked(usePathname).mockReturnValue("/framework/skills");
+
+    function Harness() {
+      const { setConfig } = useDashboardTopBar();
+      React.useEffect(() => {
+        setConfig({
+          mode: "page",
+          crumbs: [{ label: "Skills" }, { label: "Developer" }],
+          onSave: vi.fn(),
+          saveDisabled: false,
+        });
+        return () => setConfig(null);
+      }, [setConfig]);
+
+      return <TopBar />;
+    }
+
+    render(
+      <DashboardTopBarProvider>
+        <Harness />
+      </DashboardTopBarProvider>,
+    );
+
+    const saveButton = screen.getByRole("button", { name: "Save" });
+    expect(saveButton).toBeInTheDocument();
+    expect(saveButton.querySelector("span")).not.toBeNull();
   });
 });

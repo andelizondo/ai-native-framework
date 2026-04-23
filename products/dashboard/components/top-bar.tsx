@@ -90,6 +90,15 @@ export function TopBar({ initialPendingCount = 0 }: TopBarProps) {
   }
 
   const hasPending = pendingCount > 0;
+  const saveDisabled =
+    config?.mode === "template-editor"
+      ? config.saveDisabled
+      : config?.mode === "page"
+        ? (config.saveDisabled ?? true)
+        : true;
+  const showSaveButton =
+    (config?.mode === "template-editor" || config?.mode === "page") &&
+    typeof config.onSave === "function";
 
   return (
     <>
@@ -159,19 +168,19 @@ export function TopBar({ initialPendingCount = 0 }: TopBarProps) {
             config?.actions ?? null
           )}
 
-          {config?.mode === "template-editor" ? (
+          {showSaveButton ? (
             <button
               type="button"
               onClick={config.onSave}
-              disabled={config.saveDisabled}
+              disabled={saveDisabled}
               className={cn(
                 "flex items-center gap-1.5 rounded-md px-2.5 py-1.5 text-[11.5px] font-semibold transition focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent",
-                config.saveDisabled
+                saveDisabled
                   ? "cursor-not-allowed border border-border bg-bg-2 text-t3 opacity-70"
                   : "border border-[#10b981] bg-[#10b981] text-white shadow-[0_0_0_1px_rgba(16,185,129,0.16),0_8px_22px_rgba(16,185,129,0.24)] hover:bg-[#22c55e]",
               )}
             >
-              {!config.saveDisabled ? (
+              {!saveDisabled ? (
                 <span
                   aria-hidden
                   className="h-1.5 w-1.5 rounded-full bg-white shadow-[0_0_10px_rgba(255,255,255,0.7)]"

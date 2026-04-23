@@ -1,13 +1,24 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState, useTransition } from "react";
-import { Download, Plus, Sparkles, X } from "lucide-react";
+import {
+  Download,
+  Eye,
+  Pencil,
+  Plus,
+  Search,
+  Sparkles,
+} from "lucide-react";
+import ReactMarkdown from "react-markdown";
+import remarkGfm from "remark-gfm";
 
 import {
   deleteFrameworkItemAction,
   upsertFrameworkItemAction,
 } from "@/app/(dashboard)/framework/actions";
 import { useDashboardTopBar } from "@/components/dashboard-topbar-context";
+import { FrameworkHeaderActionsMenu } from "@/components/framework/framework-header-actions-menu";
+import { FrameworkItemModal } from "@/components/framework/framework-item-modal";
 import { ConfirmModal } from "@/components/ui/confirm-modal";
 import { useAnalytics } from "@/lib/analytics/events";
 import type { FrameworkItem, FrameworkItemType } from "@/lib/workflows/types";
@@ -18,8 +29,43 @@ interface FrameworkScreenProps {
   type: FrameworkItemType;
 }
 
-const SKILL_EMOJIS = ["🤖", "🧠", "✨", "🛠️", "🔍", "🧭", "✅", "🗂️"];
-const PLAYBOOK_EMOJIS = ["📄", "📚", "🧪", "🚀", "🧱", "🗺️", "📌", "🔐"];
+type EditorViewMode = "markdown" | "plain-text";
+
+type FrameworkItemModalState =
+  | null
+  | {
+      mode: "create" | "rename";
+      initialName: string;
+      initialDescription: string;
+    };
+
+const SKILL_EMOJIS = [
+  { emoji: "🤖", label: "Robot", keywords: ["agent", "ai", "automation"] },
+  { emoji: "🧠", label: "Brain", keywords: ["thinking", "reasoning", "strategy"] },
+  { emoji: "✨", label: "Sparkles", keywords: ["polish", "quality", "magic"] },
+  { emoji: "🛠️", label: "Tools", keywords: ["build", "developer", "implementation"] },
+  { emoji: "🔍", label: "Search", keywords: ["audit", "review", "analysis"] },
+  { emoji: "🧭", label: "Compass", keywords: ["navigation", "direction", "framework"] },
+  { emoji: "✅", label: "Check", keywords: ["quality", "approval", "done"] },
+  { emoji: "🗂️", label: "Folders", keywords: ["organization", "library", "catalog"] },
+  { emoji: "📝", label: "Writing", keywords: ["documentation", "editor", "notes"] },
+  { emoji: "🚀", label: "Rocket", keywords: ["launch", "ship", "release"] },
+  { emoji: "🧪", label: "Experiment", keywords: ["test", "validation", "quality"] },
+  { emoji: "🎯", label: "Target", keywords: ["goal", "focus", "scope"] },
+] as const;
+
+const PLAYBOOK_EMOJIS = [
+  { emoji: "📄", label: "Document", keywords: ["procedure", "guide", "playbook"] },
+  { emoji: "📚", label: "Books", keywords: ["knowledge", "library", "reference"] },
+  { emoji: "🧪", label: "Experiment", keywords: ["test", "validation", "quality"] },
+  { emoji: "🚀", label: "Rocket", keywords: ["launch", "ship", "release"] },
+  { emoji: "🧱", label: "Brick", keywords: ["foundation", "system", "base"] },
+  { emoji: "🗺️", label: "Map", keywords: ["plan", "navigation", "route"] },
+  { emoji: "📌", label: "Pin", keywords: ["important", "reference", "anchor"] },
+  { emoji: "🔐", label: "Lock", keywords: ["security", "policy", "governance"] },
+  { emoji: "🧭", label: "Compass", keywords: ["direction", "operating model", "flow"] },
+  { emoji: "📝", label: "Writing", keywords: ["instructions", "steps", "notes"] },
+] as const;
 
 function createFrameworkItemId(type: FrameworkItemType, name: string): string {
   const prefix = type === "skill" ? "sk" : "pb";
@@ -51,30 +97,46 @@ function sortItems(nextItems: FrameworkItem[]) {
   return [...nextItems].sort((left, right) => left.name.localeCompare(right.name));
 }
 
-function EmojiPicker({
+function areFrameworkItemsEqual(left: FrameworkItem | null, right: FrameworkItem | null) {
+  if (!left || !right) return false;
+  return (
+    left.name === right.name &&
+    left.description === right.description &&
+    (left.icon ?? "") === (right.icon ?? "") &&
+    left.content === right.content
+  );
+}
+
+function CompactEmojiPicker({
   value,
   options,
   onSelect,
 }: {
   value: string;
-  options: string[];
+  options: readonly { emoji: string; label: string; keywords: readonly string[] }[];
   onSelect: (emoji: string) => void;
 }) {
-  const [open, setOpen] = useState(false);
   const rootRef = useRef<HTMLDivElement | null>(null);
+  const inputRef = useRef<HTMLInputElement | null>(null);
+  const [open, setOpen] = useState(false);
+  const [query, setQuery] = useState("");
 
   useEffect(() => {
     if (!open) return;
 
+    inputRef.current?.focus();
+
     function handlePointerDown(event: MouseEvent) {
       if (!rootRef.current?.contains(event.target as Node)) {
         setOpen(false);
+        setQuery("");
       }
     }
 
     function handleKeyDown(event: KeyboardEvent) {
       if (event.key === "Escape") {
         setOpen(false);
+        setQuery("");
       }
     }
 
@@ -86,34 +148,79 @@ function EmojiPicker({
     };
   }, [open]);
 
+  const normalizedQuery = query.trim().toLowerCase();
+  const filteredOptions =
+    normalizedQuery.length === 0
+      ? options
+      : options.filter((option) =>
+          [option.emoji, option.label, ...option.keywords].some((token) =>
+            token.toLowerCase().includes(normalizedQuery),
+          ),
+        );
+
+  const typedEmoji = query.trim();
+  const hasTypedEmoji = /\p{Extended_Pictographic}/u.test(typedEmoji);
+
   return (
-    <div ref={rootRef} className="relative">
+    <div ref={rootRef} className="relative shrink-0">
       <button
         type="button"
-        aria-label="Emoji picker"
+        aria-label="Change icon"
         onClick={() => setOpen((current) => !current)}
-        className="flex h-10 w-10 items-center justify-center rounded-lg border border-border bg-bg text-[18px] transition hover:border-border-hi hover:bg-bg-3 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
+        className="flex h-8 w-8 items-center justify-center rounded-full border border-border bg-bg text-[16px] transition hover:border-border-hi hover:bg-bg-3 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
       >
         {value}
       </button>
       {open ? (
-        <div className="absolute left-0 top-[calc(100%+8px)] z-20 grid grid-cols-4 gap-1 rounded-xl border border-border bg-bg-2 p-2 shadow-[var(--shadow-canvas)]">
-          {options.map((emoji) => (
+        <div className="absolute left-0 top-[calc(100%+10px)] z-30 w-[244px] rounded-xl border border-border-hi bg-bg-2 p-3 shadow-[var(--shadow-canvas)]">
+          <div className="relative">
+            <Search className="pointer-events-none absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-t3" />
+            <input
+              ref={inputRef}
+              value={query}
+              onChange={(event) => setQuery(event.target.value)}
+              aria-label="Search or type emoji"
+              placeholder="Search or type emoji"
+              className="w-full rounded-lg border border-border bg-bg px-9 py-2 text-[12.5px] text-t1 outline-none transition placeholder:text-t3 focus:border-primary"
+            />
+          </div>
+
+          {hasTypedEmoji ? (
             <button
-              key={emoji}
               type="button"
               onClick={() => {
-                onSelect(emoji);
+                onSelect(typedEmoji.slice(0, 8));
                 setOpen(false);
+                setQuery("");
               }}
-              className={cn(
-                "flex h-9 w-9 items-center justify-center rounded-lg text-[18px] transition hover:bg-bg-3",
-                emoji === value ? "bg-bg-3" : "bg-transparent",
-              )}
+              className="mt-2 flex w-full items-center gap-2 rounded-lg border border-border bg-bg px-3 py-2 text-left text-[12.5px] text-t1 transition hover:bg-bg-3"
             >
-              {emoji}
+              <span className="text-[16px]">{typedEmoji}</span>
+              Use typed emoji
             </button>
-          ))}
+          ) : null}
+
+          <div className="mt-2 grid max-h-[180px] grid-cols-5 gap-1 overflow-auto">
+            {filteredOptions.map((option) => (
+              <button
+                key={option.emoji}
+                type="button"
+                aria-label={`Use ${option.label}`}
+                title={option.label}
+                onClick={() => {
+                  onSelect(option.emoji);
+                  setOpen(false);
+                  setQuery("");
+                }}
+                className={cn(
+                  "flex h-9 w-9 items-center justify-center rounded-lg border border-transparent text-[18px] transition hover:border-border hover:bg-bg-3",
+                  option.emoji === value ? "border-border bg-bg-3" : "bg-transparent",
+                )}
+              >
+                {option.emoji}
+              </button>
+            ))}
+          </div>
         </div>
       ) : null}
     </div>
@@ -127,14 +234,11 @@ export function FrameworkScreen({
   const { setConfig } = useDashboardTopBar();
   const { capture } = useAnalytics();
   const [items, setItems] = useState(initialItems);
-  const [adding, setAdding] = useState(false);
-  const [name, setName] = useState("");
-  const [description, setDescription] = useState("");
   const [editingId, setEditingId] = useState<string | null>(null);
-  const [editContent, setEditContent] = useState("");
-  const [editName, setEditName] = useState("");
-  const [editDescription, setEditDescription] = useState("");
-  const [editIcon, setEditIcon] = useState("");
+  const [draftItem, setDraftItem] = useState<FrameworkItem | null>(null);
+  const [lastSavedItem, setLastSavedItem] = useState<FrameworkItem | null>(null);
+  const [editorView, setEditorView] = useState<EditorViewMode>("markdown");
+  const [itemModalState, setItemModalState] = useState<FrameworkItemModalState>(null);
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
@@ -143,61 +247,24 @@ export function FrameworkScreen({
   const routeMetaLabel = type === "skill" ? "Framework library" : "Framework procedures";
   const routeDescription =
     type === "skill"
-      ? "A compact library of reusable agent capabilities. Select a skill to edit its markdown source."
-      : "A compact library of reusable execution procedures. Select a playbook to edit its markdown source.";
+      ? "A compact library of reusable agent capabilities. Select a skill to read or edit its markdown source."
+      : "A compact library of reusable execution procedures. Select a playbook to read or edit its markdown source.";
   const createLabel = type === "skill" ? "New skill" : "New playbook";
   const emojiOptions = type === "skill" ? SKILL_EMOJIS : PLAYBOOK_EMOJIS;
-
   const filteredItems = useMemo(
     () => items.filter((item) => item.type === type),
     [items, type],
   );
-  const editingItem = filteredItems.find((item) => item.id === editingId) ?? null;
-  const deleteTarget = filteredItems.find((item) => item.id === confirmDeleteId) ?? null;
+  const isDirty =
+    draftItem !== null &&
+    (lastSavedItem === null || !areFrameworkItemsEqual(draftItem, lastSavedItem));
+  const deleteTarget =
+    filteredItems.find((item) => item.id === confirmDeleteId) ??
+    (draftItem?.id === confirmDeleteId ? draftItem : null);
 
   useEffect(() => {
     setItems(initialItems);
   }, [initialItems]);
-
-  useEffect(() => {
-    setConfig({
-      mode: "page",
-      crumbs: editingItem
-        ? [
-            {
-              label: routeLabel,
-              onClick: () => {
-                setEditingId(null);
-                setError(null);
-              },
-            },
-            { label: editingItem.name },
-          ]
-        : [{ label: routeLabel }],
-      actions:
-        editingItem || adding ? null : (
-          <button
-            type="button"
-            onClick={() => {
-              setError(null);
-              setAdding(true);
-            }}
-            className="flex items-center gap-1.5 rounded-md border border-border bg-bg-2 px-2.5 py-1.5 text-[11.5px] font-medium text-t2 transition hover:border-border-hi hover:bg-bg-3 hover:text-t1 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
-          >
-            <Plus className="h-3.5 w-3.5" />
-            {createLabel}
-          </button>
-        ),
-    });
-
-    return () => setConfig(null);
-  }, [adding, createLabel, editingItem, routeLabel, setConfig]);
-
-  function resetAddForm() {
-    setAdding(false);
-    setName("");
-    setDescription("");
-  }
 
   function emitEditedEvent(itemId: string) {
     if (type === "skill") {
@@ -210,63 +277,37 @@ export function FrameworkScreen({
 
   function beginEdit(item: FrameworkItem) {
     setError(null);
-    setAdding(false);
     setEditingId(item.id);
-    setEditContent(item.content);
-    setEditName(item.name);
-    setEditDescription(item.description);
-    setEditIcon(item.icon ?? emojiOptions[0]!);
+    setDraftItem(item);
+    setLastSavedItem(item);
+    setEditorView("markdown");
   }
 
-  function createItem() {
-    const draft = createDraftItem(type, name, description);
-
-    startTransition(async () => {
-      try {
-        const result = await upsertFrameworkItemAction(draft);
-        setItems((current) =>
-          sortItems([
-            ...current.filter((item) => item.id !== result.item.id),
-            result.item,
-          ]),
-        );
-        resetAddForm();
-        emitEditedEvent(result.item.id);
-        setError(null);
-      } catch (actionError) {
-        setError(
-          actionError instanceof Error && actionError.message
-            ? actionError.message
-            : `Could not create the ${type}.`,
-        );
-      }
-    });
+  function resetEditor() {
+    setEditingId(null);
+    setDraftItem(null);
+    setLastSavedItem(null);
+    setEditorView("markdown");
   }
 
   function saveItem() {
-    if (!editingItem) {
-      return;
-    }
+    if (!draftItem) return;
 
     startTransition(async () => {
       try {
         const result = await upsertFrameworkItemAction({
-          ...editingItem,
-          name: editName.trim(),
-          description: editDescription.trim(),
-          icon: editIcon.trim(),
-          content: editContent,
+          ...draftItem,
+          name: draftItem.name.trim(),
+          description: draftItem.description.trim(),
+          icon: draftItem.icon?.trim() ?? null,
         });
         setItems((current) =>
           sortItems(
             current.map((item) => (item.id === result.item.id ? result.item : item)),
           ),
         );
-        setEditingId(null);
-        setEditContent("");
-        setEditName("");
-        setEditDescription("");
-        setEditIcon("");
+        setDraftItem(result.item);
+        setLastSavedItem(result.item);
         emitEditedEvent(result.item.id);
         setError(null);
       } catch (actionError) {
@@ -286,8 +327,7 @@ export function FrameworkScreen({
         setItems((current) => current.filter((item) => item.id !== itemId));
         setConfirmDeleteId(null);
         if (editingId === itemId) {
-          setEditingId(null);
-          setEditContent("");
+          resetEditor();
         }
         setError(null);
       } catch (actionError) {
@@ -301,14 +341,14 @@ export function FrameworkScreen({
   }
 
   function downloadMarkdown() {
-    if (!editingItem) return;
+    if (!draftItem) return;
 
-    const slug = (editName || editingItem.name)
+    const slug = draftItem.name
       .toLowerCase()
       .trim()
       .replace(/[^a-z0-9]+/g, "-")
       .replace(/^-+|-+$/g, "");
-    const blob = new Blob([editContent], { type: "text/markdown;charset=utf-8" });
+    const blob = new Blob([draftItem.content], { type: "text/markdown;charset=utf-8" });
     const url = URL.createObjectURL(blob);
     const anchor = document.createElement("a");
     anchor.href = url;
@@ -317,150 +357,237 @@ export function FrameworkScreen({
     URL.revokeObjectURL(url);
   }
 
+  useEffect(() => {
+    if (draftItem) {
+      setConfig({
+        mode: "page",
+        crumbs: [
+          {
+            label: routeLabel,
+            onClick: () => {
+              resetEditor();
+              setError(null);
+            },
+          },
+          { label: draftItem.name },
+        ],
+        onSave: saveItem,
+        saveDisabled:
+          pending ||
+          !isDirty ||
+          !draftItem.name.trim() ||
+          !draftItem.description.trim(),
+        actions: (
+          <FrameworkHeaderActionsMenu
+            entityName={type === "skill" ? "skill" : "playbook"}
+            onRename={() =>
+              setItemModalState({
+                mode: "rename",
+                initialName: draftItem.name,
+                initialDescription: draftItem.description,
+              })
+            }
+            onDelete={() => setConfirmDeleteId(draftItem.id)}
+          />
+        ),
+      });
+      return () => setConfig(null);
+    }
+
+    setConfig({
+      mode: "page",
+      crumbs: [{ label: routeLabel }],
+      actions: (
+        <button
+          type="button"
+          onClick={() => {
+            setError(null);
+            setItemModalState({
+              mode: "create",
+              initialName: "",
+              initialDescription: "",
+            });
+          }}
+          className="flex items-center gap-1.5 rounded-md border border-border bg-bg-2 px-2.5 py-1.5 text-[11.5px] font-medium text-t2 transition hover:border-border-hi hover:bg-bg-3 hover:text-t1 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
+        >
+          <Plus className="h-3.5 w-3.5" />
+          {createLabel}
+        </button>
+      ),
+    });
+
+    return () => setConfig(null);
+  }, [createLabel, draftItem, isDirty, pending, routeLabel, setConfig, type]);
+
   return (
     <div className="flex h-full flex-col overflow-hidden" data-testid={`framework-screen-${type}`}>
-      <div className="shrink-0 border-b border-border bg-bg px-6 py-4">
+      <div className="shrink-0 border-b border-border bg-bg px-6 py-5">
         <div className="min-w-0">
           <p className="font-mono text-[10px] uppercase tracking-[0.13em] text-t3">
-            {editingItem ? routeLabel.slice(0, -1) || routeLabel : routeMetaLabel}
+            {draftItem ? routeLabel.slice(0, -1) || routeLabel : routeMetaLabel}
           </p>
-          <h1 className="mt-1 truncate text-[20px] font-bold tracking-tight text-t1">
-            {editingItem ? editName || editingItem.name : routeLabel}
-          </h1>
-          <p className="mt-1 text-[13px] text-t2">
-            {editingItem
-              ? editDescription || editingItem.description
-              : routeDescription}
-          </p>
+
+          {draftItem ? (
+            <div className="mt-2 flex items-start gap-3">
+              <CompactEmojiPicker
+                value={draftItem.icon || emojiOptions[0]!.emoji}
+                options={emojiOptions}
+                onSelect={(emoji) =>
+                  setDraftItem((current) => (current ? { ...current, icon: emoji } : current))
+                }
+              />
+              <div className="min-w-0">
+                <h1 className="truncate text-[22px] font-bold tracking-tight text-t1">
+                  {draftItem.name}
+                </h1>
+                <p className="mt-1 max-w-3xl text-[13px] leading-6 text-t2">
+                  {draftItem.description}
+                </p>
+              </div>
+            </div>
+          ) : (
+            <>
+              <h1 className="mt-1 truncate text-[20px] font-bold tracking-tight text-t1">
+                {routeLabel}
+              </h1>
+              <p className="mt-1 text-[13px] text-t2">{routeDescription}</p>
+            </>
+          )}
         </div>
         {error ? (
           <div className="mt-2 text-[11.5px] text-(color:--pill-blocked-t)">{error}</div>
         ) : null}
       </div>
 
-      <div className="min-h-0 flex-1 overflow-hidden bg-bg-2 p-6">
-        {editingItem ? (
-          <div className="flex h-full min-h-0 flex-col rounded-[16px] border border-border bg-bg-2">
-            <div className="flex shrink-0 items-center justify-between gap-3 border-b border-border px-5 py-3">
-              <div className="flex min-w-0 items-center gap-3">
-                <EmojiPicker
-                  value={editIcon || emojiOptions[0]!}
-                  options={emojiOptions}
-                  onSelect={setEditIcon}
-                />
-                <div className="min-w-0">
-                  <input
-                    value={editName}
-                    onChange={(event) => setEditName(event.target.value)}
-                    aria-label="Name"
-                    className="w-full min-w-0 bg-transparent text-[14px] font-semibold text-t1 outline-none placeholder:text-t3"
-                    placeholder={`${routeLabel.slice(0, -1)} name`}
-                  />
-                  <input
-                    value={editDescription}
-                    onChange={(event) => setEditDescription(event.target.value)}
-                    aria-label="Description"
-                    className="mt-1 w-full min-w-0 bg-transparent text-[12px] text-t2 outline-none placeholder:text-t3"
-                    placeholder="Short description"
-                  />
-                </div>
+      <div className="min-h-0 flex-1 overflow-hidden bg-bg-2">
+        {draftItem ? (
+          <div className="flex h-full min-h-0 flex-col">
+            <div className="flex shrink-0 items-center justify-between gap-3 border-b border-border bg-bg px-6 py-3">
+              <div
+                className="inline-flex w-fit items-center rounded-lg border border-border bg-bg-2 p-1"
+                role="tablist"
+                aria-label="Editor mode"
+              >
+                {(
+                  [
+                    ["markdown", "View", Eye],
+                    ["plain-text", "Edit", Pencil],
+                  ] as const
+                ).map(([mode, label, Icon]) => (
+                  <button
+                    key={mode}
+                    type="button"
+                    role="tab"
+                    aria-selected={editorView === mode}
+                    onClick={() => setEditorView(mode)}
+                    className={cn(
+                      "flex items-center gap-1.5 rounded-md px-3 py-1.5 text-[12px] font-medium transition focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent",
+                      editorView === mode
+                        ? "bg-bg text-t1"
+                        : "text-t2 hover:bg-bg hover:text-t1",
+                    )}
+                  >
+                    <Icon className="h-3.5 w-3.5" />
+                    {label}
+                  </button>
+                ))}
               </div>
 
-              <div className="flex shrink-0 items-center gap-2">
-                <button
-                  type="button"
-                  onClick={downloadMarkdown}
-                  className="flex items-center gap-1.5 rounded-md border border-border bg-bg px-3 py-2 text-[12px] font-medium text-t2 transition hover:bg-bg-3 hover:text-t1 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
-                >
-                  <Download className="h-3.5 w-3.5" />
-                  Download
-                </button>
-                <button
-                  type="button"
-                  onClick={saveItem}
-                  disabled={pending || !editName.trim() || !editDescription.trim()}
-                  className={cn(
-                    "rounded-md px-3 py-2 text-[12px] font-semibold transition focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent",
-                    pending || !editName.trim() || !editDescription.trim()
-                      ? "cursor-not-allowed bg-primary text-white opacity-70"
-                      : "bg-primary text-white hover:opacity-90",
-                  )}
-                >
-                  Save
-                </button>
-              </div>
+              <button
+                type="button"
+                onClick={downloadMarkdown}
+                className="flex items-center gap-1.5 rounded-md border border-border bg-bg px-3 py-2 text-[12px] font-medium text-t2 transition hover:bg-bg-3 hover:text-t1 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
+              >
+                <Download className="h-3.5 w-3.5" />
+                Download
+              </button>
             </div>
 
-            <div className="min-h-0 flex-1 p-5">
-              <textarea
-                value={editContent}
-                onChange={(event) => setEditContent(event.target.value)}
-                spellCheck={false}
-                data-testid={`framework-editor-${type}`}
-                className="h-full min-h-[320px] w-full resize-none rounded-xl border border-border bg-bg px-4 py-3 font-mono text-[12.5px] leading-6 text-t1 outline-none transition placeholder:text-t3 focus:border-primary"
-              />
+            <div className="min-h-0 flex-1 overflow-hidden px-6 py-6">
+              <div className="mx-auto flex h-full min-h-0 w-full max-w-[1120px] flex-col">
+                <div
+                  className={cn(
+                    "h-full min-h-0 overflow-auto transition-colors",
+                    editorView === "markdown"
+                      ? "bg-bg"
+                      : "rounded-[16px] bg-bg-3/65 ring-1 ring-border",
+                  )}
+                >
+                  {editorView === "markdown" ? (
+                    <div
+                      data-testid={`framework-markdown-preview-${type}`}
+                      className="min-h-full px-8 py-7"
+                    >
+                      <div className="max-w-3xl">
+                        <ReactMarkdown
+                          remarkPlugins={[remarkGfm]}
+                          components={{
+                            h1: ({ node: _node, ...props }) => (
+                              <h1 className="mb-4 text-[28px] font-bold tracking-tight text-t1" {...props} />
+                            ),
+                            h2: ({ node: _node, ...props }) => (
+                              <h2 className="mb-3 mt-8 text-[22px] font-semibold tracking-tight text-t1" {...props} />
+                            ),
+                            h3: ({ node: _node, ...props }) => (
+                              <h3 className="mb-2 mt-6 text-[17px] font-semibold text-t1" {...props} />
+                            ),
+                            p: ({ node: _node, ...props }) => (
+                              <p className="mb-4 text-[14px] leading-7 text-t1" {...props} />
+                            ),
+                            ul: ({ node: _node, ...props }) => (
+                              <ul className="mb-4 list-disc space-y-2 pl-6" {...props} />
+                            ),
+                            ol: ({ node: _node, ...props }) => (
+                              <ol className="mb-4 list-decimal space-y-2 pl-6" {...props} />
+                            ),
+                            li: ({ node: _node, ...props }) => (
+                              <li className="text-[14px] leading-7 text-t1" {...props} />
+                            ),
+                            blockquote: ({ node: _node, ...props }) => (
+                              <blockquote className="mb-4 border-l-2 border-border-hi pl-4 italic text-t2" {...props} />
+                            ),
+                            code: ({ node: _node, className, ...props }) => (
+                              <code
+                                className={cn(
+                                  "rounded bg-bg-2 px-1.5 py-0.5 font-mono text-[12px] text-t1",
+                                  className,
+                                )}
+                                {...props}
+                              />
+                            ),
+                            pre: ({ node: _node, ...props }) => (
+                              <pre className="mb-4 overflow-x-auto rounded-xl border border-border bg-bg-2 p-4 font-mono text-[12px] text-t1" {...props} />
+                            ),
+                            a: ({ node: _node, ...props }) => (
+                              <a className="text-accent underline underline-offset-2" {...props} />
+                            ),
+                          }}
+                        >
+                          {draftItem.content || "_No content yet._"}
+                        </ReactMarkdown>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="min-h-full px-5 py-5">
+                      <textarea
+                        value={draftItem.content}
+                        onChange={(event) =>
+                          setDraftItem((current) =>
+                            current ? { ...current, content: event.target.value } : current,
+                          )
+                        }
+                        spellCheck={false}
+                        data-testid={`framework-editor-${type}`}
+                        className="block min-h-full w-full resize-none rounded-[12px] bg-bg px-6 py-6 font-mono text-[13px] leading-7 text-t1 outline-none transition placeholder:text-t3"
+                      />
+                    </div>
+                  )}
+                </div>
+              </div>
             </div>
           </div>
         ) : (
-          <div className="flex h-full min-h-0 flex-col">
-            {adding ? (
-              <div
-                className="mb-5 shrink-0 rounded-[14px] border border-border bg-bg px-5 py-4"
-                data-testid={`framework-add-form-${type}`}
-              >
-                <div className="grid gap-3 md:grid-cols-[minmax(0,220px)_minmax(0,1fr)_auto] md:items-end">
-                  <div className="min-w-0">
-                    <label className="mb-1.5 block text-[10px] font-semibold uppercase tracking-[0.13em] text-t3">
-                      Name
-                    </label>
-                    <input
-                      value={name}
-                      onChange={(event) => setName(event.target.value)}
-                      placeholder={type === "skill" ? "Skill name" : "Playbook name"}
-                      className="w-full rounded-lg border border-border bg-bg px-3 py-2 text-[12.5px] text-t1 outline-none transition placeholder:text-t3 focus:border-primary"
-                    />
-                  </div>
-                  <div className="min-w-0">
-                    <label className="mb-1.5 block text-[10px] font-semibold uppercase tracking-[0.13em] text-t3">
-                      Description
-                    </label>
-                    <input
-                      value={description}
-                      onChange={(event) => setDescription(event.target.value)}
-                      placeholder="Short description"
-                      className="w-full rounded-lg border border-border bg-bg px-3 py-2 text-[12.5px] text-t1 outline-none transition placeholder:text-t3 focus:border-primary"
-                    />
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <button
-                      type="button"
-                      onClick={createItem}
-                      disabled={pending || !name.trim() || !description.trim()}
-                      className={cn(
-                        "rounded-md px-3 py-2 text-[12px] font-semibold transition focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent",
-                        pending || !name.trim() || !description.trim()
-                          ? "cursor-not-allowed bg-primary text-white opacity-70"
-                          : "bg-primary text-white hover:opacity-90",
-                      )}
-                    >
-                      Create
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        resetAddForm();
-                        setError(null);
-                      }}
-                      disabled={pending}
-                      className="rounded-md border border-border bg-bg px-3 py-2 text-[12px] font-medium text-t2 transition hover:bg-bg-3 hover:text-t1 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
-                    >
-                      Cancel
-                    </button>
-                  </div>
-                </div>
-              </div>
-            ) : null}
-
+          <div className="flex h-full min-h-0 flex-col p-6">
             <div className="min-h-0 flex-1 overflow-auto px-1 py-2">
               <div
                 className="grid gap-3 [grid-template-columns:repeat(auto-fill,minmax(220px,1fr))]"
@@ -479,35 +606,21 @@ export function FrameworkScreen({
                       }
                     }}
                     data-testid={`framework-card-${item.id}`}
-                    className="group relative flex h-[104px] cursor-pointer items-center gap-3 overflow-hidden rounded-[7px] border border-border bg-bg-2 px-4 py-4 text-left transition-all duration-150 hover:border-border-hi hover:bg-bg-3 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
+                    className="group flex h-[104px] cursor-pointer items-center gap-3 overflow-hidden rounded-[10px] border border-border bg-bg px-4 py-4 text-left transition-all duration-150 hover:border-border-hi hover:bg-bg-3 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
                   >
                     <span
-                      className="flex h-10 w-10 shrink-0 items-center justify-center rounded-[7px] border border-border bg-bg text-[18px]"
+                      className="flex h-10 w-10 shrink-0 items-center justify-center rounded-[10px] border border-border bg-bg-2 text-[18px]"
                       aria-hidden
                     >
                       {item.icon || (type === "skill" ? "🤖" : "📄")}
                     </span>
-                    <span className="min-w-0 flex-1 overflow-hidden pr-8">
+                    <span className="min-w-0 flex-1 overflow-hidden">
                       <span className="block overflow-hidden text-ellipsis whitespace-nowrap text-[13px] font-semibold text-t1">
                         {item.name}
                       </span>
                       <span className="mt-1 block overflow-hidden text-[11.5px] leading-[1.35] text-t2 [display:-webkit-box] [-webkit-box-orient:vertical] [-webkit-line-clamp:2]">
                         {item.description}
                       </span>
-                    </span>
-                    <span className="absolute right-3 top-3 flex h-[22px] w-[22px] shrink-0 items-center justify-center rounded-[8px] border border-border bg-bg-3 text-t3 opacity-0 transition group-hover:opacity-100">
-                      <button
-                        type="button"
-                        title={`Delete ${item.name}`}
-                        aria-label={`Delete ${item.name}`}
-                        onClick={(event) => {
-                          event.stopPropagation();
-                          setConfirmDeleteId(item.id);
-                        }}
-                        className="flex h-full w-full cursor-pointer items-center justify-center rounded-[8px] hover:bg-[linear-gradient(180deg,#ef4444,#dc2626)] hover:text-[#fff7f7] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#f87171]"
-                      >
-                        <X className="h-3.5 w-3.5" />
-                      </button>
                     </span>
                   </div>
                 ))}
@@ -528,6 +641,71 @@ export function FrameworkScreen({
           </div>
         )}
       </div>
+
+      {itemModalState ? (
+        <FrameworkItemModal
+          title={
+            itemModalState.mode === "create"
+              ? `Create ${type === "skill" ? "skill" : "playbook"}`
+              : `Rename ${type === "skill" ? "skill" : "playbook"}`
+          }
+          description={
+            itemModalState.mode === "create"
+              ? `Add the ${type === "skill" ? "skill" : "playbook"} title and description first.`
+              : `Update the ${type === "skill" ? "skill" : "playbook"} title and description.`
+          }
+          initialName={itemModalState.initialName}
+          initialDescription={itemModalState.initialDescription}
+          submitLabel={itemModalState.mode === "create" ? "Create" : "Apply"}
+          pending={pending}
+          onClose={() => {
+            if (!pending) {
+              setItemModalState(null);
+            }
+          }}
+          onSubmit={({ name, description }) => {
+            if (itemModalState.mode === "rename") {
+              setDraftItem((current) =>
+                current
+                  ? {
+                      ...current,
+                      name: name.trim(),
+                      description: description.trim(),
+                    }
+                  : current,
+              );
+              setItemModalState(null);
+              return;
+            }
+
+            const draft = createDraftItem(type, name, description);
+            startTransition(async () => {
+              try {
+                const result = await upsertFrameworkItemAction(draft);
+                setItems((current) =>
+                  sortItems([
+                    ...current.filter((item) => item.id !== result.item.id),
+                    result.item,
+                  ]),
+                );
+                setItemModalState(null);
+                setEditingId(result.item.id);
+                setDraftItem(result.item);
+                setLastSavedItem(result.item);
+                setEditorView("markdown");
+                emitEditedEvent(result.item.id);
+                setError(null);
+              } catch (actionError) {
+                setError(
+                  actionError instanceof Error && actionError.message
+                    ? actionError.message
+                    : `Could not create the ${type}.`,
+                );
+              }
+            });
+          }}
+        />
+      ) : null}
 
       {deleteTarget ? (
         <ConfirmModal

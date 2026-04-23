@@ -196,6 +196,14 @@ body {
     color 0.2s ease;
 }
 
+button:not(:disabled) {
+  cursor: pointer;
+}
+
+button:disabled {
+  cursor: not-allowed;
+}
+
 /*
  * Sidebar collapse — driven by `<html data-sidebar="collapsed|expanded">`.
  *

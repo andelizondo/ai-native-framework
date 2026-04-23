@@ -32,6 +32,8 @@ interface WorkflowInstanceTopBarConfig {
 interface PageTopBarConfig {
   mode: "page";
   crumbs: DashboardTopBarCrumb[];
+  onSave?: () => void;
+  saveDisabled?: boolean;
   actions?: ReactNode;
 }
 

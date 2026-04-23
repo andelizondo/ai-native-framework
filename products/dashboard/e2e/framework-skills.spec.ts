@@ -41,26 +41,27 @@ test.describe("framework skills", () => {
     const savedContent = `# ${renamedSkill}\n\nSaved from Playwright.`;
 
     await page.getByRole("button", { name: "New skill" }).click();
-    await expect(page.getByTestId("framework-add-form-skill")).toBeVisible();
-    await page.getByPlaceholder("Skill name").fill(skillName);
-    await page.getByPlaceholder("Short description").fill(skillDescription);
+    await expect(page.getByRole("dialog")).toBeVisible();
+    await page.getByLabel("Title").fill(skillName);
+    await page.getByLabel("Description").fill(skillDescription);
     await page.getByRole("button", { name: "Create" }).click();
 
-    const skillCard = page
-      .locator('[data-testid^="framework-card-"]')
-      .filter({ hasText: skillName });
-    await expect(skillCard).toBeVisible();
-    await skillCard.click();
+    await expect(page.getByTestId("framework-markdown-preview-skill")).toBeVisible();
+    await page.getByLabel("Open skill actions").click();
+    await page.getByRole("button", { name: "Rename" }).click();
+    await expect(page.getByRole("dialog")).toBeVisible();
+    await page.getByLabel("Title").fill(renamedSkill);
+    await page.getByLabel("Description").fill(revisedDescription);
+    await page.getByRole("button", { name: "Apply" }).click();
+
+    await page.getByLabel("Change icon").click();
+    await page.getByLabel("Search or type emoji").fill("🧠");
+    await page.getByRole("button", { name: "Use typed emoji" }).click();
+    await page.getByRole("tab", { name: "Edit" }).click();
 
     const editor = page.getByTestId("framework-editor-skill");
-    await expect(editor).toBeVisible();
-    await page.getByLabel("Emoji").fill("🧠");
-    await page.getByLabel("Name").fill(renamedSkill);
-    await page.getByLabel("Description").fill(revisedDescription);
     await editor.fill(savedContent);
-    await page.getByRole("button", { name: "Save changes" }).click();
-
-    await expect(page.getByTestId("framework-grid-skill")).toBeVisible();
+    await page.getByRole("button", { name: "Save" }).click();
     await page.reload();
 
     const persistedCard = page
@@ -68,14 +69,15 @@ test.describe("framework skills", () => {
       .filter({ hasText: renamedSkill });
     await expect(persistedCard).toBeVisible();
     await persistedCard.click();
+    await page.getByRole("tab", { name: "Edit" }).click();
     await expect(page.getByTestId("framework-editor-skill")).toHaveValue(savedContent);
-    await expect(page.getByLabel("Emoji")).toHaveValue("🧠");
-    await expect(page.getByLabel("Description")).toHaveValue(revisedDescription);
+    await expect(page.getByText(revisedDescription)).toBeVisible();
     await page.getByRole("button", { name: "Skills" }).click();
     await expect(page.getByTestId("framework-grid-skill")).toBeVisible();
 
-    await persistedCard.hover();
-    await persistedCard.getByRole("button", { name: `Delete ${renamedSkill}` }).click();
+    await persistedCard.click();
+    await page.getByLabel("Open skill actions").click();
+    await page.getByRole("button", { name: "Delete" }).click();
     await expect(page.getByRole("dialog")).toContainText(
       "This will permanently remove this skill. This cannot be undone.",
     );
