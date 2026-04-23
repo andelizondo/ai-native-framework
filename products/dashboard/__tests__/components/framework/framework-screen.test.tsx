@@ -79,4 +79,22 @@ describe("FrameworkScreen", () => {
 
     expect(editor).toHaveValue("# Developer\n\n- **Implements code**\n- Validates changes");
   });
+
+  it("imports markdown from an uploaded file and replaces the current draft", async () => {
+    const user = userEvent.setup();
+
+    render(<FrameworkScreen initialItems={ITEMS} type="skill" />);
+
+    await user.click(screen.getByTestId("framework-card-sk-developer"));
+
+    const input = screen.getByLabelText("Upload markdown file") as HTMLInputElement;
+    const file = new File(["# Imported Skill\n\n1. First step"], "imported-skill.md", {
+      type: "text/markdown",
+    });
+
+    await user.upload(input, file);
+
+    const editor = screen.getByTestId("framework-editor-skill");
+    expect(editor).toHaveValue("# Imported Skill\n\n1. First step");
+  });
 });

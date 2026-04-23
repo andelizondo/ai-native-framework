@@ -16,6 +16,7 @@ import {
   Search,
   Sparkles,
   TextQuote,
+  Upload,
   WrapText,
   Italic,
 } from "lucide-react";
@@ -263,6 +264,7 @@ export function FrameworkScreen({
   const [error, setError] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
   const editorTextareaRef = useRef<HTMLTextAreaElement | null>(null);
+  const importInputRef = useRef<HTMLInputElement | null>(null);
   const pendingSelectionRef = useRef<EditorSelection | null>(null);
   const pendingViewportRef = useRef<EditorViewport | null>(null);
 
@@ -488,6 +490,16 @@ export function FrameworkScreen({
       onClick: () => toggleLinePrefix("## ", "Subheading"),
     },
     {
+      label: "Numbered list",
+      icon: ListOrdered,
+      onClick: () => toggleLinePrefix("1. ", "List item"),
+    },
+    {
+      label: "Bulleted list",
+      icon: List,
+      onClick: () => toggleLinePrefix("- ", "List item"),
+    },
+    {
       label: "Bold",
       icon: Bold,
       onClick: () => toggleInlineWrap("**", "bold text"),
@@ -501,16 +513,6 @@ export function FrameworkScreen({
       label: "Link",
       icon: Link2,
       onClick: insertLink,
-    },
-    {
-      label: "Bulleted list",
-      icon: List,
-      onClick: () => toggleLinePrefix("- ", "List item"),
-    },
-    {
-      label: "Numbered list",
-      icon: ListOrdered,
-      onClick: () => toggleLinePrefix("1. ", "List item"),
     },
     {
       label: "Quote",
@@ -594,6 +596,32 @@ export function FrameworkScreen({
     anchor.download = `${slug || "framework-item"}.md`;
     anchor.click();
     URL.revokeObjectURL(url);
+  }
+
+  function readMarkdownFile(file: File): Promise<string> {
+    if (typeof file.text === "function") {
+      return file.text();
+    }
+
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(typeof reader.result === "string" ? reader.result : "");
+      reader.onerror = () => reject(new Error("Could not read file."));
+      reader.readAsText(file);
+    });
+  }
+
+  async function importMarkdownFile(file: File) {
+    if (!file) return;
+
+    try {
+      const nextContent = await readMarkdownFile(file);
+      updateDraftContent(nextContent);
+      setError(null);
+      setEditorView("plain-text");
+    } catch {
+      setError("Could not read the markdown file.");
+    }
   }
 
   useEffect(() => {
@@ -732,14 +760,40 @@ export function FrameworkScreen({
                 ))}
               </div>
 
-              <button
-                type="button"
-                onClick={downloadMarkdown}
-                className="flex items-center gap-1.5 rounded-md border border-border bg-bg px-3 py-2 text-[12px] font-medium text-t2 transition hover:bg-bg-3 hover:text-t1 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
-              >
-                <Download className="h-3.5 w-3.5" />
-                Download
-              </button>
+              <div className="flex items-center gap-2">
+                <input
+                  ref={importInputRef}
+                  type="file"
+                  accept=".md,text/markdown"
+                  className="sr-only"
+                  aria-label="Upload markdown file"
+                  onChange={(event) => {
+                    const file = event.target.files?.[0];
+                    if (file) {
+                      void importMarkdownFile(file);
+                    }
+                    event.currentTarget.value = "";
+                  }}
+                />
+
+                <button
+                  type="button"
+                  onClick={() => importInputRef.current?.click()}
+                  className="flex items-center gap-1.5 rounded-md border border-border bg-bg px-3 py-2 text-[12px] font-medium text-t2 transition hover:bg-bg-3 hover:text-t1 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
+                >
+                  <Upload className="h-3.5 w-3.5" />
+                  Upload
+                </button>
+
+                <button
+                  type="button"
+                  onClick={downloadMarkdown}
+                  className="flex items-center gap-1.5 rounded-md border border-border bg-bg px-3 py-2 text-[12px] font-medium text-t2 transition hover:bg-bg-3 hover:text-t1 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
+                >
+                  <Download className="h-3.5 w-3.5" />
+                  Download
+                </button>
+              </div>
             </div>
 
             <div className="min-h-0 flex-1 overflow-hidden px-6 py-6">
