@@ -150,7 +150,7 @@ export function FrameworkItemModal({
             type="button"
             onClick={() => {
               if (!canSubmit) return;
-              void onSubmit({ name, description: summary }).catch(() => {
+              void Promise.resolve(onSubmit({ name, description: summary })).catch(() => {
                 // Parent handlers surface user-facing errors.
               });
             }}
