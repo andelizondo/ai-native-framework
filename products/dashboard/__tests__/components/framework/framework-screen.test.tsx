@@ -33,6 +33,17 @@ const ITEMS: FrameworkItem[] = [
   },
 ];
 
+const PLAYBOOK_ITEMS: FrameworkItem[] = [
+  {
+    id: "pb-presales",
+    type: "playbook",
+    name: "Presales Qualification",
+    description: "Qualify new client opportunities",
+    icon: "📄",
+    content: "# Presales Qualification\n\n## Objective\n\nAssess fit.",
+  },
+];
+
 describe("FrameworkScreen", () => {
   it("shows rendered markdown by default and editable plain text on toggle", async () => {
     const user = userEvent.setup();
@@ -96,5 +107,25 @@ describe("FrameworkScreen", () => {
 
     const editor = await screen.findByTestId("framework-editor-skill");
     expect(editor).toHaveValue("# Imported Skill\n\n1. First step");
+  });
+});
+
+describe("FrameworkScreen — playbook type", () => {
+  it("renders playbook card grid and opens editor view on card click", async () => {
+    const user = userEvent.setup();
+
+    render(<FrameworkScreen initialItems={PLAYBOOK_ITEMS} type="playbook" />);
+
+    expect(screen.getByTestId("framework-screen-playbook")).toBeInTheDocument();
+    expect(screen.getByTestId("framework-grid-playbook")).toBeInTheDocument();
+
+    await user.click(screen.getByTestId("framework-card-pb-presales"));
+
+    expect(screen.getByTestId("framework-markdown-preview-playbook")).toBeInTheDocument();
+
+    await user.click(screen.getByRole("tab", { name: "Edit" }));
+
+    expect(screen.getByTestId("framework-editor-playbook")).toBeInTheDocument();
+    expect(screen.queryByTestId("framework-markdown-preview-playbook")).not.toBeInTheDocument();
   });
 });

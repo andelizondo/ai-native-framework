@@ -356,6 +356,11 @@ export function FrameworkScreen({
         item_id: itemId,
         edited_by: "founder",
       });
+    } else if (type === "playbook") {
+      capture("framework.playbook_edited", {
+        item_id: itemId,
+        edited_by: "founder",
+      });
     }
   }
 
