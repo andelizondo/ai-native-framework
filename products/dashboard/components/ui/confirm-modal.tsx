@@ -7,6 +7,7 @@ interface ConfirmModalProps {
   title: string;
   description: ReactNode;
   confirmLabel?: string;
+  confirmDisabled?: boolean;
   onConfirm: () => void;
   onCancel: () => void;
 }
@@ -15,6 +16,7 @@ export function ConfirmModal({
   title,
   description,
   confirmLabel = "Delete",
+  confirmDisabled = false,
   onConfirm,
   onCancel,
 }: ConfirmModalProps) {
@@ -79,7 +81,8 @@ export function ConfirmModal({
           <button
             type="button"
             onClick={onConfirm}
-            className="rounded-lg bg-[#ef4444] px-5 py-2 text-[13px] font-semibold text-white transition hover:opacity-90"
+            disabled={confirmDisabled}
+            className="rounded-lg bg-[#ef4444] px-5 py-2 text-[13px] font-semibold text-white transition hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-60"
           >
             {confirmLabel}
           </button>

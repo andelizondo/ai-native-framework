@@ -66,7 +66,7 @@ export function HeaderActionsMenu({
           aria-label={`Open ${entityName} actions`}
           aria-expanded={open}
           onClick={() => setOpen((current) => !current)}
-          className="flex h-[30px] w-[30px] cursor-pointer items-center justify-center rounded-md border border-border-hi bg-bg-3 text-t2 shadow-[inset_0_1px_0_rgba(255,255,255,0.04)] transition hover:border-border-hi hover:bg-bg-4 hover:text-t1 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent aria-expanded:border-accent aria-expanded:bg-primary-bg aria-expanded:text-accent"
+          className="flex h-[30px] w-[30px] cursor-pointer items-center justify-center rounded-md border border-border bg-bg-2 text-t2 transition hover:border-border-hi hover:bg-bg-3 hover:text-t1 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent aria-expanded:border-accent aria-expanded:bg-primary-bg aria-expanded:text-accent"
         >
           <Ellipsis className="h-[15px] w-[15px]" strokeWidth={2.4} />
         </button>

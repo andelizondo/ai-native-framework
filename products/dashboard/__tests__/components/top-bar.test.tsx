@@ -5,7 +5,7 @@
  * Covers:
  *   - The breadcrumb is derived from the active route (Overview / Skills /
  *     Playbooks / Event Feed / Settings).
- *   - The header landmark and the placeholder "My Tasks" pill render.
+ *   - The header landmark renders.
  *   - Unknown routes still produce a sensible humanised fallback so a new
  *     route added before the table is updated does not blank the chrome.
  */
@@ -68,18 +68,6 @@ describe("TopBar", () => {
     expect(screen.getByTestId("topbar-header")).toBeInTheDocument();
   });
 
-  it("renders the My Tasks pill and it toggles expanded state when clicked", async () => {
-    vi.mocked(usePathname).mockReturnValue("/");
-    const user = userEvent.setup();
-    renderWithTopBarProvider(<TopBar />);
-    const pill = screen.getByTestId("topbar-my-tasks-btn");
-    expect(pill).toBeInTheDocument();
-    expect(pill).toHaveAttribute("aria-expanded", "false");
-
-    await user.click(pill);
-    expect(pill).toHaveAttribute("aria-expanded", "true");
-  });
-
   it("renders the workflow edit pill and toggles the edit query param", async () => {
     vi.mocked(usePathname).mockReturnValue("/workflows/123");
     vi.mocked(useSearchParams).mockReturnValue(new URLSearchParams());
@@ -109,7 +97,7 @@ describe("TopBar", () => {
       React.useEffect(() => {
         setConfig({
           mode: "template-editor",
-          crumbs: ["Workflows", "Client Project Delivery"],
+          crumbs: [{ label: "Workflows" }, { label: "Client Project Delivery" }],
           label: "Client Project Delivery",
           onLabelChange: vi.fn(),
           onSave: vi.fn(),
@@ -132,7 +120,6 @@ describe("TopBar", () => {
     ).toHaveValue("Client Project Delivery");
     expect(screen.getByText("Workflows")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: /save/i })).toBeInTheDocument();
-    expect(screen.queryByTestId("topbar-my-tasks-btn")).not.toBeInTheDocument();
   });
 
   it("renders configured workflow-instance breadcrumbs", () => {
@@ -143,7 +130,11 @@ describe("TopBar", () => {
       React.useEffect(() => {
         setConfig({
           mode: "workflow-instance",
-          crumbs: ["Workflows", "Client Project Delivery", "Acme rollout"],
+          crumbs: [
+            { label: "Workflows" },
+            { label: "Client Project Delivery" },
+            { label: "Acme rollout" },
+          ],
         });
         return () => setConfig(null);
       }, [setConfig]);
@@ -160,5 +151,34 @@ describe("TopBar", () => {
     expect(screen.getByText("Workflows")).toBeInTheDocument();
     expect(screen.getByText("Client Project Delivery")).toBeInTheDocument();
     expect(screen.getByText("Acme rollout")).toBeInTheDocument();
+  });
+
+  it("renders the page save pill when a page config provides save handlers", () => {
+    vi.mocked(usePathname).mockReturnValue("/framework/skills");
+
+    function Harness() {
+      const { setConfig } = useDashboardTopBar();
+      React.useEffect(() => {
+        setConfig({
+          mode: "page",
+          crumbs: [{ label: "Skills" }, { label: "Developer" }],
+          onSave: vi.fn(),
+          saveDisabled: false,
+        });
+        return () => setConfig(null);
+      }, [setConfig]);
+
+      return <TopBar />;
+    }
+
+    render(
+      <DashboardTopBarProvider>
+        <Harness />
+      </DashboardTopBarProvider>,
+    );
+
+    const saveButton = screen.getByRole("button", { name: "Save" });
+    expect(saveButton).toBeInTheDocument();
+    expect(saveButton.querySelector("span")).not.toBeNull();
   });
 });

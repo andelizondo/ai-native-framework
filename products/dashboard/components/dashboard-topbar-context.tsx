@@ -8,9 +8,14 @@ import {
   type ReactNode,
 } from "react";
 
+export interface DashboardTopBarCrumb {
+  label: string;
+  onClick?: () => void;
+}
+
 interface TemplateEditorTopBarConfig {
   mode: "template-editor";
-  crumbs: string[];
+  crumbs: DashboardTopBarCrumb[];
   label: string;
   onLabelChange: (value: string) => void;
   onSave: () => void;
@@ -20,13 +25,22 @@ interface TemplateEditorTopBarConfig {
 
 interface WorkflowInstanceTopBarConfig {
   mode: "workflow-instance";
-  crumbs: string[];
+  crumbs: DashboardTopBarCrumb[];
+  actions?: ReactNode;
+}
+
+interface PageTopBarConfig {
+  mode: "page";
+  crumbs: DashboardTopBarCrumb[];
+  onSave?: () => void;
+  saveDisabled?: boolean;
   actions?: ReactNode;
 }
 
 type TopBarConfig =
   | TemplateEditorTopBarConfig
   | WorkflowInstanceTopBarConfig
+  | PageTopBarConfig
   | null;
 
 interface DashboardTopBarContextValue {
