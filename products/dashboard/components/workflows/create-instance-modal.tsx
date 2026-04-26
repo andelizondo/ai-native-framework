@@ -2,6 +2,7 @@
 
 import { useEffect, useId, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
+import { Loader2 } from "lucide-react";
 
 import { createInstanceAction } from "@/app/(dashboard)/workflows/actions";
 import { useAnalytics } from "@/lib/analytics/events";
@@ -270,11 +271,12 @@ export function CreateInstanceModal({
             type="submit"
             disabled={!canSubmit}
             className={cn(
-              "rounded-lg bg-primary px-5 py-2 text-[13px] font-semibold text-white transition-opacity",
+              "flex items-center gap-1.5 rounded-lg bg-primary px-5 py-2 text-[13px] font-semibold text-white transition-opacity",
               canSubmit ? "hover:opacity-90" : "cursor-not-allowed opacity-40",
             )}
           >
-            {isPending ? "Creating…" : "Create →"}
+            {isPending ? <Loader2 className="h-3 w-3 animate-spin" aria-hidden /> : null}
+            {isPending ? "Creating" : "Create →"}
           </button>
         </footer>
       </form>

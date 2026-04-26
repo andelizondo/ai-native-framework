@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useId, useRef, useState } from "react";
+import { Loader2 } from "lucide-react";
 
 function getFocusableElements(container: HTMLElement): HTMLElement[] {
   return Array.from(
@@ -158,14 +159,15 @@ export function FrameworkItemModal({
               if (!canSubmit || inFlight) return;
               setInFlight(true);
               void Promise.resolve(onSubmit({ name, description: summary })).catch(() => {
-                // Parent handlers surface user-facing errors.
+                // Parent handlers surface user-facing errors via toast.
               }).finally(() => {
                 setInFlight(false);
               });
             }}
             disabled={!canSubmit}
-            className="rounded-lg bg-primary px-5 py-2 text-[13px] font-semibold text-white transition hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50"
+            className="flex items-center gap-1.5 rounded-lg bg-primary px-5 py-2 text-[13px] font-semibold text-white transition hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50"
           >
+            {inFlight ? <Loader2 className="h-3 w-3 animate-spin" aria-hidden /> : null}
             {submitLabel}
           </button>
         </div>
