@@ -41,6 +41,7 @@ import { FrameworkHeaderActionsMenu } from "@/components/framework/framework-hea
 import { FrameworkItemModal } from "@/components/framework/framework-item-modal";
 import { ConfirmModal } from "@/components/ui/confirm-modal";
 import { useAnalytics } from "@/lib/analytics/events";
+import { useToast } from "@/lib/toast";
 import type { FrameworkItem, FrameworkItemType } from "@/lib/workflows/types";
 import { cn } from "@/lib/utils";
 
@@ -263,6 +264,7 @@ export function FrameworkScreen({
 }: FrameworkScreenProps) {
   const { setConfig } = useDashboardTopBar();
   const { capture } = useAnalytics();
+  const { success: toastSuccess, error: toastError } = useToast();
   const [items, setItems] = useState(initialItems);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [draftItem, setDraftItem] = useState<FrameworkItem | null>(null);
@@ -271,7 +273,6 @@ export function FrameworkScreen({
   const [itemModalState, setItemModalState] = useState<FrameworkItemModalState>(null);
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
   const [deletingItemId, setDeletingItemId] = useState<string | null>(null);
-  const [error, setError] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
   const [searchOpen, setSearchOpen] = useState(false);
   const [pending, startTransition] = useTransition();
@@ -365,7 +366,6 @@ export function FrameworkScreen({
   }
 
   function beginEdit(item: FrameworkItem) {
-    setError(null);
     setEditingId(item.id);
     setDraftItem(item);
     setLastSavedItem(item);
@@ -591,9 +591,9 @@ export function FrameworkScreen({
         setDraftItem(result.item);
         setLastSavedItem(result.item);
         emitEditedEvent(result.item.id);
-        setError(null);
+        toastSuccess(`${type === "skill" ? "Skill" : "Playbook"} saved`);
       } catch (actionError) {
-        setError(
+        toastError(
           actionError instanceof Error && actionError.message
             ? actionError.message
             : `Could not save the ${type}.`,
@@ -614,9 +614,9 @@ export function FrameworkScreen({
         if (editingId === itemId) {
           resetEditor();
         }
-        setError(null);
+        toastSuccess(`${type === "skill" ? "Skill" : "Playbook"} deleted`);
       } catch (actionError) {
-        setError(
+        toastError(
           actionError instanceof Error && actionError.message
             ? actionError.message
             : `Could not delete the ${type}.`,
@@ -663,10 +663,9 @@ export function FrameworkScreen({
     try {
       const nextContent = await readMarkdownFile(file);
       updateDraftContent(nextContent);
-      setError(null);
       setEditorView("plain-text");
     } catch {
-      setError("Could not read the markdown file.");
+      toastError("Could not read the markdown file.");
     }
   }
 
@@ -679,7 +678,6 @@ export function FrameworkScreen({
             label: routeLabel,
             onClick: () => {
               resetEditor();
-              setError(null);
             },
           },
           { label: draftItem.name },
@@ -690,6 +688,7 @@ export function FrameworkScreen({
           !isDirty ||
           !draftItem.name.trim() ||
           !draftItem.description.trim(),
+        savePending: pending,
         actions: (
           <FrameworkHeaderActionsMenu
             entityName={type === "skill" ? "skill" : "playbook"}
@@ -714,7 +713,6 @@ export function FrameworkScreen({
         <button
           type="button"
           onClick={() => {
-            setError(null);
             setItemModalState({
               mode: "create",
               initialName: "",
@@ -770,9 +768,6 @@ export function FrameworkScreen({
             </>
           )}
         </div>
-        {error ? (
-          <div className="mt-2 text-[11.5px] text-(color:--pill-blocked-t)">{error}</div>
-        ) : null}
       </div>
 
       <div className="flex min-h-0 flex-1 overflow-hidden bg-bg-2">
@@ -1198,9 +1193,9 @@ export function FrameworkScreen({
                 setLastSavedItem(result.item);
                 setEditorView("markdown");
                 emitEditedEvent(result.item.id);
-                setError(null);
+                toastSuccess(`${type === "skill" ? "Skill" : "Playbook"} created`);
               } catch (actionError) {
-                setError(
+                toastError(
                   actionError instanceof Error && actionError.message
                     ? actionError.message
                     : `Could not create the ${type}.`,

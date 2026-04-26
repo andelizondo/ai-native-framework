@@ -9,6 +9,7 @@ import {
   updateTemplateAction,
 } from "@/app/(dashboard)/workflows/actions";
 import { useDashboardTopBar } from "@/components/dashboard-topbar-context";
+import { useToast } from "@/lib/toast";
 import { AddRoleModal } from "@/components/workflows/add-role-modal";
 import { AddStageModal } from "@/components/workflows/add-stage-modal";
 import { AddTaskModal } from "@/components/workflows/add-task-modal";
@@ -210,6 +211,7 @@ export function TemplateEditorScreen({
 }: TemplateEditorScreenProps) {
   const { setConfig } = useDashboardTopBar();
   const { capture } = useAnalytics();
+  const { success: toastSuccess, error: toastError } = useToast();
   const draftRef = useRef(template);
   const [lastSaved, setLastSaved] = useState<WorkflowTemplate>(template);
   const [draft, setDraft] = useState<WorkflowTemplate>(template);
@@ -232,7 +234,6 @@ export function TemplateEditorScreen({
     };
   } | null>(null);
   const [pending, startTransition] = useTransition();
-  const [saveError, setSaveError] = useState<string | null>(null);
 
   const isDirty = JSON.stringify(draft) !== JSON.stringify(lastSaved);
 
@@ -287,7 +288,6 @@ export function TemplateEditorScreen({
   }
 
   function saveTemplate() {
-    setSaveError(null);
     startTransition(async () => {
       try {
         const result = await updateTemplateAction(draftRef.current.id, draftRef.current);
@@ -301,10 +301,11 @@ export function TemplateEditorScreen({
           template_id: result.template.id,
           edited_by: "founder",
         });
-      } catch (error) {
-        setSaveError(
-          error instanceof Error && error.message
-            ? error.message
+        toastSuccess("Template saved");
+      } catch (err) {
+        toastError(
+          err instanceof Error && err.message
+            ? err.message
             : "Could not save the workflow template.",
         );
       }
@@ -320,17 +321,38 @@ export function TemplateEditorScreen({
         setDraft((current) => ({ ...current, label: value })),
       onSave: saveTemplate,
       saveDisabled: !isDirty || pending,
+      savePending: pending,
       actions: (
         <HeaderActionsMenu
           entityLabel={draft.label}
           entityType="template"
           onRename={async (nextLabel) => {
-            const result = await renameTemplateAction(draft.id, nextLabel);
-            setDraft((current) => ({ ...current, label: result.template.label }));
-            setLastSaved((current) => ({ ...current, label: result.template.label }));
+            try {
+              const result = await renameTemplateAction(draft.id, nextLabel);
+              setDraft((current) => ({ ...current, label: result.template.label }));
+              setLastSaved((current) => ({ ...current, label: result.template.label }));
+              toastSuccess("Template renamed");
+            } catch (err) {
+              toastError(
+                err instanceof Error && err.message
+                  ? err.message
+                  : "Could not rename the template.",
+              );
+              throw err;
+            }
           }}
           onDelete={async () => {
-            await deleteTemplateAction(draft.id);
+            try {
+              await deleteTemplateAction(draft.id);
+              toastSuccess("Template deleted");
+            } catch (err) {
+              toastError(
+                err instanceof Error && err.message
+                  ? err.message
+                  : "Could not delete the template.",
+              );
+              throw err;
+            }
           }}
           requireDeleteLabelMatch
           deleteDescription={
@@ -349,7 +371,7 @@ export function TemplateEditorScreen({
     });
 
     return () => setConfig(null);
-  }, [draft.label, isDirty, pending, setConfig]);
+  }, [draft.label, isDirty, pending, setConfig, toastSuccess, toastError]);
 
   return (
     <div className="flex h-full flex-col overflow-hidden">
@@ -395,9 +417,6 @@ export function TemplateEditorScreen({
               {draft.stages.length} {draft.stages.length === 1 ? "stage" : "stages"}
             </p>
         </div>
-        {saveError ? (
-          <div className="mt-2 text-[11.5px] text-(color:--pill-blocked-t)">{saveError}</div>
-        ) : null}
       </div>
 
       <div className="matrix-wrap flex-1 overflow-auto">

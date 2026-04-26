@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 
 import { createInstanceAction } from "@/app/(dashboard)/workflows/actions";
 import { useAnalytics } from "@/lib/analytics/events";
+import { useToast } from "@/lib/toast";
 import { cn } from "@/lib/utils";
 import type { WorkflowTemplate } from "@/lib/workflows/types";
 
@@ -57,6 +58,7 @@ export function CreateInstanceModal({
   const [isPending, startTransition] = useTransition();
   const router = useRouter();
   const { capture } = useAnalytics();
+  const { success: toastSuccess } = useToast();
   const inputRef = useRef<HTMLInputElement | null>(null);
   const dialogRef = useRef<HTMLDivElement | null>(null);
   // Imperative submit lock. Without this, rapid Enter/Enter or
@@ -156,6 +158,7 @@ export function CreateInstanceModal({
           // Intentionally swallow; the create already succeeded.
         }
 
+        toastSuccess("Instance created");
         onClose();
         router.push(`/workflows/${created.instance.id}`);
       } catch (err) {

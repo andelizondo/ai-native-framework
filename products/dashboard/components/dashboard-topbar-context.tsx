@@ -20,6 +20,7 @@ interface TemplateEditorTopBarConfig {
   onLabelChange: (value: string) => void;
   onSave: () => void;
   saveDisabled: boolean;
+  savePending?: boolean;
   actions?: ReactNode;
 }
 
@@ -34,6 +35,7 @@ interface PageTopBarConfig {
   crumbs: DashboardTopBarCrumb[];
   onSave?: () => void;
   saveDisabled?: boolean;
+  savePending?: boolean;
   actions?: ReactNode;
 }
 
