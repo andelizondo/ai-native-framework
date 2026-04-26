@@ -9,6 +9,7 @@ interface ConfirmModalProps {
   description: ReactNode;
   confirmLabel?: string;
   confirmDisabled?: boolean;
+  confirmPending?: boolean;
   onConfirm: () => void | Promise<void>;
   onCancel: () => void;
 }
@@ -18,6 +19,7 @@ export function ConfirmModal({
   description,
   confirmLabel = "Delete",
   confirmDisabled = false,
+  confirmPending = false,
   onConfirm,
   onCancel,
 }: ConfirmModalProps) {
@@ -90,7 +92,7 @@ export function ConfirmModal({
             disabled={inFlight || confirmDisabled}
             className="flex items-center gap-1.5 rounded-lg bg-[#ef4444] px-5 py-2 text-[13px] font-semibold text-white transition hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-60"
           >
-            {inFlight ? <Loader2 className="h-3 w-3 animate-spin" aria-hidden /> : null}
+            {inFlight || confirmPending ? <Loader2 className="h-3 w-3 animate-spin" aria-hidden /> : null}
             {confirmLabel}
           </button>
         </div>

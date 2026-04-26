@@ -167,7 +167,7 @@ export function FrameworkItemModal({
             disabled={!canSubmit}
             className="flex items-center gap-1.5 rounded-lg bg-primary px-5 py-2 text-[13px] font-semibold text-white transition hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50"
           >
-            {inFlight ? <Loader2 className="h-3 w-3 animate-spin" aria-hidden /> : null}
+            {inFlight || pending ? <Loader2 className="h-3 w-3 animate-spin" aria-hidden /> : null}
             {submitLabel}
           </button>
         </div>

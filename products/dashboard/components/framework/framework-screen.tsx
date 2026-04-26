@@ -1211,6 +1211,7 @@ export function FrameworkScreen({
           title={`Delete "${deleteTarget.name}"?`}
           description={`This will permanently remove this ${type}. This cannot be undone.`}
           confirmDisabled={deletingItemId === deleteTarget.id}
+          confirmPending={deletingItemId === deleteTarget.id}
           onConfirm={() => deleteItem(deleteTarget.id)}
           onCancel={() => setConfirmDeleteId(null)}
         />
