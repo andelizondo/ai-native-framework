@@ -1,0 +1,862 @@
+/*
+ * Task Drawer.
+ *
+ * CSS faithfully mirrors prototype `Process Canvas.html` lines 221-269
+ * and `TaskDrawer` in `pc-components.jsx`. Fixed-position panel slides
+ * in from the right over an overlay. `position:fixed` escapes the
+ * `.matrix-wrap { overflow:auto }` scroll container correctly because
+ * that ancestor has no transform/perspective/filter.
+ *
+ * z-index ladder (from prototype): overlay=55, drawer=60.
+ */
+.task-drawer-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 55;
+  background: var(--overlay);
+}
+.task-drawer {
+  position: fixed;
+  right: 0;
+  top: 0;
+  bottom: 0;
+  width: 420px;
+  background: var(--bg-2);
+  border-left: 1px solid var(--border-hi);
+  box-shadow: var(--shadow);
+  z-index: 60;
+  display: flex;
+  flex-direction: column;
+  transform: translateX(105%);
+  transition: transform 0.26s cubic-bezier(0.4, 0, 0.2, 1);
+}
+.task-drawer.open {
+  transform: translateX(0);
+}
+@media (prefers-reduced-motion: reduce) {
+  .task-drawer {
+    transition: none;
+  }
+}
+/* Header */
+.td-header {
+  padding: 18px 20px 0;
+  border-bottom: 1px solid var(--border);
+  flex-shrink: 0;
+}
+.td-header-top {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  margin-bottom: 8px;
+}
+.td-title {
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--t1);
+  letter-spacing: -0.02em;
+  line-height: 1.3;
+  flex: 1;
+  margin: 0;
+}
+.td-close {
+  width: 26px;
+  height: 26px;
+  border-radius: 6px;
+  border: 1px solid var(--border);
+  background: var(--bg-3);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--t2);
+  flex-shrink: 0;
+  transition: all 0.14s;
+  padding: 0;
+}
+.td-close:hover {
+  background: var(--bg-4);
+  color: var(--t1);
+}
+.td-close:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+.td-breadcrumb {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  margin-bottom: 12px;
+  flex-wrap: wrap;
+}
+.td-crumb {
+  font-size: 11px;
+  color: var(--t3);
+  font-family: "JetBrains Mono", monospace;
+}
+.td-crumb-sep {
+  font-size: 11px;
+  color: var(--t3);
+}
+/* Tabs extend to edges with negative margin (mirrors prototype) */
+.td-tabs {
+  display: flex;
+  margin: 0 -20px;
+  padding: 0 20px;
+}
+.td-tab {
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--t3);
+  padding: 7px 12px 9px;
+  cursor: pointer;
+  border-bottom: 2px solid transparent;
+  background: none;
+  border-top: none;
+  border-left: none;
+  border-right: none;
+  transition: all 0.14s;
+  margin-bottom: -1px;
+}
+.td-tab:hover {
+  color: var(--t2);
+}
+.td-tab.td-tab-active {
+  color: var(--accent);
+  border-bottom-color: var(--accent);
+}
+/* Body */
+.td-body {
+  flex: 1;
+  overflow-y: auto;
+  padding: 18px 20px;
+}
+/* Section block — margin-bottom matches prototype's `.dr-sec` */
+.td-sec {
+  margin-bottom: 20px;
+}
+/* Section label with decorative `::after` line (from prototype `.dr-sec-lbl::after`) */
+.td-sec-lbl {
+  font-size: 9px;
+  font-weight: 600;
+  letter-spacing: 0.13em;
+  text-transform: uppercase;
+  color: var(--t3);
+  font-family: "JetBrains Mono", monospace;
+  margin-bottom: 9px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.td-sec-lbl::after {
+  content: "";
+  flex: 1;
+  height: 1px;
+  background: var(--border-2);
+}
+/* Action card — sits at top of details tab before any sections */
+.td-action-top {
+  background: var(--bg-3);
+  border: 1px solid var(--border-hi);
+  border-radius: 9px;
+  padding: 12px;
+  margin-bottom: 18px;
+}
+/* Buttons — all full-width, stacked */
+.td-btn {
+  width: 100%;
+  padding: 9px 16px;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  font-size: 12.5px;
+  font-weight: 600;
+  cursor: pointer;
+  font-family: inherit;
+  transition: all 0.15s;
+  margin-bottom: 7px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+}
+.td-btn:last-child {
+  margin-bottom: 0;
+}
+.td-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+.td-btn-primary {
+  background: var(--primary);
+  border-color: var(--primary);
+  color: white;
+}
+.td-btn-primary:hover:not(:disabled) {
+  opacity: 0.9;
+}
+.td-btn-approve {
+  background: #10b981;
+  border-color: #10b981;
+  color: white;
+}
+.td-btn-approve:hover:not(:disabled) {
+  opacity: 0.9;
+}
+.td-btn-run {
+  background: var(--primary-bg);
+  border-color: var(--primary);
+  color: var(--accent);
+}
+.td-btn-run:hover:not(:disabled) {
+  background: rgba(99, 102, 241, 0.18);
+}
+.td-btn-ghost {
+  background: transparent;
+  color: var(--t2);
+  border-color: transparent;
+}
+.td-btn-ghost:hover:not(:disabled) {
+  background: var(--bg-3);
+  color: var(--t1);
+}
+/* "Approved — agent continuing" badge */
+.td-approved-badge {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding: 10px 12px;
+  border-radius: 8px;
+  background: rgba(16, 185, 129, 0.08);
+  border: 1px solid rgba(16, 185, 129, 0.2);
+  font-size: 12px;
+  font-weight: 500;
+  color: #34d399;
+  margin-bottom: 16px;
+}
+/* Skill card — name only (paired row with status sets min-height via `.td-status-skill-row`) */
+.td-agent-profile {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  border-radius: 8px;
+  background: var(--bg-3);
+  border: 1px solid var(--border);
+}
+/* Playbook card — keeps min-height to accommodate description */
+.td-playbook {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  border-radius: 8px;
+  background: var(--bg-3);
+  border: 1px solid var(--border);
+  min-height: 54px;
+  transition:
+    background 0.14s ease,
+    border-color 0.14s ease;
+}
+/* Subtle surface tint by task status (matches pill token families) */
+.td-playbook--not_started {
+  background: color-mix(in srgb, var(--pill-ns-bg) 58%, var(--bg-3));
+}
+.td-playbook--active {
+  background: color-mix(in srgb, var(--pill-active-bg) 50%, var(--bg-3));
+  border-color: color-mix(in srgb, var(--pill-active-d) 22%, var(--border));
+}
+.td-playbook--pending_approval {
+  background: color-mix(in srgb, var(--pill-pending-bg) 52%, var(--bg-3));
+  border-color: color-mix(in srgb, var(--pill-pending-d) 24%, var(--border));
+}
+.td-playbook--complete {
+  background: color-mix(in srgb, var(--pill-complete-bg) 52%, var(--bg-3));
+  border-color: color-mix(in srgb, var(--pill-complete-d) 22%, var(--border));
+}
+.td-playbook--blocked {
+  background: color-mix(in srgb, var(--pill-blocked-bg) 52%, var(--bg-3));
+  border-color: color-mix(in srgb, var(--pill-blocked-d) 24%, var(--border));
+}
+.td-playbook-clickable {
+  cursor: pointer;
+}
+.td-playbook-clickable:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+.td-playbook-clickable:hover {
+  border-color: var(--border-hi);
+}
+.td-pb-open-hint {
+  margin-top: 4px;
+  font-size: 10.5px;
+  color: var(--t3);
+  font-family: "JetBrains Mono", monospace;
+  letter-spacing: 0.01em;
+  transition: color 0.15s;
+}
+.td-playbook-clickable:hover .td-pb-open-hint,
+.td-playbook-clickable:focus-visible .td-pb-open-hint,
+.td-playbook-clickable:focus-within .td-pb-open-hint { color: var(--accent); }
+.td-agent-profile-icon,
+.td-pb-icon {
+  width: 32px;
+  height: 32px;
+  border-radius: 8px;
+  background: var(--bg-4);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  font-size: 16px;
+}
+.td-agent-profile-info,
+.td-pb-info {
+  flex: 1;
+  min-width: 0;
+}
+.td-agent-profile-name,
+.td-pb-name,
+.td-status-label {
+  font-size: 13px;
+  font-weight: 600;
+  font-family: "JetBrains Mono", monospace;
+  color: var(--t1);
+}
+.td-item-desc {
+  margin-top: 2px;
+  font-size: 10.5px;
+  color: var(--t3);
+  font-style: italic;
+}
+.td-item-desc-plain {
+  font-style: normal;
+}
+/* Checkpoint notice */
+.td-checkpoint-notice {
+  padding: 10px 12px;
+  border-radius: 8px;
+  background: rgba(245, 158, 11, 0.07);
+  border: 1px solid rgba(245, 158, 11, 0.18);
+  font-size: 12px;
+  color: var(--t2);
+  line-height: 1.6;
+}
+/* TriggerGateEditor */
+.tg-list {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.tg-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 8px;
+  border-radius: 5px;
+  background: var(--bg-3);
+  border: 1px solid var(--border);
+  font-size: 11px;
+  color: var(--t2);
+}
+.tg-item-type {
+  font-family: "JetBrains Mono", monospace;
+  font-size: 9.5px;
+  color: var(--t3);
+  background: var(--bg-4);
+  padding: 1px 5px;
+  border-radius: 3px;
+  flex-shrink: 0;
+}
+.tg-item-label {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.tg-item-remove {
+  background: none;
+  border: none;
+  color: var(--t3);
+  cursor: pointer;
+  padding: 0 2px;
+  font-size: 12px;
+  line-height: 1;
+  border-radius: 3px;
+  transition: color 0.12s;
+}
+.tg-item-remove:hover {
+  color: #f87171;
+}
+.tg-add-btn {
+  font-size: 11px;
+  color: var(--t3);
+  background: none;
+  border: 1px dashed var(--border);
+  border-radius: 5px;
+  padding: 5px 8px;
+  cursor: pointer;
+  transition: all 0.14s;
+  text-align: left;
+  width: 100%;
+  margin-top: 4px;
+}
+.tg-add-btn:hover {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+.tg-add-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+.tg-inline-form {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  padding: 8px;
+  border-radius: 6px;
+  background: var(--bg-3);
+  border: 1px solid var(--border-hi);
+  margin-top: 4px;
+}
+.tg-inline-row {
+  display: flex;
+  gap: 5px;
+}
+.tg-select,
+.tg-input {
+  flex: 1;
+  background: var(--bg-2);
+  border: 1px solid var(--border-hi);
+  border-radius: 5px;
+  padding: 5px 8px;
+  font-size: 11px;
+  color: var(--t1);
+  outline: none;
+}
+.tg-select:focus,
+.tg-input:focus {
+  border-color: var(--accent);
+}
+.tg-form-btns {
+  display: flex;
+  gap: 5px;
+  justify-content: flex-end;
+}
+.tg-form-save {
+  padding: 4px 10px;
+  border-radius: 5px;
+  font-size: 11px;
+  font-weight: 600;
+  background: var(--primary);
+  color: #fff;
+  border: none;
+  cursor: pointer;
+  transition: opacity 0.12s;
+}
+.tg-form-save:hover {
+  opacity: 0.88;
+}
+.tg-form-save:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+.tg-form-cancel {
+  padding: 4px 10px;
+  border-radius: 5px;
+  font-size: 11px;
+  background: none;
+  color: var(--t3);
+  border: 1px solid var(--border);
+  cursor: pointer;
+  transition: all 0.12s;
+}
+.tg-form-cancel:hover {
+  color: var(--t1);
+  border-color: var(--border-hi);
+}
+/* Events tab — dot+line layout (prototype `.dr-ev-*`) */
+.td-event-list {
+  display: flex;
+  flex-direction: column;
+}
+.td-event-item {
+  display: flex;
+  gap: 8px;
+  padding: 7px 0;
+  border-bottom: 1px solid var(--border-2);
+}
+.td-event-item:last-child {
+  border-bottom: none;
+}
+.td-event-dot {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: var(--accent);
+  margin-top: 5px;
+  flex-shrink: 0;
+}
+.td-event-name {
+  font-size: 10.5px;
+  font-family: "JetBrains Mono", monospace;
+  color: var(--accent);
+}
+.td-event-desc {
+  font-size: 11px;
+  color: var(--t2);
+  margin-top: 1px;
+}
+.td-event-time {
+  font-size: 10px;
+  color: var(--t3);
+  margin-top: 1px;
+}
+.td-empty {
+  font-size: 11.5px;
+  color: var(--t3);
+  padding-top: 4px;
+}
+/* Status + Skill two-column row — columns stretch; cards share one height */
+.td-status-skill-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+  align-items: stretch;
+}
+.td-status-skill-row .td-status-col,
+.td-status-skill-row .td-skill-col {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  min-height: 0;
+}
+.td-status-skill-row .td-status-col .td-status-card,
+.td-status-skill-row .td-skill-col .td-agent-profile {
+  flex: 1 1 auto;
+  min-height: 54px;
+}
+/* Task drawer — status (one surface; dot + left copy, vertically centered in card) */
+.td-status-card {
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  padding: 11px 13px;
+  border-radius: 9px;
+  border: 1px solid var(--border);
+  background: var(--bg-3);
+}
+.td-status-copy {
+  flex: 1;
+  min-width: 0;
+}
+.td-status-indicator {
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+.td-status-card--complete {
+  background: color-mix(in srgb, var(--pill-complete-bg) 55%, var(--bg-3));
+  border-color: color-mix(in srgb, var(--pill-complete-d) 32%, var(--border));
+}
+.td-status-card--complete .td-status-indicator {
+  background: var(--pill-complete-d);
+  box-shadow: 0 0 0 3px var(--pill-complete-bg);
+}
+.td-status-card--complete .td-status-label {
+  color: var(--pill-complete-t);
+}
+.td-status-card--active {
+  background: color-mix(in srgb, var(--pill-active-bg) 55%, var(--bg-3));
+  border-color: color-mix(in srgb, var(--pill-active-d) 30%, var(--border));
+}
+.td-status-card--active .td-status-indicator {
+  background: var(--pill-active-d);
+  box-shadow: 0 0 0 3px var(--pill-active-bg);
+}
+.td-status-card--active .td-status-label {
+  color: var(--pill-active-t);
+}
+@media (prefers-reduced-motion: no-preference) {
+  .td-status-card--active .td-status-indicator {
+    animation: td-status-pulse 2.5s ease-in-out infinite;
+  }
+}
+@keyframes td-status-pulse {
+  0%,
+  100% {
+    box-shadow: 0 0 0 3px var(--pill-active-bg);
+  }
+  50% {
+    box-shadow:
+      0 0 0 3px var(--pill-active-bg),
+      0 0 0 6px color-mix(in srgb, var(--pill-active-d) 18%, transparent);
+  }
+}
+.td-status-card--pending_approval {
+  background: color-mix(in srgb, var(--pill-pending-bg) 55%, var(--bg-3));
+  border-color: color-mix(in srgb, var(--pill-pending-d) 32%, var(--border));
+}
+.td-status-card--pending_approval .td-status-indicator {
+  background: var(--pill-pending-d);
+  box-shadow: 0 0 0 3px var(--pill-pending-bg);
+}
+.td-status-card--pending_approval .td-status-label {
+  color: var(--pill-pending-t);
+}
+.td-status-card--blocked {
+  background: color-mix(in srgb, var(--pill-blocked-bg) 55%, var(--bg-3));
+  border-color: color-mix(in srgb, var(--pill-blocked-d) 30%, var(--border));
+}
+.td-status-card--blocked .td-status-indicator {
+  background: var(--pill-blocked-d);
+  box-shadow: 0 0 0 3px var(--pill-blocked-bg);
+}
+.td-status-card--blocked .td-status-label {
+  color: var(--pill-blocked-t);
+}
+.td-status-card--not_started {
+  background: color-mix(in srgb, var(--pill-ns-bg) 70%, var(--bg-3));
+  border-color: var(--border);
+}
+.td-status-card--not_started .td-status-indicator {
+  background: var(--pill-ns-d);
+  box-shadow: 0 0 0 3px var(--pill-ns-bg);
+}
+.td-status-card--not_started .td-status-label {
+  color: var(--t2);
+}
+.td-substatus {
+  margin-top: 5px;
+  font-size: 12px;
+  line-height: 1.4;
+  color: var(--t3);
+}
+/* Playbook inline run state */
+.td-pb-action {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.td-pb-run-btn {
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  border: 1px solid color-mix(in srgb, var(--pill-complete-d) 38%, var(--border-hi));
+  background: color-mix(in srgb, var(--pill-complete-bg) 70%, var(--bg-4));
+  color: var(--pill-complete-t);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.14s;
+  padding: 0;
+}
+.td-pb-run-btn:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--pill-complete-bg) 95%, var(--bg-4));
+  border-color: color-mix(in srgb, var(--pill-complete-d) 55%, var(--border-hi));
+  color: var(--pill-complete-d);
+}
+.td-pb-run-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+.td-pb-state-busy,
+.td-pb-state-done {
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+/* Running spinner + hover/focus stop (cancels run → `blocked` in DB) */
+.td-pb-busy-wrap {
+  position: relative;
+  width: 24px;
+  height: 24px;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.td-pb-busy-wrap .td-pb-state-busy {
+  position: absolute;
+  inset: 3px;
+}
+.td-pb-stop-btn {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  border-radius: 50%;
+  padding: 0;
+  cursor: pointer;
+  background: var(--bg-4);
+  color: var(--t2);
+  opacity: 0;
+  pointer-events: none;
+  transition:
+    opacity 0.12s ease,
+    background 0.12s ease,
+    color 0.12s ease;
+}
+.td-pb-stop-btn:hover:not(:disabled),
+.td-pb-stop-btn:focus-visible:not(:disabled) {
+  background: rgba(239, 68, 68, 0.12);
+  color: #f87171;
+}
+.td-pb-stop-btn:disabled {
+  opacity: 0;
+  cursor: not-allowed;
+}
+@media (hover: hover) {
+  .td-pb-busy-wrap:hover .td-pb-state-busy {
+    opacity: 0;
+  }
+  .td-pb-busy-wrap:hover .td-pb-stop-btn:not(:disabled) {
+    opacity: 1;
+    pointer-events: auto;
+  }
+}
+.td-pb-busy-wrap:focus-within .td-pb-state-busy {
+  opacity: 0;
+}
+.td-pb-busy-wrap:focus-within .td-pb-stop-btn:not(:disabled) {
+  opacity: 1;
+  pointer-events: auto;
+}
+@media (hover: none) {
+  .td-pb-busy-wrap .td-pb-stop-btn:not(:disabled) {
+    opacity: 1;
+    pointer-events: auto;
+  }
+  .td-pb-busy-wrap .td-pb-state-busy {
+    opacity: 0.25;
+  }
+}
+.td-pb-state-busy {
+  background: transparent;
+  border: 2.5px solid rgba(16, 185, 129, 0.25);
+  border-top-color: #10b981;
+  animation: ainative-spin 0.85s linear infinite;
+}
+.td-pb-state-done {
+  background: rgba(16, 185, 129, 0.15);
+  color: #34d399;
+}
+/* Failed playbook — hover/focus shows retry (blocked → active) */
+.td-pb-failed-wrap {
+  position: relative;
+  width: 24px;
+  height: 24px;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.td-pb-failed-wrap .td-pb-failed-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--pill-blocked-t);
+  transition: opacity 0.12s ease;
+}
+.td-pb-retry-btn {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  border-radius: 50%;
+  padding: 0;
+  cursor: pointer;
+  background: var(--bg-4);
+  color: var(--t2);
+  opacity: 0;
+  pointer-events: none;
+  transition:
+    opacity 0.12s ease,
+    background 0.12s ease,
+    color 0.12s ease;
+}
+.td-pb-retry-btn:hover:not(:disabled),
+.td-pb-retry-btn:focus-visible:not(:disabled) {
+  background: rgba(16, 185, 129, 0.14);
+  color: #34d399;
+}
+.td-pb-retry-btn:disabled {
+  opacity: 0;
+  cursor: not-allowed;
+}
+@media (hover: hover) {
+  .td-pb-failed-wrap:hover .td-pb-failed-icon {
+    opacity: 0;
+  }
+  .td-pb-failed-wrap:hover .td-pb-retry-btn:not(:disabled) {
+    opacity: 1;
+    pointer-events: auto;
+  }
+}
+.td-pb-failed-wrap:focus-within .td-pb-failed-icon {
+  opacity: 0;
+}
+.td-pb-failed-wrap:focus-within .td-pb-retry-btn:not(:disabled) {
+  opacity: 1;
+  pointer-events: auto;
+}
+@media (hover: none) {
+  .td-pb-failed-wrap .td-pb-retry-btn:not(:disabled) {
+    opacity: 1;
+    pointer-events: auto;
+  }
+  .td-pb-failed-wrap .td-pb-failed-icon {
+    opacity: 0.22;
+  }
+}
+@keyframes ainative-spin {
+  from { transform: rotate(0deg); }
+  to   { transform: rotate(360deg); }
+}
+/* Active playbook card — wave shimmer to signal work in progress */
+.td-playbook-active {
+  cursor: pointer;
+  border-color: var(--border-hi);
+  position: relative;
+  overflow: hidden;
+}
+.td-playbook-active::after {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: -100%;
+  width: 60%;
+  height: 100%;
+  background: linear-gradient(
+    90deg,
+    transparent 0%,
+    rgba(255, 255, 255, 0.05) 50%,
+    transparent 100%
+  );
+  animation: ainative-wave 2.4s ease-in-out infinite;
+  pointer-events: none;
+}
+.td-playbook-active:hover {
+  background: color-mix(in srgb, var(--pill-active-bg) 38%, var(--bg-4));
+}
+/* ainative-wave is also used by .arp-live-pill::after in agent-run-panel.css */
+@keyframes ainative-wave {
+  0%   { left: -60%; }
+  100% { left: 140%; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .td-pb-state-busy,
+  .td-playbook-active::after { animation: none; }
+}

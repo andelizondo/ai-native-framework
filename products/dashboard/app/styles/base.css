@@ -1,0 +1,63 @@
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  height: 100%;
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  background-color: var(--bg);
+  color: var(--t1);
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
+    "Helvetica Neue", Arial, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  /* Smooth theme transitions when the user toggles dark/light. */
+  transition:
+    background-color 0.2s ease,
+    color 0.2s ease;
+}
+
+button:not(:disabled) {
+  cursor: pointer;
+}
+
+button:disabled {
+  cursor: not-allowed;
+}
+
+/*
+ * Sidebar collapse — driven by `<html data-sidebar="collapsed|expanded">`.
+ *
+ * The collapse state lives on the root element so the inline pre-paint
+ * script in `app/layout.tsx` can rehydrate the persisted preference
+ * before React renders, without forcing the React tree to depend on a
+ * client-only value (which would cause a hydration mismatch). Markup
+ * stays the same in both states; this stylesheet hides labels and
+ * narrows the rail when collapsed.
+ */
+[data-sidebar="collapsed"] [data-sidebar-root] {
+  width: 52px;
+}
+[data-sidebar="collapsed"] [data-sidebar-collapsible] {
+  display: none;
+}
+[data-sidebar="collapsed"] [data-sidebar-when-collapsed] {
+  display: flex;
+}
+[data-sidebar-when-collapsed] {
+  display: none;
+}
+[data-sidebar="collapsed"] [data-sidebar-nav] {
+  padding: 7px;
+  justify-content: center;
+}
+[data-sidebar="collapsed"] [data-sidebar-user] {
+  padding: 8px;
+  justify-content: center;
+}
