@@ -30,7 +30,7 @@ interface FilterState {
 }
 
 function makeQueryBuilder(state: FilterState, store: RowMap) {
-  const builder: any = {
+  const builder: Record<string, unknown> & { select: (_columns?: string) => typeof builder } = {
     select(_columns?: string) {
       state.selecting = true;
       return builder;
