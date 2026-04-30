@@ -363,7 +363,7 @@ export function TemplateEditorScreen({
                 It will also delete all {instanceCount} associated{" "}
                 {instanceCount === 1 ? "instance" : "instances"}.
               </strong>{" "}
-              Type "{draft.label}" to confirm.
+              Type &quot;{draft.label}&quot; to confirm.
             </>
           }
         />
