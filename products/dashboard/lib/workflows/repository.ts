@@ -593,6 +593,33 @@ export function createWorkflowRepository(
       }
     },
 
+    async createTemplate(label: string, color: string): Promise<WorkflowTemplate> {
+      const slug = label
+        .toLowerCase()
+        .replace(/[^a-z0-9]+/g, "-")
+        .replace(/^-|-$/g, "")
+        .slice(0, 40) || "template";
+      const id = `tpl-${slug}-${Math.random().toString(36).slice(2, 8)}`;
+
+      const { data, error } = await client
+        .from("workflow_templates")
+        .insert({
+          id,
+          label,
+          color,
+          multi_instance: true,
+          stages: [],
+          roles: [],
+          task_templates: [],
+        })
+        .select("*")
+        .single();
+
+      return mapTemplate(
+        unwrap("createTemplate", data, error) as WorkflowTemplateRow,
+      );
+    },
+
     async updateTemplate(
       templateId: string,
       patch: WorkflowTemplatePatch,

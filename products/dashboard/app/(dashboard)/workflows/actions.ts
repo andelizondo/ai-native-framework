@@ -807,6 +807,31 @@ export async function renameTemplateAction(
   return { template };
 }
 
+export interface CreateTemplateResult {
+  template: WorkflowTemplate;
+}
+
+export async function createTemplateAction(
+  rawLabel: string,
+  rawColor: string,
+): Promise<CreateTemplateResult> {
+  const label = rawLabel.trim().slice(0, MAX_LABEL_LENGTH);
+  if (!label) {
+    throw new Error("createTemplateAction: label cannot be empty");
+  }
+  const color = rawColor.trim();
+  if (!color) {
+    throw new Error("createTemplateAction: color cannot be empty");
+  }
+
+  const repo = await getServerWorkflowRepository();
+  const template = await repo.createTemplate(label, color);
+
+  revalidatePath("/", "layout");
+
+  return { template };
+}
+
 export async function deleteTemplateAction(templateId: string): Promise<void> {
   const trimmedTemplateId = normalizeTaskField(templateId, "templateId", 120);
   if (!trimmedTemplateId) {
