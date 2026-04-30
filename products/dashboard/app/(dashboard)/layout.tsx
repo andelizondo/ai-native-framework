@@ -4,8 +4,10 @@ import { Sidebar } from "@/components/sidebar";
 import { DashboardTopBarProvider } from "@/components/dashboard-topbar-context";
 import type { SidebarInstanceView } from "@/components/workflows/sidebar-workflow-tree";
 import { TopBar } from "@/components/top-bar";
+import { Toaster } from "@/components/ui/toaster";
 import { AuthIdentitySync } from "@/components/auth-identity-sync";
 import { captureError } from "@/lib/monitoring";
+import { ToastProvider } from "@/lib/toast";
 import { getServerWorkflowRepository } from "@/lib/workflows/repository.server";
 import type { WorkflowInstance, WorkflowTemplate } from "@/lib/workflows/types";
 
@@ -66,7 +68,7 @@ export default async function DashboardLayout({
   const { templates, instancesByTemplate } = await loadSidebarWorkflowTree();
 
   return (
-    <>
+    <ToastProvider>
       <AuthIdentitySync user={user} provider={user.provider} />
       <DashboardTopBarProvider>
         <Sidebar
@@ -79,6 +81,7 @@ export default async function DashboardLayout({
           <main className="min-h-0 flex-1 overflow-hidden bg-bg">{children}</main>
         </div>
       </DashboardTopBarProvider>
-    </>
+      <Toaster />
+    </ToastProvider>
   );
 }

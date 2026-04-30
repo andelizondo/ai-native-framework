@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import { Pencil } from "lucide-react";
+import { Loader2, Pencil } from "lucide-react";
 
 import {
   type DashboardTopBarCrumb,
@@ -84,6 +84,10 @@ export function TopBar() {
       : config?.mode === "page"
         ? (config.saveDisabled ?? true)
         : true;
+  const savePending =
+    config?.mode === "template-editor" || config?.mode === "page"
+      ? (config.savePending ?? false)
+      : false;
   const showSaveButton =
     (config?.mode === "template-editor" || config?.mode === "page") &&
     typeof config.onSave === "function";
@@ -168,7 +172,9 @@ export function TopBar() {
                   : "border border-[#10b981] bg-[#10b981] text-white shadow-[0_0_0_1px_rgba(16,185,129,0.16),0_8px_22px_rgba(16,185,129,0.24)] hover:bg-[#22c55e]",
               )}
             >
-              {!saveDisabled ? (
+              {savePending ? (
+                <Loader2 className="h-3 w-3 animate-spin" aria-hidden />
+              ) : !saveDisabled ? (
                 <span
                   aria-hidden
                   className="h-1.5 w-1.5 rounded-full bg-white shadow-[0_0_10px_rgba(255,255,255,0.7)]"

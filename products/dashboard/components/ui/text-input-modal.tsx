@@ -2,6 +2,7 @@
 
 import type { ReactNode } from "react";
 import { useEffect, useId, useRef, useState } from "react";
+import { Loader2 } from "lucide-react";
 
 function getFocusableElements(container: HTMLElement): HTMLElement[] {
   return Array.from(
@@ -39,7 +40,8 @@ export function TextInputModal({
   const inputRef = useRef<HTMLInputElement>(null);
   const previousFocusRef = useRef<HTMLElement | null>(null);
   const [value, setValue] = useState(initialValue);
-  const canSubmit = isValid ? isValid(value) : Boolean(value.trim());
+  const [inFlight, setInFlight] = useState(false);
+  const canSubmit = (isValid ? isValid(value) : Boolean(value.trim())) && !inFlight;
 
   useEffect(() => {
     previousFocusRef.current =
@@ -129,12 +131,14 @@ export function TextInputModal({
           <button
             type="button"
             onClick={() => {
-              if (!canSubmit) return;
-              void onSubmit(value);
+              if (!canSubmit || inFlight) return;
+              setInFlight(true);
+              void Promise.resolve(onSubmit(value)).finally(() => setInFlight(false));
             }}
             disabled={!canSubmit}
-            className="rounded-lg bg-primary px-5 py-2 text-[13px] font-semibold text-white transition hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50"
+            className="flex items-center gap-1.5 rounded-lg bg-primary px-5 py-2 text-[13px] font-semibold text-white transition hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50"
           >
+            {inFlight ? <Loader2 className="h-3 w-3 animate-spin" aria-hidden /> : null}
             {submitLabel}
           </button>
         </div>

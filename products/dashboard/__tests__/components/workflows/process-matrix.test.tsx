@@ -18,6 +18,7 @@ import type { ReactNode } from "react";
 
 import { DashboardTopBarProvider } from "@/components/dashboard-topbar-context";
 import { ProcessMatrix } from "@/components/workflows/process-matrix";
+import { ToastProvider } from "@/lib/toast";
 import type {
   WorkflowInstanceDetail,
   WorkflowTask,
@@ -104,7 +105,11 @@ function instance(tasks: WorkflowTask[]): WorkflowInstanceDetail {
 }
 
 function renderWithTopBarProvider(ui: ReactNode) {
-  return render(<DashboardTopBarProvider>{ui}</DashboardTopBarProvider>);
+  return render(
+    <ToastProvider>
+      <DashboardTopBarProvider>{ui}</DashboardTopBarProvider>
+    </ToastProvider>,
+  );
 }
 
 describe("ProcessMatrix", () => {

@@ -1,14 +1,16 @@
 "use client";
 
 import type { ReactNode } from "react";
-import { useEffect, useId, useRef } from "react";
+import { useEffect, useId, useRef, useState } from "react";
+import { Loader2 } from "lucide-react";
 
 interface ConfirmModalProps {
   title: string;
   description: ReactNode;
   confirmLabel?: string;
   confirmDisabled?: boolean;
-  onConfirm: () => void;
+  confirmPending?: boolean;
+  onConfirm: () => void | Promise<void>;
   onCancel: () => void;
 }
 
@@ -17,6 +19,7 @@ export function ConfirmModal({
   description,
   confirmLabel = "Delete",
   confirmDisabled = false,
+  confirmPending = false,
   onConfirm,
   onCancel,
 }: ConfirmModalProps) {
@@ -24,6 +27,7 @@ export function ConfirmModal({
   const descriptionId = useId();
   const cancelButtonRef = useRef<HTMLButtonElement>(null);
   const previousFocusRef = useRef<HTMLElement | null>(null);
+  const [inFlight, setInFlight] = useState(false);
 
   useEffect(() => {
     previousFocusRef.current =
@@ -80,10 +84,15 @@ export function ConfirmModal({
           </button>
           <button
             type="button"
-            onClick={onConfirm}
-            disabled={confirmDisabled}
-            className="rounded-lg bg-[#ef4444] px-5 py-2 text-[13px] font-semibold text-white transition hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-60"
+            onClick={() => {
+              if (inFlight || confirmDisabled) return;
+              setInFlight(true);
+              void Promise.resolve(onConfirm()).finally(() => setInFlight(false));
+            }}
+            disabled={inFlight || confirmDisabled}
+            className="flex items-center gap-1.5 rounded-lg bg-[#ef4444] px-5 py-2 text-[13px] font-semibold text-white transition hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-60"
           >
+            {inFlight || confirmPending ? <Loader2 className="h-3 w-3 animate-spin" aria-hidden /> : null}
             {confirmLabel}
           </button>
         </div>
