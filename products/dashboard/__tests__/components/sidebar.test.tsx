@@ -13,9 +13,11 @@
  */
 
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { fireEvent, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { usePathname } from "next/navigation";
+
+import { renderWithToast } from "@/tests/test-utils";
 
 const { mockHandleSignOut, mockToggleTheme } = vi.hoisted(() => ({
   mockHandleSignOut: vi.fn(),
@@ -58,13 +60,13 @@ describe("Sidebar", () => {
   });
 
   it("renders the brand name and version", () => {
-    render(<Sidebar user={TEST_USER} />);
+    renderWithToast(<Sidebar user={TEST_USER} />);
     expect(screen.getByText("AI-Native")).toBeInTheDocument();
     expect(screen.getByText("v0.1")).toBeInTheDocument();
   });
 
   it("renders the canonical navigation links", () => {
-    render(<Sidebar user={TEST_USER} />);
+    renderWithToast(<Sidebar user={TEST_USER} />);
     expect(screen.getByRole("link", { name: /overview/i })).toHaveAttribute("href", "/");
     expect(screen.getByRole("link", { name: /skills/i })).toHaveAttribute(
       "href",
@@ -86,7 +88,7 @@ describe("Sidebar", () => {
 
   it("marks the active route with aria-current=page", () => {
     vi.mocked(usePathname).mockReturnValue("/framework/skills");
-    render(<Sidebar user={TEST_USER} />);
+    renderWithToast(<Sidebar user={TEST_USER} />);
     expect(screen.getByRole("link", { name: /skills/i })).toHaveAttribute(
       "aria-current",
       "page",
@@ -97,12 +99,12 @@ describe("Sidebar", () => {
   });
 
   it("renders the workflows empty-state placeholder", () => {
-    render(<Sidebar user={TEST_USER} />);
+    renderWithToast(<Sidebar user={TEST_USER} />);
     expect(screen.getByTestId("sidebar-workflows-empty")).toBeInTheDocument();
   });
 
   it("renders the user button with email-derived initials", () => {
-    render(<Sidebar user={TEST_USER} />);
+    renderWithToast(<Sidebar user={TEST_USER} />);
     const trigger = screen.getByRole("button", { name: /open user menu/i });
     expect(trigger).toBeInTheDocument();
     expect(trigger).toHaveTextContent("A"); // initial of "andres"
@@ -111,7 +113,7 @@ describe("Sidebar", () => {
 
   it("collapse toggle flips <html data-sidebar>", async () => {
     const user = userEvent.setup();
-    render(<Sidebar user={TEST_USER} />);
+    renderWithToast(<Sidebar user={TEST_USER} />);
 
     expect(document.documentElement.getAttribute("data-sidebar")).toBe("expanded");
 
@@ -122,7 +124,7 @@ describe("Sidebar", () => {
 
   it("opens the user menu and exposes theme + sign-out items", async () => {
     const user = userEvent.setup();
-    render(<Sidebar user={TEST_USER} />);
+    renderWithToast(<Sidebar user={TEST_USER} />);
 
     await user.click(screen.getByRole("button", { name: /open user menu/i }));
 
@@ -134,7 +136,7 @@ describe("Sidebar", () => {
 
   it("invokes the shared sign-out flow from the user menu", async () => {
     const user = userEvent.setup();
-    render(<Sidebar user={TEST_USER} />);
+    renderWithToast(<Sidebar user={TEST_USER} />);
 
     await user.click(screen.getByRole("button", { name: /open user menu/i }));
     await user.click(screen.getByRole("menuitem", { name: /sign out/i }));
@@ -144,7 +146,7 @@ describe("Sidebar", () => {
 
   it("toggles the theme via the user menu and closes the menu", async () => {
     const user = userEvent.setup();
-    render(<Sidebar user={TEST_USER} />);
+    renderWithToast(<Sidebar user={TEST_USER} />);
 
     await user.click(screen.getByRole("button", { name: /open user menu/i }));
     // `userEvent` simulates a realistic open click on the trigger. The

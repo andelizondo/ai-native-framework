@@ -253,6 +253,7 @@ export interface WorkflowRepository {
   createTask(input: WorkflowTaskCreateInput): Promise<WorkflowTask>;
   updateTask(taskId: string, patch: WorkflowTaskPatch): Promise<WorkflowTask>;
   deleteTask(taskId: string): Promise<void>;
+  createTemplate(label: string, color: string): Promise<WorkflowTemplate>;
   updateTemplate(
     templateId: string,
     patch: WorkflowTemplatePatch,

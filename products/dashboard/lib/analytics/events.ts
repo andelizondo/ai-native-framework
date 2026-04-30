@@ -51,6 +51,10 @@ export type AnalyticsEvent =
       properties: { instance_id: string; template_id: string };
     }
   | {
+      event: "workflow.template_created";
+      properties: { template_id: string };
+    }
+  | {
       event: "workflow.template_edited";
       properties: { template_id: string; edited_by: string };
     }

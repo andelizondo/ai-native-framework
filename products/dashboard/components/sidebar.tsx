@@ -28,6 +28,7 @@ import {
   SidebarWorkflowTree,
   type SidebarInstanceView,
 } from "@/components/workflows/sidebar-workflow-tree";
+import { CreateTemplateModal } from "@/components/workflows/create-template-modal";
 
 /**
  * Dashboard left rail.
@@ -215,6 +216,7 @@ export function Sidebar({
   const { handleSignOut, loading: signingOut, error: signOutError } = useSignOut(user.provider);
 
   const [userMenuOpen, setUserMenuOpen] = useState(false);
+  const [createTemplateOpen, setCreateTemplateOpen] = useState(false);
   const footerRef = useRef<HTMLDivElement | null>(null);
 
   // Close on outside click / Escape so the menu does not block the rail.
@@ -242,6 +244,7 @@ export function Sidebar({
   const initials = displayName.slice(0, 1).toUpperCase();
 
   return (
+    <>
     <nav
       data-sidebar-root
       aria-label="Primary"
@@ -297,20 +300,16 @@ export function Sidebar({
           <span className="font-mono text-[9px] font-semibold uppercase tracking-[0.13em] text-t3">
             Workflows
           </span>
-          {/*
-           * "+ New workflow" — opens the template editor. PR 11 wires the
-           * actual editor route, but the link is in place so the affordance
-           * is keyboard- and screen-reader-reachable today.
-           */}
-          <Link
-            href="/workflows/templates/new"
-            aria-label="New workflow"
-            title="New workflow"
+          <button
+            type="button"
+            aria-label="New workflow template"
+            title="New workflow template"
             data-testid="sidebar-new-workflow"
+            onClick={() => setCreateTemplateOpen(true)}
             className="flex h-[18px] w-[18px] items-center justify-center rounded-[5px] border border-border text-t3 hover:border-accent hover:text-accent transition-colors"
           >
             <Plus className="h-3 w-3" />
-          </Link>
+          </button>
         </div>
       </div>
 
@@ -376,5 +375,11 @@ export function Sidebar({
         </button>
       </div>
     </nav>
+
+    <CreateTemplateModal
+      open={createTemplateOpen}
+      onClose={() => setCreateTemplateOpen(false)}
+    />
+    </>
   );
 }
