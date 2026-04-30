@@ -1,8 +1,9 @@
-import { render, screen, within } from "@testing-library/react";
+import { screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 
 import { FrameworkScreen } from "@/components/framework/framework-screen";
+import { renderWithToast } from "@/tests/test-utils";
 import type { FrameworkItem } from "@/lib/workflows/types";
 
 vi.mock("@/app/(dashboard)/framework/actions", () => ({
@@ -48,7 +49,7 @@ describe("FrameworkScreen", () => {
   it("shows rendered markdown by default and editable plain text on toggle", async () => {
     const user = userEvent.setup();
 
-    render(<FrameworkScreen initialItems={ITEMS} type="skill" />);
+    renderWithToast(<FrameworkScreen initialItems={ITEMS} type="skill" />);
 
     await user.click(screen.getByTestId("framework-card-sk-developer"));
 
@@ -73,7 +74,7 @@ describe("FrameworkScreen", () => {
   it("applies markdown formatting from the editor toolbar", async () => {
     const user = userEvent.setup();
 
-    render(<FrameworkScreen initialItems={ITEMS} type="skill" />);
+    renderWithToast(<FrameworkScreen initialItems={ITEMS} type="skill" />);
 
     await user.click(screen.getByTestId("framework-card-sk-developer"));
     await user.click(screen.getByRole("tab", { name: "Edit" }));
@@ -94,7 +95,7 @@ describe("FrameworkScreen", () => {
   it("imports markdown from an uploaded file and replaces the current draft", async () => {
     const user = userEvent.setup();
 
-    render(<FrameworkScreen initialItems={ITEMS} type="skill" />);
+    renderWithToast(<FrameworkScreen initialItems={ITEMS} type="skill" />);
 
     await user.click(screen.getByTestId("framework-card-sk-developer"));
 
@@ -114,7 +115,7 @@ describe("FrameworkScreen — playbook type", () => {
   it("renders playbook card grid and opens editor view on card click", async () => {
     const user = userEvent.setup();
 
-    render(<FrameworkScreen initialItems={PLAYBOOK_ITEMS} type="playbook" />);
+    renderWithToast(<FrameworkScreen initialItems={PLAYBOOK_ITEMS} type="playbook" />);
 
     expect(screen.getByTestId("framework-screen-playbook")).toBeInTheDocument();
     expect(screen.getByTestId("framework-grid-playbook")).toBeInTheDocument();
