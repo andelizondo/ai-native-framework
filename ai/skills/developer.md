@@ -36,6 +36,7 @@
 
 ## Rules
 
+- Introducing hooks that require a React provider (or new children that use them): find every test that renders an ancestor (layouts, sidebars, pages)—not only the new file—and wrap or extend a shared test `render` helper so those trees match production. For `products/dashboard`, run `npm test` in that package before push.
 - Prefer repo edits and evidence over long explanation.
 - Treat review findings as work items, not commentary.
 - Do not use settings changes as ordinary remediation.
