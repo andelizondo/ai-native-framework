@@ -14,6 +14,7 @@ import {
 import { useDashboardTopBar } from "@/components/dashboard-topbar-context";
 import { ConfirmModal } from "@/components/ui/confirm-modal";
 import { captureError } from "@/lib/monitoring";
+import { useToast } from "@/lib/toast";
 import { cn } from "@/lib/utils";
 import { barClass, canStart } from "@/lib/workflows/matrix";
 import { getRoleColor } from "@/lib/workflows/role-colors";
@@ -48,6 +49,7 @@ export function ProcessMatrix({
   playbookOptions = [],
 }: Props) {
   const { setConfig } = useDashboardTopBar();
+  const { success: toastSuccess, error: toastError } = useToast();
   const [collapsed, setCollapsed] = useState(false);
   const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null);
   const [dragTaskId, setDragTaskId] = useState<string | null>(null);
@@ -115,23 +117,47 @@ export function ProcessMatrix({
   useEffect(() => {
     setConfig({
       mode: "workflow-instance",
-      crumbs: ["Workflows", template?.label ?? "Workflow", instance.label],
+      crumbs: [
+        { label: "Workflows" },
+        { label: template?.label ?? "Workflow" },
+        { label: instance.label },
+      ],
       actions: (
         <HeaderActionsMenu
           entityLabel={instance.label}
           entityType="instance"
           onRename={async (nextLabel) => {
-            await renameInstanceAction(instance.id, nextLabel);
+            try {
+              await renameInstanceAction(instance.id, nextLabel);
+              toastSuccess("Instance renamed");
+            } catch (err) {
+              toastError(
+                err instanceof Error && err.message
+                  ? err.message
+                  : "Could not rename the instance.",
+              );
+              throw err;
+            }
           }}
           onDelete={async () => {
-            await deleteInstanceAction(instance.id);
+            try {
+              await deleteInstanceAction(instance.id);
+              toastSuccess("Instance deleted");
+            } catch (err) {
+              toastError(
+                err instanceof Error && err.message
+                  ? err.message
+                  : "Could not delete the instance.",
+              );
+              throw err;
+            }
           }}
         />
       ),
     });
 
     return () => setConfig(null);
-  }, [instance.id, instance.label, setConfig, template?.label]);
+  }, [instance.id, instance.label, setConfig, template?.label, toastSuccess, toastError]);
 
   const runMutation = useCallback(
     async (

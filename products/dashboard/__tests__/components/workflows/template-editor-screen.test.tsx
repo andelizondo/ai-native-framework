@@ -1,7 +1,8 @@
-import { render, screen } from "@testing-library/react";
+import { screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 
 import { TemplateEditorScreen } from "@/components/workflows/template-editor-screen";
+import { renderWithToast } from "@/tests/test-utils";
 import type { WorkflowTemplate } from "@/lib/workflows/types";
 
 vi.mock("next/navigation", () => ({
@@ -49,8 +50,8 @@ const TEMPLATE: WorkflowTemplate = {
 };
 
 describe("TemplateEditorScreen", () => {
-  it("sizes insert-role rows to the role and stage columns only", () => {
-    render(
+  it("renders insert affordances between and after existing headers", () => {
+    renderWithToast(
       <TemplateEditorScreen
         template={TEMPLATE}
         skillOptions={[]}
@@ -58,11 +59,27 @@ describe("TemplateEditorScreen", () => {
       />,
     );
 
-    expect(screen.getByTestId("matrix-insert-role-1")).toHaveStyle({
-      width: "562px",
-    });
-    expect(screen.getByTestId("matrix-insert-role-end")).toHaveStyle({
-      width: "562px",
-    });
+    expect(screen.getByLabelText("Add stage after Pre-Sales")).toBeInTheDocument();
+    expect(screen.getByLabelText("Add stage after Validation")).toBeInTheDocument();
+    expect(screen.getByLabelText("Add role after Sales")).toBeInTheDocument();
+    expect(screen.getByLabelText("Add role after Product")).toBeInTheDocument();
+    expect(screen.getByLabelText("Template editing information")).toHaveAttribute(
+      "aria-describedby",
+      "template-editor-help",
+    );
+    expect(screen.getByRole("tooltip")).toHaveAttribute("id", "template-editor-help");
+  });
+
+  it("renders empty-state affordances when stages or roles are missing", () => {
+    renderWithToast(
+      <TemplateEditorScreen
+        template={{ ...TEMPLATE, stages: [], roles: [] }}
+        skillOptions={[]}
+        playbookOptions={[]}
+      />,
+    );
+
+    expect(screen.getByText("Add first stage")).toBeInTheDocument();
+    expect(screen.getByText("Add first role")).toBeInTheDocument();
   });
 });

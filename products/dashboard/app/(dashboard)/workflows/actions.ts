@@ -704,6 +704,14 @@ function trimTemplateLabel(value: string): string {
   return value.trim().slice(0, MAX_LABEL_LENGTH);
 }
 
+function normalizeTemplateColor(value: string): string {
+  const normalized = value.trim();
+  if (!normalized) {
+    throw new Error("updateTemplateAction: template color is required");
+  }
+  return normalized;
+}
+
 function normalizeTemplateStages(
   stages: WorkflowTemplate["stages"],
 ): WorkflowTemplate["stages"] {
@@ -769,6 +777,7 @@ export async function updateTemplateAction(
   const repo = await getServerWorkflowRepository();
   const updatedTemplate = await repo.updateTemplate(trimmedTemplateId, {
     label: trimTemplateLabel(template.label),
+    color: normalizeTemplateColor(template.color),
     stages: normalizeTemplateStages(template.stages),
     roles: normalizeTemplateRoles(template.roles),
     taskTemplates: normalizeTemplateTaskTemplates(template.taskTemplates),
@@ -795,6 +804,31 @@ export async function renameTemplateAction(
 
   revalidatePath("/", "layout");
   revalidatePath(`/workflows/templates/${trimmedTemplateId}/edit`);
+  return { template };
+}
+
+export interface CreateTemplateResult {
+  template: WorkflowTemplate;
+}
+
+export async function createTemplateAction(
+  rawLabel: string,
+  rawColor: string,
+): Promise<CreateTemplateResult> {
+  const label = rawLabel.trim().slice(0, MAX_LABEL_LENGTH);
+  if (!label) {
+    throw new Error("createTemplateAction: label cannot be empty");
+  }
+  const color = rawColor.trim();
+  if (!color) {
+    throw new Error("createTemplateAction: color cannot be empty");
+  }
+
+  const repo = await getServerWorkflowRepository();
+  const template = await repo.createTemplate(label, color);
+
+  revalidatePath("/", "layout");
+
   return { template };
 }
 

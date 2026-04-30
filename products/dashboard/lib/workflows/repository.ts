@@ -198,6 +198,7 @@ function templatePatchToRow(
 ): Record<string, unknown> {
   const row: Record<string, unknown> = {};
   if (patch.label !== undefined) row.label = patch.label;
+  if (patch.color !== undefined) row.color = patch.color;
   if (patch.stages !== undefined) row.stages = patch.stages;
   if (patch.roles !== undefined) row.roles = patch.roles;
   if (patch.taskTemplates !== undefined) row.task_templates = patch.taskTemplates;
@@ -592,6 +593,33 @@ export function createWorkflowRepository(
       }
     },
 
+    async createTemplate(label: string, color: string): Promise<WorkflowTemplate> {
+      const slug = label
+        .toLowerCase()
+        .replace(/[^a-z0-9]+/g, "-")
+        .replace(/^-|-$/g, "")
+        .slice(0, 40) || "template";
+      const id = `tpl-${slug}-${Math.random().toString(36).slice(2, 8)}`;
+
+      const { data, error } = await client
+        .from("workflow_templates")
+        .insert({
+          id,
+          label,
+          color,
+          multi_instance: true,
+          stages: [],
+          roles: [],
+          task_templates: [],
+        })
+        .select("*")
+        .single();
+
+      return mapTemplate(
+        unwrap("createTemplate", data, error) as WorkflowTemplateRow,
+      );
+    },
+
     async updateTemplate(
       templateId: string,
       patch: WorkflowTemplatePatch,
@@ -716,6 +744,22 @@ export function createWorkflowRepository(
         .single();
 
       return mapFrameworkItem(unwrap("upsertFrameworkItem", data, error) as FrameworkItemRow);
+    },
+
+    async deleteFrameworkItem(itemId: string): Promise<void> {
+      const { data, error } = await client
+        .from("framework_items")
+        .delete()
+        .eq("id", itemId)
+        .select("*")
+        .maybeSingle();
+
+      if (error) {
+        throw new WorkflowRepositoryError("deleteFrameworkItem failed", error);
+      }
+      if (!data) {
+        throw new WorkflowRepositoryError("deleteFrameworkItem returned no row");
+      }
     },
   };
 }

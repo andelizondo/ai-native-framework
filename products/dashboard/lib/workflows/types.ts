@@ -169,6 +169,7 @@ export interface WorkflowTaskPatch {
 
 export interface WorkflowTemplatePatch {
   label?: string;
+  color?: string;
   stages?: WorkflowStage[];
   roles?: WorkflowRole[];
   taskTemplates?: WorkflowTaskTemplate[];
@@ -252,6 +253,7 @@ export interface WorkflowRepository {
   createTask(input: WorkflowTaskCreateInput): Promise<WorkflowTask>;
   updateTask(taskId: string, patch: WorkflowTaskPatch): Promise<WorkflowTask>;
   deleteTask(taskId: string): Promise<void>;
+  createTemplate(label: string, color: string): Promise<WorkflowTemplate>;
   updateTemplate(
     templateId: string,
     patch: WorkflowTemplatePatch,
@@ -264,4 +266,5 @@ export interface WorkflowRepository {
   ): Promise<WorkflowEvent>;
   getFrameworkItems(type?: FrameworkItemType): Promise<FrameworkItem[]>;
   upsertFrameworkItem(item: FrameworkItem): Promise<FrameworkItem>;
+  deleteFrameworkItem(itemId: string): Promise<void>;
 }

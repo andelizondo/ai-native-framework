@@ -2,19 +2,18 @@
 
 import { useEffect, useState } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import { Bell, Pencil } from "lucide-react";
+import { Loader2, Pencil } from "lucide-react";
 
-import { useDashboardTopBar } from "@/components/dashboard-topbar-context";
-import { CheckpointPanel } from "@/components/workflows/checkpoint-panel";
+import {
+  type DashboardTopBarCrumb,
+  useDashboardTopBar,
+} from "@/components/dashboard-topbar-context";
 import { cn } from "@/lib/utils";
 
 /**
  * Dashboard top bar.
  *
- * Renders a route-derived breadcrumb and the My Tasks pill. The pill shows an
- * amber badge when there are pending checkpoints and opens CheckpointPanel on
- * click. `initialPendingCount` is server-rendered for a fast first paint;
- * the panel refreshes from the DB when opened.
+ * Renders a route-derived breadcrumb plus route-specific controls.
  *
  * Visual contract: prototype `TopBar` (`Process Canvas.html`).
  */
@@ -38,21 +37,18 @@ const ROUTE_LABELS: ReadonlyArray<{ test: (path: string) => boolean; crumbs: str
   },
 ];
 
-function deriveCrumbs(pathname: string | null): string[] {
-  if (!pathname) return ["Overview"];
+function deriveCrumbs(pathname: string | null): DashboardTopBarCrumb[] {
+  if (!pathname) return [{ label: "Overview" }];
   for (const entry of ROUTE_LABELS) {
-    if (entry.test(pathname)) return entry.crumbs;
+    if (entry.test(pathname)) {
+      return entry.crumbs.map((label) => ({ label }));
+    }
   }
   const last = pathname.split("/").filter(Boolean).pop() ?? "Overview";
-  return [last.replace(/[-_]/g, " ").replace(/\b\w/g, (c) => c.toUpperCase())];
+  return [{ label: last.replace(/[-_]/g, " ").replace(/\b\w/g, (c) => c.toUpperCase()) }];
 }
 
-export interface TopBarProps {
-  /** Server-rendered initial count for fast first paint. */
-  initialPendingCount?: number;
-}
-
-export function TopBar({ initialPendingCount = 0 }: TopBarProps) {
+export function TopBar() {
   const pathname = usePathname();
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -62,8 +58,6 @@ export function TopBar({ initialPendingCount = 0 }: TopBarProps) {
     !!pathname && WORKFLOW_INSTANCE_ROUTE_REGEX.test(pathname);
   const editMode = searchParams.get("edit") === "1";
 
-  const [panelOpen, setPanelOpen] = useState(false);
-  const [pendingCount, setPendingCount] = useState(initialPendingCount);
   const [templateLabelDraft, setTemplateLabelDraft] = useState("");
 
   useEffect(() => {
@@ -84,7 +78,19 @@ export function TopBar({ initialPendingCount = 0 }: TopBarProps) {
     router.replace(query ? `${pathname}?${query}` : pathname, { scroll: false });
   }
 
-  const hasPending = pendingCount > 0;
+  const saveDisabled =
+    config?.mode === "template-editor"
+      ? config.saveDisabled
+      : config?.mode === "page"
+        ? (config.saveDisabled ?? true)
+        : true;
+  const savePending =
+    config?.mode === "template-editor" || config?.mode === "page"
+      ? (config.savePending ?? false)
+      : false;
+  const showSaveButton =
+    (config?.mode === "template-editor" || config?.mode === "page") &&
+    typeof config.onSave === "function";
 
   return (
     <>
@@ -96,7 +102,7 @@ export function TopBar({ initialPendingCount = 0 }: TopBarProps) {
           {crumbs.map((crumb, idx) => {
             const isLast = idx === crumbs.length - 1;
             return (
-              <span key={`${crumb}-${idx}`} className="flex items-center gap-1.5">
+              <span key={`${crumb.label}-${idx}`} className="flex items-center gap-1.5">
                 {idx > 0 && <span className="text-t3">›</span>}
                 {isLast && config?.mode === "template-editor" ? (
                   <input
@@ -121,16 +127,24 @@ export function TopBar({ initialPendingCount = 0 }: TopBarProps) {
                     aria-label="Workflow template name"
                   />
                 ) : (
-                  <span
+                  <button
+                    type="button"
+                    onClick={crumb.onClick}
+                    disabled={!crumb.onClick || isLast}
                     className={
                       isLast
                         ? "truncate text-[13px] font-semibold text-t1"
-                        : "truncate text-[13px] font-medium text-t2"
+                        : cn(
+                            "truncate text-[13px] font-medium text-t2 transition",
+                            crumb.onClick
+                              ? "cursor-pointer hover:text-t1"
+                              : "cursor-default",
+                          )
                     }
                     aria-current={isLast ? "page" : undefined}
                   >
-                    {crumb}
-                  </span>
+                    {crumb.label}
+                  </button>
                 )}
               </span>
             );
@@ -138,27 +152,34 @@ export function TopBar({ initialPendingCount = 0 }: TopBarProps) {
         </nav>
 
         <div className="flex shrink-0 items-center gap-1.5">
-          {config?.actions ?? null}
-
           {config?.mode === "template-editor" ? (
+            <>
+              {config.actions ?? null}
+            </>
+          ) : (
+            config?.actions ?? null
+          )}
+
+          {showSaveButton ? (
             <button
               type="button"
               onClick={config.onSave}
-              disabled={config.saveDisabled}
+              disabled={saveDisabled}
               className={cn(
                 "flex items-center gap-1.5 rounded-md px-2.5 py-1.5 text-[11.5px] font-semibold transition focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent",
-                config.saveDisabled
+                saveDisabled
                   ? "cursor-not-allowed border border-border bg-bg-2 text-t3 opacity-70"
                   : "border border-[#10b981] bg-[#10b981] text-white shadow-[0_0_0_1px_rgba(16,185,129,0.16),0_8px_22px_rgba(16,185,129,0.24)] hover:bg-[#22c55e]",
               )}
             >
-              <span
-                aria-hidden
-                className={cn(
-                  "h-1.5 w-1.5 rounded-full",
-                  config.saveDisabled ? "bg-t3" : "bg-white shadow-[0_0_10px_rgba(255,255,255,0.7)]",
-                )}
-              />
+              {savePending ? (
+                <Loader2 className="h-3 w-3 animate-spin" aria-hidden />
+              ) : !saveDisabled ? (
+                <span
+                  aria-hidden
+                  className="h-1.5 w-1.5 rounded-full bg-white shadow-[0_0_10px_rgba(255,255,255,0.7)]"
+                />
+              ) : null}
               Save
             </button>
           ) : null}
@@ -179,43 +200,8 @@ export function TopBar({ initialPendingCount = 0 }: TopBarProps) {
               {editMode ? "Save" : "Edit"}
             </button>
           ) : null}
-
-          {config?.mode !== "template-editor" ? (
-            <button
-              type="button"
-              aria-label={`My Tasks${hasPending ? ` — ${pendingCount} pending` : ""}`}
-              aria-expanded={panelOpen}
-              onClick={() => setPanelOpen((v) => !v)}
-              data-testid="topbar-my-tasks-btn"
-              className={cn(
-                "relative flex cursor-pointer items-center gap-1.5 rounded-md border px-2.5 py-1.5 text-[11.5px] font-medium transition",
-                "focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent",
-                hasPending
-                  ? "border-[rgba(245,158,11,0.35)] bg-[rgba(245,158,11,0.08)] text-[#fbbf24] hover:bg-[rgba(245,158,11,0.14)]"
-                  : "border-border bg-bg-2 text-t2 hover:border-border-hi hover:bg-bg-3 hover:text-t1",
-              )}
-            >
-              <Bell className="h-3.5 w-3.5" />
-              My Tasks
-              {hasPending && (
-                <span
-                  className="flex h-4 min-w-4 items-center justify-center rounded-full bg-[#f59e0b] px-1 font-mono text-[9px] font-bold text-white"
-                  aria-hidden
-                  data-testid="topbar-pending-badge"
-                >
-                  {pendingCount}
-                </span>
-              )}
-            </button>
-          ) : null}
         </div>
       </header>
-
-      <CheckpointPanel
-        open={panelOpen}
-        onClose={() => setPanelOpen(false)}
-        onPendingCountChange={setPendingCount}
-      />
     </>
   );
 }

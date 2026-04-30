@@ -366,6 +366,7 @@ describe("workflow matrix edit actions", () => {
     const result = await updateTemplateAction(" client-delivery ", {
       ...updatedTemplate,
       label: "  Client Project Delivery  ",
+      color: "  #14b8a6  ",
       stages: [{ id: " stage-1 ", label: " Planning ", sub: " Scope " }],
       roles: [{ id: " role-1 ", label: " Product ", owner: " Andres ", color: "#6366f1" }],
       taskTemplates: [
@@ -384,6 +385,7 @@ describe("workflow matrix edit actions", () => {
 
     expect(updateTemplate).toHaveBeenCalledWith("client-delivery", {
       label: "Client Project Delivery",
+      color: "#14b8a6",
       stages: [{ id: "stage-1", label: "Planning", sub: "Scope" }],
       roles: [{ id: "role-1", label: "Product", owner: "Andres", color: "#6366f1" }],
       taskTemplates: [
@@ -407,6 +409,26 @@ describe("workflow matrix edit actions", () => {
       "/workflows/templates/client-delivery/edit",
     );
     expect(result.template.id).toBe("client-delivery");
+  });
+
+  it("updateTemplateAction rejects blank template colors", async () => {
+    mockGetRepo.mockResolvedValue({
+      updateTemplate: vi.fn(),
+    } satisfies Partial<WorkflowRepository>);
+
+    await expect(
+      updateTemplateAction("client-delivery", {
+        id: "client-delivery",
+        label: "Client Project Delivery",
+        color: "   ",
+        multiInstance: true,
+        stages: [],
+        roles: [],
+        taskTemplates: [],
+        createdAt: "2026-04-19T12:00:00Z",
+        updatedAt: "2026-04-19T12:00:00Z",
+      }),
+    ).rejects.toThrow("updateTemplateAction: template color is required");
   });
 
   it("startTaskAction uses the atomic status transition and records an event", async () => {

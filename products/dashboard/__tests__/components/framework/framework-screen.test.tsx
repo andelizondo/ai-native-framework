@@ -1,0 +1,132 @@
+import { screen, within } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
+import { describe, expect, it, vi } from "vitest";
+
+import { FrameworkScreen } from "@/components/framework/framework-screen";
+import { renderWithToast } from "@/tests/test-utils";
+import type { FrameworkItem } from "@/lib/workflows/types";
+
+vi.mock("@/app/(dashboard)/framework/actions", () => ({
+  deleteFrameworkItemAction: vi.fn(),
+  upsertFrameworkItemAction: vi.fn(),
+}));
+
+vi.mock("@/components/dashboard-topbar-context", () => ({
+  useDashboardTopBar: () => ({
+    setConfig: vi.fn(),
+  }),
+}));
+
+vi.mock("@/lib/analytics/events", () => ({
+  useAnalytics: () => ({
+    capture: vi.fn(),
+  }),
+}));
+
+const ITEMS: FrameworkItem[] = [
+  {
+    id: "sk-developer",
+    type: "skill",
+    name: "Developer",
+    description: "Implements the smallest coherent change.",
+    icon: "🛠️",
+    content: "# Developer\n\n- Implements code\n- Validates changes",
+  },
+];
+
+const PLAYBOOK_ITEMS: FrameworkItem[] = [
+  {
+    id: "pb-presales",
+    type: "playbook",
+    name: "Presales Qualification",
+    description: "Qualify new client opportunities",
+    icon: "📄",
+    content: "# Presales Qualification\n\n## Objective\n\nAssess fit.",
+  },
+];
+
+describe("FrameworkScreen", () => {
+  it("shows rendered markdown by default and editable plain text on toggle", async () => {
+    const user = userEvent.setup();
+
+    renderWithToast(<FrameworkScreen initialItems={ITEMS} type="skill" />);
+
+    await user.click(screen.getByTestId("framework-card-sk-developer"));
+
+    const preview = screen.getByTestId("framework-markdown-preview-skill");
+    expect(preview).toBeInTheDocument();
+    expect(within(preview).getByRole("heading", { name: "Developer" })).toBeInTheDocument();
+    expect(preview).toHaveTextContent("Implements code");
+    expect(preview).toHaveTextContent("Validates changes");
+
+    await user.click(screen.getByRole("tab", { name: "Edit" }));
+
+    const editor = screen.getByTestId("framework-editor-skill");
+    expect(screen.queryByTestId("framework-markdown-preview-skill")).not.toBeInTheDocument();
+    expect(editor).toBeInTheDocument();
+    expect(editor).toHaveValue("# Developer\n\n- Implements code\n- Validates changes");
+
+    await user.click(screen.getByRole("tab", { name: "View" }));
+
+    expect(screen.getByTestId("framework-markdown-preview-skill")).toBeInTheDocument();
+  });
+
+  it("applies markdown formatting from the editor toolbar", async () => {
+    const user = userEvent.setup();
+
+    renderWithToast(<FrameworkScreen initialItems={ITEMS} type="skill" />);
+
+    await user.click(screen.getByTestId("framework-card-sk-developer"));
+    await user.click(screen.getByRole("tab", { name: "Edit" }));
+
+    const editor = screen.getByTestId("framework-editor-skill") as HTMLTextAreaElement;
+    const selectedText = "Implements code";
+    const start = editor.value.indexOf(selectedText);
+    const end = start + selectedText.length;
+
+    editor.focus();
+    editor.setSelectionRange(start, end);
+
+    await user.click(screen.getByRole("button", { name: "Bold" }));
+
+    expect(editor).toHaveValue("# Developer\n\n- **Implements code**\n- Validates changes");
+  });
+
+  it("imports markdown from an uploaded file and replaces the current draft", async () => {
+    const user = userEvent.setup();
+
+    renderWithToast(<FrameworkScreen initialItems={ITEMS} type="skill" />);
+
+    await user.click(screen.getByTestId("framework-card-sk-developer"));
+
+    const input = screen.getByLabelText("Upload markdown file") as HTMLInputElement;
+    const file = new File(["# Imported Skill\n\n1. First step"], "imported-skill.md", {
+      type: "text/markdown",
+    });
+
+    await user.upload(input, file);
+
+    const editor = await screen.findByTestId("framework-editor-skill");
+    expect(editor).toHaveValue("# Imported Skill\n\n1. First step");
+  });
+});
+
+describe("FrameworkScreen — playbook type", () => {
+  it("renders playbook card grid and opens editor view on card click", async () => {
+    const user = userEvent.setup();
+
+    renderWithToast(<FrameworkScreen initialItems={PLAYBOOK_ITEMS} type="playbook" />);
+
+    expect(screen.getByTestId("framework-screen-playbook")).toBeInTheDocument();
+    expect(screen.getByTestId("framework-grid-playbook")).toBeInTheDocument();
+
+    await user.click(screen.getByTestId("framework-card-pb-presales"));
+
+    expect(screen.getByTestId("framework-markdown-preview-playbook")).toBeInTheDocument();
+
+    await user.click(screen.getByRole("tab", { name: "Edit" }));
+
+    expect(screen.getByTestId("framework-editor-playbook")).toBeInTheDocument();
+    expect(screen.queryByTestId("framework-markdown-preview-playbook")).not.toBeInTheDocument();
+  });
+});
