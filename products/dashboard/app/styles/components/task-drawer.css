@@ -20,7 +20,7 @@
   right: 0;
   top: 0;
   bottom: 0;
-  width: 420px;
+  width: min(420px, 100vw);
   background: var(--bg-2);
   border-left: 1px solid var(--border-hi);
   box-shadow: var(--shadow);
