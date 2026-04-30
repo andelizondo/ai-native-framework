@@ -1,5 +1,20 @@
 # Changelog
 
+## [0.20.0](https://github.com/andelizondo/ai-native-framework/compare/v0.19.0...v0.20.0) (2026-04-30)
+
+
+### Features
+
+* **dashboard:** add create workflow template modal ([dbe70fb](https://github.com/andelizondo/ai-native-framework/commit/dbe70fb8aa799f79840b9fcb48b0b994784bbd2e))
+* **dashboard:** add toast notifications and modal loading states ([dbe70fb](https://github.com/andelizondo/ai-native-framework/commit/dbe70fb8aa799f79840b9fcb48b0b994784bbd2e))
+* **dashboard:** implement playbooks page with CRUD and markdown editor ([dbe70fb](https://github.com/andelizondo/ai-native-framework/commit/dbe70fb8aa799f79840b9fcb48b0b994784bbd2e))
+* **dashboard:** modularize dashboard stylesheets ([dbe70fb](https://github.com/andelizondo/ai-native-framework/commit/dbe70fb8aa799f79840b9fcb48b0b994784bbd2e))
+
+
+### Bug Fixes
+
+* **dashboard:** wait for playbook save before E2E reload ([dbe70fb](https://github.com/andelizondo/ai-native-framework/commit/dbe70fb8aa799f79840b9fcb48b0b994784bbd2e))
+
 ## [0.19.0](https://github.com/andelizondo/ai-native-framework/compare/v0.18.0...v0.19.0) (2026-04-22)
 
 
