@@ -1,7 +1,8 @@
-import { render, screen } from "@testing-library/react";
+import { screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 
 import { TemplateEditorScreen } from "@/components/workflows/template-editor-screen";
+import { renderWithToast } from "@/tests/test-utils";
 import type { WorkflowTemplate } from "@/lib/workflows/types";
 
 vi.mock("next/navigation", () => ({
@@ -50,7 +51,7 @@ const TEMPLATE: WorkflowTemplate = {
 
 describe("TemplateEditorScreen", () => {
   it("renders insert affordances between and after existing headers", () => {
-    render(
+    renderWithToast(
       <TemplateEditorScreen
         template={TEMPLATE}
         skillOptions={[]}
@@ -70,7 +71,7 @@ describe("TemplateEditorScreen", () => {
   });
 
   it("renders empty-state affordances when stages or roles are missing", () => {
-    render(
+    renderWithToast(
       <TemplateEditorScreen
         template={{ ...TEMPLATE, stages: [], roles: [] }}
         skillOptions={[]}

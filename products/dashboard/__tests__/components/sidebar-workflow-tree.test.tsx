@@ -14,7 +14,7 @@
  */
 
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { render, screen, waitFor } from "@testing-library/react";
+import { screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { useRouter } from "next/navigation";
 import posthog from "posthog-js";
@@ -30,6 +30,7 @@ vi.mock("@/app/(dashboard)/workflows/actions", () => ({
 }));
 
 import { SidebarWorkflowTree } from "@/components/workflows/sidebar-workflow-tree";
+import { renderWithToast } from "@/tests/test-utils";
 
 const TEMPLATE_A: WorkflowTemplate = {
   id: "client-delivery",
@@ -82,14 +83,14 @@ describe("SidebarWorkflowTree", () => {
   });
 
   it("falls back to the empty state placeholder when there are no templates", () => {
-    render(
+    renderWithToast(
       <SidebarWorkflowTree templates={[]} instancesByTemplate={{}} />,
     );
     expect(screen.getByTestId("sidebar-workflows-empty")).toBeInTheDocument();
   });
 
   it("renders one section per template with an instance count and per-instance links", () => {
-    render(
+    renderWithToast(
       <SidebarWorkflowTree
         templates={[TEMPLATE_A, TEMPLATE_B]}
         instancesByTemplate={{
@@ -136,7 +137,7 @@ describe("SidebarWorkflowTree", () => {
 
   it("opens the create-instance modal scoped to the clicked template", async () => {
     const user = userEvent.setup();
-    render(
+    renderWithToast(
       <SidebarWorkflowTree
         templates={[TEMPLATE_A]}
         instancesByTemplate={{ "client-delivery": [] }}
@@ -170,7 +171,7 @@ describe("SidebarWorkflowTree", () => {
       },
     });
 
-    render(
+    renderWithToast(
       <SidebarWorkflowTree
         templates={[TEMPLATE_A]}
         instancesByTemplate={{ "client-delivery": [] }}
@@ -217,7 +218,7 @@ describe("SidebarWorkflowTree", () => {
       new Error("createInstance: unknown template_id"),
     );
 
-    render(
+    renderWithToast(
       <SidebarWorkflowTree
         templates={[TEMPLATE_A]}
         instancesByTemplate={{ "client-delivery": [] }}
