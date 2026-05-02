@@ -1,5 +1,14 @@
 # Changelog
 
+## [0.22.1](https://github.com/andelizondo/ai-native-framework/compare/v0.22.0...v0.22.1) (2026-05-02)
+
+
+### Bug Fixes
+
+* **dashboard:** namespace workflow DnD ids and stabilize DndContext ([cfb2267](https://github.com/andelizondo/ai-native-framework/commit/cfb2267548b7d2965a7f06ae0bc761597f1c58b2))
+* **dashboard:** namespace workflow DnD ids and stabilize DndContext ([2b30b78](https://github.com/andelizondo/ai-native-framework/commit/2b30b78caa938d6589329c0866f65099da3ca865))
+* **dashboard:** namespace workflow DnD ids and stabilize DndContext ([a0f833d](https://github.com/andelizondo/ai-native-framework/commit/a0f833dc5ddce6743afd5b1bafe6e6d6535bbc67))
+
 ## [0.22.0](https://github.com/andelizondo/ai-native-framework/compare/v0.21.0...v0.22.0) (2026-05-02)
 
 
