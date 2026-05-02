@@ -3,7 +3,7 @@ merge_queue:
 
 queue_rules:
   # release-please opens branches named release-please--* (changelog / version bump only).
-  # Dashboard test, e2e (Vercel preview), and CodeRabbit are not required for this path.
+  # Dashboard test, e2e (Vercel preview), and Qodo Code Review are not required for this path.
   - name: release-please
     batch_size: 1
     merge_method: squash
@@ -121,7 +121,6 @@ queue_rules:
       - check-success = validate
       - check-success = test
       - check-success = e2e
-      - check-success = CodeRabbit
       - check-success = decide
       - check-success = migrate-validate
     merge_conditions:
@@ -133,7 +132,6 @@ queue_rules:
       - check-success = validate
       - check-success = test
       - check-success = e2e
-      - check-success = CodeRabbit
       - check-success = decide
       - check-success = migrate-validate
 
@@ -149,7 +147,6 @@ queue_rules:
       - check-success = validate
       - check-success = test
       - check-success = e2e
-      - check-success = CodeRabbit
       - check-success = decide
     merge_conditions:
       - base = main
@@ -159,7 +156,6 @@ queue_rules:
       - check-success = validate
       - check-success = test
       - check-success = e2e
-      - check-success = CodeRabbit
       - check-success = decide
 
 merge_protections_settings:

@@ -15,9 +15,9 @@ Durable repository memory only. Keep one-line facts, open loops, and dated decis
 - Feature PRs open ready for review by default unless the user asks for draft.
 - Feature branches target `staging`; `staging` -> `main` is the governed production path.
 - Pull requests must not merge until every configured gate on the current head SHA is green.
-- CodeRabbit is substance-gating: thread closure needs a visible outcome, not just a green check.
-- Wait for CodeRabbit auto-review first; use `@coderabbitai review` only for stalled runs.
-- If current-head thread closure is complete but `CHANGES_REQUESTED` persists, use the canonical approval prompt from the PR playbook.
+- Qodo Code Review is used selectively: only for `risk:high` or human-decision PRs. Low-risk PRs skip review entirely.
+- For high-risk PRs: agent posts `/agentic_describe` and `/agentic_review` on the PR, then runs `qodo-pr-resolver` to resolve findings before escalating to human.
+- Qodo posts PR comments (not GitHub Reviews); p1-policy uses a comment-evidence path + `issue_comment` trigger to detect and process them.
 - Stale bot reviews on older SHAs may be dismissed by a maintainer only after current-head closure is complete and documented.
 - Keep `spec/policy/event-taxonomy.yaml` aligned with runtime emitters.
 - Sentry is part of the default implementation surface for frontend and backend feature work in this repo.
@@ -46,6 +46,7 @@ Durable repository memory only. Keep one-line facts, open loops, and dated decis
 - 2026-04-18: Adopted the 3-tier environment model: production, staging, development.
 - 2026-04-19: Canonicalized `staging` -> `main` promotion, back-merge rules, Mergify queue behavior, and Supabase environment separation.
 - 2026-04-21: Default bootstrap no longer loads `docs/AI_NATIVE_FRAMEWORK.md` unless the user references The Framework or the task needs framework prose; always-loaded surfaces were compacted to reduce token cost.
+- 2026-05-02: Migrated from CodeRabbit (auto-reviews all PRs) to Qodo Code Review (selective, agent-triggered for high-risk only). Low-risk PRs now bypass the reviewer gate in p1-policy. Added `issue_comment` trigger and comment-evidence path to p1-policy. Removed CodeRabbit status-check gate from Mergify. Closure loop uses `qodo-pr-resolver` skill for high-risk PRs.
 
 ## Update Rules
 

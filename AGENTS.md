@@ -70,10 +70,10 @@ If you change schema, examples, policy, templates, or playbooks, run `npm run va
 - Treat repository settings changes as separate control-plane work unless explicitly requested.
 - Do not merge a PR until every configured merge gate on the current head SHA is complete and green.
 - If you published the PR, you own the loop through merge when policy allows it.
-- Configured AI review is substance-gating: every open CodeRabbit finding must end with a visible outcome on the thread (`fix`, `accept as follow-up`, or `won't change`) before merge.
-- Wait for CodeRabbit auto-review by default. If no CodeRabbit signal appears after about 15 seconds on a new head SHA, you may post `@coderabbitai review`. If review already started, wait up to 5 minutes before asking the user about manual recovery.
-- If thread closure is complete on the current head but `CHANGES_REQUESTED` still persists, use the canonical approval prompt from `ai/playbooks/pull-request-execution-loop.md`; do not trigger a fresh full re-review.
-- A maintainer may dismiss stale bot reviews only after current-head thread closure is complete and the dismissal message is visible.
+- Configured AI review is selective: Qodo Code Review is only used for PRs where human intervention is required (`risk:high` / `residual:high` or `residual:med`).
+- For high-risk PRs: post `/agentic_describe` and `/agentic_review` as PR comments to trigger Qodo review, then invoke the `qodo-pr-resolver` skill to resolve all findings before posting the human decision request.
+- For low-risk PRs (`risk:low` or `risk:med` without `control-plane`): skip Qodo entirely — `p1-policy` sets `residual:low` directly and Mergify auto-merges.
+- A maintainer may dismiss stale bot reviews only after current-head finding resolution is complete and the dismissal message is visible.
 - Feature branches target `staging`, not `main`. The valid human-authored PR to `main` is the governed `staging` -> `main` promotion PR.
 - Open PRs ready for review by default unless the user explicitly asks for draft.
 

@@ -1,0 +1,10 @@
+[review_agent]
+issues_user_guidelines = """
+Severity and merge discipline for this repository:
+- Treat security issues, correctness bugs, and spec/policy contradictions as must-fix unless the human maintainer explicitly documents a waiver in the PR thread.
+- Medium and low / style / nit suggestions: the merging agent SHOULD fix them when the change is small; otherwise reply on the thread with fix, accept as follow-up (with brief justification), or won't change (with rationale). Silent merges are not acceptable.
+- Prefer concrete patches over commentary when effort is reasonable.
+"""
+compliance_user_guidelines = """
+Apply the same severity and merge discipline as issues_user_guidelines above.
+"""

@@ -26,7 +26,7 @@ name: back-merge-to-staging
 #      checks. The back-merge carries no new code — only commits already
 #      reviewed and merged through the normal `staging` → `main` flow plus
 #      release-please's metadata commit. Re-running `validate` / `test` / `e2e`
-#      / `CodeRabbit` here would only delay synchronization and burn CI minutes.
+#      / `Qodo Code Review` here would only delay synchronization and burn CI minutes.
 #
 # Token requirements:
 #   `--admin` requires a token whose owner can bypass branch protection on
@@ -148,7 +148,7 @@ jobs:
           ## Why this skips checks
 
           - Diff vs \`staging\` is content-equivalent to commits already merged through their own reviewed PRs (the \`staging\` → \`main\` promotion + the \`release-please\` PR on \`main\`).
-          - Re-running \`validate\` / \`test\` / \`e2e\` / \`CodeRabbit\` would only delay synchronization without adding evidence.
+          - Re-running \`validate\` / \`test\` / \`e2e\` / \`Qodo Code Review\` would only delay synchronization without adding evidence.
           - Merge method **must** be \`merge\` (not squash) so the second parent is preserved; otherwise the next promotion PR ends up content-equal but history-divergent.
 
           ## Source
