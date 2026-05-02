@@ -83,6 +83,14 @@ Skill discovery index. Choose one skill or routed playbook, then open only that 
 - Load: `playbooks/pull-request-execution-loop.md`
 - Constraints: machines verify, humans decide
 
+### Qodo PR Resolver
+
+- When to use: a high-risk PR has been reviewed by Qodo Code Review and findings need to be resolved before the human decision request
+- Inputs: open PR with Qodo review comments, current branch
+- Outputs: applied fixes, replies to each Qodo finding, pushed commit
+- Load: invoke via the built-in `qodo-pr-resolver` skill (Skill tool)
+- Constraints: run only after Qodo has finished its review (skill will poll if still in progress); only invoke for PRs requiring human decisions
+
 ### Release management
 
 - When to use: enable or revise repo-level releases, tags, changelogs, or GitHub Releases

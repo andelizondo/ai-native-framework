@@ -55,9 +55,6 @@ export interface TaskCardProps {
   editMode?: boolean;
   onEdit?: () => void;
   onRemove?: () => void;
-  draggable?: boolean;
-  onDragStart?: React.DragEventHandler<HTMLDivElement>;
-  onDragEnd?: React.DragEventHandler<HTMLDivElement>;
   showDefaultPill?: boolean;
 }
 
@@ -69,9 +66,6 @@ export function TaskCard({
   editMode = false,
   onEdit,
   onRemove,
-  draggable = false,
-  onDragStart,
-  onDragEnd,
   showDefaultPill = false,
 }: TaskCardProps) {
   const statusClass = STATUS_PILL_CLASS[task.status];
@@ -91,9 +85,6 @@ export function TaskCard({
         onClick && "cursor-pointer",
       )}
       style={{ "--role-color": roleColor } as React.CSSProperties}
-      draggable={editMode && draggable}
-      onDragStart={onDragStart}
-      onDragEnd={onDragEnd}
       onClick={onClick}
       role={onClick ? "button" : undefined}
       tabIndex={onClick ? 0 : undefined}

@@ -2,6 +2,7 @@ import { createServerClient } from "@supabase/ssr";
 import { cookies } from "next/headers";
 
 import { getSupabaseRuntimeConfig } from "@/lib/auth/config";
+import { getServerBypassSupabaseCookie } from "@/lib/auth/test-bypass";
 import { createWorkflowRepository } from "./repository";
 import type { WorkflowRepository } from "./types";
 
@@ -14,11 +15,15 @@ import type { WorkflowRepository } from "./types";
 export async function getServerWorkflowRepository(): Promise<WorkflowRepository> {
   const cookieStore = await cookies();
   const { url, anonKey } = getSupabaseRuntimeConfig();
+  const bypassCookie = await getServerBypassSupabaseCookie();
 
   const client = createServerClient(url, anonKey, {
     cookies: {
       getAll() {
-        return cookieStore.getAll();
+        const real = cookieStore.getAll();
+        if (!bypassCookie) return real;
+        const filtered = real.filter((c) => c.name !== bypassCookie.name);
+        return [...filtered, bypassCookie];
       },
       setAll(cookiesToSet) {
         try {

@@ -61,3 +61,17 @@ button:disabled {
   padding: 8px;
   justify-content: center;
 }
+
+/*
+ * Navigation progress bar keyframes.
+ * Driven imperatively by NavigationProgress — see components/navigation-progress.tsx.
+ */
+@keyframes np-grow {
+  0%   { transform: scaleX(0) }
+  100% { transform: scaleX(0.85) }
+}
+@keyframes np-done {
+  0%   { transform: scaleX(0.85); opacity: 1 }
+  70%  { transform: scaleX(1);    opacity: 1 }
+  100% { transform: scaleX(1);    opacity: 0 }
+}

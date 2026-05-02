@@ -8,8 +8,8 @@
  *   - Active route is reflected via aria-current=page.
  *   - The collapse toggle flips `<html data-sidebar>` so CSS can hide
  *     labels without React having to re-render the tree.
- *   - User menu opens, exposes the theme toggle and a sign-out item, and
- *     calls the shared sign-out flow when clicked.
+ *   - User menu opens, exposes theme preference options and a sign-out item,
+ *     and calls the shared sign-out flow when clicked.
  */
 
 import { describe, it, expect, vi, beforeEach } from "vitest";
@@ -19,9 +19,9 @@ import { usePathname } from "next/navigation";
 
 import { renderWithToast } from "@/tests/test-utils";
 
-const { mockHandleSignOut, mockToggleTheme } = vi.hoisted(() => ({
+const { mockHandleSignOut, mockSetPreference } = vi.hoisted(() => ({
   mockHandleSignOut: vi.fn(),
-  mockToggleTheme: vi.fn(),
+  mockSetPreference: vi.fn(),
 }));
 
 vi.mock("@/lib/auth/use-sign-out", () => ({
@@ -35,8 +35,8 @@ vi.mock("@/lib/auth/use-sign-out", () => ({
 vi.mock("@/lib/theme", () => ({
   useTheme: vi.fn(() => ({
     theme: "dark",
-    setTheme: vi.fn(),
-    toggleTheme: mockToggleTheme,
+    preference: "dark",
+    setPreference: mockSetPreference,
   })),
 }));
 
@@ -51,7 +51,7 @@ const TEST_USER = {
 describe("Sidebar", () => {
   beforeEach(() => {
     mockHandleSignOut.mockReset();
-    mockToggleTheme.mockReset();
+    mockSetPreference.mockReset();
     vi.mocked(usePathname).mockReturnValue("/");
     // The inline script in app/layout.tsx normally sets this before paint;
     // in jsdom we set it explicitly so the store has a starting truth.
@@ -130,7 +130,7 @@ describe("Sidebar", () => {
 
     const menu = await screen.findByRole("menu", { name: /user menu/i });
     expect(menu).toBeInTheDocument();
-    expect(screen.getByRole("menuitem", { name: /light mode/i })).toBeInTheDocument();
+    expect(screen.getByRole("menuitem", { name: /^light$/i })).toBeInTheDocument();
     expect(screen.getByRole("menuitem", { name: /sign out/i })).toBeInTheDocument();
   });
 
@@ -144,19 +144,19 @@ describe("Sidebar", () => {
     await waitFor(() => expect(mockHandleSignOut).toHaveBeenCalledOnce());
   });
 
-  it("toggles the theme via the user menu and closes the menu", async () => {
+  it("sets theme preference via the user menu and closes the menu", async () => {
     const user = userEvent.setup();
     renderWithToast(<Sidebar user={TEST_USER} />);
 
     await user.click(screen.getByRole("button", { name: /open user menu/i }));
     // `userEvent` simulates a realistic open click on the trigger. The
     // menuitem click below uses `fireEvent` (synchronous) so we can assert
-    // `mockToggleTheme` and the menu-close transition without racing the
+    // `mockSetPreference` and the menu-close transition without racing the
     // outside-click handler that `userEvent`'s async pointer events would
     // schedule.
-    fireEvent.click(screen.getByRole("menuitem", { name: /light mode/i }));
+    fireEvent.click(screen.getByRole("menuitem", { name: /^light$/i }));
 
-    expect(mockToggleTheme).toHaveBeenCalledOnce();
+    expect(mockSetPreference).toHaveBeenCalledExactlyOnceWith("light");
     await waitFor(() =>
       expect(screen.queryByRole("menu", { name: /user menu/i })).not.toBeInTheDocument(),
     );
