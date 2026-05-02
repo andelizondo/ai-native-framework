@@ -18,20 +18,56 @@
  * snapshot, drift after the first toggle, and silently flip the wrong way
  * on the next call. `useSyncExternalStore` keeps the React renders
  * coherent across all subscribers.
+ *
+ * When the preference is "system", a `matchMedia` listener fires whenever
+ * `prefers-color-scheme` changes and the app updates immediately without a
+ * page reload.
  */
 
 import { useCallback, useSyncExternalStore } from "react";
 
-import { DEFAULT_THEME, THEME_STORAGE_KEY, type Theme } from "./theme-tokens";
+import {
+  DEFAULT_PREFERENCE,
+  DEFAULT_THEME,
+  THEME_STORAGE_KEY,
+  type Theme,
+  type ThemePreference,
+} from "./theme-tokens";
 
 function isTheme(value: unknown): value is Theme {
   return value === "dark" || value === "light";
+}
+
+function isThemePreference(value: unknown): value is ThemePreference {
+  return value === "dark" || value === "light" || value === "system";
+}
+
+function getSystemTheme(): Theme {
+  if (typeof window === "undefined" || typeof window.matchMedia !== "function")
+    return DEFAULT_THEME;
+  return window.matchMedia("(prefers-color-scheme: dark)").matches
+    ? "dark"
+    : "light";
 }
 
 function readDomTheme(): Theme {
   if (typeof document === "undefined") return DEFAULT_THEME;
   const attr = document.documentElement.getAttribute("data-theme");
   return isTheme(attr) ? attr : DEFAULT_THEME;
+}
+
+function readPreference(): ThemePreference {
+  if (typeof window === "undefined") return DEFAULT_PREFERENCE;
+  try {
+    const stored = window.localStorage.getItem(THEME_STORAGE_KEY);
+    return isThemePreference(stored) ? stored : DEFAULT_PREFERENCE;
+  } catch {
+    return DEFAULT_PREFERENCE;
+  }
+}
+
+function resolveTheme(pref: ThemePreference): Theme {
+  return pref === "system" ? getSystemTheme() : pref;
 }
 
 const listeners = new Set<() => void>();
@@ -47,17 +83,31 @@ function emitThemeChange(): void {
   listeners.forEach((listener) => listener());
 }
 
+// Keep the DOM in sync when the OS preference changes and the user has chosen "system".
+if (typeof window !== "undefined" && typeof window.matchMedia === "function") {
+  window
+    .matchMedia("(prefers-color-scheme: dark)")
+    .addEventListener("change", () => {
+      if (readPreference() === "system") {
+        const resolved = getSystemTheme();
+        document.documentElement.setAttribute("data-theme", resolved);
+        emitThemeChange();
+      }
+    });
+}
+
 function getServerSnapshot(): Theme {
   return DEFAULT_THEME;
 }
 
-function applyTheme(theme: Theme): void {
+function applyPreference(pref: ThemePreference): void {
+  const resolved = resolveTheme(pref);
   if (typeof document !== "undefined") {
-    document.documentElement.setAttribute("data-theme", theme);
+    document.documentElement.setAttribute("data-theme", resolved);
   }
   if (typeof window !== "undefined") {
     try {
-      window.localStorage.setItem(THEME_STORAGE_KEY, theme);
+      window.localStorage.setItem(THEME_STORAGE_KEY, pref);
     } catch {
       // Persisting is best-effort. A sandboxed browser, full storage
       // quota, or privacy mode still gets a working theme — the in-memory
@@ -68,25 +118,26 @@ function applyTheme(theme: Theme): void {
 }
 
 /**
- * Read and write the active theme.
+ * Read and write the active theme preference.
+ *
+ * - `theme` — the resolved effective theme ("dark" | "light") applied to the DOM.
+ * - `preference` — the stored preference ("dark" | "light" | "system").
+ * - `setPreference` — update the preference; "system" follows the OS in real-time.
  *
  * All subscribers share one module-level store, so an update from any
  * consumer is reflected in every other consumer's next render.
  */
 export function useTheme(): {
   theme: Theme;
-  setTheme: (theme: Theme) => void;
-  toggleTheme: () => void;
+  preference: ThemePreference;
+  setPreference: (pref: ThemePreference) => void;
 } {
   const theme = useSyncExternalStore(subscribe, readDomTheme, getServerSnapshot);
+  const preference = useSyncExternalStore(subscribe, readPreference, () => DEFAULT_PREFERENCE);
 
-  const setTheme = useCallback((next: Theme) => {
-    applyTheme(next);
+  const setPreference = useCallback((pref: ThemePreference) => {
+    applyPreference(pref);
   }, []);
 
-  const toggleTheme = useCallback(() => {
-    applyTheme(readDomTheme() === "dark" ? "light" : "dark");
-  }, []);
-
-  return { theme, setTheme, toggleTheme };
+  return { theme, preference, setPreference };
 }
