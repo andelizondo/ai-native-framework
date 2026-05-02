@@ -19,11 +19,18 @@ name: p1-policy
 # submits a GitHub Review, `p1-residual-risk-engine` does not run; `decide` applies the same
 # residual outcomes as that workflow for the status-only path.
 #
-# Required reviewer status contexts (e.g. CodeRabbit) are often still `pending` when `decide`
-# first runs on the same SHA as `validate-spec`. `decide` polls until every required context
-# is terminal (success/failure/error) or until P1_POLICY_REVIEWER_STATUS_WAIT_SECONDS (default
-# 900s) elapses — one shared budget for all contexts, not per context. Override poll interval via
-# P1_POLICY_REVIEWER_STATUS_POLL_INTERVAL_SECONDS (default 10s).
+# Required reviewer status contexts (e.g. Qodo Code Review) are configured via
+# REQUIRED_AI_REVIEW_STATUS_CONTEXTS. When empty (the default), the status-check gate is skipped
+# and reviewer evidence is detected solely via GitHub Review objects or PR-level comments from a
+# configured AI reviewer bot.
+#
+# Low-risk PRs (risk:low or risk:med without control-plane) bypass the reviewer gate entirely.
+# p1-policy sets residual:low directly for those PRs without waiting for any reviewer.
+#
+# For risk:high (or risk:med control-plane) PRs, the executing agent is expected to trigger Qodo
+# Code Review manually (posting /agentic_describe + /agentic_review on the PR) before the human
+# decision request. When Qodo posts its comment, the issue_comment trigger re-runs decide so the
+# comment-evidence path can set residual:high and post the human decision request.
 #
 # The residual risk engine may set `residual:*` slightly after `decide` starts on the same event chain.
 # After other gates, `decide` refreshes issue labels, then polls until a `residual:*` label appears or
@@ -40,6 +47,8 @@ on:
     types: [opened, reopened, synchronize, ready_for_review, labeled, unlabeled]
   pull_request_review:
     types: [submitted, edited, dismissed]
+  issue_comment:
+    types: [created]
 
 concurrency:
   group: p1-policy-${{ github.event.pull_request.number }}
@@ -64,8 +73,8 @@ jobs:
           P1_POLICY_REVIEWER_STATUS_POLL_INTERVAL_SECONDS: ${{ vars.P1_POLICY_REVIEWER_STATUS_POLL_INTERVAL_SECONDS || '10' }}
           P1_POLICY_RESIDUAL_LABEL_WAIT_SECONDS: ${{ vars.P1_POLICY_RESIDUAL_LABEL_WAIT_SECONDS || '180' }}
           P1_POLICY_RESIDUAL_LABEL_POLL_INTERVAL_SECONDS: ${{ vars.P1_POLICY_RESIDUAL_LABEL_POLL_INTERVAL_SECONDS || '10' }}
-          CONFIGURED_AI_REVIEWERS: ${{ vars.CONFIGURED_AI_REVIEWERS || 'coderabbitai,coderabbit' }}
-          REQUIRED_AI_REVIEW_STATUS_CONTEXTS: ${{ vars.REQUIRED_AI_REVIEW_STATUS_CONTEXTS || 'CodeRabbit' }}
+          CONFIGURED_AI_REVIEWERS: ${{ vars.CONFIGURED_AI_REVIEWERS || 'qodo-code-review' }}
+          REQUIRED_AI_REVIEW_STATUS_CONTEXTS: ${{ vars.REQUIRED_AI_REVIEW_STATUS_CONTEXTS || '' }}
         with:
           script: |
             const owner = context.repo.owner;
@@ -81,6 +90,18 @@ jobs:
               }
               if (context.eventName === 'pull_request_review') {
                 return context.payload.pull_request.number;
+              }
+              if (context.eventName === 'issue_comment') {
+                const issue = context.payload.issue;
+                if (!issue?.pull_request) return null; // not a PR comment
+                const comment = context.payload.comment;
+                const login = (comment?.user?.login ?? '').replace(/\[bot\]$/i, '').toLowerCase();
+                const configuredLogins = new Set(
+                  (process.env.CONFIGURED_AI_REVIEWERS || '')
+                    .split(',').map((s) => s.trim().replace(/\[bot\]$/i, '').toLowerCase()).filter(Boolean),
+                );
+                if (comment?.user?.type !== 'Bot' || !configuredLogins.has(login)) return null;
+                return issue.number;
               }
               return null;
             }
@@ -327,6 +348,41 @@ jobs:
               return;
             }
 
+            // Refresh labels: risk classification may have completed since policy started.
+            labels = await loadIssueLabelNames();
+            risk = labels.find((label) => ['risk:low', 'risk:med', 'risk:high'].includes(label));
+
+            // Low-risk fast path: skip AI reviewer gate entirely.
+            // risk:low and risk:med (without control-plane) auto-downgrade to residual:low without review.
+            const isLowRiskPath =
+              !isReleasePleaseAutomation &&
+              !isStagingPromotion &&
+              !isBackMergeAutomation &&
+              (risk === 'risk:low' || (risk === 'risk:med' && !labels.includes('control-plane')));
+
+            if (isLowRiskPath) {
+              const existingResidual = labels.find((l) =>
+                ['residual:low', 'residual:med', 'residual:high'].includes(l),
+              );
+              if (!existingResidual) {
+                await github.rest.issues.addLabels({
+                  owner, repo, issue_number: prNumber, labels: ['residual:low'],
+                });
+                labels = await loadIssueLabelNames();
+              }
+              await upsertPolicyComment([
+                '**P1 policy:** pass',
+                '',
+                `All gates satisfied. Residual risk: \`residual:low\`. No AI reviewer required for \`${risk}\` PRs.`,
+                '',
+                isReleasePleaseAutomation
+                  ? 'Mergify will queue and merge this PR when the `release-please` queue conditions pass (`validate` and `decide` only).'
+                  : 'Mergify will queue and merge this PR automatically when all required checks pass.',
+              ].join('\n'));
+              core.info(`Low-risk path (${risk}): skipping reviewer gate, residual:low set.`);
+              return;
+            }
+
             let reviewStatusContexts = (process.env.REQUIRED_AI_REVIEW_STATUS_CONTEXTS || '')
               .split(',')
               .map((s) => s.trim())
@@ -468,8 +524,10 @@ jobs:
               issue_number: prNumber,
               per_page: 100,
             });
+            // Note: head SHA check omitted — Qodo code review comments don't include the SHA.
+            // Bot type + configured login is specific enough to avoid false positives.
             const aiCommentOnHead = prComments
-              .filter((comment) => isConfiguredAiComment(comment) && commentMentionsHeadSha(comment, pr.headRefOid))
+              .filter((comment) => isConfiguredAiComment(comment))
               .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())[0] ?? null;
             const latestAiEvidence = latestAiOnHead ?? aiCommentOnHead;
 
@@ -703,6 +761,55 @@ jobs:
                     labels: ['residual:low'],
                   });
                   residual = 'residual:low';
+                }
+              }
+            }
+
+            // Comment-only reviewer path: configured reviewer left a comment but submitted no formal
+            // GitHub Review and no status check is required (e.g. Qodo Code Review on risk:high PRs).
+            if (!residual) {
+              const commentOnlyEvidence =
+                reviewStatusContexts.length === 0 &&
+                aiOnHead.length === 0 &&
+                aiCommentOnHead != null;
+
+              if (commentOnlyEvidence && risk) {
+                const isControlPlaneLoc = labels.includes('control-plane');
+                if (risk === 'risk:high') {
+                  await github.rest.issues.addLabels({
+                    owner, repo, issue_number: prNumber, labels: ['residual:high'],
+                  });
+                  residual = 'residual:high';
+                } else if (isControlPlaneLoc) {
+                  await github.rest.issues.addLabels({
+                    owner, repo, issue_number: prNumber, labels: ['residual:med'],
+                  });
+                  residual = 'residual:med';
+                } else {
+                  const unresolved = await hasUnresolvedThreads();
+                  if (unresolved) {
+                    if (!autofixApplied) {
+                      await github.rest.issues.addLabels({
+                        owner, repo, issue_number: prNumber, labels: ['autofix:pending'],
+                      });
+                    } else {
+                      await github.rest.issues.removeLabel({
+                        owner, repo, issue_number: prNumber, name: 'autofix:pending',
+                      }).catch((e) => { if (e.status !== 404) throw e; });
+                      await github.rest.issues.addLabels({
+                        owner, repo, issue_number: prNumber, labels: ['residual:med'],
+                      });
+                      residual = 'residual:med';
+                    }
+                  } else {
+                    await github.rest.issues.removeLabel({
+                      owner, repo, issue_number: prNumber, name: 'autofix:pending',
+                    }).catch((e) => { if (e.status !== 404) throw e; });
+                    await github.rest.issues.addLabels({
+                      owner, repo, issue_number: prNumber, labels: ['residual:low'],
+                    });
+                    residual = 'residual:low';
+                  }
                 }
               }
             }

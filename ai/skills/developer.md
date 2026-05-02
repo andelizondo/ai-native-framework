@@ -27,8 +27,8 @@
 4. Refresh the branch against its base before opening the PR; rerun validation if the head changed.
 5. Open the PR against `staging` unless this is an allowed `main`-targeting exception.
 6. Follow `ai/playbooks/pull-request-execution-loop.md` until the PR merges or policy requires a human decision.
-7. Reply directly on every CodeRabbit thread with one canonical outcome: `fix`, `accept as follow-up`, or `won't change`.
-8. If `CHANGES_REQUESTED` persists after current-head thread closure, post the canonical approval prompt from the PR playbook; do not force a full re-review.
+7. For `risk:high` PRs (or any PR where human decision is required): post `/agentic_describe` and `/agentic_review` on the PR, then invoke the `qodo-pr-resolver` skill to resolve all Qodo findings in one pass.
+8. For `risk:low` and `risk:med` (non-control-plane) PRs: skip Qodo entirely — CI sets `residual:low` automatically.
 9. Rerun stale, cancelled, or superseded required checks on the current head before diagnosing anything else.
 10. Include required observability work in-slice when runtime behavior changes.
 11. Use the matching issue- or incident-resolution playbook when the task is an operational loop.

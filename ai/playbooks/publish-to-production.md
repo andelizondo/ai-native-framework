@@ -54,7 +54,7 @@ Rules:
 
 - no feature PRs directly to `main`
 - do not squash the promotion or back-merge PRs
-- do not wait for CodeRabbit on the promotion PR
+- do not trigger Qodo Code Review on the promotion PR
 - stop if the release scope on `staging` is unclear
 
 ## References

@@ -27,7 +27,9 @@
 3. Run deterministic checks and wait for every configured merge gate on the current head SHA.
 4. Require current-head reviewer evidence, not just a generic green status row.
 5. Enforce branch freshness. Behind branches must sync before merge.
-6. Treat review findings as work items. Close each CodeRabbit thread with `fix`, `accept as follow-up`, or `won't change`.
+6. After initial risk classification, decide whether Qodo Code Review is needed:
+   - `residual:low` path (`risk:low` or `risk:med` without `control-plane`): skip Qodo. Proceed to verification and merge.
+   - `residual:high` or `residual:med` path (human decision required): post `/agentic_describe` and `/agentic_review` as PR comments to trigger Qodo review, then invoke the `qodo-pr-resolver` skill to resolve all findings in one pass and push the result.
 7. If review leaves only safe autofix work, run the one-shot autofix loop and re-evaluate on the new head.
 8. Set residual risk from initial risk plus current-head review state and thread state.
 9. If policy allows automation to merge, verify every gate is green and complete the merge or queue path.
@@ -63,21 +65,18 @@
 
 ### Review order and recovery
 
-- Wait for CodeRabbit auto-review first.
-- If there is no reviewer signal after about 15 seconds on a new head SHA, `@coderabbitai review` is allowed.
-- If review clearly started, wait up to 5 minutes before asking whether to trigger recovery.
-- When current-head thread closure is complete but `CHANGES_REQUESTED` persists, use the canonical approval prompt instead of forcing a full re-review.
+- For high-risk PRs: trigger Qodo Code Review by posting `/agentic_describe` and `/agentic_review` as PR comments. Wait for Qodo to post its findings, then run `qodo-pr-resolver`.
+- For low-risk PRs: Qodo is not invoked. `p1-policy` sets `residual:low` directly based on risk level.
+- Qodo does not submit formal GitHub Reviews, so there is no `CHANGES_REQUESTED` state to clear. The `qodo-pr-resolver` skill handles finding resolution and reply closure.
 - If a reviewer or bot pushes a new commit, treat it as a new head SHA and rerun the loop from current-head evidence.
 
 ### Finding closure before merge
 
-- A green reviewer check is necessary but not sufficient.
+- For high-risk PRs where Qodo was invoked: all Qodo findings must be resolved (via `qodo-pr-resolver`) before the human decision request is posted.
 - Blocking findings must be fixed on the head SHA or explicitly waived by a human maintainer with visible rationale.
-- Non-blocking findings still require a visible decision on the thread: `fix`, `accept as follow-up`, or `won't change`.
-- Do not resolve threads just to satisfy GitHub conversation rules without visible substance.
-- A consolidated PR comment does not replace per-thread closure when policy depends on thread state.
+- Non-blocking findings still require a visible decision: `fix`, `accept as follow-up`, or `won't change`.
+- For low-risk PRs: no reviewer findings to close — proceed directly to merge.
 - If current-head evidence is complete but a required workflow run is stale, cancelled, or superseded by a later success on the same head SHA, rerun it instead of reaching for settings changes.
-- If only stale older reviewer submissions keep `CHANGES_REQUESTED` alive after current-head closure, a maintainer may dismiss them with a visible message naming the current head and why the stale review no longer applies.
 
 ### Autofix loop
 
@@ -104,11 +103,15 @@
 
 ## Canonical Snippets
 
-### Approval prompt
+### Trigger Qodo review (high-risk PRs only)
 
-Use this when current-head thread closure is complete but `CHANGES_REQUESTED` still persists and a full re-review is not desired:
+Post these two comments on the PR to trigger Qodo Code Review:
 
-> @coderabbitai Requested changes are addressed on the current head. Please approve or clear the pending request-changes when satisfied.
+> /agentic_describe
+
+> /agentic_review
+
+Then invoke the `qodo-pr-resolver` skill to resolve all findings and push fixes. Once all findings are resolved, post the standard decision request to the human.
 
 ### Decision request template
 
@@ -151,5 +154,5 @@ Use this when automation must stop for a human decision:
 ## References
 
 - `AGENTS.md`
-- `.coderabbit.yaml`
+- `.pr_agent.toml`
 - `.mergify.yml`
