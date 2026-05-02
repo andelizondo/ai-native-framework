@@ -1,5 +1,22 @@
 # Changelog
 
+## [0.21.0](https://github.com/andelizondo/ai-native-framework/compare/v0.20.0...v0.21.0) (2026-05-02)
+
+
+### Features
+
+* **dashboard:** add route loading states and navigation progress ([d024898](https://github.com/andelizondo/ai-native-framework/commit/d024898ca8ea4a6bb42026f11b80664da61f3ae4))
+* **dashboard:** route loading states and navigation progress ([7bd43d2](https://github.com/andelizondo/ai-native-framework/commit/7bd43d20d2bab2662dd3351f34b9771de9aa8f65))
+* **dashboard:** route loading states and navigation progress ([3fa7fbf](https://github.com/andelizondo/ai-native-framework/commit/3fa7fbf839813f6b72b149bc57e1bd1577890484))
+* **dashboard:** route loading states and navigation progress ([49939cc](https://github.com/andelizondo/ai-native-framework/commit/49939ccb97ac5858dbde7c7f47f79c121c3308a1))
+
+
+### Bug Fixes
+
+* **dashboard:** harden NavigationProgress click handling ([7bd43d2](https://github.com/andelizondo/ai-native-framework/commit/7bd43d20d2bab2662dd3351f34b9771de9aa8f65))
+* **dashboard:** harden NavigationProgress click handling ([3fa7fbf](https://github.com/andelizondo/ai-native-framework/commit/3fa7fbf839813f6b72b149bc57e1bd1577890484))
+* **dashboard:** harden NavigationProgress click handling ([80bcdb8](https://github.com/andelizondo/ai-native-framework/commit/80bcdb8fc844f9609071ec9ec0e5445b6e485302))
+
 ## [0.20.0](https://github.com/andelizondo/ai-native-framework/compare/v0.19.0...v0.20.0) (2026-04-30)
 
 
