@@ -1,7 +1,7 @@
 function Bone({ className }: { className?: string }) {
   return (
     <div
-      className={`animate-pulse rounded-md bg-bg-2 ${className ?? ""}`}
+      className={`animate-pulse rounded-md bg-bg-3 ${className ?? ""}`}
     />
   );
 }
