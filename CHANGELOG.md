@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.22.0](https://github.com/andelizondo/ai-native-framework/compare/v0.21.0...v0.22.0) (2026-05-02)
+
+
+### Features
+
+* **dashboard:** theme preference selector in sidebar user menu ([1f75a02](https://github.com/andelizondo/ai-native-framework/commit/1f75a029e1fc722f8d7005993db98a0974e720ac))
+* **dashboard:** theme preference selector in sidebar user menu ([af6e1da](https://github.com/andelizondo/ai-native-framework/commit/af6e1dad4229815875901d239c9750d4fd3f261a))
+* **dashboard:** theme preference selector in sidebar user menu ([8120cab](https://github.com/andelizondo/ai-native-framework/commit/8120cab25710f5d8d9797290fdb4df5df7ffd313))
+* **dashboard:** workflow template editor, process matrix, and drag-drop e2e ([1f75a02](https://github.com/andelizondo/ai-native-framework/commit/1f75a029e1fc722f8d7005993db98a0974e720ac))
+* **dashboard:** workflow template editor, process matrix, and drag-drop e2e ([586394f](https://github.com/andelizondo/ai-native-framework/commit/586394f3fdd81e88b0e4a6a149a8ac2ea2064acc))
+* **dashboard:** workflow template editor, process matrix, drag-drop e2e ([b021145](https://github.com/andelizondo/ai-native-framework/commit/b021145b0b6e3ded1d7601e89a68f27499ca0132))
+
 ## [0.21.0](https://github.com/andelizondo/ai-native-framework/compare/v0.20.0...v0.21.0) (2026-05-02)
 
 
