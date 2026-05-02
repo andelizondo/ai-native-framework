@@ -1,10 +1,12 @@
 import type { Metadata } from "next";
+import { Suspense } from "react";
 import "./globals.css";
 import { getAppRelease, getReleaseChannel } from "@/lib/release";
 import { DEFAULT_THEME, THEME_INIT_SCRIPT } from "@/lib/theme-tokens";
 import { SIDEBAR_INIT_SCRIPT } from "@/lib/sidebar";
 import { SpeedInsights } from "@vercel/speed-insights/next";
 import { Analytics } from "@vercel/analytics/next";
+import { NavigationProgress } from "@/components/navigation-progress";
 
 export const metadata: Metadata = {
   title: "AI-Native Dashboard",
@@ -47,6 +49,9 @@ export default function RootLayout({
         data-release={appRelease}
         data-release-channel={getReleaseChannel()}
       >
+        <Suspense>
+          <NavigationProgress />
+        </Suspense>
         {children}
         <SpeedInsights />
         <Analytics />
