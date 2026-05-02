@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState, useTransition } from "react";
+import { useCallback, useEffect, useId, useMemo, useState, useTransition } from "react";
 import { ChevronsLeftRight, Plus } from "lucide-react";
 import {
   DndContext,
@@ -98,6 +98,7 @@ export function ProcessMatrix({
   const [agentRunOpen, setAgentRunOpen] = useState(false);
   const [localTasks, setLocalTasks] = useState<WorkflowTask[]>(instance.tasks);
   const [isPending, startTransition] = useTransition();
+  const dndContextId = useId();
 
   useEffect(() => {
     setLocalTasks(instance.tasks);
@@ -298,6 +299,7 @@ export function ProcessMatrix({
   return (
     <>
       <DndContext
+        id={dndContextId}
         sensors={sensors}
         collisionDetection={matrixCollisionDetection}
         onDragStart={handleDragStart}
