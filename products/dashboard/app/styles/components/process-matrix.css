@@ -85,6 +85,66 @@
   position: relative;
   border-right: 1px solid var(--border-2);
 }
+.mx-drag-handle {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 14px;
+  height: 18px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--t3);
+  opacity: 0;
+  cursor: grab;
+  flex-shrink: 0;
+  touch-action: none;
+  transition:
+    opacity 0.14s,
+    color 0.14s;
+}
+.mx-stage-hd:hover .mx-drag-handle,
+.mx-stage-hd:focus-within .mx-drag-handle,
+.mx-role-cell:hover .mx-drag-handle,
+.mx-role-cell:focus-within .mx-drag-handle {
+  opacity: 1;
+}
+.mx-drag-handle:hover {
+  color: var(--t1);
+}
+.mx-drag-handle:focus-visible {
+  opacity: 1;
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+.mx-drag-handle:active {
+  cursor: grabbing;
+}
+.mx-dragging {
+  opacity: 0.45;
+}
+
+/* While a task drag is active, suppress every hover-only affordance so the
+   dragged card never gets visually covered by chrome from cells underneath. */
+.matrix-wrap[data-dragging="true"] .mx-add-btn,
+.matrix-wrap[data-dragging="true"] .tc-actions {
+  opacity: 0 !important;
+  pointer-events: none;
+}
+.matrix-wrap[data-dragging="true"] .mx-task-cell:hover .mx-empty-cell,
+.matrix-wrap[data-dragging="true"] .mx-task-cell.has-task:hover {
+  background: transparent;
+  border-color: transparent;
+  box-shadow: none;
+}
+
+/* Drop target indicator — only while a task drag is over an empty cell. */
+.matrix-wrap[data-dragging="true"] .mx-task-cell.drag-over-cell .mx-empty-cell {
+  background: color-mix(in srgb, var(--accent) 12%, var(--bg-2));
+  border-color: color-mix(in srgb, var(--accent) 55%, transparent);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--accent) 18%, transparent);
+}
 .mx-stage-hd:last-child {
   border-right: none;
 }

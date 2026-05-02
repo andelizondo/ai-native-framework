@@ -1,7 +1,31 @@
 "use client";
 
 import { useEffect, useRef, useState, useTransition } from "react";
-import { CircleAlert, Pencil, Plus, Trash2 } from "lucide-react";
+import { CircleAlert, GripVertical, Pencil, Plus, Trash2 } from "lucide-react";
+import {
+  DndContext,
+  KeyboardSensor,
+  PointerSensor,
+  closestCenter,
+  pointerWithin,
+  rectIntersection,
+  useDraggable,
+  useDroppable,
+  useSensor,
+  useSensors,
+  type CollisionDetection,
+  type DragEndEvent,
+  type DragStartEvent,
+} from "@dnd-kit/core";
+import {
+  SortableContext,
+  arrayMove,
+  horizontalListSortingStrategy,
+  sortableKeyboardCoordinates,
+  useSortable,
+  verticalListSortingStrategy,
+} from "@dnd-kit/sortable";
+import { CSS } from "@dnd-kit/utilities";
 
 import {
   deleteTemplateAction,
@@ -175,6 +199,106 @@ function ColorDot({
   );
 }
 
+const matrixCollisionDetection: CollisionDetection = (args) => {
+  const activeId = String(args.active.id);
+  const containers = args.droppableContainers.filter((c) => {
+    const id = String(c.id);
+    if (activeId.startsWith("task-")) return id.startsWith("cell::");
+    if (activeId.startsWith("stage-")) return id.startsWith("stage-");
+    if (activeId.startsWith("role-")) return id.startsWith("role-");
+    return true;
+  });
+
+  if (activeId.startsWith("task-")) {
+    const inside = pointerWithin({ ...args, droppableContainers: containers });
+    if (inside.length > 0) return inside;
+    return rectIntersection({ ...args, droppableContainers: containers });
+  }
+
+  return closestCenter({ ...args, droppableContainers: containers });
+};
+
+function SortableMatrixItem({
+  id,
+  className,
+  role,
+  children,
+  testId,
+}: {
+  id: string;
+  className?: string;
+  role?: string;
+  testId?: string;
+  children: (args: {
+    handleProps: {
+      ref: (node: HTMLElement | null) => void;
+      attributes: Record<string, unknown>;
+      listeners: Record<string, unknown>;
+    };
+    isDragging: boolean;
+  }) => React.ReactNode;
+}) {
+  const {
+    attributes,
+    listeners,
+    setNodeRef,
+    setActivatorNodeRef,
+    transform,
+    transition,
+    isDragging,
+  } = useSortable({ id });
+
+  const style: React.CSSProperties = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+    zIndex: isDragging ? 30 : undefined,
+  };
+
+  return (
+    <div
+      ref={setNodeRef}
+      role={role}
+      data-testid={testId}
+      className={cn(className, isDragging && "mx-dragging")}
+      style={style}
+    >
+      {children({
+        handleProps: {
+          ref: setActivatorNodeRef,
+          attributes: attributes as unknown as Record<string, unknown>,
+          listeners: (listeners ?? {}) as unknown as Record<string, unknown>,
+        },
+        isDragging,
+      })}
+    </div>
+  );
+}
+
+function DragHandle({
+  handleProps,
+  ariaLabel,
+}: {
+  handleProps: {
+    ref: (node: HTMLElement | null) => void;
+    attributes: Record<string, unknown>;
+    listeners: Record<string, unknown>;
+  };
+  ariaLabel: string;
+}) {
+  return (
+    <button
+      type="button"
+      ref={handleProps.ref as unknown as React.Ref<HTMLButtonElement>}
+      aria-label={ariaLabel}
+      className="mx-drag-handle"
+      {...handleProps.attributes}
+      {...handleProps.listeners}
+    >
+      <GripVertical aria-hidden className="h-3 w-3" />
+    </button>
+  );
+}
+
 function MatrixHeaderInsertButton({
   axis,
   ariaLabel,
@@ -234,6 +358,71 @@ export function TemplateEditorScreen({
     };
   } | null>(null);
   const [pending, startTransition] = useTransition();
+
+  const sensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
+    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }),
+  );
+
+  const [dragTaskId, setDragTaskId] = useState<string | null>(null);
+
+  function handleDragStart(event: DragStartEvent) {
+    const id = String(event.active.id);
+    if (id.startsWith("task-")) setDragTaskId(id);
+  }
+
+  function handleDragCancel() {
+    setDragTaskId(null);
+  }
+
+  function handleDragEnd(event: DragEndEvent) {
+    const { active, over } = event;
+    const activeId = String(active.id);
+    setDragTaskId(null);
+
+    if (activeId.startsWith("stage-")) {
+      if (!over || active.id === over.id) return;
+      setDraft((current) => {
+        const from = current.stages.findIndex((s) => s.id === active.id);
+        const to = current.stages.findIndex((s) => s.id === over.id);
+        if (from < 0 || to < 0) return current;
+        return { ...current, stages: arrayMove(current.stages, from, to) };
+      });
+      return;
+    }
+
+    if (activeId.startsWith("role-")) {
+      if (!over || active.id === over.id) return;
+      setDraft((current) => {
+        const from = current.roles.findIndex((r) => r.id === active.id);
+        const to = current.roles.findIndex((r) => r.id === over.id);
+        if (from < 0 || to < 0) return current;
+        return { ...current, roles: arrayMove(current.roles, from, to) };
+      });
+      return;
+    }
+
+    if (activeId.startsWith("task-")) {
+      const overId = over?.id;
+      if (typeof overId !== "string" || !overId.startsWith("cell::")) return;
+      const [, targetRoleId, targetStageId] = overId.split("::");
+      if (!targetRoleId || !targetStageId) return;
+      setDraft((current) => {
+        const occupied = current.taskTemplates.some(
+          (t) => t.role === targetRoleId && t.stage === targetStageId,
+        );
+        if (occupied) return current;
+        return {
+          ...current,
+          taskTemplates: current.taskTemplates.map((task) =>
+            task.id === activeId
+              ? { ...task, role: targetRoleId, stage: targetStageId }
+              : task,
+          ),
+        };
+      });
+    }
+  }
 
   const isDirty = JSON.stringify(draft) !== JSON.stringify(lastSaved);
 
@@ -419,7 +608,17 @@ export function TemplateEditorScreen({
         </div>
       </div>
 
-      <div className="matrix-wrap flex-1 overflow-auto">
+      <div
+        className="matrix-wrap flex-1 overflow-auto"
+        data-dragging={dragTaskId ? "true" : undefined}
+      >
+        <DndContext
+          sensors={sensors}
+          collisionDetection={matrixCollisionDetection}
+          onDragStart={handleDragStart}
+          onDragEnd={handleDragEnd}
+          onDragCancel={handleDragCancel}
+        >
         <div className="matrix inline-block min-w-full">
           <div className="matrix-head-row" role="row">
             <div className="mx-corner" role="columnheader">
@@ -442,82 +641,102 @@ export function TemplateEditorScreen({
                 </button>
               </div>
             ) : null}
-            {draft.stages.map((stage, index) => (
-              <div key={stage.id} className="mx-stage-hd" role="columnheader">
-                <div className="mx-entity-content">
-                  <div className="min-w-0">
-                    <div className="mx-stage-name">{stage.label}</div>
-                    <div className="mx-stage-sub mx-stage-sub-plain">
-                      {stage.sub?.trim() || "No description"}
-                    </div>
-                  </div>
-                  <div className="mx-entity-actions mx-entity-actions-group">
-                    <button
-                      type="button"
-                      aria-label={`Edit stage ${stage.label}`}
-                      className="mx-entity-action"
-                      onClick={() =>
-                        setStageModalState({
-                          mode: "edit",
-                          index,
-                          stageId: stage.id,
-                          initialStage: { label: stage.label, sub: stage.sub },
-                        })
-                      }
-                    >
-                      <Pencil className="h-[11px] w-[11px]" />
-                    </button>
-                    <button
-                      type="button"
-                      aria-label={`Remove stage ${stage.label}`}
-                      className="mx-entity-action mx-entity-action-danger"
-                      onClick={() =>
-                        setConfirmState({
-                          title: `Remove stage "${stage.label}"?`,
-                          description: "All tasks in this stage will be removed.",
-                          onConfirm: () => {
-                            setDraft((current) => ({
-                              ...current,
-                              stages: current.stages.filter((item) => item.id !== stage.id),
-                              taskTemplates: current.taskTemplates.filter(
-                                (task) => task.stage !== stage.id,
-                              ),
-                            }));
-                            setConfirmState(null);
-                          },
-                        })
-                      }
-                    >
-                      <Trash2 className="h-[11px] w-[11px]" />
-                    </button>
-                  </div>
-                </div>
-                {index < draft.stages.length - 1 ? (
-                  <MatrixHeaderInsertButton
-                    axis="column"
-                    ariaLabel={`Add stage after ${stage.label}`}
-                    onClick={() =>
-                      setStageModalState({
-                        mode: "create",
-                        index: index + 1,
-                      })
-                    }
-                  />
-                ) : null}
-                {index === draft.stages.length - 1 ? (
-                  <MatrixHeaderInsertButton
-                    axis="column"
-                    ariaLabel={`Add stage after ${stage.label}`}
-                    onClick={() =>
-                      setStageModalState({
-                        mode: "create",
-                        index: draft.stages.length,
-                      })
-                    }
-                  />
-                ) : null}
-              </div>
-            ))}
+            <SortableContext
+                items={draft.stages.map((s) => s.id)}
+                strategy={horizontalListSortingStrategy}
+              >
+                {draft.stages.map((stage, index) => (
+                  <SortableMatrixItem
+                    key={stage.id}
+                    id={stage.id}
+                    role="columnheader"
+                    className="mx-stage-hd"
+                  >
+                    {({ handleProps }) => (
+                      <>
+                        <div className="mx-entity-content">
+                          <div className="min-w-0 flex items-center gap-1.5">
+                            <DragHandle
+                              handleProps={handleProps}
+                              ariaLabel={`Reorder stage ${stage.label}`}
+                            />
+                            <div className="min-w-0">
+                              <div className="mx-stage-name">{stage.label}</div>
+                              <div className="mx-stage-sub mx-stage-sub-plain">
+                                {stage.sub?.trim() || "No description"}
+                              </div>
+                            </div>
+                          </div>
+                          <div className="mx-entity-actions mx-entity-actions-group">
+                            <button
+                              type="button"
+                              aria-label={`Edit stage ${stage.label}`}
+                              className="mx-entity-action"
+                              onClick={() =>
+                                setStageModalState({
+                                  mode: "edit",
+                                  index,
+                                  stageId: stage.id,
+                                  initialStage: { label: stage.label, sub: stage.sub },
+                                })
+                              }
+                            >
+                              <Pencil className="h-[11px] w-[11px]" />
+                            </button>
+                            <button
+                              type="button"
+                              aria-label={`Remove stage ${stage.label}`}
+                              className="mx-entity-action mx-entity-action-danger"
+                              onClick={() =>
+                                setConfirmState({
+                                  title: `Remove stage "${stage.label}"?`,
+                                  description: "All tasks in this stage will be removed.",
+                                  onConfirm: () => {
+                                    setDraft((current) => ({
+                                      ...current,
+                                      stages: current.stages.filter((item) => item.id !== stage.id),
+                                      taskTemplates: current.taskTemplates.filter(
+                                        (task) => task.stage !== stage.id,
+                                      ),
+                                    }));
+                                    setConfirmState(null);
+                                  },
+                                })
+                              }
+                            >
+                              <Trash2 className="h-[11px] w-[11px]" />
+                            </button>
+                          </div>
+                        </div>
+                        {index < draft.stages.length - 1 ? (
+                          <MatrixHeaderInsertButton
+                            axis="column"
+                            ariaLabel={`Add stage after ${stage.label}`}
+                            onClick={() =>
+                              setStageModalState({
+                                mode: "create",
+                                index: index + 1,
+                              })
+                            }
+                          />
+                        ) : null}
+                        {index === draft.stages.length - 1 ? (
+                          <MatrixHeaderInsertButton
+                            axis="column"
+                            ariaLabel={`Add stage after ${stage.label}`}
+                            onClick={() =>
+                              setStageModalState({
+                                mode: "create",
+                                index: draft.stages.length,
+                              })
+                            }
+                          />
+                        ) : null}
+                      </>
+                    )}
+                  </SortableMatrixItem>
+                ))}
+              </SortableContext>
           </div>
 
           {draft.roles.length === 0 ? (
@@ -541,148 +760,173 @@ export function TemplateEditorScreen({
               ))}
             </div>
           ) : null}
-          {draft.roles.map((role, roleIndex) => (
-            <div key={role.id} className="mx-body-row" role="row">
-              <div className="mx-role-cell" role="rowheader">
-                <ColorDot
-                  color={role.color || getRoleColor(role.id, draft.roles)}
-                  onChange={(color) =>
-                    setDraft((current) => ({
-                      ...current,
-                      roles: current.roles.map((item) =>
-                        item.id === role.id ? { ...item, color } : item,
-                      ),
-                    }))
-                  }
-                />
-                <div className="mx-entity-content">
-                  <div className="min-w-0">
-                    <div className="mx-role-name">{role.label}</div>
-                    <div className="mx-role-owner mx-role-owner-plain">
-                      {role.owner?.trim() || "No owner"}
-                    </div>
-                  </div>
-                  <div className="mx-entity-actions mx-entity-actions-group">
-                    <button
-                      type="button"
-                      className="mx-entity-action"
-                      aria-label={`Edit role ${role.label}`}
-                      onClick={() =>
-                        setRoleModalState({
-                          mode: "edit",
-                          index: roleIndex,
-                          roleId: role.id,
-                          initialRole: { label: role.label, owner: role.owner },
-                        })
-                      }
-                    >
-                      <Pencil className="h-[11px] w-[11px]" />
-                    </button>
-                    <button
-                      type="button"
-                      className="mx-entity-action mx-entity-action-danger"
-                      aria-label={`Remove role ${role.label}`}
-                      onClick={() =>
-                        setConfirmState({
-                          title: `Remove role "${role.label}"?`,
-                          description:
-                            "All tasks assigned to this role in this template will be removed.",
-                          onConfirm: () => {
+          <SortableContext
+              items={draft.roles.map((r) => r.id)}
+              strategy={verticalListSortingStrategy}
+            >
+              {draft.roles.map((role, roleIndex) => (
+                <SortableMatrixItem
+                  key={role.id}
+                  id={role.id}
+                  role="row"
+                  className="mx-body-row"
+                >
+                  {({ handleProps }) => (
+                    <>
+                      <div className="mx-role-cell" role="rowheader">
+                        <DragHandle
+                          handleProps={handleProps}
+                          ariaLabel={`Reorder role ${role.label}`}
+                        />
+                        <ColorDot
+                          color={role.color || getRoleColor(role.id, draft.roles)}
+                          onChange={(color) =>
                             setDraft((current) => ({
                               ...current,
-                              roles: current.roles.filter((item) => item.id !== role.id),
-                              taskTemplates: current.taskTemplates.filter(
-                                (task) => task.role !== role.id,
+                              roles: current.roles.map((item) =>
+                                item.id === role.id ? { ...item, color } : item,
                               ),
-                            }));
-                            setConfirmState(null);
-                          },
-                        })
-                      }
-                    >
-                      <Trash2 className="h-[11px] w-[11px]" />
-                    </button>
-                  </div>
-                </div>
-                {roleIndex < draft.roles.length - 1 ? (
-                  <MatrixHeaderInsertButton
-                    axis="row"
-                    ariaLabel={`Add role after ${role.label}`}
-                    onClick={() =>
-                      setRoleModalState({
-                        mode: "create",
-                        index: roleIndex + 1,
-                      })
-                    }
-                  />
-                ) : null}
-                {roleIndex === draft.roles.length - 1 ? (
-                  <MatrixHeaderInsertButton
-                    axis="row"
-                    ariaLabel={`Add role after ${role.label}`}
-                    onClick={() =>
-                      setRoleModalState({
-                        mode: "create",
-                        index: draft.roles.length,
-                      })
-                    }
-                  />
-                ) : null}
-              </div>
+                            }))
+                          }
+                        />
+                        <div className="mx-entity-content">
+                          <div className="min-w-0">
+                            <div className="mx-role-name">{role.label}</div>
+                            <div className="mx-role-owner mx-role-owner-plain">
+                              {role.owner?.trim() || "No owner"}
+                            </div>
+                          </div>
+                          <div className="mx-entity-actions mx-entity-actions-group">
+                            <button
+                              type="button"
+                              className="mx-entity-action"
+                              aria-label={`Edit role ${role.label}`}
+                              onClick={() =>
+                                setRoleModalState({
+                                  mode: "edit",
+                                  index: roleIndex,
+                                  roleId: role.id,
+                                  initialRole: { label: role.label, owner: role.owner },
+                                })
+                              }
+                            >
+                              <Pencil className="h-[11px] w-[11px]" />
+                            </button>
+                            <button
+                              type="button"
+                              className="mx-entity-action mx-entity-action-danger"
+                              aria-label={`Remove role ${role.label}`}
+                              onClick={() =>
+                                setConfirmState({
+                                  title: `Remove role "${role.label}"?`,
+                                  description:
+                                    "All tasks assigned to this role in this template will be removed.",
+                                  onConfirm: () => {
+                                    setDraft((current) => ({
+                                      ...current,
+                                      roles: current.roles.filter((item) => item.id !== role.id),
+                                      taskTemplates: current.taskTemplates.filter(
+                                        (task) => task.role !== role.id,
+                                      ),
+                                    }));
+                                    setConfirmState(null);
+                                  },
+                                })
+                              }
+                            >
+                              <Trash2 className="h-[11px] w-[11px]" />
+                            </button>
+                          </div>
+                        </div>
+                        {roleIndex < draft.roles.length - 1 ? (
+                          <MatrixHeaderInsertButton
+                            axis="row"
+                            ariaLabel={`Add role after ${role.label}`}
+                            onClick={() =>
+                              setRoleModalState({
+                                mode: "create",
+                                index: roleIndex + 1,
+                              })
+                            }
+                          />
+                        ) : null}
+                        {roleIndex === draft.roles.length - 1 ? (
+                          <MatrixHeaderInsertButton
+                            axis="row"
+                            ariaLabel={`Add role after ${role.label}`}
+                            onClick={() =>
+                              setRoleModalState({
+                                mode: "create",
+                                index: draft.roles.length,
+                              })
+                            }
+                          />
+                        ) : null}
+                      </div>
 
-              {draft.stages.map((stage) => {
+                      {draft.stages.map((stage) => {
                 const templateTask = draft.taskTemplates.find(
                   (task) => task.role === role.id && task.stage === stage.id,
                 );
                 const task = templateTask ? templateTaskToCard(templateTask) : null;
 
                 return (
-                  <div key={`${role.id}-${stage.id}`} className="mx-task-cell">
-                    {task ? (
-                      <TaskCard
-                        task={task}
-                        roleColor={role.color || getRoleColor(role.id, draft.roles)}
-                        barState="bar-ready"
-                        editMode
-                        showDefaultPill
-                        onEdit={() =>
-                          setAddTaskFor({
-                            mode: "edit",
-                            taskId: templateTask?.id,
-                            roleId: role.id,
-                            roleName: role.label,
-                            stageId: stage.id,
-                            stageName: stage.label,
-                            initialTask: {
-                              title: templateTask?.title ?? "",
-                              description: templateTask?.desc ?? "",
-                              agent: templateTask?.agent ?? null,
-                              skill: templateTask?.skill ?? null,
-                              playbook: templateTask?.playbook ?? null,
-                            },
-                          })
-                        }
-                        onRemove={() =>
-                          setConfirmState({
-                            title: `Delete "${task.title}"?`,
-                            description:
-                              "This task and its default configuration will be removed from the template.",
-                            onConfirm: () => {
-                              setDraft((current) => ({
-                                ...current,
-                                taskTemplates: current.taskTemplates.filter(
-                                  (item) => item.id !== templateTask?.id,
-                                ),
-                              }));
-                              setConfirmState(null);
-                            },
-                          })
-                        }
-                      />
+                  <DroppableTemplateCell
+                    key={`${role.id}-${stage.id}`}
+                    roleId={role.id}
+                    stageId={stage.id}
+                    hasTask={Boolean(task)}
+                    dragActive={Boolean(dragTaskId)}
+                  >
+                    {task && templateTask ? (
+                      <DraggableTemplateTask
+                        taskId={templateTask.id ?? task.id}
+                        isActive={dragTaskId === (templateTask.id ?? task.id)}
+                      >
+                        <TaskCard
+                          task={task}
+                          roleColor={role.color || getRoleColor(role.id, draft.roles)}
+                          barState="bar-ready"
+                          editMode
+                          showDefaultPill
+                          onEdit={() =>
+                            setAddTaskFor({
+                              mode: "edit",
+                              taskId: templateTask.id,
+                              roleId: role.id,
+                              roleName: role.label,
+                              stageId: stage.id,
+                              stageName: stage.label,
+                              initialTask: {
+                                title: templateTask.title,
+                                description: templateTask.desc,
+                                agent: templateTask.agent ?? null,
+                                skill: templateTask.skill ?? null,
+                                playbook: templateTask.playbook ?? null,
+                              },
+                            })
+                          }
+                          onRemove={() =>
+                            setConfirmState({
+                              title: `Delete "${task.title}"?`,
+                              description:
+                                "This task and its default configuration will be removed from the template.",
+                              onConfirm: () => {
+                                setDraft((current) => ({
+                                  ...current,
+                                  taskTemplates: current.taskTemplates.filter(
+                                    (item) => item.id !== templateTask.id,
+                                  ),
+                                }));
+                                setConfirmState(null);
+                              },
+                            })
+                          }
+                        />
+                      </DraggableTemplateTask>
                     ) : (
-                      <button
-                        type="button"
-                        data-testid={`matrix-add-task-${role.id}-${stage.id}`}
+                      <div
+                        className="mx-empty-cell"
                         onClick={() =>
                           setAddTaskFor({
                             mode: "create",
@@ -692,19 +936,27 @@ export function TemplateEditorScreen({
                             stageName: stage.label,
                           })
                         }
-                        className="mx-empty-cell w-full"
                       >
-                        <span className="mx-add-btn">
+                        <button
+                          type="button"
+                          className="mx-add-btn"
+                          data-testid={`matrix-add-task-${role.id}-${stage.id}`}
+                          aria-label={`Add task for ${role.label} in ${stage.label}`}
+                        >
                           <Plus className="h-3.5 w-3.5" />
-                        </span>
-                      </button>
+                        </button>
+                      </div>
                     )}
-                  </div>
+                  </DroppableTemplateCell>
                 );
-              })}
-            </div>
-          ))}
+                      })}
+                    </>
+                  )}
+                </SortableMatrixItem>
+              ))}
+            </SortableContext>
         </div>
+        </DndContext>
       </div>
 
       {roleModalState ? (
@@ -807,6 +1059,66 @@ export function TemplateEditorScreen({
           onConfirm={confirmState.onConfirm}
         />
       ) : null}
+    </div>
+  );
+}
+
+function DraggableTemplateTask({
+  taskId,
+  isActive,
+  children,
+}: {
+  taskId: string;
+  isActive: boolean;
+  children: React.ReactNode;
+}) {
+  const { attributes, listeners, setNodeRef, transform } = useDraggable({
+    id: taskId,
+  });
+
+  const style: React.CSSProperties = {
+    transform: transform ? CSS.Translate.toString(transform) : undefined,
+    opacity: isActive ? 0.4 : undefined,
+    position: isActive ? "relative" : undefined,
+    zIndex: isActive ? 100 : undefined,
+    touchAction: "none",
+  };
+
+  return (
+    <div ref={setNodeRef} style={style} {...attributes} {...listeners}>
+      {children}
+    </div>
+  );
+}
+
+function DroppableTemplateCell({
+  roleId,
+  stageId,
+  hasTask,
+  dragActive,
+  children,
+}: {
+  roleId: string;
+  stageId: string;
+  hasTask: boolean;
+  dragActive: boolean;
+  children: React.ReactNode;
+}) {
+  const { setNodeRef, isOver } = useDroppable({
+    id: `cell::${roleId}::${stageId}`,
+    disabled: hasTask,
+  });
+
+  return (
+    <div
+      ref={setNodeRef}
+      className={cn(
+        "mx-task-cell",
+        hasTask && "has-task",
+        dragActive && !hasTask && isOver && "drag-over-cell",
+      )}
+    >
+      {children}
     </div>
   );
 }

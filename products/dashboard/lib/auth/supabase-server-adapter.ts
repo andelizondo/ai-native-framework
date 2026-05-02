@@ -3,7 +3,20 @@ import { cookies } from "next/headers";
 import { NextResponse } from "next/server";
 import type { User } from "@supabase/supabase-js";
 import { getSupabaseRuntimeConfig } from "./config";
+import {
+  getRequestBypassSupabaseCookie,
+  getServerBypassSupabaseCookie,
+} from "./test-bypass";
 import type { AuthUser, MiddlewareAuthState, MiddlewareContext } from "./types";
+
+function overlayCookies(
+  real: Array<{ name: string; value: string }>,
+  overlay: { name: string; value: string } | null,
+): Array<{ name: string; value: string }> {
+  if (!overlay) return real;
+  const filtered = real.filter((c) => c.name !== overlay.name);
+  return [...filtered, overlay];
+}
 
 function mapUser(user: User | null): AuthUser | null {
   if (!user) {
@@ -22,11 +35,12 @@ function mapUser(user: User | null): AuthUser | null {
 async function createSupabaseServerClient() {
   const cookieStore = await cookies();
   const { url, anonKey } = getSupabaseRuntimeConfig();
+  const bypassCookie = await getServerBypassSupabaseCookie();
 
   return createServerClient(url, anonKey, {
     cookies: {
       getAll() {
-        return cookieStore.getAll();
+        return overlayCookies(cookieStore.getAll(), bypassCookie);
       },
       setAll(cookiesToSet) {
         try {
@@ -64,11 +78,12 @@ export async function getMiddlewareUserWithSupabase({
 }: MiddlewareContext): Promise<MiddlewareAuthState> {
   const { url, anonKey } = getSupabaseRuntimeConfig();
   let response = NextResponse.next({ request: { headers: requestHeaders } });
+  const bypassCookie = await getRequestBypassSupabaseCookie(req);
 
   const client = createServerClient(url, anonKey, {
     cookies: {
       getAll() {
-        return req.cookies.getAll();
+        return overlayCookies(req.cookies.getAll(), bypassCookie);
       },
       setAll(cookiesToSet) {
         cookiesToSet.forEach(({ name, value }) => req.cookies.set(name, value));

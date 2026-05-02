@@ -2,6 +2,30 @@
 
 import { useCallback, useEffect, useMemo, useState, useTransition } from "react";
 import { ChevronsLeftRight, Plus } from "lucide-react";
+import {
+  DndContext,
+  KeyboardSensor,
+  PointerSensor,
+  pointerWithin,
+  rectIntersection,
+  useDraggable,
+  useDroppable,
+  useSensor,
+  useSensors,
+  type CollisionDetection,
+  type DragEndEvent,
+  type DragStartEvent,
+} from "@dnd-kit/core";
+import { CSS } from "@dnd-kit/utilities";
+
+const matrixCollisionDetection: CollisionDetection = (args) => {
+  const containers = args.droppableContainers.filter((c) =>
+    String(c.id).startsWith("cell::"),
+  );
+  const inside = pointerWithin({ ...args, droppableContainers: containers });
+  if (inside.length > 0) return inside;
+  return rectIntersection({ ...args, droppableContainers: containers });
+};
 
 import {
   createTaskAction,
@@ -53,7 +77,6 @@ export function ProcessMatrix({
   const [collapsed, setCollapsed] = useState(false);
   const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null);
   const [dragTaskId, setDragTaskId] = useState<string | null>(null);
-  const [dragOverCell, setDragOverCell] = useState<string | null>(null);
   const [addTaskFor, setAddTaskFor] = useState<{
     mode: "create" | "edit";
     taskId?: string;
@@ -226,11 +249,65 @@ export function ProcessMatrix({
     [localTasks],
   );
 
+  const sensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
+    useSensor(KeyboardSensor),
+  );
+
+  const handleDragStart = useCallback((event: DragStartEvent) => {
+    setDragTaskId(String(event.active.id));
+  }, []);
+
+  const handleDragEnd = useCallback(
+    (event: DragEndEvent) => {
+      const draggedId = String(event.active.id);
+      setDragTaskId(null);
+      if (!editMode) return;
+      const overId = event.over?.id;
+      if (typeof overId !== "string" || !overId.startsWith("cell::")) return;
+      const [, targetRoleId, targetStageId] = overId.split("::");
+      if (!targetRoleId || !targetStageId) return;
+      const dragged = localTasks.find((t) => t.id === draggedId);
+      if (!dragged) return;
+      if (dragged.roleId === targetRoleId && dragged.stageId === targetStageId) return;
+      const occupied = localTasks.some(
+        (t) => t.roleId === targetRoleId && t.stageId === targetStageId,
+      );
+      if (occupied) return;
+
+      runMutation(
+        (tasks) =>
+          tasks.map((item) =>
+            item.id === draggedId
+              ? { ...item, roleId: targetRoleId, stageId: targetStageId }
+              : item,
+          ),
+        async () => {
+          const result = await moveTaskAction(draggedId, targetRoleId, targetStageId);
+          return result.task;
+        },
+      );
+    },
+    [editMode, localTasks, runMutation],
+  );
+
+  const handleDragCancel = useCallback(() => {
+    setDragTaskId(null);
+  }, []);
+
   return (
     <>
+      <DndContext
+        sensors={sensors}
+        collisionDetection={matrixCollisionDetection}
+        onDragStart={handleDragStart}
+        onDragEnd={handleDragEnd}
+        onDragCancel={handleDragCancel}
+      >
       <div
         data-testid="process-matrix"
         data-collapsed={collapsed ? "true" : "false"}
+        data-dragging={dragTaskId ? "true" : undefined}
         className={cn("matrix-wrap", collapsed && "roles-collapsed")}
       >
         <div className="matrix" role="table" aria-label="Workflow process matrix">
@@ -333,115 +410,54 @@ export function ProcessMatrix({
                   </div>
 
                   {stages.map((stage) => {
-                    const cellKey = `${role.id}-${stage.id}`;
                     const task = tasksByCell.get(`${role.id}::${stage.id}`);
 
                     return (
-                      <div
-                        key={cellKey}
-                        role="cell"
-                        data-testid={`matrix-cell-${role.id}-${stage.id}`}
-                        className={cn(
-                          "mx-task-cell",
-                          task && "has-task",
-                          dragOverCell === cellKey && "drag-over-cell",
-                        )}
-                        onDragOver={
-                          editMode
-                            ? (event) => {
-                                if (!dragTaskId || task) return;
-                                event.preventDefault();
-                                setDragOverCell(cellKey);
-                              }
-                            : undefined
-                        }
-                        onDragLeave={
-                          editMode
-                            ? () => {
-                                setDragOverCell((current) =>
-                                  current === cellKey ? null : current,
-                                );
-                              }
-                            : undefined
-                        }
-                        onDrop={
-                          editMode
-                            ? (event) => {
-                                event.preventDefault();
-                                const droppedTaskId =
-                                  event.dataTransfer.getData("taskId") || dragTaskId;
-                                setDragTaskId(null);
-                                setDragOverCell(null);
-                                if (!droppedTaskId || task) return;
-
-                                runMutation(
-                                  (tasks) =>
-                                    tasks.map((item) =>
-                                      item.id === droppedTaskId
-                                        ? { ...item, roleId: role.id, stageId: stage.id }
-                                        : item,
-                                    ),
-                                  async () => {
-                                    const result = await moveTaskAction(
-                                      droppedTaskId,
-                                      role.id,
-                                      stage.id,
-                                    );
-                                    return result.task;
-                                  },
-                                );
-                              }
-                            : undefined
-                        }
+                      <DroppableTaskCell
+                        key={`${role.id}-${stage.id}`}
+                        roleId={role.id}
+                        stageId={stage.id}
+                        hasTask={Boolean(task)}
+                        editMode={editMode}
+                        dragActive={Boolean(dragTaskId)}
                       >
                         {task ? (
-                          <TaskCard
-                            task={task}
-                            roleColor={roleColor}
-                            barState={barClass(task, canStart(task, localTasks))}
-                            editMode={editMode}
-                            draggable
-                            onClick={() => setSelectedTaskId(task.id)}
-                            onEdit={
-                              editMode
-                                ? () =>
-                                    setAddTaskFor({
-                                      mode: "edit",
-                                      taskId: task.id,
-                                      roleId: role.id,
-                                      roleName: role.label,
-                                      stageId: stage.id,
-                                      stageName: stage.label,
-                                      initialTask: {
-                                        title: task.title,
-                                        description: task.description,
-                                        agent: task.agent ?? null,
-                                        skill: task.skill ?? null,
-                                        playbook: task.playbook ?? null,
-                                      },
-                                    })
-                                : undefined
-                            }
-                            onRemove={
-                              editMode ? () => setConfirmDeleteTask(task) : undefined
-                            }
-                            onDragStart={
-                              editMode
-                                ? (event) => {
-                                    event.dataTransfer.setData("taskId", task.id);
-                                    setDragTaskId(task.id);
-                                  }
-                                : undefined
-                            }
-                            onDragEnd={
-                              editMode
-                                ? () => {
-                                    setDragTaskId(null);
-                                    setDragOverCell(null);
-                                  }
-                                : undefined
-                            }
-                          />
+                          <DraggableTaskCard
+                            taskId={task.id}
+                            disabled={!editMode}
+                            isActive={dragTaskId === task.id}
+                          >
+                            <TaskCard
+                              task={task}
+                              roleColor={roleColor}
+                              barState={barClass(task, canStart(task, localTasks))}
+                              editMode={editMode}
+                              onClick={() => setSelectedTaskId(task.id)}
+                              onEdit={
+                                editMode
+                                  ? () =>
+                                      setAddTaskFor({
+                                        mode: "edit",
+                                        taskId: task.id,
+                                        roleId: role.id,
+                                        roleName: role.label,
+                                        stageId: stage.id,
+                                        stageName: stage.label,
+                                        initialTask: {
+                                          title: task.title,
+                                          description: task.description,
+                                          agent: task.agent ?? null,
+                                          skill: task.skill ?? null,
+                                          playbook: task.playbook ?? null,
+                                        },
+                                      })
+                                  : undefined
+                              }
+                              onRemove={
+                                editMode ? () => setConfirmDeleteTask(task) : undefined
+                              }
+                            />
+                          </DraggableTaskCard>
                         ) : editMode ? (
                           <div
                             className="mx-empty-cell"
@@ -465,7 +481,7 @@ export function ProcessMatrix({
                             </button>
                           </div>
                         ) : null}
-                      </div>
+                      </DroppableTaskCell>
                     );
                   })}
                 </div>
@@ -474,6 +490,7 @@ export function ProcessMatrix({
           )}
         </div>
       </div>
+      </DndContext>
 
       <TaskDrawer
         task={selectedTask}
@@ -570,5 +587,72 @@ export function ProcessMatrix({
 
       {isPending ? <span className="sr-only">Saving workflow edits</span> : null}
     </>
+  );
+}
+
+function DraggableTaskCard({
+  taskId,
+  disabled,
+  isActive,
+  children,
+}: {
+  taskId: string;
+  disabled: boolean;
+  isActive: boolean;
+  children: React.ReactNode;
+}) {
+  const { attributes, listeners, setNodeRef, transform } = useDraggable({
+    id: taskId,
+    disabled,
+  });
+
+  const style: React.CSSProperties = {
+    transform: transform ? CSS.Translate.toString(transform) : undefined,
+    opacity: isActive ? 0.4 : undefined,
+    position: isActive ? "relative" : undefined,
+    zIndex: isActive ? 100 : undefined,
+    touchAction: disabled ? undefined : "none",
+  };
+
+  return (
+    <div ref={setNodeRef} style={style} {...attributes} {...listeners}>
+      {children}
+    </div>
+  );
+}
+
+function DroppableTaskCell({
+  roleId,
+  stageId,
+  hasTask,
+  editMode,
+  dragActive,
+  children,
+}: {
+  roleId: string;
+  stageId: string;
+  hasTask: boolean;
+  editMode: boolean;
+  dragActive: boolean;
+  children: React.ReactNode;
+}) {
+  const { setNodeRef, isOver } = useDroppable({
+    id: `cell::${roleId}::${stageId}`,
+    disabled: !editMode || hasTask,
+  });
+
+  return (
+    <div
+      ref={setNodeRef}
+      role="cell"
+      data-testid={`matrix-cell-${roleId}-${stageId}`}
+      className={cn(
+        "mx-task-cell",
+        hasTask && "has-task",
+        editMode && dragActive && !hasTask && isOver && "drag-over-cell",
+      )}
+    >
+      {children}
+    </div>
   );
 }
