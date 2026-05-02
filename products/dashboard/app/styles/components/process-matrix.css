@@ -132,11 +132,13 @@
   opacity: 0 !important;
   pointer-events: none;
 }
-.matrix-wrap[data-dragging="true"] .mx-task-cell:hover .mx-empty-cell,
-.matrix-wrap[data-dragging="true"] .mx-task-cell.has-task:hover {
+.matrix-wrap[data-dragging="true"] .mx-task-cell:hover .mx-empty-cell {
   background: transparent;
   border-color: transparent;
   box-shadow: none;
+}
+.matrix-wrap[data-dragging="true"] .mx-task-cell.has-task:hover {
+  background: transparent;
 }
 
 /* Drop target indicator — only while a task drag is over an empty cell. */

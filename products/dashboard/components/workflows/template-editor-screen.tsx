@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState, useTransition } from "react";
+import { useEffect, useId, useRef, useState, useTransition } from "react";
 import { CircleAlert, GripVertical, Pencil, Plus, Trash2 } from "lucide-react";
 import {
   DndContext,
@@ -94,6 +94,16 @@ function createId(prefix: string): string {
     return `${prefix}-${crypto.randomUUID()}`;
   }
   return `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+}
+
+function withStableTaskIds(template: WorkflowTemplate): WorkflowTemplate {
+  let mutated = false;
+  const taskTemplates = template.taskTemplates.map((task) => {
+    if (task.id) return task;
+    mutated = true;
+    return { ...task, id: `task-seed-${task.role}-${task.stage}` };
+  });
+  return mutated ? { ...template, taskTemplates } : template;
 }
 
 function templateTaskToCard(task: WorkflowTaskTemplate): WorkflowTask {
@@ -203,13 +213,13 @@ const matrixCollisionDetection: CollisionDetection = (args) => {
   const activeId = String(args.active.id);
   const containers = args.droppableContainers.filter((c) => {
     const id = String(c.id);
-    if (activeId.startsWith("task-")) return id.startsWith("cell::");
-    if (activeId.startsWith("stage-")) return id.startsWith("stage-");
-    if (activeId.startsWith("role-")) return id.startsWith("role-");
+    if (activeId.startsWith("task::")) return id.startsWith("cell::");
+    if (activeId.startsWith("stage::")) return id.startsWith("stage::");
+    if (activeId.startsWith("role::")) return id.startsWith("role::");
     return true;
   });
 
-  if (activeId.startsWith("task-")) {
+  if (activeId.startsWith("task::")) {
     const inside = pointerWithin({ ...args, droppableContainers: containers });
     if (inside.length > 0) return inside;
     return rectIntersection({ ...args, droppableContainers: containers });
@@ -338,7 +348,7 @@ export function TemplateEditorScreen({
   const { success: toastSuccess, error: toastError } = useToast();
   const draftRef = useRef(template);
   const [lastSaved, setLastSaved] = useState<WorkflowTemplate>(template);
-  const [draft, setDraft] = useState<WorkflowTemplate>(template);
+  const [draft, setDraft] = useState<WorkflowTemplate>(() => withStableTaskIds(template));
   const [confirmState, setConfirmState] = useState<ConfirmState>(null);
   const [roleModalState, setRoleModalState] = useState<RoleModalState>(null);
   const [stageModalState, setStageModalState] = useState<StageModalState>(null);
@@ -358,6 +368,7 @@ export function TemplateEditorScreen({
     };
   } | null>(null);
   const [pending, startTransition] = useTransition();
+  const dndContextId = useId();
 
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
@@ -368,7 +379,7 @@ export function TemplateEditorScreen({
 
   function handleDragStart(event: DragStartEvent) {
     const id = String(event.active.id);
-    if (id.startsWith("task-")) setDragTaskId(id);
+    if (id.startsWith("task::")) setDragTaskId(id);
   }
 
   function handleDragCancel() {
@@ -380,33 +391,38 @@ export function TemplateEditorScreen({
     const activeId = String(active.id);
     setDragTaskId(null);
 
-    if (activeId.startsWith("stage-")) {
+    if (activeId.startsWith("stage::")) {
       if (!over || active.id === over.id) return;
+      const fromId = activeId.slice("stage::".length);
+      const toId = String(over.id).slice("stage::".length);
       setDraft((current) => {
-        const from = current.stages.findIndex((s) => s.id === active.id);
-        const to = current.stages.findIndex((s) => s.id === over.id);
+        const from = current.stages.findIndex((s) => s.id === fromId);
+        const to = current.stages.findIndex((s) => s.id === toId);
         if (from < 0 || to < 0) return current;
         return { ...current, stages: arrayMove(current.stages, from, to) };
       });
       return;
     }
 
-    if (activeId.startsWith("role-")) {
+    if (activeId.startsWith("role::")) {
       if (!over || active.id === over.id) return;
+      const fromId = activeId.slice("role::".length);
+      const toId = String(over.id).slice("role::".length);
       setDraft((current) => {
-        const from = current.roles.findIndex((r) => r.id === active.id);
-        const to = current.roles.findIndex((r) => r.id === over.id);
+        const from = current.roles.findIndex((r) => r.id === fromId);
+        const to = current.roles.findIndex((r) => r.id === toId);
         if (from < 0 || to < 0) return current;
         return { ...current, roles: arrayMove(current.roles, from, to) };
       });
       return;
     }
 
-    if (activeId.startsWith("task-")) {
+    if (activeId.startsWith("task::")) {
       const overId = over?.id;
       if (typeof overId !== "string" || !overId.startsWith("cell::")) return;
       const [, targetRoleId, targetStageId] = overId.split("::");
       if (!targetRoleId || !targetStageId) return;
+      const taskId = activeId.slice("task::".length);
       setDraft((current) => {
         const occupied = current.taskTemplates.some(
           (t) => t.role === targetRoleId && t.stage === targetStageId,
@@ -415,7 +431,7 @@ export function TemplateEditorScreen({
         return {
           ...current,
           taskTemplates: current.taskTemplates.map((task) =>
-            task.id === activeId
+            task.id === taskId
               ? { ...task, role: targetRoleId, stage: targetStageId }
               : task,
           ),
@@ -431,7 +447,7 @@ export function TemplateEditorScreen({
   }, [draft]);
 
   useEffect(() => {
-    setDraft(template);
+    setDraft(withStableTaskIds(template));
     setLastSaved(template);
   }, [template]);
 
@@ -613,6 +629,7 @@ export function TemplateEditorScreen({
         data-dragging={dragTaskId ? "true" : undefined}
       >
         <DndContext
+          id={dndContextId}
           sensors={sensors}
           collisionDetection={matrixCollisionDetection}
           onDragStart={handleDragStart}
@@ -642,13 +659,13 @@ export function TemplateEditorScreen({
               </div>
             ) : null}
             <SortableContext
-                items={draft.stages.map((s) => s.id)}
+                items={draft.stages.map((s) => `stage::${s.id}`)}
                 strategy={horizontalListSortingStrategy}
               >
                 {draft.stages.map((stage, index) => (
                   <SortableMatrixItem
                     key={stage.id}
-                    id={stage.id}
+                    id={`stage::${stage.id}`}
                     role="columnheader"
                     className="mx-stage-hd"
                   >
@@ -761,13 +778,13 @@ export function TemplateEditorScreen({
             </div>
           ) : null}
           <SortableContext
-              items={draft.roles.map((r) => r.id)}
+              items={draft.roles.map((r) => `role::${r.id}`)}
               strategy={verticalListSortingStrategy}
             >
               {draft.roles.map((role, roleIndex) => (
                 <SortableMatrixItem
                   key={role.id}
-                  id={role.id}
+                  id={`role::${role.id}`}
                   role="row"
                   className="mx-body-row"
                 >
@@ -880,8 +897,8 @@ export function TemplateEditorScreen({
                   >
                     {task && templateTask ? (
                       <DraggableTemplateTask
-                        taskId={templateTask.id ?? task.id}
-                        isActive={dragTaskId === (templateTask.id ?? task.id)}
+                        taskId={`task::${templateTask.id ?? task.id}`}
+                        isActive={dragTaskId === `task::${templateTask.id ?? task.id}`}
                       >
                         <TaskCard
                           task={task}
