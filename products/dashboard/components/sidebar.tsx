@@ -5,10 +5,12 @@ import { usePathname } from "next/navigation";
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import {
   BookOpen,
+  Check,
   ChevronLeft,
   ChevronRight,
   LayoutGrid,
   LogOut,
+  Monitor,
   Moon,
   Plus,
   Rss,
@@ -21,6 +23,7 @@ import {
 import { cn } from "@/lib/utils";
 import { useSidebarCollapsed } from "@/lib/sidebar";
 import { useTheme } from "@/lib/theme";
+import type { ThemePreference } from "@/lib/theme-tokens";
 import { useSignOut } from "@/lib/auth/use-sign-out";
 import type { AuthUser } from "@/lib/auth/types";
 import type { WorkflowTemplate } from "@/lib/workflows/types";
@@ -108,22 +111,28 @@ function SidebarNavLink({
   );
 }
 
+const THEME_OPTIONS: Array<{ value: ThemePreference; label: string; icon: React.ReactNode }> = [
+  { value: "dark", label: "Dark", icon: <Moon className="h-3.5 w-3.5" /> },
+  { value: "light", label: "Light", icon: <Sun className="h-3.5 w-3.5" /> },
+  { value: "system", label: "System", icon: <Monitor className="h-3.5 w-3.5" /> },
+];
+
 function UserMenu({
   open,
   onClose,
-  onThemeToggle,
+  preference,
+  onSetPreference,
   onSignOut,
   signingOut,
   signOutError,
-  isDark,
 }: {
   open: boolean;
   onClose: () => void;
-  onThemeToggle: () => void;
+  preference: ThemePreference;
+  onSetPreference: (p: ThemePreference) => void;
   onSignOut: () => void;
   signingOut: boolean;
   signOutError: string | null;
-  isDark: boolean;
 }) {
   if (!open) return null;
   return (
@@ -132,20 +141,23 @@ function UserMenu({
       aria-label="User menu"
       className="absolute bottom-[calc(100%+4px)] left-2.5 right-2.5 z-20 rounded-[10px] border border-border-hi bg-bg-3 p-1.5 shadow-[var(--shadow-canvas)]"
     >
-      <button
-        type="button"
-        role="menuitem"
-        onClick={() => {
-          onThemeToggle();
-          onClose();
-        }}
-        className="flex w-full items-center gap-2 rounded-md px-2.5 py-2 text-[12.5px] text-t2 hover:bg-bg-4 hover:text-t1 transition-colors"
-      >
-        <span className="flex h-3.5 w-3.5 items-center justify-center">
-          {isDark ? <Sun className="h-3.5 w-3.5" /> : <Moon className="h-3.5 w-3.5" />}
-        </span>
-        {isDark ? "Light mode" : "Dark mode"}
-      </button>
+      {THEME_OPTIONS.map(({ value, label, icon }) => (
+        <button
+          key={value}
+          type="button"
+          role="menuitem"
+          aria-checked={preference === value}
+          onClick={() => {
+            onSetPreference(value);
+            onClose();
+          }}
+          className="flex w-full items-center gap-2 rounded-md px-2.5 py-2 text-[12.5px] text-t2 hover:bg-bg-4 hover:text-t1 transition-colors"
+        >
+          <span className="flex h-3.5 w-3.5 items-center justify-center">{icon}</span>
+          <span className="flex-1 text-left">{label}</span>
+          {preference === value && <Check className="h-3 w-3 text-accent" aria-hidden />}
+        </button>
+      ))}
 
       <div className="my-1 h-px bg-border" />
 
@@ -212,7 +224,7 @@ export function Sidebar({
 }: SidebarProps) {
   const pathname = usePathname();
   const { collapsed, toggleCollapsed } = useSidebarCollapsed();
-  const { theme, toggleTheme } = useTheme();
+  const { preference, setPreference } = useTheme();
   const { handleSignOut, loading: signingOut, error: signOutError } = useSignOut(user.provider);
 
   const [userMenuOpen, setUserMenuOpen] = useState(false);
@@ -340,13 +352,13 @@ export function Sidebar({
         <UserMenu
           open={userMenuOpen}
           onClose={() => setUserMenuOpen(false)}
-          onThemeToggle={toggleTheme}
+          preference={preference}
+          onSetPreference={setPreference}
           onSignOut={() => {
             void handleSignOut();
           }}
           signingOut={signingOut}
           signOutError={signOutError}
-          isDark={theme === "dark"}
         />
         <button
           type="button"
