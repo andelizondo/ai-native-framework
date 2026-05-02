@@ -21,7 +21,7 @@ export default function RootLayout({
   const appRelease = getAppRelease();
 
   return (
-    <html lang="en" data-theme={DEFAULT_THEME} data-sidebar="expanded">
+    <html lang="en" data-theme={DEFAULT_THEME} data-sidebar="expanded" suppressHydrationWarning>
       <head>
         {/*
          * Pre-paint theme rehydration. Runs before React hydrates so a
