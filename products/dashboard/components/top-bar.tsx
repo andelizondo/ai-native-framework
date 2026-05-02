@@ -78,19 +78,36 @@ export function TopBar() {
     router.replace(query ? `${pathname}?${query}` : pathname, { scroll: false });
   }
 
+  const instanceEditMode =
+    config?.mode === "workflow-instance" && config.editMode === true;
   const saveDisabled =
     config?.mode === "template-editor"
       ? config.saveDisabled
       : config?.mode === "page"
         ? (config.saveDisabled ?? true)
-        : true;
+        : instanceEditMode
+          ? (config.saveDisabled ?? true)
+          : true;
   const savePending =
     config?.mode === "template-editor" || config?.mode === "page"
       ? (config.savePending ?? false)
-      : false;
+      : instanceEditMode
+        ? (config.savePending ?? false)
+        : false;
   const showSaveButton =
-    (config?.mode === "template-editor" || config?.mode === "page") &&
-    typeof config.onSave === "function";
+    ((config?.mode === "template-editor" || config?.mode === "page") &&
+      typeof config.onSave === "function") ||
+    (instanceEditMode && typeof config.onSave === "function");
+  const onSaveHandler =
+    config?.mode === "template-editor" ||
+    config?.mode === "page" ||
+    instanceEditMode
+      ? config.onSave
+      : undefined;
+  const onCancelEditHandler =
+    instanceEditMode && typeof config.onCancelEdit === "function"
+      ? config.onCancelEdit
+      : undefined;
 
   return (
     <>
@@ -160,10 +177,20 @@ export function TopBar() {
             config?.actions ?? null
           )}
 
+          {onCancelEditHandler ? (
+            <button
+              type="button"
+              onClick={onCancelEditHandler}
+              className="flex cursor-pointer items-center gap-1.5 rounded-md border border-border bg-bg-2 px-2.5 py-1.5 text-[11.5px] font-medium text-t2 transition hover:border-border-hi hover:bg-bg-3 hover:text-t1 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
+            >
+              Cancel
+            </button>
+          ) : null}
+
           {showSaveButton ? (
             <button
               type="button"
-              onClick={config.onSave}
+              onClick={onSaveHandler}
               disabled={saveDisabled}
               className={cn(
                 "flex items-center gap-1.5 rounded-md px-2.5 py-1.5 text-[11.5px] font-semibold transition focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent",
@@ -184,20 +211,16 @@ export function TopBar() {
             </button>
           ) : null}
 
-          {isWorkflowInstanceRoute ? (
+          {isWorkflowInstanceRoute && !instanceEditMode ? (
             <button
               type="button"
               aria-pressed={editMode}
               onClick={toggleEditMode}
-              title={editMode ? "Save workflow changes" : "Edit workflow tasks"}
-              className={
-                editMode
-                  ? "flex cursor-pointer items-center gap-1.5 rounded-md border border-primary bg-primary-bg px-2.5 py-1.5 text-[11.5px] font-medium text-accent shadow-[inset_0_0_0_1px_rgba(99,102,241,0.08)] transition hover:bg-[rgba(99,102,241,0.16)] hover:text-white focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
-                  : "flex cursor-pointer items-center gap-1.5 rounded-md border border-border bg-bg-2 px-2.5 py-1.5 text-[11.5px] font-medium text-t2 transition hover:border-border-hi hover:bg-bg-3 hover:text-t1 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
-              }
+              title="Edit workflow tasks"
+              className="flex cursor-pointer items-center gap-1.5 rounded-md border border-border bg-bg-2 px-2.5 py-1.5 text-[11.5px] font-medium text-t2 transition hover:border-border-hi hover:bg-bg-3 hover:text-t1 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
             >
               <Pencil className="h-3.5 w-3.5" />
-              {editMode ? "Save" : "Edit"}
+              Edit
             </button>
           ) : null}
         </div>

@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useId, useMemo, useState, useTransition } from "react";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { ChevronsLeftRight, Plus } from "lucide-react";
 import {
   DndContext,
@@ -39,6 +40,7 @@ import { useDashboardTopBar } from "@/components/dashboard-topbar-context";
 import { ConfirmModal } from "@/components/ui/confirm-modal";
 import { captureError } from "@/lib/monitoring";
 import { useToast } from "@/lib/toast";
+import { useUnsavedChangesGuard } from "@/lib/use-unsaved-changes-guard";
 import { cn } from "@/lib/utils";
 import { barClass, canStart } from "@/lib/workflows/matrix";
 import { getRoleColor } from "@/lib/workflows/role-colors";
@@ -97,16 +99,77 @@ export function ProcessMatrix({
   );
   const [agentRunOpen, setAgentRunOpen] = useState(false);
   const [localTasks, setLocalTasks] = useState<WorkflowTask[]>(instance.tasks);
+  const [lastSavedTasks, setLastSavedTasks] = useState<WorkflowTask[]>(instance.tasks);
+  const [confirmDiscardOpen, setConfirmDiscardOpen] = useState(false);
+  const [pendingNavigation, setPendingNavigation] = useState<(() => void) | null>(null);
   const [isPending, startTransition] = useTransition();
   const dndContextId = useId();
+  const router = useRouter();
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
 
+  // Re-baseline local + saved snapshots from server props when not editing.
+  // While in edit mode, the user's draft is preserved; we only re-baseline
+  // after Save (or Cancel) so a parallel server revalidation (e.g. status
+  // pill change in the drawer) doesn't clobber unsaved structural edits.
   useEffect(() => {
+    if (editMode) return;
     setLocalTasks(instance.tasks);
-  }, [instance.tasks]);
+    setLastSavedTasks(instance.tasks);
+  }, [instance.tasks, editMode]);
 
+  // View-mode mutations (status pills, checkpoint approvals) flow through
+  // here. They reflect server truth, so update both the draft and the
+  // baseline to keep `isDirty` honest.
   const handleTaskUpdate = useCallback((updated: WorkflowTask) => {
     setLocalTasks((prev) => prev.map((task) => (task.id === updated.id ? updated : task)));
+    setLastSavedTasks((prev) => prev.map((task) => (task.id === updated.id ? updated : task)));
   }, []);
+
+  const isDirty = useMemo(
+    () => JSON.stringify(localTasks) !== JSON.stringify(lastSavedTasks),
+    [localTasks, lastSavedTasks],
+  );
+
+  const exitEditMode = useCallback(() => {
+    if (!pathname) return;
+    const next = new URLSearchParams(searchParams.toString());
+    next.delete("edit");
+    const query = next.toString();
+    router.replace(query ? `${pathname}?${query}` : pathname, { scroll: false });
+  }, [pathname, router, searchParams]);
+
+  const handleCancelEdit = useCallback(() => {
+    if (isDirty) {
+      setConfirmDiscardOpen(true);
+      return;
+    }
+    exitEditMode();
+  }, [exitEditMode, isDirty]);
+
+  const discardAndExit = useCallback(() => {
+    setLocalTasks(lastSavedTasks);
+    setConfirmDiscardOpen(false);
+    exitEditMode();
+  }, [exitEditMode, lastSavedTasks]);
+
+  const handleBlockedNavigation = useCallback((proceed: () => void) => {
+    setPendingNavigation(() => proceed);
+  }, []);
+
+  useUnsavedChangesGuard({
+    enabled: editMode && isDirty,
+    onBlock: handleBlockedNavigation,
+  });
+
+  const confirmPendingNavigation = useCallback(() => {
+    const proceed = pendingNavigation;
+    setPendingNavigation(null);
+    if (!proceed) return;
+    setLocalTasks(lastSavedTasks);
+    setLastSavedTasks(lastSavedTasks);
+    proceed();
+  }, [lastSavedTasks, pendingNavigation]);
 
   const stages: WorkflowStage[] = template?.stages ?? [];
   const roles: WorkflowRole[] =
@@ -138,6 +201,103 @@ export function ProcessMatrix({
 
   const isEmpty = stages.length === 0 || roles.length === 0;
 
+  const saveInstanceEdits = useCallback(() => {
+    startTransition(async () => {
+      try {
+        const savedById = new Map(lastSavedTasks.map((t) => [t.id, t]));
+        const draftById = new Map(localTasks.map((t) => [t.id, t]));
+
+        const toCreate: WorkflowTask[] = [];
+        const toMove: WorkflowTask[] = [];
+        const toUpdate: WorkflowTask[] = [];
+        const toDelete: WorkflowTask[] = [];
+
+        for (const task of localTasks) {
+          if (task.id.startsWith("local-")) {
+            toCreate.push(task);
+            continue;
+          }
+          const saved = savedById.get(task.id);
+          if (!saved) continue;
+          if (saved.roleId !== task.roleId || saved.stageId !== task.stageId) {
+            toMove.push(task);
+          }
+          if (
+            saved.title !== task.title ||
+            saved.description !== task.description ||
+            saved.agent !== task.agent ||
+            saved.skill !== task.skill ||
+            saved.playbook !== task.playbook
+          ) {
+            toUpdate.push(task);
+          }
+        }
+        for (const saved of lastSavedTasks) {
+          if (!draftById.has(saved.id)) toDelete.push(saved);
+        }
+
+        // Replay order: deletes free up cells before any creates/moves into
+        // them, then creates seed new tasks at their final position, then
+        // moves and detail updates apply to remaining tasks.
+        const finalById = new Map<string, WorkflowTask>(
+          localTasks.map((t) => [t.id, t]),
+        );
+
+        for (const task of toDelete) {
+          await deleteTaskAction(task.id);
+        }
+
+        for (const task of toCreate) {
+          const result = await createTaskAction({
+            instanceId: instance.id,
+            roleId: task.roleId,
+            stageId: task.stageId,
+            title: task.title,
+            description: task.description,
+            checkpoint: task.checkpoint,
+            triggers: task.triggers,
+            gates: task.gates,
+            agent: task.agent,
+            skill: task.skill,
+            playbook: task.playbook,
+          });
+          finalById.delete(task.id);
+          finalById.set(result.task.id, result.task);
+        }
+
+        for (const task of toMove) {
+          const result = await moveTaskAction(task.id, task.roleId, task.stageId);
+          finalById.set(result.task.id, result.task);
+        }
+
+        for (const task of toUpdate) {
+          const result = await updateTaskDetailsAction({
+            taskId: task.id,
+            title: task.title,
+            description: task.description,
+            agent: task.agent,
+            skill: task.skill,
+            playbook: task.playbook,
+          });
+          finalById.set(result.task.id, result.task);
+        }
+
+        const finalTasks = Array.from(finalById.values());
+        setLocalTasks(finalTasks);
+        setLastSavedTasks(finalTasks);
+        toastSuccess("Workflow saved");
+        exitEditMode();
+      } catch (err) {
+        captureError(err, { feature: "workflows.process_matrix_save" });
+        toastError(
+          err instanceof Error && err.message
+            ? err.message
+            : "Could not save workflow changes.",
+        );
+      }
+    });
+  }, [exitEditMode, instance.id, lastSavedTasks, localTasks, toastError, toastSuccess]);
+
   useEffect(() => {
     setConfig({
       mode: "workflow-instance",
@@ -146,6 +306,12 @@ export function ProcessMatrix({
         { label: template?.label ?? "Workflow" },
         { label: instance.label },
       ],
+      editMode,
+      isDirty,
+      saveDisabled: !isDirty || isPending,
+      savePending: isPending,
+      onSave: editMode ? saveInstanceEdits : undefined,
+      onCancelEdit: editMode ? handleCancelEdit : undefined,
       actions: (
         <HeaderActionsMenu
           entityLabel={instance.label}
@@ -181,74 +347,19 @@ export function ProcessMatrix({
     });
 
     return () => setConfig(null);
-  }, [instance.id, instance.label, setConfig, template?.label, toastSuccess, toastError]);
-
-  const runMutation = useCallback(
-    async (
-      apply: (tasks: WorkflowTask[]) => WorkflowTask[],
-      commit: () => Promise<WorkflowTask | void>,
-    ) => {
-      const snapshot = localTasks;
-      const optimistic = apply(snapshot);
-      const snapshotById = new Map(snapshot.map((task) => [task.id, task]));
-      const optimisticById = new Map(optimistic.map((task) => [task.id, task]));
-      const changedTaskIds = new Set<string>();
-
-      for (const task of snapshot) {
-        if (optimisticById.get(task.id) !== task) {
-          changedTaskIds.add(task.id);
-        }
-      }
-      for (const task of optimistic) {
-        if (snapshotById.get(task.id) !== task) {
-          changedTaskIds.add(task.id);
-        }
-      }
-
-      setLocalTasks((current) => apply(current));
-
-      startTransition(async () => {
-        try {
-          const result = await commit();
-          if (result) {
-            setLocalTasks((current) =>
-              current.some((task) => task.id === result.id)
-                ? current.map((task) => (task.id === result.id ? result : task))
-                : [...current, result],
-            );
-          }
-        } catch (error) {
-          setLocalTasks((current) => {
-            const reverted: WorkflowTask[] = [];
-            const restoredIds = new Set<string>();
-
-            for (const task of current) {
-              if (!changedTaskIds.has(task.id)) {
-                reverted.push(task);
-                continue;
-              }
-
-              const snapshotTask = snapshotById.get(task.id);
-              if (snapshotTask) {
-                reverted.push(snapshotTask);
-                restoredIds.add(task.id);
-              }
-            }
-
-            for (const task of snapshot) {
-              if (changedTaskIds.has(task.id) && !restoredIds.has(task.id)) {
-                reverted.push(task);
-              }
-            }
-
-            return reverted;
-          });
-          captureError(error, { feature: "workflows.process_matrix_edit" });
-        }
-      });
-    },
-    [localTasks],
-  );
+  }, [
+    editMode,
+    handleCancelEdit,
+    instance.id,
+    instance.label,
+    isDirty,
+    isPending,
+    saveInstanceEdits,
+    setConfig,
+    template?.label,
+    toastSuccess,
+    toastError,
+  ]);
 
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
@@ -276,20 +387,15 @@ export function ProcessMatrix({
       );
       if (occupied) return;
 
-      runMutation(
-        (tasks) =>
-          tasks.map((item) =>
-            item.id === draggedId
-              ? { ...item, roleId: targetRoleId, stageId: targetStageId }
-              : item,
-          ),
-        async () => {
-          const result = await moveTaskAction(draggedId, targetRoleId, targetStageId);
-          return result.task;
-        },
+      setLocalTasks((tasks) =>
+        tasks.map((item) =>
+          item.id === draggedId
+            ? { ...item, roleId: targetRoleId, stageId: targetStageId }
+            : item,
+        ),
       );
     },
-    [editMode, localTasks, runMutation],
+    [editMode, localTasks],
   );
 
   const handleDragCancel = useCallback(() => {
@@ -527,44 +633,51 @@ export function ProcessMatrix({
           playbookOptions={playbookOptions}
           onClose={() => setAddTaskFor(null)}
           onSubmit={(input) => {
+            const target = addTaskFor;
             setAddTaskFor(null);
-            if (addTaskFor.mode === "edit" && addTaskFor.taskId) {
-              runMutation(
-                (tasks) =>
-                  tasks.map((task) =>
-                    task.id === addTaskFor.taskId
-                      ? {
-                          ...task,
-                          title: input.title.trim(),
-                          description: input.description?.trim() ?? "",
-                          agent: input.agent ?? null,
-                          skill: input.skill ?? null,
-                          playbook: input.playbook ?? null,
-                        }
-                      : task,
-                  ),
-                async () => {
-                  const result = await updateTaskDetailsAction({
-                    taskId: addTaskFor.taskId!,
-                    title: input.title,
-                    description: input.description,
-                    agent: input.agent,
-                    skill: input.skill,
-                    playbook: input.playbook,
-                  });
-                  return result.task;
-                },
+            if (target.mode === "edit" && target.taskId) {
+              setLocalTasks((tasks) =>
+                tasks.map((task) =>
+                  task.id === target.taskId
+                    ? {
+                        ...task,
+                        title: input.title.trim(),
+                        description: input.description?.trim() ?? "",
+                        agent: input.agent ?? null,
+                        skill: input.skill ?? null,
+                        playbook: input.playbook ?? null,
+                      }
+                    : task,
+                ),
               );
               return;
             }
 
-            runMutation(
-              (tasks) => tasks,
-              async () => {
-                const result = await createTaskAction(input);
-                return result.task;
-              },
-            );
+            const localId = `local-${
+              typeof crypto !== "undefined" && typeof crypto.randomUUID === "function"
+                ? crypto.randomUUID()
+                : `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
+            }`;
+            const now = new Date().toISOString();
+            const draftTask: WorkflowTask = {
+              id: localId,
+              instanceId: input.instanceId,
+              roleId: input.roleId,
+              stageId: input.stageId,
+              title: input.title.trim(),
+              description: input.description?.trim() ?? "",
+              status: "not_started",
+              substatus: "",
+              checkpoint: Boolean(input.checkpoint),
+              triggers: input.triggers ?? [],
+              gates: input.gates ?? [],
+              agent: input.agent ?? null,
+              skill: input.skill ?? null,
+              playbook: input.playbook ?? null,
+              createdAt: now,
+              updatedAt: now,
+            };
+            setLocalTasks((tasks) => [...tasks, draftTask]);
           }}
         />
       ) : null}
@@ -572,18 +685,31 @@ export function ProcessMatrix({
       {confirmDeleteTask ? (
         <ConfirmModal
           title={`Delete "${confirmDeleteTask.title}"?`}
-          description="This task and its configuration will be deleted from this instance."
+          description="This task will be removed from the draft. The deletion is committed when you click Save."
           onCancel={() => setConfirmDeleteTask(null)}
           onConfirm={() => {
             const task = confirmDeleteTask;
             setConfirmDeleteTask(null);
-            runMutation(
-              (tasks) => tasks.filter((item) => item.id !== task.id),
-              async () => {
-                await deleteTaskAction(task.id);
-              },
-            );
+            setLocalTasks((tasks) => tasks.filter((item) => item.id !== task.id));
           }}
+        />
+      ) : null}
+
+      {confirmDiscardOpen ? (
+        <ConfirmModal
+          title="Discard unsaved changes?"
+          description="Your in-progress edits to this workflow will be lost."
+          onCancel={() => setConfirmDiscardOpen(false)}
+          onConfirm={discardAndExit}
+        />
+      ) : null}
+
+      {pendingNavigation ? (
+        <ConfirmModal
+          title="Discard unsaved changes?"
+          description="Leaving this page will discard your in-progress edits."
+          onCancel={() => setPendingNavigation(null)}
+          onConfirm={confirmPendingNavigation}
         />
       ) : null}
 

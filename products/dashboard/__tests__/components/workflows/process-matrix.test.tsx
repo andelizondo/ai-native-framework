@@ -17,6 +17,7 @@ import userEvent from "@testing-library/user-event";
 import type { ReactNode } from "react";
 
 import { DashboardTopBarProvider } from "@/components/dashboard-topbar-context";
+import { TopBar } from "@/components/top-bar";
 import { ProcessMatrix } from "@/components/workflows/process-matrix";
 import { ToastProvider } from "@/lib/toast";
 import type {
@@ -48,6 +49,15 @@ vi.mock("@/app/(dashboard)/workflows/actions", () => ({
 
 vi.mock("@/lib/monitoring", () => ({
   captureError: mockCaptureError,
+}));
+
+const mockRouter = { replace: vi.fn(), push: vi.fn() };
+const mockSearchParams = new URLSearchParams("edit=1");
+
+vi.mock("next/navigation", () => ({
+  useRouter: () => mockRouter,
+  useSearchParams: () => mockSearchParams,
+  usePathname: () => "/workflows/inst-1",
 }));
 
 const TEMPLATE: WorkflowTemplate = {
@@ -107,7 +117,10 @@ function instance(tasks: WorkflowTask[]): WorkflowInstanceDetail {
 function renderWithTopBarProvider(ui: ReactNode) {
   return render(
     <ToastProvider>
-      <DashboardTopBarProvider>{ui}</DashboardTopBarProvider>
+      <DashboardTopBarProvider>
+        <TopBar />
+        {ui}
+      </DashboardTopBarProvider>
     </ToastProvider>,
   );
 }
@@ -244,6 +257,10 @@ describe("ProcessMatrix", () => {
     await user.type(screen.getByPlaceholderText("Task title"), "New task");
     await user.click(screen.getByRole("button", { name: /create task/i }));
 
+    // The new task is now a local draft; the action only fires on Save.
+    expect(mockCreateTaskAction).not.toHaveBeenCalled();
+    await user.click(screen.getByRole("button", { name: /^save$/i }));
+
     expect(mockCreateTaskAction).toHaveBeenCalledWith(
       expect.objectContaining({
         instanceId: "inst-1",
@@ -266,6 +283,12 @@ describe("ProcessMatrix", () => {
     expect(screen.getByRole("dialog", { name: 'Delete "Project Description"?' })).toBeInTheDocument();
 
     await user.click(screen.getByRole("button", { name: "Delete" }));
+
+    // The task is removed from the draft; deletion is committed only on Save.
+    expect(mockDeleteTaskAction).not.toHaveBeenCalled();
+    expect(screen.queryByTestId("task-card-k-1")).not.toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: /^save$/i }));
 
     expect(mockDeleteTaskAction).toHaveBeenCalledWith("k-1");
     await waitFor(() => {
