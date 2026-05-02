@@ -52,7 +52,7 @@ jobs:
 
       - uses: actions/setup-node@v6
         with:
-          node-version: "20.9"
+          node-version: "20.12"
           cache: "npm"
           cache-dependency-path: products/dashboard/package-lock.json
 
