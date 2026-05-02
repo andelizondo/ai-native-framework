@@ -6,7 +6,7 @@ import { getCurrentUserForRequest } from "@/lib/auth/service.server";
 const EXACT_PUBLIC_PATHS = new Set(["/login", "/auth/callback"]);
 const PUBLIC_PATH_PREFIXES = ["/ingest", "/monitoring"];
 
-export async function middleware(req: NextRequest) {
+export async function proxy(req: NextRequest) {
   // Inject / propagate correlation ID
   const requestHeaders = new Headers(req.headers);
   const correlationId =

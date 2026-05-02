@@ -1,12 +1,12 @@
 // @vitest-environment node
 /**
- * Tests for middleware.ts — auth and correlation-ID behavior
+ * Tests for proxy.ts — auth and correlation-ID behavior
  *
  * Covers:
  * - Public paths (/login, /auth/callback, /ingest, /monitoring) bypass auth entirely
  * - Unauthenticated requests → redirect to /login
  * - Authenticated requests → pass through with correlation ID
- * - Session refresh: middleware forwards new cookies when Supabase refreshes a token
+ * - Session refresh: proxy forwards new cookies when Supabase refreshes a token
  * - Correlation ID is preserved from incoming request header
  * - Correlation ID is generated when not present
  */
@@ -25,7 +25,7 @@ vi.mock("@/lib/auth/service.server", () => ({
 }));
 
 // Must import after vi.mock declarations
-import { middleware } from "@/middleware";
+import { proxy } from "@/proxy";
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -50,25 +50,25 @@ describe("middleware — public paths bypass auth", () => {
   });
 
   it("passes /login through without calling getUser", async () => {
-    const res = await middleware(makeReq("/login"));
+    const res = await proxy(makeReq("/login"));
     expect(mockGetCurrentUserForRequest).not.toHaveBeenCalled();
     expect(res.status).not.toBe(307);
   });
 
   it("passes /auth/callback through without calling getUser", async () => {
-    const res = await middleware(makeReq("/auth/callback"));
+    const res = await proxy(makeReq("/auth/callback"));
     expect(mockGetCurrentUserForRequest).not.toHaveBeenCalled();
     expect(res.status).not.toBe(307);
   });
 
   it("passes /ingest static proxy requests through without calling getUser", async () => {
-    const res = await middleware(makeReq("/ingest/array/test/config.js"));
+    const res = await proxy(makeReq("/ingest/array/test/config.js"));
     expect(mockGetCurrentUserForRequest).not.toHaveBeenCalled();
     expect(res.status).not.toBe(307);
   });
 
   it("passes /monitoring tunnel requests through without calling getUser", async () => {
-    const res = await middleware(makeReq("/monitoring"));
+    const res = await proxy(makeReq("/monitoring"));
     expect(mockGetCurrentUserForRequest).not.toHaveBeenCalled();
     expect(res.status).not.toBe(307);
   });
@@ -79,7 +79,7 @@ describe("middleware — public paths bypass auth", () => {
       response: new Response() as never,
     });
 
-    const res = await middleware(makeReq("/ingestion"));
+    const res = await proxy(makeReq("/ingestion"));
 
     expect(mockGetCurrentUserForRequest).toHaveBeenCalled();
     expect(res.status).toBe(307);
@@ -92,7 +92,7 @@ describe("middleware — public paths bypass auth", () => {
       response: new Response() as never,
     });
 
-    const res = await middleware(makeReq("/monitoring-tools"));
+    const res = await proxy(makeReq("/monitoring-tools"));
 
     expect(mockGetCurrentUserForRequest).toHaveBeenCalled();
     expect(res.status).toBe(307);
@@ -100,7 +100,7 @@ describe("middleware — public paths bypass auth", () => {
   });
 
   it("passes /login with auth_callback_failed query through without calling getUser", async () => {
-    const res = await middleware(makeReq("/login?error=auth_callback_failed"));
+    const res = await proxy(makeReq("/login?error=auth_callback_failed"));
     expect(mockGetCurrentUserForRequest).not.toHaveBeenCalled();
   });
 });
@@ -116,7 +116,7 @@ describe("middleware — authentication enforcement", () => {
       response: new Response() as never,
     });
 
-    const res = await middleware(makeReq("/"));
+    const res = await proxy(makeReq("/"));
 
     expect(res.status).toBe(307);
     expect(res.headers.get("location")).toContain("/login");
@@ -128,7 +128,7 @@ describe("middleware — authentication enforcement", () => {
       response: new Response() as never,
     });
 
-    const res = await middleware(makeReq("/framework/skills"));
+    const res = await proxy(makeReq("/framework/skills"));
 
     expect(res.status).toBe(307);
     expect(res.headers.get("location")).toContain("/login");
@@ -140,7 +140,7 @@ describe("middleware — authentication enforcement", () => {
       response: new Response(null, { status: 200 }) as never,
     });
 
-    const res = await middleware(makeReq("/"));
+    const res = await proxy(makeReq("/"));
 
     expect(res.status).not.toBe(307);
   });
@@ -161,7 +161,7 @@ describe("middleware — token refresh", () => {
       response: response as never,
     });
 
-    const res = await middleware(makeReq("/"));
+    const res = await proxy(makeReq("/"));
 
     expect(res.status).not.toBe(307);
     // The refreshed cookie must be present in the response
@@ -176,7 +176,7 @@ describe("middleware — correlation ID", () => {
   });
 
   it("generates a correlation ID when none is present (public path)", async () => {
-    const res = await middleware(makeReq("/login"));
+    const res = await proxy(makeReq("/login"));
     const id = res.headers.get(CORRELATION_HEADER);
     expect(id).toBeTruthy();
     expect(id).toMatch(UUID_RE);
@@ -184,7 +184,7 @@ describe("middleware — correlation ID", () => {
 
   it("preserves correlation ID from the incoming request header (public path)", async () => {
     const existingId = "aaaabbbb-cccc-dddd-eeee-ffffffffffff";
-    const res = await middleware(
+    const res = await proxy(
       makeReq("/login", { [CORRELATION_HEADER]: existingId })
     );
     expect(res.headers.get(CORRELATION_HEADER)).toBe(existingId);
@@ -196,7 +196,7 @@ describe("middleware — correlation ID", () => {
       response: new Response(null, { status: 200 }) as never,
     });
 
-    const res = await middleware(makeReq("/"));
+    const res = await proxy(makeReq("/"));
     expect(res.headers.get(CORRELATION_HEADER)).toMatch(UUID_RE);
   });
 
@@ -206,7 +206,7 @@ describe("middleware — correlation ID", () => {
       response: new Response() as never,
     });
 
-    const res = await middleware(makeReq("/"));
+    const res = await proxy(makeReq("/"));
     // Redirects don't carry our custom header — just verify the redirect itself
     expect(res.status).toBe(307);
     expect(res.headers.get("location")).toContain("/login");
