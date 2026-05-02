@@ -28,6 +28,18 @@ interface WorkflowInstanceTopBarConfig {
   mode: "workflow-instance";
   crumbs: DashboardTopBarCrumb[];
   actions?: ReactNode;
+  /**
+   * Edit-mode save controls. Populated by the instance editor when the
+   * user enters edit mode (`?edit=1`); omitted in view mode. When set,
+   * the topbar renders the same green-with-dot Save button used by the
+   * template editor, plus a Cancel button next to it.
+   */
+  editMode?: boolean;
+  isDirty?: boolean;
+  onSave?: () => void;
+  saveDisabled?: boolean;
+  savePending?: boolean;
+  onCancelEdit?: () => void;
 }
 
 interface PageTopBarConfig {

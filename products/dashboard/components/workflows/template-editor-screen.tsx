@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useId, useRef, useState, useTransition } from "react";
+import { useCallback, useEffect, useId, useRef, useState, useTransition } from "react";
 import { CircleAlert, GripVertical, Pencil, Plus, Trash2 } from "lucide-react";
 import {
   DndContext,
@@ -34,6 +34,7 @@ import {
 } from "@/app/(dashboard)/workflows/actions";
 import { useDashboardTopBar } from "@/components/dashboard-topbar-context";
 import { useToast } from "@/lib/toast";
+import { useUnsavedChangesGuard } from "@/lib/use-unsaved-changes-guard";
 import { AddRoleModal } from "@/components/workflows/add-role-modal";
 import { AddStageModal } from "@/components/workflows/add-stage-modal";
 import { AddTaskModal } from "@/components/workflows/add-task-modal";
@@ -441,6 +442,25 @@ export function TemplateEditorScreen({
   }
 
   const isDirty = JSON.stringify(draft) !== JSON.stringify(lastSaved);
+
+  const [pendingNavigation, setPendingNavigation] = useState<(() => void) | null>(null);
+
+  const handleBlockedNavigation = useCallback((proceed: () => void) => {
+    setPendingNavigation(() => proceed);
+  }, []);
+
+  useUnsavedChangesGuard({
+    enabled: isDirty,
+    onBlock: handleBlockedNavigation,
+  });
+
+  const confirmPendingNavigation = useCallback(() => {
+    const proceed = pendingNavigation;
+    setPendingNavigation(null);
+    if (!proceed) return;
+    setDraft(lastSaved);
+    proceed();
+  }, [lastSaved, pendingNavigation]);
 
   useEffect(() => {
     draftRef.current = draft;
@@ -1074,6 +1094,15 @@ export function TemplateEditorScreen({
           description={confirmState.description}
           onCancel={() => setConfirmState(null)}
           onConfirm={confirmState.onConfirm}
+        />
+      ) : null}
+
+      {pendingNavigation ? (
+        <ConfirmModal
+          title="Discard unsaved changes?"
+          description="Leaving this page will discard your in-progress edits."
+          onCancel={() => setPendingNavigation(null)}
+          onConfirm={confirmPendingNavigation}
         />
       ) : null}
     </div>
