@@ -10,27 +10,45 @@ const CSS = `
   @keyframes np-done  { 0% { transform:scaleX(0.85);opacity:1 } 70% { transform:scaleX(1);opacity:1 } 100% { transform:scaleX(1);opacity:0 } }
 `;
 
+const FAIL_SAFE_MS = 12_000;
+
 export function NavigationProgress() {
   const pathname = usePathname();
   const [phase, setPhase] = useState<Phase>("idle");
   const prev = useRef(pathname);
-  const timer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+  const doneTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+  const failSafeTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
 
   useEffect(() => {
     function onClick(e: MouseEvent) {
+      if (e.defaultPrevented) return;
+      if (e.button !== 0) return;
+      if (e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
+
       const a = (e.target as Element).closest("a");
       if (!a) return;
+      if (a.target === "_blank") return;
+      if (a.hasAttribute("download")) return;
+
       const href = a.getAttribute("href") ?? "";
-      if (
-        !href ||
-        href.startsWith("#") ||
-        href.startsWith("mailto:") ||
-        /^https?:\/\//.test(href)
-      )
+      if (!href || href.startsWith("#")) return;
+
+      let url: URL;
+      try {
+        url = new URL(href, window.location.href);
+      } catch {
         return;
-      const target = href.split("?")[0].split("#")[0];
-      if (target === window.location.pathname) return;
+      }
+      if (url.protocol !== "http:" && url.protocol !== "https:") return;
+      if (url.origin !== window.location.origin) return;
+      if (url.pathname === window.location.pathname) return;
+
+      clearTimeout(failSafeTimer.current);
       setPhase("loading");
+      failSafeTimer.current = setTimeout(() => {
+        failSafeTimer.current = undefined;
+        setPhase("idle");
+      }, FAIL_SAFE_MS);
     }
     document.addEventListener("click", onClick);
     return () => document.removeEventListener("click", onClick);
@@ -39,12 +57,20 @@ export function NavigationProgress() {
   useEffect(() => {
     if (pathname === prev.current) return;
     prev.current = pathname;
+    clearTimeout(failSafeTimer.current);
+    failSafeTimer.current = undefined;
     setPhase("done");
-    clearTimeout(timer.current);
-    timer.current = setTimeout(() => setPhase("idle"), 500);
+    clearTimeout(doneTimer.current);
+    doneTimer.current = setTimeout(() => setPhase("idle"), 500);
   }, [pathname]);
 
-  useEffect(() => () => clearTimeout(timer.current), []);
+  useEffect(
+    () => () => {
+      clearTimeout(doneTimer.current);
+      clearTimeout(failSafeTimer.current);
+    },
+    [],
+  );
 
   if (phase === "idle") return null;
 
