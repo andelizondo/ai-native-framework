@@ -57,6 +57,7 @@ if (appRelease && !process.env.NEXT_PUBLIC_SENTRY_RELEASE) {
 const nextConfig: NextConfig = {
   // product_id: dashboard — ai-native-framework boilerplate
   skipTrailingSlashRedirect: true,
+  outputFileTracingRoot: path.join(__dirname, "../../"),
   env: {
     NEXT_PUBLIC_APP_RELEASE: appRelease ?? "",
     NEXT_PUBLIC_RELEASE_CHANNEL: releaseChannel,
