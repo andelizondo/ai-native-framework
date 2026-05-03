@@ -778,7 +778,7 @@ export function FrameworkScreen({
           </p>
 
           {draftItem ? (
-            <div className="mt-2 flex items-start gap-3">
+            <div className="mt-2 flex items-center gap-3">
               <CompactEmojiPicker
                 value={draftItem.icon || emojiOptions[0]!.emoji}
                 options={emojiOptions}
@@ -1113,24 +1113,19 @@ export function FrameworkScreen({
                           type="button"
                           onClick={() => beginEdit(item)}
                           data-testid={`framework-card-${item.id}`}
-                          className="group flex min-h-[92px] flex-col justify-center rounded-[16px] border border-border bg-bg px-4 py-4 text-left transition-[background-color,border-color,transform,box-shadow] duration-150 hover:border-border-hi hover:bg-bg hover:shadow-[0_14px_34px_rgba(15,23,42,0.08)] focus-visible:-translate-y-[1px] focus-visible:border-border-hi focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
+                          className="group flex min-h-[92px] items-center gap-3 rounded-[16px] border border-border bg-bg px-4 py-4 text-left transition-[background-color,border-color,transform,box-shadow] duration-150 hover:border-border-hi hover:bg-bg hover:shadow-[0_14px_34px_rgba(15,23,42,0.08)] focus-visible:-translate-y-[1px] focus-visible:border-border-hi focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
                         >
-                          <div className="flex min-w-0 items-center gap-3">
-                            <span
-                              className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-border bg-bg text-[15px] text-t1 transition-colors group-hover:border-border-hi group-hover:bg-bg-2"
-                              aria-hidden
-                            >
-                              {item.icon || (type === "skill" ? "🤖" : "📄")}
-                            </span>
-                            <div className="min-w-0 flex-1">
-                              <h2 className="overflow-hidden whitespace-nowrap text-[16px] leading-[1.15] font-semibold tracking-[-0.02em] text-t1 text-ellipsis">
-                                {item.name}
-                              </h2>
-                            </div>
-                          </div>
-
-                          <div className="mt-2 min-w-0">
-                            <p className="overflow-hidden whitespace-nowrap text-[12.5px] leading-[1.35rem] text-t2 text-ellipsis">
+                          <span
+                            className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-border bg-bg text-[15px] text-t1 transition-colors group-hover:border-border-hi group-hover:bg-bg-2"
+                            aria-hidden
+                          >
+                            {item.icon || (type === "skill" ? "🤖" : "📄")}
+                          </span>
+                          <div className="min-w-0 flex-1">
+                            <h2 className="overflow-hidden whitespace-nowrap text-[16px] leading-[1.15] font-semibold tracking-[-0.02em] text-t1 text-ellipsis">
+                              {item.name}
+                            </h2>
+                            <p className="mt-1 overflow-hidden whitespace-nowrap text-[12.5px] leading-[1.35rem] text-t2 text-ellipsis">
                               {item.description}
                             </p>
                           </div>
