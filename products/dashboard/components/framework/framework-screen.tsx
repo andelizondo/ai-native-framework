@@ -1,6 +1,7 @@
 "use client";
 
 import {
+  useCallback,
   useDeferredValue,
   useEffect,
   useLayoutEffect,
@@ -39,11 +40,13 @@ import {
   upsertFrameworkItemAction,
 } from "@/app/(dashboard)/framework/actions";
 import { useDashboardTopBar } from "@/components/dashboard-topbar-context";
+import { AllowedSkillsPicker } from "@/components/framework/allowed-skills-picker";
 import { FrameworkHeaderActionsMenu } from "@/components/framework/framework-header-actions-menu";
 import { FrameworkItemModal } from "@/components/framework/framework-item-modal";
 import { ConfirmModal } from "@/components/ui/confirm-modal";
 import { useAnalytics } from "@/lib/analytics/events";
 import { useToast } from "@/lib/toast";
+import { useUnsavedChangesGuard } from "@/lib/use-unsaved-changes-guard";
 import type { FrameworkItem, FrameworkItemType } from "@/lib/workflows/types";
 import { cn } from "@/lib/utils";
 
@@ -330,6 +333,23 @@ export function FrameworkScreen({
   const isDirty =
     draftItem !== null &&
     (lastSavedItem === null || !areFrameworkItemsEqual(draftItem, lastSavedItem));
+
+  const [pendingNavigation, setPendingNavigation] = useState<(() => void) | null>(null);
+  const handleBlockedNavigation = useCallback((proceed: () => void) => {
+    setPendingNavigation(() => proceed);
+  }, []);
+  useUnsavedChangesGuard({
+    enabled: isDirty,
+    onBlock: handleBlockedNavigation,
+  });
+  const confirmPendingNavigation = useCallback(() => {
+    const proceed = pendingNavigation;
+    setPendingNavigation(null);
+    if (!proceed) return;
+    setDraftItem(lastSavedItem);
+    proceed();
+  }, [lastSavedItem, pendingNavigation]);
+
   const deleteTarget =
     typedItems.find((item) => item.id === confirmDeleteId) ??
     (draftItem?.id === confirmDeleteId ? draftItem : null);
@@ -689,6 +709,10 @@ export function FrameworkScreen({
           {
             label: routeLabel,
             onClick: () => {
+              if (isDirty) {
+                setPendingNavigation(() => () => resetEditor());
+                return;
+              }
               resetEditor();
             },
           },
@@ -769,48 +793,6 @@ export function FrameworkScreen({
                 <p className="mt-1 max-w-3xl text-[13px] leading-6 text-t2">
                   {draftItem.description}
                 </p>
-                {type === "playbook" ? (
-                  <div className="mt-3 max-w-3xl">
-                    <div className="mb-1.5 text-[11px] font-medium uppercase tracking-wide text-t3">
-                      Allowed skills
-                    </div>
-                    {availableSkills.length === 0 ? (
-                      <div className="text-[12px] text-t3">
-                        No skills defined yet. Create one in the Skills page first.
-                      </div>
-                    ) : (
-                      <div className="flex flex-wrap gap-1.5">
-                        {availableSkills.map((skill) => {
-                          const enabled = (draftItem.allowedSkillIds ?? []).includes(skill.id);
-                          return (
-                            <button
-                              key={skill.id}
-                              type="button"
-                              onClick={() =>
-                                setDraftItem((current) => {
-                                  if (!current) return current;
-                                  const set = new Set(current.allowedSkillIds ?? []);
-                                  if (set.has(skill.id)) set.delete(skill.id);
-                                  else set.add(skill.id);
-                                  return { ...current, allowedSkillIds: Array.from(set) };
-                                })
-                              }
-                              className={cn(
-                                "inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[11.5px] font-medium transition",
-                                enabled
-                                  ? "border-primary bg-primary-bg text-accent"
-                                  : "border-border bg-bg-3 text-t2 hover:bg-bg-4 hover:text-t1",
-                              )}
-                            >
-                              <span aria-hidden>{skill.icon || "•"}</span>
-                              <span>{skill.name}</span>
-                            </button>
-                          );
-                        })}
-                      </div>
-                    )}
-                  </div>
-                ) : null}
               </div>
             </div>
           ) : (
@@ -828,37 +810,50 @@ export function FrameworkScreen({
         {draftItem ? (
           <div className="flex h-full min-h-0 min-w-0 flex-1 flex-col">
             <div className="flex shrink-0 items-center justify-between gap-3 border-b border-border bg-bg px-6 py-3">
-              <div
-                className="inline-flex w-fit items-center rounded-lg border border-border bg-bg-2 p-1"
-                role="tablist"
-                aria-label="Editor mode"
-              >
-                {(
-                  [
-                    ["markdown", "View", Eye],
-                    ["plain-text", "Edit", Pencil],
-                  ] as const
-                ).map(([mode, label, Icon]) => (
-                  <button
-                    key={mode}
-                    type="button"
-                    role="tab"
-                    aria-selected={editorView === mode}
-                    onClick={() => setEditorView(mode)}
-                    className={cn(
-                      "flex items-center gap-1.5 rounded-md px-3 py-1.5 text-[12px] font-medium transition focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent",
-                      editorView === mode
-                        ? "bg-bg text-t1"
-                        : "text-t2 hover:bg-bg hover:text-t1",
-                    )}
-                  >
-                    <Icon className="h-3.5 w-3.5" />
-                    {label}
-                  </button>
-                ))}
+              <div className="flex min-w-0 items-center gap-2">
+                {type === "playbook" ? (
+                  <AllowedSkillsPicker
+                    value={draftItem.allowedSkillIds ?? []}
+                    availableSkills={availableSkills}
+                    onChange={(next) =>
+                      setDraftItem((current) =>
+                        current ? { ...current, allowedSkillIds: next } : current,
+                      )
+                    }
+                  />
+                ) : null}
               </div>
 
               <div className="flex items-center gap-2">
+                <div
+                  className="inline-flex h-8 w-fit items-center rounded-lg border border-border bg-bg-2 p-0.5"
+                  role="tablist"
+                  aria-label="Editor mode"
+                >
+                  {(
+                    [
+                      ["markdown", "View", Eye],
+                      ["plain-text", "Edit", Pencil],
+                    ] as const
+                  ).map(([mode, label, Icon]) => (
+                    <button
+                      key={mode}
+                      type="button"
+                      role="tab"
+                      aria-selected={editorView === mode}
+                      onClick={() => setEditorView(mode)}
+                      className={cn(
+                        "flex h-full items-center gap-1.5 rounded-md px-2.5 text-[12px] font-medium transition focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent",
+                        editorView === mode
+                          ? "bg-bg text-t1"
+                          : "text-t2 hover:bg-bg hover:text-t1",
+                      )}
+                    >
+                      <Icon className="h-3.5 w-3.5" />
+                      {label}
+                    </button>
+                  ))}
+                </div>
                 <input
                   ref={importInputRef}
                   type="file"
@@ -877,7 +872,7 @@ export function FrameworkScreen({
                 <button
                   type="button"
                   onClick={() => importInputRef.current?.click()}
-                  className="flex items-center gap-1.5 rounded-md border border-border bg-bg px-3 py-2 text-[12px] font-medium text-t2 transition hover:bg-bg-3 hover:text-t1 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
+                  className="flex h-8 items-center gap-1.5 rounded-md border border-border bg-bg px-2.5 text-[12px] font-medium text-t2 transition hover:bg-bg-3 hover:text-t1 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
                 >
                   <Upload className="h-3.5 w-3.5" />
                   Upload
@@ -886,7 +881,7 @@ export function FrameworkScreen({
                 <button
                   type="button"
                   onClick={downloadMarkdown}
-                  className="flex items-center gap-1.5 rounded-md border border-border bg-bg px-3 py-2 text-[12px] font-medium text-t2 transition hover:bg-bg-3 hover:text-t1 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
+                  className="flex h-8 items-center gap-1.5 rounded-md border border-border bg-bg px-2.5 text-[12px] font-medium text-t2 transition hover:bg-bg-3 hover:text-t1 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
                 >
                   <Download className="h-3.5 w-3.5" />
                   Download
@@ -1118,7 +1113,7 @@ export function FrameworkScreen({
                           type="button"
                           onClick={() => beginEdit(item)}
                           data-testid={`framework-card-${item.id}`}
-                          className="group flex min-h-[92px] flex-col justify-center rounded-[16px] border border-border bg-bg-2/88 px-4 py-4 text-left transition-[background-color,border-color,transform,box-shadow] duration-150 hover:border-border-hi hover:bg-bg-3/92 hover:shadow-[0_14px_34px_rgba(15,23,42,0.08)] focus-visible:-translate-y-[1px] focus-visible:border-border-hi focus-visible:bg-bg-3/92 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
+                          className="group flex min-h-[92px] flex-col justify-center rounded-[16px] border border-border bg-bg px-4 py-4 text-left transition-[background-color,border-color,transform,box-shadow] duration-150 hover:border-border-hi hover:bg-bg hover:shadow-[0_14px_34px_rgba(15,23,42,0.08)] focus-visible:-translate-y-[1px] focus-visible:border-border-hi focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
                         >
                           <div className="flex min-w-0 items-center gap-3">
                             <span
@@ -1243,6 +1238,15 @@ export function FrameworkScreen({
           confirmPending={deletingItemId === deleteTarget.id}
           onConfirm={() => deleteItem(deleteTarget.id)}
           onCancel={() => setConfirmDeleteId(null)}
+        />
+      ) : null}
+
+      {pendingNavigation ? (
+        <ConfirmModal
+          title="Discard unsaved changes?"
+          description="Leaving this page will discard your in-progress edits."
+          onCancel={() => setPendingNavigation(null)}
+          onConfirm={confirmPendingNavigation}
         />
       ) : null}
     </div>
