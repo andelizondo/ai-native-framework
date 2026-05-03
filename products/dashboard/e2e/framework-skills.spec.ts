@@ -47,8 +47,7 @@ test.describe("framework skills", () => {
     await page.getByRole("button", { name: "Create" }).click();
 
     await expect(page.getByTestId("framework-markdown-preview-skill")).toBeVisible();
-    await page.getByLabel("Open skill actions").click();
-    await page.getByRole("button", { name: "Rename" }).click();
+    await page.getByRole("button", { name: "Rename skill" }).click();
     await expect(page.getByRole("dialog")).toBeVisible();
     await page.getByLabel("Title").fill(renamedSkill);
     await page.getByLabel("Description").fill(revisedDescription);
@@ -76,8 +75,7 @@ test.describe("framework skills", () => {
     await expect(page.getByTestId("framework-grid-skill")).toBeVisible();
 
     await persistedCard.click();
-    await page.getByLabel("Open skill actions").click();
-    await page.getByRole("button", { name: "Delete" }).click();
+    await page.getByRole("button", { name: "Delete skill" }).click();
     await expect(page.getByRole("dialog")).toContainText(
       "This will permanently remove this skill. This cannot be undone.",
     );

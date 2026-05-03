@@ -769,23 +769,25 @@ export function FrameworkScreen({
                   }}
                 />
 
-                <button
-                  type="button"
-                  onClick={() => importInputRef.current?.click()}
-                  className="flex h-8 items-center gap-1.5 rounded-md border border-border bg-bg px-2.5 text-[12px] font-medium text-t2 transition hover:bg-bg-3 hover:text-t1 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
-                >
-                  <Upload className="h-3.5 w-3.5" />
-                  Upload
-                </button>
-
-                <button
-                  type="button"
-                  onClick={downloadMarkdown}
-                  className="flex h-8 items-center gap-1.5 rounded-md border border-border bg-bg px-2.5 text-[12px] font-medium text-t2 transition hover:bg-bg-3 hover:text-t1 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
-                >
-                  <Download className="h-3.5 w-3.5" />
-                  Download
-                </button>
+                <div className="flex h-8 items-center overflow-hidden rounded-md border border-border bg-bg">
+                  <button
+                    type="button"
+                    onClick={() => importInputRef.current?.click()}
+                    className="flex h-full items-center gap-1.5 px-2.5 text-[12px] font-medium text-t2 transition hover:bg-bg-3 hover:text-t1 focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-accent"
+                  >
+                    <Upload className="h-3.5 w-3.5" />
+                    Upload
+                  </button>
+                  <span aria-hidden className="h-full w-px bg-border" />
+                  <button
+                    type="button"
+                    onClick={downloadMarkdown}
+                    className="flex h-full items-center gap-1.5 px-2.5 text-[12px] font-medium text-t2 transition hover:bg-bg-3 hover:text-t1 focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-accent"
+                  >
+                    <Download className="h-3.5 w-3.5" />
+                    Download
+                  </button>
+                </div>
               </div>
             </div>
 
