@@ -39,6 +39,11 @@ function makeQueryBuilder(state: FilterState, store: RowMap) {
       state.filters.push((row) => row[column] === value);
       return builder;
     },
+    in(column: string, values: unknown[]) {
+      const set = new Set(values);
+      state.filters.push((row) => set.has(row[column]));
+      return builder;
+    },
     order(column: string, options?: { ascending?: boolean }) {
       state.orderBy.push({ column, ascending: options?.ascending ?? true });
       return builder;
@@ -208,33 +213,27 @@ describe("workflow repository", () => {
             { id: "pre-sales", label: "Pre-Sales" },
             { id: "validation", label: "Validation" },
           ],
-          roles: [
-            { id: "sales", label: "Sales", owner: "Hans / Dave" },
-            { id: "product", label: "Product", owner: "Andres" },
+          skills: [
+            { id: "sales-ops", label: "Sales Ops", owner: "Hans / Dave" },
+            { id: "pm", label: "PM", owner: "Andres" },
           ],
           task_templates: [
             {
-              role: "sales",
-              stage: "pre-sales",
-              title: "Project Description",
-              desc: "Define objective",
-              agent: "Sales Ops",
-              skill: "sales-ops",
-              playbook: "presales-qualification",
+              skillId: "sales-ops",
+              stageId: "pre-sales",
+              playbookId: "presales-qualification",
+              notes: "",
               triggers: [{ type: "manual", label: "Manual start" }],
               gates: [{ type: "playbook_done", label: "Done" }],
             },
             {
-              role: "product",
-              stage: "validation",
-              title: "PDR Review",
-              desc: "Evaluate, accept or reject",
-              agent: "PM",
-              skill: "pm",
-              playbook: "pdr-review",
+              skillId: "pm",
+              stageId: "validation",
+              playbookId: "pdr-review",
+              notes: "",
               checkpoint: true,
               triggers: [
-                { type: "after_task", taskRef: "Project Description", label: "After PD" },
+                { type: "after_task", taskRef: "presales-qualification", label: "After PD" },
               ],
               gates: [{ type: "checkpoint", label: "Approve" }],
             },
@@ -248,7 +247,7 @@ describe("workflow repository", () => {
           color: "#10b981",
           multi_instance: false,
           stages: [],
-          roles: [],
+          skills: [],
           task_templates: [],
           created_at: "2026-04-19T12:00:00Z",
           updated_at: "2026-04-19T12:00:00Z",
@@ -295,9 +294,9 @@ describe("workflow repository", () => {
         multiInstance: true,
         color: "#6366f1",
       });
-      expect(templates[0].roles).toEqual([
-        { id: "sales", label: "Sales", owner: "Hans / Dave" },
-        { id: "product", label: "Product", owner: "Andres" },
+      expect(templates[0].skills).toEqual([
+        { id: "sales-ops", label: "Sales Ops", owner: "Hans / Dave" },
+        { id: "pm", label: "PM", owner: "Andres" },
       ]);
       expect(templates[0].taskTemplates).toHaveLength(2);
       expect(templates[1].id).toBe("product-dev");
@@ -313,9 +312,9 @@ describe("workflow repository", () => {
       expect(instance.templateId).toBe("client-delivery");
       expect(instance.label).toBe("Acme Corp");
       expect(instance.status).toBe("active");
-      expect(instance.roles).toEqual([
-        { id: "sales", label: "Sales", owner: "Hans / Dave" },
-        { id: "product", label: "Product", owner: "Andres" },
+      expect(instance.skills).toEqual([
+        { id: "sales-ops", label: "Sales Ops", owner: "Hans / Dave" },
+        { id: "pm", label: "PM", owner: "Andres" },
       ]);
       expect(instance.tasks).toHaveLength(2);
       expect(instance.events).toEqual([]);
@@ -323,20 +322,17 @@ describe("workflow repository", () => {
       const [first, second] = instance.tasks;
       expect(first).toMatchObject({
         instanceId: instance.id,
-        roleId: "sales",
+        skillId: "sales-ops",
         stageId: "pre-sales",
-        title: "Project Description",
-        description: "Define objective",
+        notes: "",
         status: "not_started",
         substatus: "",
         checkpoint: false,
-        agent: "Sales Ops",
-        skill: "sales-ops",
-        playbook: "presales-qualification",
+        playbookId: "presales-qualification",
       });
       expect(first.triggers).toEqual([{ type: "manual", label: "Manual start" }]);
       expect(second.checkpoint).toBe(true);
-      expect(second.title).toBe("PDR Review");
+      expect(second.playbookId).toBe("pdr-review");
 
       // Tasks were persisted to the store
       expect(store.workflow_tasks).toHaveLength(2);
@@ -370,17 +366,17 @@ describe("workflow repository", () => {
       const updated = await repo.updateTask(targetTaskId, {
         status: "active",
         substatus: "Agent began work",
-        agent: "New Agent",
+        notes: "Started",
       });
 
       expect(updated.id).toBe(targetTaskId);
       expect(updated.status).toBe("active");
       expect(updated.substatus).toBe("Agent began work");
-      expect(updated.agent).toBe("New Agent");
+      expect(updated.notes).toBe("Started");
 
       // Untouched fields preserved
-      expect(updated.title).toBe("Project Description");
-      expect(updated.roleId).toBe("sales");
+      expect(updated.playbookId).toBe("presales-qualification");
+      expect(updated.skillId).toBe("sales-ops");
     });
 
     it("throws when called with an empty patch (programmer error)", async () => {
@@ -401,20 +397,17 @@ describe("workflow repository", () => {
           { id: "pre-sales", label: "Pre-Sales", sub: "Qualification" },
           { id: "delivery", label: "Delivery", sub: "Execution" },
         ],
-        roles: [
-          { id: "sales", label: "Sales", owner: "Hans / Dave", color: "#6366f1" },
+        skills: [
+          { id: "sales-ops", label: "Sales Ops", owner: "Hans / Dave", color: "#6366f1" },
           { id: "project", label: "Project Mgmt", owner: "Patrick", color: "#10b981" },
         ],
         taskTemplates: [
           {
             id: "tt-1",
-            role: "sales",
-            stage: "pre-sales",
-            title: "Updated discovery",
-            desc: "Fresh intake",
-            agent: "Sales Ops",
-            skill: "sales-ops",
-            playbook: "presales-qualification",
+            skillId: "sales-ops",
+            stageId: "pre-sales",
+            playbookId: "presales-qualification",
+            notes: "Fresh intake",
           },
         ],
       });
@@ -426,15 +419,15 @@ describe("workflow repository", () => {
         label: "Delivery",
         sub: "Execution",
       });
-      expect(updated.roles[1]).toMatchObject({
+      expect(updated.skills[1]).toMatchObject({
         id: "project",
         owner: "Patrick",
         color: "#10b981",
       });
       expect(updated.taskTemplates[0]).toMatchObject({
         id: "tt-1",
-        title: "Updated discovery",
-        stage: "pre-sales",
+        playbookId: "presales-qualification",
+        stageId: "pre-sales",
       });
     });
 
@@ -458,7 +451,7 @@ describe("workflow repository", () => {
       expect(fetched).not.toBeNull();
       expect(fetched!.id).toBe(checkpoint.id);
       expect(fetched!.checkpoint).toBe(true);
-      expect(fetched!.title).toBe("PDR Review");
+      expect(fetched!.playbookId).toBe("pdr-review");
       expect(fetched!.instanceId).toBe(instance.id);
     });
 
@@ -551,10 +544,10 @@ describe("workflow repository", () => {
 
       const created = await repo.createTask({
         instanceId: instance.id,
-        roleId: "sales",
+        skillId: "sales-ops",
         stageId: "pre-sales",
-        title: "Follow up",
-        description: "",
+        playbookId: null,
+        notes: "",
       });
 
       expect(created.status).toBe("not_started");

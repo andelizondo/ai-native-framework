@@ -356,9 +356,10 @@ export function AgentRunPanel({
     return <div className="arp" aria-hidden />;
   }
 
-  const agentName  = task.agent    ?? run.agentName;
-  const skill      = task.skill    ?? run.skill;
-  const playbook   = task.playbook ?? run.playbook;
+  const agentName  = run.agentName;
+  const skill      = task.skillId    ?? run.skill;
+  const playbook   = task.playbookId ?? run.playbook;
+  const taskLabel  = playbook ?? "Task";
   const elapsed    = formatElapsed(task.updatedAt);
   const doneCount  = run.steps.filter((s) => s.status === "done").length;
   const totalSteps = run.steps.length;
@@ -404,7 +405,7 @@ export function AgentRunPanel({
       role="dialog"
       aria-modal="true"
       aria-hidden={!open}
-      aria-label={`Agent run: ${task.title}`}
+      aria-label={`Agent run: ${taskLabel}`}
       className={cn("arp", open && "arp--open")}
       data-testid="agent-run-panel"
     >
@@ -434,7 +435,7 @@ export function AgentRunPanel({
         <div className="arp-breadcrumb">
           <span className="arp-crumb">{instance.label}</span>
           <span className="arp-crumb-sep" aria-hidden>›</span>
-          <span className="arp-crumb">{task.title}</span>
+          <span className="arp-crumb">{taskLabel}</span>
         </div>
 
         <div className="arp-run-meta">

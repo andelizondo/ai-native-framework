@@ -27,7 +27,7 @@ import userEvent from "@testing-library/user-event";
 import type {
   WorkflowEvent,
   WorkflowInstanceDetail,
-  WorkflowRole,
+  WorkflowSkill,
   WorkflowTask,
   WorkflowTemplate,
 } from "@/lib/workflows/types";
@@ -74,9 +74,9 @@ vi.mock("@/lib/monitoring", () => ({
 
 // ── Fixtures ─────────────────────────────────────────────────────────────────
 
-const ROLES: WorkflowRole[] = [
-  { id: "sales", label: "Sales", owner: "Hans" },
-  { id: "product", label: "Product", owner: "Andres" },
+const SKILLS: WorkflowSkill[] = [
+  { id: "sales-ops", label: "Sales Ops", owner: "Hans" },
+  { id: "pm", label: "PM", owner: "Andres" },
 ];
 
 const TEMPLATE: WorkflowTemplate = {
@@ -88,7 +88,7 @@ const TEMPLATE: WorkflowTemplate = {
     { id: "pre-sales", label: "Pre-Sales" },
     { id: "validation", label: "Validation" },
   ],
-  roles: ROLES,
+  skills: SKILLS,
   taskTemplates: [],
   createdAt: "2026-04-19T12:00:00Z",
   updatedAt: "2026-04-19T12:00:00Z",
@@ -98,18 +98,15 @@ function makeTask(overrides: Partial<WorkflowTask> = {}): WorkflowTask {
   return {
     id: "task-1",
     instanceId: "inst-1",
-    roleId: "sales",
+    skillId: "sales-ops",
     stageId: "pre-sales",
-    title: "Scope review",
-    description: "",
+    notes: "Scope review",
     status: "pending_approval",
     substatus: "",
     checkpoint: true,
     triggers: [],
     gates: [],
-    agent: "GPT-4o",
-    skill: "spec.review",
-    playbook: null,
+    playbookId: null,
     createdAt: "2026-04-19T12:00:00Z",
     updatedAt: "2026-04-19T12:00:00Z",
     ...overrides,
@@ -138,7 +135,7 @@ function makeInstance(
     templateId: "tpl-1",
     label: "Acme Corp",
     status: "active",
-    roles: ROLES,
+    skills: SKILLS,
     createdAt: "2026-04-19T12:00:00Z",
     updatedAt: "2026-04-19T12:00:00Z",
     tasks,
@@ -160,7 +157,7 @@ function renderDrawer(
     <TaskDrawer
       task={task}
       instance={instance}
-      roles={ROLES}
+      skills={SKILLS}
       template={TEMPLATE}
       onClose={onClose}
       onTaskUpdate={onTaskUpdate}
@@ -196,10 +193,10 @@ describe("TaskDrawer", () => {
     const breadcrumb = within(drawer).getByText("Acme Corp");
     expect(breadcrumb).toBeInTheDocument();
     expect(within(drawer).getByText("Pre-Sales")).toBeInTheDocument();
-    expect(within(drawer).getByText("Sales")).toBeInTheDocument();
+    expect(within(drawer).getAllByText("Sales Ops").length).toBeGreaterThan(0);
 
-    // Title
-    expect(within(drawer).getByText("Scope review")).toBeInTheDocument();
+    // Title (no playbook attached → "Task")
+    expect(within(drawer).getByText("Task")).toBeInTheDocument();
 
     // Tabs
     expect(screen.getByTestId("td-tab-details")).toBeInTheDocument();
@@ -222,14 +219,14 @@ describe("TaskDrawer", () => {
     });
 
     it("shows Start agent button for not_started task with playbook", () => {
-      renderDrawer({ status: "not_started", checkpoint: false, playbook: "demo-pb" });
+      renderDrawer({ status: "not_started", checkpoint: false, playbookId:"demo-pb" });
       expect(screen.getByTestId("td-start-btn")).toBeInTheDocument();
       const playbookCard = screen.getByTestId("td-playbook-card");
       expect(playbookCard).not.toHaveAttribute("role", "button");
     });
 
     it("shows active playbook row with stop control for running task", () => {
-      renderDrawer({ status: "active", checkpoint: false, playbook: "demo-pb" });
+      renderDrawer({ status: "active", checkpoint: false, playbookId:"demo-pb" });
       const playbookCard = screen.getByTestId("td-playbook-card");
       expect(playbookCard).not.toHaveAttribute("role", "button");
       expect(screen.getByTestId("td-pb-stop-run-btn")).toBeInTheDocument();
@@ -246,12 +243,12 @@ describe("TaskDrawer", () => {
       const updatedTask = makeTask({
         status: "blocked",
         checkpoint: false,
-        playbook: "demo-pb",
+        playbookId:"demo-pb",
       });
       mockCancelRun.mockResolvedValue({ task: updatedTask });
       const onTaskUpdate = vi.fn();
       const { task } = renderDrawer(
-        { status: "active", checkpoint: false, playbook: "demo-pb" },
+        { status: "active", checkpoint: false, playbookId:"demo-pb" },
         [],
         vi.fn(),
         onTaskUpdate,
@@ -275,12 +272,12 @@ describe("TaskDrawer", () => {
       const updatedTask = makeTask({
         status: "active",
         checkpoint: false,
-        playbook: "demo-pb",
+        playbookId:"demo-pb",
       });
       mockRetryBlocked.mockResolvedValue({ task: updatedTask });
       const onTaskUpdate = vi.fn();
       const { task } = renderDrawer(
-        { status: "blocked", checkpoint: false, playbook: "demo-pb" },
+        { status: "blocked", checkpoint: false, playbookId:"demo-pb" },
         [],
         vi.fn(),
         onTaskUpdate,
@@ -301,7 +298,7 @@ describe("TaskDrawer", () => {
 
   describe("Playbook chat affordance", () => {
     it("only exposes button semantics when a playbook handler is provided", () => {
-      renderDrawer({ status: "complete", checkpoint: false, playbook: "demo-pb" });
+      renderDrawer({ status: "complete", checkpoint: false, playbookId:"demo-pb" });
 
       expect(screen.getByTestId("td-playbook-card")).not.toHaveAttribute("role", "button");
     });
@@ -318,7 +315,7 @@ describe("TaskDrawer", () => {
       for (const status of runnableStatuses) {
         const onViewLiveRun = vi.fn();
         const { unmount } = renderDrawer(
-          { status, checkpoint: false, playbook: "demo-pb" },
+          { status, checkpoint: false, playbookId:"demo-pb" },
           [],
           vi.fn(),
           vi.fn(),
@@ -332,7 +329,7 @@ describe("TaskDrawer", () => {
         unmount();
       }
 
-      renderDrawer({ status: "not_started", checkpoint: false, playbook: "demo-pb" });
+      renderDrawer({ status: "not_started", checkpoint: false, playbookId:"demo-pb" });
       expect(screen.getByTestId("td-playbook-card")).not.toHaveAttribute("role", "button");
     });
   });

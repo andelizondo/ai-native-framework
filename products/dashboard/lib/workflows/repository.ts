@@ -9,7 +9,7 @@ import type {
   WorkflowInstanceDetail,
   WorkflowCheckpointTransitionStatus,
   WorkflowRepository,
-  WorkflowRole,
+  WorkflowSkill,
   WorkflowTask,
   WorkflowTaskCreateInput,
   WorkflowTaskPatch,
@@ -19,16 +19,13 @@ import type {
   WorkflowTemplate,
 } from "./types";
 
-// Row shapes returned by Supabase. Kept private — callers consume the camelCase
-// domain types defined in `./types`. Mapping happens once here so the rest of
-// the app never touches snake_case.
 interface WorkflowTemplateRow {
   id: string;
   label: string;
   color: string;
   multi_instance: boolean;
   stages: unknown;
-  roles: unknown;
+  skills: unknown;
   task_templates: unknown;
   created_at: string;
   updated_at: string;
@@ -39,7 +36,7 @@ interface WorkflowInstanceRow {
   template_id: string;
   label: string;
   status: WorkflowInstance["status"];
-  roles: unknown;
+  skills: unknown;
   created_at: string;
   updated_at: string;
 }
@@ -47,18 +44,15 @@ interface WorkflowInstanceRow {
 interface WorkflowTaskRow {
   id: string;
   instance_id: string;
-  role_id: string;
+  skill_id: string;
   stage_id: string;
-  title: string;
-  description: string;
+  notes: string;
   status: WorkflowTask["status"];
   substatus: string;
   checkpoint: boolean;
   triggers: unknown;
   gates: unknown;
-  agent: string | null;
-  skill: string | null;
-  playbook: string | null;
+  playbook_id: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -84,6 +78,11 @@ interface FrameworkItemRow {
   updated_at: string;
 }
 
+interface AllowedSkillRow {
+  playbook_id: string;
+  skill_id: string;
+}
+
 function toJsonArray<T>(value: unknown): T[] {
   return Array.isArray(value) ? (value as T[]) : [];
 }
@@ -101,7 +100,7 @@ function mapTemplate(row: WorkflowTemplateRow): WorkflowTemplate {
       id:
         typeof task.id === "string" && task.id.trim()
           ? task.id
-          : `${row.id}::${task.role}::${task.stage}::${index}`,
+          : `${row.id}::${task.skillId}::${task.stageId}::${index}`,
     }),
   );
 
@@ -111,7 +110,7 @@ function mapTemplate(row: WorkflowTemplateRow): WorkflowTemplate {
     color: row.color,
     multiInstance: row.multi_instance,
     stages: toJsonArray(row.stages),
-    roles: toJsonArray(row.roles),
+    skills: toJsonArray(row.skills),
     taskTemplates,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
@@ -124,7 +123,7 @@ function mapInstance(row: WorkflowInstanceRow): WorkflowInstance {
     templateId: row.template_id,
     label: row.label,
     status: row.status,
-    roles: toJsonArray(row.roles),
+    skills: toJsonArray(row.skills),
     createdAt: row.created_at,
     updatedAt: row.updated_at,
   };
@@ -134,18 +133,15 @@ function mapTask(row: WorkflowTaskRow): WorkflowTask {
   return {
     id: row.id,
     instanceId: row.instance_id,
-    roleId: row.role_id,
+    skillId: row.skill_id,
     stageId: row.stage_id,
-    title: row.title,
-    description: row.description,
+    notes: row.notes ?? "",
     status: row.status,
     substatus: row.substatus,
     checkpoint: row.checkpoint,
     triggers: toJsonArray(row.triggers),
     gates: toJsonArray(row.gates),
-    agent: row.agent,
-    skill: row.skill,
-    playbook: row.playbook,
+    playbookId: row.playbook_id,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
   };
@@ -163,8 +159,11 @@ function mapEvent(row: WorkflowEventRow): WorkflowEvent {
   };
 }
 
-function mapFrameworkItem(row: FrameworkItemRow): FrameworkItem {
-  return {
+function mapFrameworkItem(
+  row: FrameworkItemRow,
+  allowedSkillIds?: string[],
+): FrameworkItem {
+  const item: FrameworkItem = {
     id: row.id,
     type: row.type,
     name: row.name,
@@ -174,22 +173,23 @@ function mapFrameworkItem(row: FrameworkItemRow): FrameworkItem {
     createdAt: row.created_at,
     updatedAt: row.updated_at,
   };
+  if (row.type === "playbook") {
+    item.allowedSkillIds = allowedSkillIds ?? [];
+  }
+  return item;
 }
 
 function patchToRow(patch: WorkflowTaskPatch): Record<string, unknown> {
   const row: Record<string, unknown> = {};
-  if (patch.roleId !== undefined) row.role_id = patch.roleId;
+  if (patch.skillId !== undefined) row.skill_id = patch.skillId;
   if (patch.stageId !== undefined) row.stage_id = patch.stageId;
-  if (patch.title !== undefined) row.title = patch.title;
-  if (patch.description !== undefined) row.description = patch.description;
+  if (patch.notes !== undefined) row.notes = patch.notes;
   if (patch.status !== undefined) row.status = patch.status;
   if (patch.substatus !== undefined) row.substatus = patch.substatus;
   if (patch.checkpoint !== undefined) row.checkpoint = patch.checkpoint;
   if (patch.triggers !== undefined) row.triggers = patch.triggers;
   if (patch.gates !== undefined) row.gates = patch.gates;
-  if (patch.agent !== undefined) row.agent = patch.agent;
-  if (patch.skill !== undefined) row.skill = patch.skill;
-  if (patch.playbook !== undefined) row.playbook = patch.playbook;
+  if (patch.playbookId !== undefined) row.playbook_id = patch.playbookId;
   return row;
 }
 
@@ -200,7 +200,7 @@ function templatePatchToRow(
   if (patch.label !== undefined) row.label = patch.label;
   if (patch.color !== undefined) row.color = patch.color;
   if (patch.stages !== undefined) row.stages = patch.stages;
-  if (patch.roles !== undefined) row.roles = patch.roles;
+  if (patch.skills !== undefined) row.skills = patch.skills;
   if (patch.taskTemplates !== undefined) row.task_templates = patch.taskTemplates;
   return row;
 }
@@ -317,15 +317,6 @@ export function createWorkflowRepository(
       taskId: string,
       nextStatus: WorkflowCheckpointTransitionStatus,
     ): Promise<WorkflowTask | null> {
-      // Single atomic UPDATE … WHERE id = ? AND checkpoint = TRUE
-      // AND status = 'pending_approval' RETURNING *. This avoids the
-      // read-then-write race that a `getTask` precondition check would
-      // create: between SELECT and UPDATE another writer could flip
-      // the row, and we'd happily resolve a checkpoint that has
-      // already been resolved (or worse, transition a non-checkpoint).
-      // When `data` is null the row didn't match the predicates —
-      // missing, not a checkpoint, not pending_approval, or hidden by
-      // RLS — and the caller should treat that as a no-op failure.
       const { data, error } = await client
         .from("workflow_tasks")
         .update({ status: nextStatus })
@@ -377,11 +368,6 @@ export function createWorkflowRepository(
     },
 
     async listRecentEvents(limit: number): Promise<WorkflowEvent[]> {
-      // Normalize first: a `NaN` or fractional `limit` would otherwise
-      // poison `Math.min`/`Math.max` and reach Supabase as `NaN` /
-      // `1.5`, both of which produce confusing query errors. Treat
-      // anything non-finite as "0 rows requested" so the caller gets a
-      // clean empty result instead of a thrown error.
       const normalizedLimit = Number.isFinite(limit) ? Math.trunc(limit) : 0;
       const safeLimit = Math.max(0, Math.min(normalizedLimit, 200));
       if (safeLimit === 0) return [];
@@ -402,7 +388,6 @@ export function createWorkflowRepository(
       templateId: string,
       label: string,
     ): Promise<WorkflowInstanceDetail> {
-      // Fetch the template so we can copy default roles and materialize tasks.
       const { data: tplRow, error: tplErr } = await client
         .from("workflow_templates")
         .select("*")
@@ -425,7 +410,7 @@ export function createWorkflowRepository(
           template_id: template.id,
           label,
           status: "active",
-          roles: template.roles as unknown as WorkflowRole[],
+          skills: template.skills as unknown as WorkflowSkill[],
         })
         .select("*")
         .single();
@@ -434,25 +419,20 @@ export function createWorkflowRepository(
         unwrap("createInstance insert", insertedInstance, insertErr) as WorkflowInstanceRow,
       );
 
-      // Materialize tasks from template.taskTemplates. Skip when empty so
-      // empty templates still produce a valid instance with no tasks.
       let tasks: WorkflowTask[] = [];
       if (template.taskTemplates.length > 0) {
         const taskRowsToInsert = template.taskTemplates.map(
           (tpl: WorkflowTaskTemplate) => ({
             instance_id: instance.id,
-            role_id: tpl.role,
-            stage_id: tpl.stage,
-            title: tpl.title,
-            description: tpl.desc ?? "",
+            skill_id: tpl.skillId,
+            stage_id: tpl.stageId,
+            notes: tpl.notes ?? "",
             status: "not_started" as const,
             substatus: "",
             checkpoint: tpl.checkpoint ?? false,
             triggers: tpl.triggers ?? [],
             gates: tpl.gates ?? [],
-            agent: tpl.agent ?? null,
-            skill: tpl.skill ?? null,
-            playbook: tpl.playbook ?? null,
+            playbook_id: tpl.playbookId ?? null,
           }),
         );
 
@@ -499,18 +479,15 @@ export function createWorkflowRepository(
         .from("workflow_tasks")
         .insert({
           instance_id: input.instanceId,
-          role_id: input.roleId,
+          skill_id: input.skillId,
           stage_id: input.stageId,
-          title: input.title,
-          description: input.description ?? "",
+          notes: input.notes ?? "",
           status: "not_started",
           substatus: "",
           checkpoint: input.checkpoint ?? false,
           triggers: input.triggers ?? [],
           gates: input.gates ?? [],
-          agent: input.agent ?? null,
-          skill: input.skill ?? null,
-          playbook: input.playbook ?? null,
+          playbook_id: input.playbookId ?? null,
         })
         .select("*")
         .single();
@@ -609,7 +586,7 @@ export function createWorkflowRepository(
           color,
           multi_instance: true,
           stages: [],
-          roles: [],
+          skills: [],
           task_templates: [],
         })
         .select("*")
@@ -665,8 +642,6 @@ export function createWorkflowRepository(
     },
 
     async addEvent(taskId: string, event: WorkflowEventInput): Promise<WorkflowEvent> {
-      // Look up parent instance so events can be queried by instance directly
-      // even when filtering by task is not desired.
       const { data: taskRow, error: taskErr } = await client
         .from("workflow_tasks")
         .select("instance_id")
@@ -726,7 +701,35 @@ export function createWorkflowRepository(
       if (error) {
         throw new WorkflowRepositoryError("getFrameworkItems failed", error);
       }
-      return (data ?? []).map((row) => mapFrameworkItem(row as FrameworkItemRow));
+
+      const rows = (data ?? []) as FrameworkItemRow[];
+
+      // Bulk-fetch allowed-skill rows for any returned playbook so we
+      // populate `allowedSkillIds` in a single round-trip.
+      const playbookIds = rows.filter((r) => r.type === "playbook").map((r) => r.id);
+      const allowedByPlaybook = new Map<string, string[]>();
+      if (playbookIds.length > 0) {
+        const { data: allowedRows, error: allowedErr } = await client
+          .from("framework_item_allowed_skills")
+          .select("playbook_id, skill_id")
+          .in("playbook_id", playbookIds);
+
+        if (allowedErr) {
+          throw new WorkflowRepositoryError(
+            "getFrameworkItems allowed_skills failed",
+            allowedErr,
+          );
+        }
+        for (const row of (allowedRows ?? []) as AllowedSkillRow[]) {
+          const list = allowedByPlaybook.get(row.playbook_id) ?? [];
+          list.push(row.skill_id);
+          allowedByPlaybook.set(row.playbook_id, list);
+        }
+      }
+
+      return rows.map((row) =>
+        mapFrameworkItem(row, allowedByPlaybook.get(row.id) ?? []),
+      );
     },
 
     async upsertFrameworkItem(item: FrameworkItem): Promise<FrameworkItem> {
@@ -743,7 +746,48 @@ export function createWorkflowRepository(
         .select("*")
         .single();
 
-      return mapFrameworkItem(unwrap("upsertFrameworkItem", data, error) as FrameworkItemRow);
+      const saved = mapFrameworkItem(
+        unwrap("upsertFrameworkItem", data, error) as FrameworkItemRow,
+      );
+
+      // For playbooks, replace the allowed-skills relation. We do this in
+      // two statements because Supabase JS doesn't expose transactional
+      // batches — accept the brief inconsistency window for V1 simplicity.
+      if (saved.type === "playbook") {
+        const desired = item.allowedSkillIds ?? [];
+
+        const { error: deleteErr } = await client
+          .from("framework_item_allowed_skills")
+          .delete()
+          .eq("playbook_id", saved.id);
+        if (deleteErr) {
+          throw new WorkflowRepositoryError(
+            "upsertFrameworkItem allowed_skills delete failed",
+            deleteErr,
+          );
+        }
+
+        if (desired.length > 0) {
+          const { error: insertErr } = await client
+            .from("framework_item_allowed_skills")
+            .insert(
+              desired.map((skillId) => ({
+                playbook_id: saved.id,
+                skill_id: skillId,
+              })),
+            );
+          if (insertErr) {
+            throw new WorkflowRepositoryError(
+              "upsertFrameworkItem allowed_skills insert failed",
+              insertErr,
+            );
+          }
+        }
+
+        saved.allowedSkillIds = desired;
+      }
+
+      return saved;
     },
 
     async deleteFrameworkItem(itemId: string): Promise<void> {

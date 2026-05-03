@@ -61,7 +61,7 @@ export default async function WorkflowInstancePage({
         <WorkflowInstanceHeader
           instanceLabel={instance.label}
           taskCount={instance.tasks.length}
-          roleCount={instance.roles.length}
+          skillCount={instance.skills.length}
           stageCount={template?.stages.length ?? 0}
         />
 

@@ -8,7 +8,7 @@ import { createTemplateAction } from "@/app/(dashboard)/workflows/actions";
 import { useAnalytics } from "@/lib/analytics/events";
 import { useToast } from "@/lib/toast";
 import { cn } from "@/lib/utils";
-import { ROLE_COLORS } from "@/lib/workflows/role-colors";
+import { SKILL_COLORS } from "@/lib/workflows/skill-colors";
 
 function ColorPicker({
   color,
@@ -55,7 +55,7 @@ function ColorPicker({
       />
       {open && (
         <div className="absolute left-0 top-[calc(100%+8px)] z-[60] grid w-[100px] grid-cols-4 gap-1 rounded-lg border border-border-hi bg-bg-3 p-2 shadow-[var(--shadow-canvas)]">
-          {ROLE_COLORS.map((swatch) => (
+          {SKILL_COLORS.map((swatch) => (
             <button
               key={swatch}
               type="button"
@@ -86,7 +86,7 @@ export function CreateTemplateModal({
   onClose: () => void;
 }) {
   const [label, setLabel] = useState("");
-  const [color, setColor] = useState<string>(ROLE_COLORS[0]);
+  const [color, setColor] = useState<string>(SKILL_COLORS[0]);
   const [error, setError] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
   const router = useRouter();
@@ -101,7 +101,7 @@ export function CreateTemplateModal({
   useEffect(() => {
     if (open) {
       setLabel("");
-      setColor(ROLE_COLORS[0]);
+      setColor(SKILL_COLORS[0]);
       setError(null);
     }
   }, [open]);

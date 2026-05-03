@@ -50,6 +50,9 @@ import { cn } from "@/lib/utils";
 interface FrameworkScreenProps {
   initialItems: FrameworkItem[];
   type: FrameworkItemType;
+  /** All Skills (FrameworkItem of type "skill"). Required when `type === "playbook"`
+   * so the editor can render the "Allowed skills" multi-select. */
+  availableSkills?: FrameworkItem[];
 }
 
 type EditorViewMode = "markdown" | "plain-text";
@@ -263,6 +266,7 @@ function CompactEmojiPicker({
 export function FrameworkScreen({
   initialItems,
   type,
+  availableSkills = [],
 }: FrameworkScreenProps) {
   const { setConfig } = useDashboardTopBar();
   const { capture } = useAnalytics();
@@ -580,6 +584,8 @@ export function FrameworkScreen({
           name: draftItem.name.trim(),
           description: draftItem.description.trim(),
           icon: draftItem.icon?.trim() ?? null,
+          allowedSkillIds:
+            draftItem.type === "playbook" ? draftItem.allowedSkillIds ?? [] : undefined,
         });
         setItems((current) =>
           sortItems(
@@ -755,6 +761,48 @@ export function FrameworkScreen({
                 <p className="mt-1 max-w-3xl text-[13px] leading-6 text-t2">
                   {draftItem.description}
                 </p>
+                {type === "playbook" ? (
+                  <div className="mt-3 max-w-3xl">
+                    <div className="mb-1.5 text-[11px] font-medium uppercase tracking-wide text-t3">
+                      Allowed skills
+                    </div>
+                    {availableSkills.length === 0 ? (
+                      <div className="text-[12px] text-t3">
+                        No skills defined yet. Create one in the Skills page first.
+                      </div>
+                    ) : (
+                      <div className="flex flex-wrap gap-1.5">
+                        {availableSkills.map((skill) => {
+                          const enabled = (draftItem.allowedSkillIds ?? []).includes(skill.id);
+                          return (
+                            <button
+                              key={skill.id}
+                              type="button"
+                              onClick={() =>
+                                setDraftItem((current) => {
+                                  if (!current) return current;
+                                  const set = new Set(current.allowedSkillIds ?? []);
+                                  if (set.has(skill.id)) set.delete(skill.id);
+                                  else set.add(skill.id);
+                                  return { ...current, allowedSkillIds: Array.from(set) };
+                                })
+                              }
+                              className={cn(
+                                "inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[11.5px] font-medium transition",
+                                enabled
+                                  ? "border-primary bg-primary-bg text-accent"
+                                  : "border-border bg-bg-3 text-t2 hover:bg-bg-4 hover:text-t1",
+                              )}
+                            >
+                              <span aria-hidden>{skill.icon || "•"}</span>
+                              <span>{skill.name}</span>
+                            </button>
+                          );
+                        })}
+                      </div>
+                    )}
+                  </div>
+                ) : null}
               </div>
             </div>
           ) : (

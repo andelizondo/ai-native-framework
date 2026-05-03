@@ -39,7 +39,7 @@ function template(
     color,
     multiInstance: true,
     stages: [],
-    roles: [],
+    skills: [],
     taskTemplates: [],
     createdAt: "2026-04-19T12:00:00Z",
     updatedAt: "2026-04-19T12:00:00Z",
@@ -56,7 +56,7 @@ function instance(
     templateId,
     label: id,
     status,
-    roles: [],
+    skills: [],
     createdAt: "2026-04-19T12:00:00Z",
     updatedAt: "2026-04-19T12:00:00Z",
   };
@@ -71,18 +71,15 @@ function task(
   return {
     id,
     instanceId,
-    roleId: "role-x",
+    skillId: "skill-x",
     stageId: "stage-x",
-    title: id,
-    description: "",
+    notes: "",
     status,
     substatus: "",
     checkpoint: false,
     triggers: [],
     gates: [],
-    agent: null,
-    skill: null,
-    playbook: null,
+    playbookId: null,
     createdAt: "2026-04-19T12:00:00Z",
     updatedAt: "2026-04-19T12:00:00Z",
     ...overrides,
@@ -248,10 +245,10 @@ describe("pickActiveTasks", () => {
       templates: [t1],
       instances: [i1],
       tasks: [
-        task("k-1", "i-1", "active", { playbook: "Discovery call v3" }),
+        task("k-1", "i-1", "active", { playbookId: "Discovery call v3" }),
         task("k-2", "i-1", "pending_approval"),
         task("k-3", "i-1", "complete"),
-        task("k-4", "i-1", "active", { playbook: null }),
+        task("k-4", "i-1", "active", { playbookId: null }),
       ],
       events: [],
     };
@@ -259,8 +256,8 @@ describe("pickActiveTasks", () => {
     const active = pickActiveTasks(snapshot);
     expect(active.map((a) => a.task.id)).toEqual(["k-1", "k-4"]);
     expect(active[0]!.template?.id).toBe("delivery");
-    expect(active[0]!.task.playbook).toBe("Discovery call v3");
-    expect(active[1]!.task.playbook).toBeNull();
+    expect(active[0]!.task.playbookId).toBe("Discovery call v3");
+    expect(active[1]!.task.playbookId).toBeNull();
   });
 
   it("drops orphaned tasks whose instance no longer exists", () => {

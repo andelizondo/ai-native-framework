@@ -59,7 +59,7 @@ export function canStart(
     const ref = trigger.taskRef ?? trigger.taskId;
     if (!ref) return true;
     const dep = allTasks.find(
-      (candidate) => candidate.title === ref || candidate.id === ref,
+      (candidate) => candidate.id === ref || candidate.playbookId === ref,
     );
     return dep?.status === "complete";
   });

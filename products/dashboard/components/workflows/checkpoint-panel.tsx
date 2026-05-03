@@ -132,12 +132,11 @@ export function CheckpointPanel({
                     <p className="cp-item-process" style={template ? { color: template.color } : undefined}>
                       {template?.label ?? "Workflow"} · {instance.label}
                     </p>
-                    <p className="cp-item-title">{task.title}</p>
-                    {task.description && (
-                      <p className="cp-item-desc">{task.description}</p>
+                    <p className="cp-item-title">{task.playbookId ?? "Task"}</p>
+                    {task.notes && (
+                      <p className="cp-item-desc">{task.notes}</p>
                     )}
                     <p className="cp-item-meta">
-                      {task.agent ? `By ${task.agent} · ` : ""}
                       {new Date(task.updatedAt).toLocaleTimeString([], {
                         hour: "2-digit",
                         minute: "2-digit",

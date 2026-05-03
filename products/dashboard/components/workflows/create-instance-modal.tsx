@@ -130,7 +130,7 @@ export function CreateInstanceModal({
   const canSubmit = trimmed.length > 0 && !isPending;
 
   const stageCount = template.stages.length;
-  const roleCount = template.roles.length;
+  const skillCount = template.skills.length;
   const taskCount = template.taskTemplates.length;
 
   function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
@@ -209,7 +209,7 @@ export function CreateInstanceModal({
           New {template.label} instance
         </h2>
         <p className="mt-1 text-[12.5px] text-t3">
-          Creates an instance with all default stages, roles, and tasks.
+          Creates an instance with all default stages, skills, and tasks.
         </p>
 
         <label className="mt-[22px] block">
@@ -239,7 +239,7 @@ export function CreateInstanceModal({
           </strong>{" "}
           ·{" "}
           <strong className="text-t1">
-            {roleCount} {roleCount === 1 ? "role" : "roles"}
+            {skillCount} {skillCount === 1 ? "skill" : "skills"}
           </strong>{" "}
           ·{" "}
           <strong className="text-t1">

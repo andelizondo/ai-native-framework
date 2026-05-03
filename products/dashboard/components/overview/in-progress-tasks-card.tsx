@@ -43,11 +43,11 @@ export function InProgressTasksCard({ tasks }: InProgressTasksCardProps) {
                     {template?.label ?? "Workflow"} · {instance.label}
                   </p>
                   <p className="mt-1 text-[12.5px] font-semibold text-t1">
-                    {task.title}
+                    {task.playbookId ?? "Task"}
                   </p>
-                  {task.playbook && (
+                  {task.playbookId && (
                     <p className="mt-1 truncate font-mono text-[11px] text-t3">
-                      📘 {task.playbook}
+                      📘 {task.playbookId}
                     </p>
                   )}
                 </div>

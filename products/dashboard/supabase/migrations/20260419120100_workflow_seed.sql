@@ -1,24 +1,136 @@
--- Seed migration for the four canonical workflow templates and the founder
--- Skills/Playbooks library used by the dashboard mock data.
+-- Seed migration for canonical workflow templates and the founder Skills /
+-- Playbooks library used by the dashboard mock data.
 --
--- Source files (design handoff, kept under /tmp/design-canvas):
---   * `Process Canvas v2/data.js` -> updated stages/roles/icons for the four
---     templates and the canonical CompanyX task list used to derive the
---     Client Project Delivery `task_templates` (per AEL-47 + TransportBand01).
---   * `pc-components.jsx` -> `FRAMEWORK_ITEMS_DEFAULT` (Skills + Playbooks)
---     and `taskTemplates` for Product Development / Go-to-Market / Operations.
+-- Schema notes:
+--   * Matrix rows are now Skills. Each row id matches a framework_items row of
+--     type 'skill'. Skill ids use slug-style names (e.g. 'pm', 'builder').
+--   * Tasks are simplified to (skillId, stageId, playbookId, notes, …).
+--     Title/description/agent come from the linked framework_items playbook.
+--   * framework_item_allowed_skills gates which playbooks appear in the
+--     playbook picker for a given skill row.
 --
--- This migration is idempotent (`on conflict ... do update`) so re-running it
--- against an existing dev database refreshes the seed in place.
+-- Idempotent: rerunning against an existing dev DB refreshes the seed in place.
+
+-- ---------------------------------------------------------------------------
+-- Framework items: Skills (id == slug name) + Playbooks (id == slug name)
+-- ---------------------------------------------------------------------------
+insert into public.framework_items (id, type, name, description, icon, content)
+values
+  -- Skills
+  ('pm','skill','PM','Product management, spec authoring, prioritization','📋',
+    E'# PM Skill\n\n## When to use\nShape requested changes into scope, rationale, acceptance criteria.\n\n## Steps\n1. Read relevant spec and decisions\n2. Clarify goal and constraints\n3. Define scope and non-goals\n4. Write testable acceptance criteria\n5. Flag risks and dependencies'),
+  ('designer','skill','Designer','UI/UX design, visual explorations, hi-fi prototypes','🎨',
+    E'# Designer Skill\n\n## Steps\n1. Read design system tokens\n2. Explore 3+ directions\n3. Produce hi-fi variations\n4. Request human review\n5. Deliver specs'),
+  ('builder','skill','Builder','Implementation, vertical slices, tests','⚡',
+    E'# Builder Skill\n\n## Steps\n1. Read spec and acceptance criteria\n2. Implement vertical slice\n3. Write tests\n4. Run validation gates\n5. Submit PR'),
+  ('devops','skill','DevOps','Infrastructure, deployment, environments','🔧',
+    E'# DevOps Skill\n\n## Steps\n1. Survey current infrastructure\n2. Define requirements\n3. Configure environments\n4. Wire observability\n5. Document and verify'),
+  ('researcher','skill','Researcher','Market research, ICP analysis, discovery','🔍',
+    E'# Researcher Skill\n\n## Steps\n1. Define research questions\n2. Gather data\n3. Synthesize findings\n4. Produce report\n5. Flag assumptions'),
+  ('strategist','skill','Strategist','Strategic positioning, ICP, go-to-market','🧭',
+    E'# Strategist Skill\n\n## Steps\n1. Analyze market segments\n2. Define ICP and JTBD\n3. Map competitive landscape\n4. Produce positioning\n5. Validate with founder'),
+  ('qa','skill','QA','Testing, quality gates, regression coverage','✅',
+    E'# QA Skill\n\n## Steps\n1. Read spec\n2. Identify test layers\n3. Write tests\n4. Run full suite\n5. Produce evidence'),
+  ('project','skill','Project','Project management, planning, coordination','🗂️',
+    E'# Project Skill\n\n## Steps\n1. Read project brief\n2. Define phases\n3. Identify dependencies\n4. Align stakeholders\n5. Track progress'),
+  ('sales-ops','skill','Sales Ops','Pre-sales, account management, sales playbooks','🤝',
+    E'# Sales Ops Skill\n\n## Steps\n1. Qualify opportunity\n2. Confirm scope\n3. Run handoffs\n4. Track account health'),
+  ('finance-ops','skill','Finance Ops','Invoicing, registration, financial closure','💰',
+    E'# Finance Ops Skill\n\n## Steps\n1. Issue invoices\n2. Confirm POs\n3. Register quotes\n4. Close financially'),
+  ('growth','skill','Growth','Demand gen, content, marketing assets','📈',
+    E'# Growth Skill\n\n## Steps\n1. Lead generation\n2. Marketing assets\n3. Communication\n4. Use cases'),
+  ('support','skill','Support','Customer support, triage, helpdesk','🎧',
+    E'# Support Skill\n\n## Steps\n1. Triage issue\n2. Reproduce\n3. Resolve or escalate\n4. Communicate to customer'),
+
+  -- Playbooks (Product Development)
+  ('problem-framing','playbook','Problem Statement','User, goal, constraints, metrics','📝',
+    E'# Problem Framing\n\n## Objective\nProduce a clear problem statement.\n\n## Steps\n1. Identify user persona\n2. State the problem\n3. List constraints\n4. Define success metrics'),
+  ('discovery-research','playbook','Discovery Research','Interviews, competitive analysis','🔬',
+    E'# Discovery Research\n\n## Steps\n1. Define research questions\n2. Run interviews\n3. Competitive scan\n4. Synthesize findings'),
+  ('slice-spec','playbook','Slice Spec','Event catalog, data model','📐',
+    E'# Slice Spec\n\n## Steps\n1. Define events\n2. Sketch data model\n3. Validate against schema\n4. Hand off to design'),
+  ('ui-design','playbook','UI Prototype','Hi-fi prototype with variations','🎨',
+    E'# UI Design\n\n## Steps\n1. Wireframes\n2. Hi-fi variations (3+)\n3. Design review\n4. Handoff specs'),
+  ('dev-execution','playbook','Vertical Slice','UI + API + persistence + telemetry','⚙️',
+    E'# Dev Execution\n\n## Steps\n1. Branch\n2. Implement UI/API/persistence\n3. Telemetry\n4. Tests\n5. PR'),
+  ('quality-gate','playbook','Quality Gate','Unit, E2E, accessibility, evals','🧪',
+    E'# Quality Gate\n\n## Steps\n1. Unit tests\n2. E2E\n3. Accessibility\n4. Evals\n5. Evidence bundle'),
+
+  -- Playbooks (Go-to-Market)
+  ('icp-definition','playbook','ICP Definition','Ideal customer profile, JTBD','🎯',
+    E'# ICP Definition\n\n## Steps\n1. Segment market\n2. Define ICP\n3. JTBD framing\n4. Validate'),
+  ('landing-page','playbook','Landing Page','Copy, design, analytics wiring','🌐',
+    E'# Landing Page\n\n## Steps\n1. Copy\n2. Design\n3. Build\n4. Analytics\n5. Review'),
+  ('outbound-sequence','playbook','Outbound Sequence','Cold email + LinkedIn','📧',
+    E'# Outbound Sequence\n\n## Steps\n1. List building\n2. Sequence drafting\n3. Send\n4. Iterate'),
+
+  -- Playbooks (Operations)
+  ('observability-sweep','playbook','Observability Sweep','Dashboards, alerts, error budgets','📊',
+    E'# Observability Sweep\n\n## Steps\n1. Review dashboards\n2. Check alerts\n3. Error budget posture\n4. File issues'),
+  ('issue-triage','playbook','Issue Triage','Scope, urgency, affected users','🚨',
+    E'# Issue Triage\n\n## Steps\n1. Reproduce\n2. Classify severity\n3. Assign\n4. Communicate'),
+  ('incident-resolution','playbook','Incident Resolution','Investigate, patch, deploy','🔥',
+    E'# Incident Resolution\n\n## Steps\n1. Diagnose\n2. Patch\n3. Test\n4. Deploy\n5. Verify'),
+  ('postmortem','playbook','Postmortem','Retro, action items','📓',
+    E'# Postmortem\n\n## Steps\n1. Timeline\n2. Root cause\n3. Action items\n4. File and follow up'),
+
+  -- Playbooks (Client Project Delivery)
+  ('presales-qualification','playbook','Presales Qualification','Qualify new client opportunities','📄',
+    E'# Presales Qualification\n\n## Steps\n1. Gather project description\n2. Assess fit\n3. Estimate scope\n4. Document\n5. Hand off to Product'),
+  ('pdr-review','playbook','PDR Review','Evaluate, accept or reject, offer to customer','🧐',
+    E'# PDR Review\n\n## Steps\n1. Read PDR\n2. Evaluate\n3. Decision\n4. Offer to customer'),
+  ('project-planning','playbook','Project Planning','Timeline, phases, dependencies','🗓️',
+    E'# Project Planning\n\n## Steps\n1. Phases\n2. Timeline\n3. Dependencies\n4. Customer alignment'),
+  ('initial-invoicing','playbook','Initial Invoicing','Send initial invoice (usually 50%)','💸',
+    E'# Initial Invoicing\n\n## Steps\n1. Confirm scope\n2. Generate invoice\n3. Send'),
+  ('infra-setup','playbook','Infra Setup','Provisioning, license activation','🔌',
+    E'# Infra Setup\n\n## Steps\n1. Plan\n2. Provision\n3. License\n4. Verify')
+on conflict (id) do update set
+  type        = excluded.type,
+  name        = excluded.name,
+  description = excluded.description,
+  icon        = excluded.icon,
+  content     = excluded.content,
+  updated_at  = now();
+
+-- ---------------------------------------------------------------------------
+-- Allowed-skills mappings: which Playbooks each Skill row can pick from.
+-- ---------------------------------------------------------------------------
+insert into public.framework_item_allowed_skills (playbook_id, skill_id)
+values
+  -- Product Development
+  ('problem-framing','pm'),
+  ('discovery-research','researcher'),
+  ('slice-spec','pm'),
+  ('ui-design','designer'),
+  ('dev-execution','builder'),
+  ('quality-gate','qa'),
+  -- Go-to-Market
+  ('icp-definition','strategist'),
+  ('icp-definition','pm'),
+  ('landing-page','growth'),
+  ('outbound-sequence','sales-ops'),
+  ('outbound-sequence','growth'),
+  -- Operations
+  ('observability-sweep','devops'),
+  ('issue-triage','support'),
+  ('incident-resolution','builder'),
+  ('incident-resolution','devops'),
+  ('postmortem','pm'),
+  -- Client Project Delivery
+  ('presales-qualification','sales-ops'),
+  ('pdr-review','pm'),
+  ('project-planning','project'),
+  ('initial-invoicing','finance-ops'),
+  ('infra-setup','devops')
+on conflict (playbook_id, skill_id) do nothing;
 
 -- ---------------------------------------------------------------------------
 -- Workflow templates
 -- ---------------------------------------------------------------------------
-insert into public.workflow_templates (id, label, color, multi_instance, stages, roles, task_templates)
+insert into public.workflow_templates (id, label, color, multi_instance, stages, skills, task_templates)
 values
-  -- Client Project Delivery (TransportBand01-aligned: 8 stages, 7 roles).
-  -- task_templates derived from the CompanyX instance tasks in v2 data.js:
-  -- triggers reference upstream task titles (taskRef) rather than instance ids.
+  -- Client Project Delivery
   (
     'client-delivery',
     'Client Project Delivery',
@@ -35,43 +147,21 @@ values
       {"id":"delivered","label":"Delivered","sub":"Done"}
     ]'::jsonb,
     '[
-      {"id":"sales","label":"Sales","owner":"Hans / Dave"},
-      {"id":"product","label":"Product","owner":"Andres / Dechaun"},
-      {"id":"finance","label":"Finance","owner":"Joanna"},
+      {"id":"sales-ops","label":"Sales Ops","owner":"Hans / Dave"},
+      {"id":"pm","label":"PM","owner":"Andres / Dechaun"},
+      {"id":"finance-ops","label":"Finance Ops","owner":"Joanna"},
       {"id":"project","label":"Project","owner":"Patrick"},
-      {"id":"dev","label":"Development","owner":"Noah / Dev Team"},
-      {"id":"marketing","label":"Marketing","owner":"Cristina"},
-      {"id":"infra","label":"Support / Infra","owner":"Robert"}
+      {"id":"builder","label":"Builder","owner":"Noah / Dev Team"},
+      {"id":"growth","label":"Growth","owner":"Cristina"},
+      {"id":"devops","label":"DevOps","owner":"Robert"}
     ]'::jsonb,
     '[
-      {"role":"sales","stage":"pre-sales","title":"Project Description","desc":"Define objective, identify PDR need","agent":"Sales Ops","skill":"sales-ops","playbook":"presales-qualification","triggers":[{"type":"manual","label":"Manual start"}],"gates":[{"type":"playbook_done","label":"Agent completes playbook"}]},
-      {"role":"sales","stage":"ready","title":"FO & TO Confirmation","desc":"Functional and technical description confirmation","agent":"Sales Ops","skill":"sales-ops","playbook":"fo-to-confirmation","triggers":[{"type":"after_task","taskRef":"PDR Review","label":"After PDR Review"}],"gates":[{"type":"playbook_done","label":"Agent completes playbook"}]},
-      {"role":"sales","stage":"planning","title":"Update Business Model","desc":"Update pricebook, article numbers, Navision","agent":"Sales Ops","skill":"sales-ops","playbook":"business-model-update","triggers":[{"type":"after_task","taskRef":"Project Scope & Planning","label":"After Project Scope & Planning"}],"gates":[{"type":"checkpoint","label":"Human review required"}]},
-      {"role":"sales","stage":"delivered","title":"Account Management","desc":"Cross/upselling, renewal opportunities","agent":"Sales Ops","skill":"sales-ops","playbook":"account-management","triggers":[{"type":"after_task","taskRef":"Project Delivery Confirmation","label":"After Project Delivery Confirmation"}],"gates":[{"type":"manual","label":"Human initiates"}]},
-      {"role":"product","stage":"validation","title":"PDR Review","desc":"Evaluate, accept or reject, offer to customer","agent":"PM","skill":"pm","playbook":"pdr-review","triggers":[{"type":"after_task","taskRef":"Project Description","label":"After Project Description"}],"gates":[{"type":"checkpoint","label":"Human approval required"}]},
-      {"role":"product","stage":"planning","title":"Roadmap Estimation","desc":"Capacity & prioritization for this project","agent":"PM","skill":"pm","playbook":"roadmap-estimation","triggers":[{"type":"after_task","taskRef":"PDR Review","label":"After PDR Review"}],"gates":[{"type":"playbook_done","label":"Agent completes playbook"}]},
-      {"role":"product","stage":"in-dev","title":"Backlog Refinement","desc":"Feature grooming & sprint support","agent":"PM","skill":"pm","playbook":"backlog-refinement","checkpoint":true,"triggers":[{"type":"after_task","taskRef":"Project Scope & Planning","label":"After Project Scope & Planning"},{"type":"after_task","taskRef":"Register Quote","label":"After Register Quote"}],"gates":[{"type":"checkpoint","label":"Human approval to start sprint"}]},
-      {"role":"product","stage":"delivered","title":"Usage Metrics","desc":"Platform metrics & feature usage reporting","agent":"PM","skill":"pm","playbook":"usage-metrics","triggers":[{"type":"after_task","taskRef":"Project Delivery Confirmation","label":"After Project Delivery Confirmation"}],"gates":[{"type":"playbook_done","label":"Agent completes playbook"}]},
-      {"role":"finance","stage":"ready","title":"Initial Invoicing","desc":"Send initial invoice (usually 50%)","agent":"Finance Ops","skill":"finance-ops","playbook":"initial-invoicing","triggers":[{"type":"after_task","taskRef":"FO & TO Confirmation","label":"After FO & TO Confirmation"}],"gates":[{"type":"playbook_done","label":"Agent sends invoice"}]},
-      {"role":"finance","stage":"ready","title":"Project Confirmation","desc":"PO confirmation, project start authorization","agent":"Finance Ops","skill":"finance-ops","playbook":"project-confirmation","triggers":[{"type":"after_task","taskRef":"Initial Invoicing","label":"After Initial Invoicing"}],"gates":[{"type":"checkpoint","label":"Human confirms PO received"}]},
-      {"role":"finance","stage":"planning","title":"Register Quote","desc":"Quote added to Exact, linked to project","agent":"Finance Ops","skill":"finance-ops","playbook":"register-quote","triggers":[{"type":"after_task","taskRef":"Project Confirmation","label":"After Project Confirmation"}],"gates":[{"type":"playbook_done","label":"Agent completes entry"}]},
-      {"role":"finance","stage":"deployment","title":"SLA Invoicing","desc":"Send invoice upon delivery (when applicable)","agent":"Finance Ops","skill":"finance-ops","playbook":"sla-invoicing","triggers":[{"type":"after_task","taskRef":"Acceptation","label":"After Acceptation"}],"gates":[{"type":"playbook_done","label":"Agent sends invoice"}]},
-      {"role":"finance","stage":"closure","title":"Final Invoicing","desc":"Send final invoice & close financially","agent":"Finance Ops","skill":"finance-ops","playbook":"final-invoicing","triggers":[{"type":"after_task","taskRef":"Project Delivery Confirmation","label":"After Project Delivery Confirmation"}],"gates":[{"type":"checkpoint","label":"Human confirms invoice sent"}]},
-      {"role":"project","stage":"planning","title":"Project Scope & Planning","desc":"Timeline, phases, dependencies, customer alignment","agent":"Project Mgr","skill":"project","playbook":"project-planning","triggers":[{"type":"after_task","taskRef":"Project Confirmation","label":"After Project Confirmation"}],"gates":[{"type":"checkpoint","label":"Human reviews plan"}]},
-      {"role":"project","stage":"deployment","title":"Acceptation","desc":"Testing & feedback loop with customer","agent":"Project Mgr","skill":"project","playbook":"acceptation","triggers":[{"type":"after_task","taskRef":"Software Release","label":"After Software Release"}],"gates":[{"type":"checkpoint","label":"Customer sign-off required"}]},
-      {"role":"project","stage":"deployment","title":"Production Rollout","desc":"End-user onboarding, go-live coordination","agent":"Project Mgr","skill":"project","playbook":"production-rollout","triggers":[{"type":"after_task","taskRef":"Acceptation","label":"After Acceptation"}],"gates":[{"type":"checkpoint","label":"Human approves go-live"}]},
-      {"role":"project","stage":"closure","title":"Project Delivery Confirmation","desc":"Validate completion, no pending items","agent":"Project Mgr","skill":"project","playbook":"delivery-confirmation","triggers":[{"type":"after_task","taskRef":"Production Rollout","label":"After Production Rollout"},{"type":"after_task","taskRef":"Setup & License","label":"After Setup & License"}],"gates":[{"type":"checkpoint","label":"Human final sign-off"}]},
-      {"role":"project","stage":"delivered","title":"Customer Relationship","desc":"Follow up, future planning, maintenance coordination","agent":"Project Mgr","skill":"project","playbook":"customer-relationship","triggers":[{"type":"after_task","taskRef":"Project Delivery Confirmation","label":"After Project Delivery Confirmation"}],"gates":[{"type":"manual","label":"Ongoing — human managed"}]},
-      {"role":"dev","stage":"in-dev","title":"Software Release","desc":"Epics, stories, development, hotfixes, QA","agent":"Builder","skill":"builder","playbook":"dev-execution","triggers":[{"type":"after_task","taskRef":"Backlog Refinement","label":"After Backlog Refinement approval"}],"gates":[{"type":"playbook_done","label":"All stories done + QA pass"}]},
-      {"role":"marketing","stage":"pre-sales","title":"Lead Generation","desc":"Processes, tools and campaigns","agent":"Growth","skill":"growth","playbook":"lead-generation","triggers":[{"type":"manual","label":"Manual start"}],"gates":[{"type":"playbook_done","label":"Lead qualified"}]},
-      {"role":"marketing","stage":"in-dev","title":"Marketing Assets","desc":"Feature newsletter, product content & communication","agent":"Growth","skill":"growth","playbook":"marketing-assets","triggers":[{"type":"after_task","taskRef":"Backlog Refinement","label":"After Backlog Refinement"}],"gates":[{"type":"checkpoint","label":"Human reviews content"}]},
-      {"role":"marketing","stage":"deployment","title":"Communication Confirmation","desc":"Consent for commercial communication","agent":"Growth","skill":"growth","playbook":"comms-confirmation","triggers":[{"type":"after_task","taskRef":"Production Rollout","label":"After Production Rollout"}],"gates":[{"type":"checkpoint","label":"Customer consent confirmed"}]},
-      {"role":"marketing","stage":"delivered","title":"Use Cases","desc":"Customer content, photos, market analysis","agent":"Growth","skill":"growth","playbook":"use-cases","triggers":[{"type":"after_task","taskRef":"Customer Relationship","label":"After Customer Relationship starts"}],"gates":[{"type":"playbook_done","label":"Content published"}]},
-      {"role":"marketing","stage":"delivered","title":"Client Communication","desc":"Newsletter, client satisfaction follow-up","agent":"Growth","skill":"growth","playbook":"client-communication","triggers":[{"type":"after_task","taskRef":"Use Cases","label":"After Use Cases"}],"gates":[{"type":"playbook_done","label":"Communication sent"}]},
-      {"role":"infra","stage":"planning","title":"Installation & Infra Planning","desc":"Setup and IT requirements, prerequisites","agent":"DevOps","skill":"devops","playbook":"infra-planning","triggers":[{"type":"after_task","taskRef":"Project Scope & Planning","label":"After Project Scope & Planning"}],"gates":[{"type":"playbook_done","label":"Infra plan approved"}]},
-      {"role":"infra","stage":"in-dev","title":"Support Content","desc":"Support website, LMS courses preparation","agent":"DevOps","skill":"devops","playbook":"support-content","triggers":[{"type":"after_task","taskRef":"Installation & Infra Planning","label":"After Infra Planning"}],"gates":[{"type":"playbook_done","label":"Content published"}]},
-      {"role":"infra","stage":"deployment","title":"Setup & License","desc":"Infrastructure provisioning, license activation","agent":"DevOps","skill":"devops","playbook":"infra-setup","triggers":[{"type":"after_task","taskRef":"Acceptation","label":"After Acceptation"}],"gates":[{"type":"checkpoint","label":"Human confirms infra live"}]},
-      {"role":"infra","stage":"delivered","title":"Customer Support","desc":"Helpdesk, training, documentation","agent":"DevOps","skill":"devops","playbook":"customer-support","triggers":[{"type":"after_task","taskRef":"Customer Relationship","label":"After Customer Relationship"}],"gates":[{"type":"manual","label":"Ongoing — human managed"}]}
+      {"skillId":"sales-ops","stageId":"pre-sales","playbookId":"presales-qualification","notes":"","triggers":[{"type":"manual","label":"Manual start"}],"gates":[{"type":"playbook_done","label":"Agent completes playbook"}]},
+      {"skillId":"pm","stageId":"validation","playbookId":"pdr-review","notes":"","triggers":[{"type":"after_task","taskRef":"Presales Qualification","label":"After Presales Qualification"}],"gates":[{"type":"checkpoint","label":"Human approval"}]},
+      {"skillId":"finance-ops","stageId":"ready","playbookId":"initial-invoicing","notes":"","triggers":[{"type":"after_task","taskRef":"PDR Review","label":"After PDR Review"}],"gates":[{"type":"playbook_done","label":"Invoice sent"}]},
+      {"skillId":"project","stageId":"planning","playbookId":"project-planning","notes":"","triggers":[],"gates":[{"type":"checkpoint","label":"Plan reviewed"}]},
+      {"skillId":"builder","stageId":"in-dev","playbookId":"dev-execution","notes":"","triggers":[{"type":"after_task","taskRef":"Project Planning","label":"After Project Planning"}],"gates":[{"type":"playbook_done","label":"Slice deployed"}]},
+      {"skillId":"devops","stageId":"deployment","playbookId":"infra-setup","notes":"","triggers":[],"gates":[{"type":"checkpoint","label":"Infra live"}]}
     ]'::jsonb
   ),
   -- Product Development
@@ -89,18 +179,19 @@ values
       {"id":"measure","label":"Measure","sub":"Feedback loop"}
     ]'::jsonb,
     '[
-      {"id":"product","label":"Product","owner":"Andres"},
-      {"id":"design","label":"Design","owner":"Designer Agent"},
-      {"id":"engineering","label":"Engineering","owner":"Dev Team"},
-      {"id":"qa","label":"Quality","owner":"QA Agent"}
+      {"id":"pm","label":"PM","owner":"Andres"},
+      {"id":"designer","label":"Designer","owner":"Designer Agent"},
+      {"id":"builder","label":"Builder","owner":"Dev Team"},
+      {"id":"qa","label":"QA","owner":"QA Agent"},
+      {"id":"researcher","label":"Researcher","owner":"Researcher Agent"}
     ]'::jsonb,
     '[
-      {"role":"product","stage":"ideation","title":"Problem Statement","desc":"User, goal, constraints, metrics","agent":"PM","skill":"pm","playbook":"problem-framing","triggers":[{"type":"manual","label":"New feature request"}],"gates":[{"type":"playbook_done","label":"Schema-valid spec"}]},
-      {"role":"design","stage":"ideation","title":"Discovery Research","desc":"Interviews, competitive analysis","agent":"Researcher","skill":"researcher","playbook":"discovery-research","triggers":[{"type":"after_task","taskRef":"Problem Statement","label":"Problem scoped"}],"gates":[{"type":"playbook_done","label":"Research report"}]},
-      {"role":"product","stage":"design","title":"Slice Spec","desc":"Event catalog, data model","agent":"PM","skill":"pm","playbook":"slice-spec","triggers":[{"type":"after_task","taskRef":"Discovery Research","label":"Research complete"}],"gates":[{"type":"playbook_done","label":"Validate passes"}]},
-      {"role":"design","stage":"design","title":"UI Prototype","desc":"Hi-fi, 3 variations","agent":"Designer","skill":"designer","playbook":"ui-design","checkpoint":true,"triggers":[{"type":"after_task","taskRef":"Slice Spec","label":"Spec validated"}],"gates":[{"type":"checkpoint","label":"Design review approval"}]},
-      {"role":"engineering","stage":"build","title":"Vertical Slice","desc":"UI + API + persistence + telemetry","agent":"Builder","skill":"builder","playbook":"dev-execution","triggers":[{"type":"after_task","taskRef":"UI Prototype","label":"Design approved"}],"gates":[{"type":"playbook_done","label":"Deployed to staging"}]},
-      {"role":"qa","stage":"review","title":"Quality Gate","desc":"Unit, E2E, accessibility, evals","agent":"QA Engineer","skill":"qa","playbook":"quality-gate","triggers":[{"type":"after_task","taskRef":"Vertical Slice","label":"Slice built"}],"gates":[{"type":"checkpoint","label":"All suites passing"}]}
+      {"skillId":"pm","stageId":"ideation","playbookId":"problem-framing","notes":"","triggers":[{"type":"manual","label":"New feature request"}],"gates":[{"type":"playbook_done","label":"Schema-valid spec"}]},
+      {"skillId":"researcher","stageId":"ideation","playbookId":"discovery-research","notes":"","triggers":[{"type":"after_task","taskRef":"Problem Statement","label":"Problem scoped"}],"gates":[{"type":"playbook_done","label":"Research report"}]},
+      {"skillId":"pm","stageId":"design","playbookId":"slice-spec","notes":"","triggers":[{"type":"after_task","taskRef":"Discovery Research","label":"Research complete"}],"gates":[{"type":"playbook_done","label":"Validate passes"}]},
+      {"skillId":"designer","stageId":"design","playbookId":"ui-design","notes":"","checkpoint":true,"triggers":[{"type":"after_task","taskRef":"Slice Spec","label":"Spec validated"}],"gates":[{"type":"checkpoint","label":"Design review approval"}]},
+      {"skillId":"builder","stageId":"build","playbookId":"dev-execution","notes":"","triggers":[{"type":"after_task","taskRef":"UI Prototype","label":"Design approved"}],"gates":[{"type":"playbook_done","label":"Deployed to staging"}]},
+      {"skillId":"qa","stageId":"review","playbookId":"quality-gate","notes":"","triggers":[{"type":"after_task","taskRef":"Vertical Slice","label":"Slice built"}],"gates":[{"type":"checkpoint","label":"All suites passing"}]}
     ]'::jsonb
   ),
   -- Go-to-Market
@@ -117,14 +208,15 @@ values
       {"id":"retention","label":"Retention","sub":"Ongoing"}
     ]'::jsonb,
     '[
-      {"id":"product","label":"Product","owner":"Andres"},
+      {"id":"pm","label":"PM","owner":"Andres"},
+      {"id":"strategist","label":"Strategist","owner":"Strategy Agent"},
       {"id":"growth","label":"Growth","owner":"Growth Agent"},
-      {"id":"content","label":"Content","owner":"Content Agent"}
+      {"id":"sales-ops","label":"Sales Ops","owner":"Sales Agent"}
     ]'::jsonb,
     '[
-      {"role":"product","stage":"positioning","title":"ICP Definition","desc":"Ideal customer profile, JTBD","agent":"Strategist","skill":"strategist","playbook":"icp-definition","triggers":[{"type":"manual","label":"New launch"}],"gates":[{"type":"checkpoint","label":"Human approves ICP"}]},
-      {"role":"content","stage":"assets","title":"Landing Page","desc":"Copy, design, analytics wiring","agent":"Growth","skill":"growth","playbook":"landing-page","triggers":[{"type":"after_task","taskRef":"ICP Definition","label":"ICP confirmed"}],"gates":[{"type":"checkpoint","label":"Human reviews page"}]},
-      {"role":"growth","stage":"growth","title":"Outbound Sequence","desc":"Cold email + LinkedIn","agent":"Sales Ops","skill":"sales-ops","playbook":"outbound-sequence","triggers":[{"type":"after_task","taskRef":"Landing Page","label":"Page live"}],"gates":[{"type":"playbook_done","label":"Sequence launched"}]}
+      {"skillId":"strategist","stageId":"positioning","playbookId":"icp-definition","notes":"","triggers":[{"type":"manual","label":"New launch"}],"gates":[{"type":"checkpoint","label":"ICP approved"}]},
+      {"skillId":"growth","stageId":"assets","playbookId":"landing-page","notes":"","triggers":[{"type":"after_task","taskRef":"ICP Definition","label":"ICP confirmed"}],"gates":[{"type":"checkpoint","label":"Page reviewed"}]},
+      {"skillId":"sales-ops","stageId":"growth","playbookId":"outbound-sequence","notes":"","triggers":[{"type":"after_task","taskRef":"Landing Page","label":"Page live"}],"gates":[{"type":"playbook_done","label":"Sequence launched"}]}
     ]'::jsonb
   ),
   -- Operations
@@ -140,15 +232,16 @@ values
       {"id":"learn","label":"Learn","sub":"Retro & improve"}
     ]'::jsonb,
     '[
-      {"id":"infra","label":"Infra","owner":"Robert"},
+      {"id":"devops","label":"DevOps","owner":"Robert"},
       {"id":"support","label":"Support","owner":"Support Agent"},
-      {"id":"finance","label":"Finance","owner":"Joanna"}
+      {"id":"builder","label":"Builder","owner":"Dev Team"},
+      {"id":"pm","label":"PM","owner":"Andres"}
     ]'::jsonb,
     '[
-      {"role":"infra","stage":"monitor","title":"Observability Sweep","desc":"Check dashboards, alerts, error budgets","agent":"DevOps","skill":"devops","playbook":"observability-sweep","triggers":[{"type":"manual","label":"Daily / on-call"}],"gates":[{"type":"playbook_done","label":"Sweep complete"}]},
-      {"role":"support","stage":"triage","title":"Issue Triage","desc":"Scope, urgency, affected users","agent":"Support","skill":"support","playbook":"issue-triage","triggers":[{"type":"after_task","taskRef":"Observability Sweep","label":"Issues detected"}],"gates":[{"type":"checkpoint","label":"Triage P0/P1"}]},
-      {"role":"infra","stage":"resolve","title":"Fix & Deploy","desc":"Investigate, patch, deploy","agent":"Builder","skill":"builder","playbook":"incident-resolution","triggers":[{"type":"after_task","taskRef":"Issue Triage","label":"Triage done"}],"gates":[{"type":"playbook_done","label":"Fix deployed"}]},
-      {"role":"infra","stage":"learn","title":"Retro & Improve","desc":"Postmortem, action items","agent":"PM","skill":"pm","playbook":"postmortem","triggers":[{"type":"after_task","taskRef":"Fix & Deploy","label":"Incident closed"}],"gates":[{"type":"playbook_done","label":"Action items filed"}]}
+      {"skillId":"devops","stageId":"monitor","playbookId":"observability-sweep","notes":"","triggers":[{"type":"manual","label":"Daily / on-call"}],"gates":[{"type":"playbook_done","label":"Sweep complete"}]},
+      {"skillId":"support","stageId":"triage","playbookId":"issue-triage","notes":"","triggers":[{"type":"after_task","taskRef":"Observability Sweep","label":"Issues detected"}],"gates":[{"type":"checkpoint","label":"Triage P0/P1"}]},
+      {"skillId":"builder","stageId":"resolve","playbookId":"incident-resolution","notes":"","triggers":[{"type":"after_task","taskRef":"Issue Triage","label":"Triage done"}],"gates":[{"type":"playbook_done","label":"Fix deployed"}]},
+      {"skillId":"pm","stageId":"learn","playbookId":"postmortem","notes":"","triggers":[{"type":"after_task","taskRef":"Incident Resolution","label":"Incident closed"}],"gates":[{"type":"playbook_done","label":"Action items filed"}]}
     ]'::jsonb
   )
 on conflict (id) do update set
@@ -156,44 +249,6 @@ on conflict (id) do update set
   color          = excluded.color,
   multi_instance = excluded.multi_instance,
   stages         = excluded.stages,
-  roles          = excluded.roles,
+  skills         = excluded.skills,
   task_templates = excluded.task_templates,
   updated_at     = now();
-
--- ---------------------------------------------------------------------------
--- Framework items (Skills + Playbooks library)
--- Source: pc-components.jsx FRAMEWORK_ITEMS_DEFAULT.
--- ---------------------------------------------------------------------------
-insert into public.framework_items (id, type, name, description, icon, content)
-values
-  ('sk-pm','skill','PM','Product management, spec authoring, prioritization','📋',
-    E'# PM Skill\n\n## When to use\nShaping a requested change into scope, rationale, acceptance criteria, and implementation guidance.\n\n## Inputs\n- Goal, constraints, selected concept, affected surfaces\n\n## Outputs\n- Concise change brief, scope, non-goals, acceptance criteria\n\n## Steps\n1. Read relevant spec and decision log\n2. Clarify goal and constraints\n3. Define scope and non-goals\n4. Write testable acceptance criteria\n5. Flag risks and dependencies'),
-  ('sk-designer','skill','Designer','UI/UX design, visual explorations, hi-fi prototypes','🎨',
-    E'# Designer Skill\n\n## When to use\nCreating or refining visual assets, brand elements, and design directions.\n\n## Inputs\n- Goal, brand intent, target surface, references\n\n## Outputs\n- Concrete design directions, implementation-ready handoff\n\n## Steps\n1. Read design system tokens\n2. Explore 3+ directions\n3. Produce hi-fi variations\n4. Request human review\n5. Deliver specs'),
-  ('sk-builder','skill','Builder','Implementation, vertical slices, tests','⚡',
-    E'# Builder Skill\n\n## When to use\nImplementing changes and carrying them through validation, PR review, and merge.\n\n## Inputs\n- Approved scope, affected files, constraints\n\n## Outputs\n- Implementation, verification evidence, published PR\n\n## Steps\n1. Read spec and acceptance criteria\n2. Implement vertical slice\n3. Write tests\n4. Run validation gates\n5. Submit PR'),
-  ('sk-devops','skill','DevOps','Infrastructure, deployment, environments','🔧',
-    E'# DevOps Skill\n\n## When to use\nConfiguring infrastructure, deployment pipelines, environment separation.\n\n## Steps\n1. Survey current infrastructure\n2. Define requirements per service\n3. Configure environments\n4. Wire observability tools\n5. Document and verify'),
-  ('sk-researcher','skill','Researcher','Market research, ICP analysis, discovery','🔍',
-    E'# Researcher Skill\n\n## When to use\nMapped to discovery workflows, user interview synthesis, or competitive analysis.\n\n## Steps\n1. Define research questions\n2. Gather data\n3. Synthesize findings\n4. Produce structured report\n5. Flag assumptions'),
-  ('sk-strategist','skill','Strategist','Strategic positioning, ICP, go-to-market','🧭',
-    E'# Strategist Skill\n\n## When to use\nShaping positioning, ICP definition, and market strategy.\n\n## Steps\n1. Analyze market segments\n2. Define ICP and JTBD\n3. Map competitive landscape\n4. Produce positioning recommendations\n5. Validate with founder'),
-  ('sk-qa','skill','QA Engineer','Testing, quality gates, regression coverage','✅',
-    E'# QA Engineer Skill\n\n## When to use\nWriting tests, triaging CI failures, quality gates.\n\n## Steps\n1. Read spec and acceptance criteria\n2. Identify test layers\n3. Write unit, integration, E2E tests\n4. Run full suite\n5. Produce evidence bundle'),
-  ('sk-project','skill','Project','Project management, planning, coordination','🗂️',
-    E'# Project Skill\n\n## When to use\nManaging project timelines, coordination, and stakeholder alignment.\n\n## Steps\n1. Read project brief\n2. Define phases and timeline\n3. Identify dependencies\n4. Align stakeholders\n5. Track progress'),
-  ('pb-presales','playbook','presales-qualification','Qualify new client opportunities','📄',
-    E'# Presales Qualification\n\n## Objective\nAssess whether a new opportunity should proceed to PDR review.\n\n## Steps\n1. Gather project description\n2. Assess fit against ICP\n3. Estimate scope\n4. Produce qualification document\n5. Deliver to Product for review\n\n## Human checkpoints\n- None for standard qualification\n- Escalate for unusually large scope'),
-  ('pb-backlog','playbook','backlog-refinement','Groom and estimate sprint backlog','📄',
-    E'# Backlog Refinement\n\n## Objective\nPrepare a prioritized, estimated backlog for sprint kick-off.\n\n## Steps\n1. Read product spec\n2. Map requirements to epics\n3. Generate stories with acceptance criteria\n4. Estimate effort (SP)\n5. Flag overflow\n6. Request human approval\n\n## Human checkpoints\n- Approval required before sprint starts'),
-  ('pb-devexec','playbook','dev-execution','Implement a vertical slice end to end','📄',
-    E'# Dev Execution\n\n## Objective\nDeliver a complete vertical slice: UI + API + persistence + telemetry.\n\n## Steps\n1. Set up branch\n2. Implement UI\n3. Implement API\n4. Wire persistence\n5. Add telemetry\n6. Write tests\n7. Run gates\n8. Submit PR\n\n## Human checkpoints\n- PR review before merge'),
-  ('pb-quality','playbook','quality-gate','Run all quality gates before shipping','📄',
-    E'# Quality Gate\n\n## Objective\nEnsure production-readiness before merge.\n\n## Steps\n1. Run unit tests\n2. Run integration tests\n3. Run E2E (Playwright)\n4. Check accessibility\n5. Run evals\n6. Produce evidence bundle\n\n## Human checkpoints\n- Spot-check for high-risk changes')
-on conflict (id) do update set
-  type        = excluded.type,
-  name        = excluded.name,
-  description = excluded.description,
-  icon        = excluded.icon,
-  content     = excluded.content,
-  updated_at  = now();
