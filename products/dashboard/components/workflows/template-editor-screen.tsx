@@ -375,6 +375,16 @@ export function TemplateEditorScreen({
 
   const [dragTaskId, setDragTaskId] = useState<string | null>(null);
 
+  const dragAllowedSkillIds = useMemo<Set<string> | null>(() => {
+    if (!dragTaskId?.startsWith("task::")) return null;
+    const id = dragTaskId.slice("task::".length);
+    const dragged = draft.taskTemplates.find((t) => t.id === id);
+    if (!dragged?.playbookId) return null;
+    const playbook = playbookById.get(dragged.playbookId);
+    if (!playbook) return null;
+    return new Set([dragged.skillId, ...(playbook.allowedSkillIds ?? [])]);
+  }, [dragTaskId, draft.taskTemplates, playbookById]);
+
   function handleDragStart(event: DragStartEvent) {
     const id = String(event.active.id);
     if (id.startsWith("task::")) setDragTaskId(id);
@@ -426,6 +436,14 @@ export function TemplateEditorScreen({
           (t) => t.skillId === targetSkillId && t.stageId === targetStageId,
         );
         if (occupied) return current;
+        const dragged = current.taskTemplates.find((t) => t.id === taskId);
+        if (!dragged) return current;
+        if (dragged.skillId !== targetSkillId && dragged.playbookId) {
+          const playbook = playbookById.get(dragged.playbookId);
+          if (playbook && !(playbook.allowedSkillIds ?? []).includes(targetSkillId)) {
+            return current;
+          }
+        }
         return {
           ...current,
           taskTemplates: current.taskTemplates.map((task) =>
@@ -926,6 +944,10 @@ export function TemplateEditorScreen({
                     stageId={stage.id}
                     hasTask={Boolean(task)}
                     dragActive={Boolean(dragTaskId)}
+                    dropAllowed={
+                      dragAllowedSkillIds === null ||
+                      dragAllowedSkillIds.has(skill.id)
+                    }
                   >
                     {task && templateTask ? (
                       <DraggableTemplateTask
@@ -1140,17 +1162,19 @@ function DroppableTemplateCell({
   stageId,
   hasTask,
   dragActive,
+  dropAllowed,
   children,
 }: {
   skillId: string;
   stageId: string;
   hasTask: boolean;
   dragActive: boolean;
+  dropAllowed: boolean;
   children: React.ReactNode;
 }) {
   const { setNodeRef, isOver } = useDroppable({
     id: `cell::${skillId}::${stageId}`,
-    disabled: hasTask,
+    disabled: hasTask || !dropAllowed,
   });
 
   return (
@@ -1159,7 +1183,8 @@ function DroppableTemplateCell({
       className={cn(
         "mx-task-cell",
         hasTask && "has-task",
-        dragActive && !hasTask && isOver && "drag-over-cell",
+        dragActive && !hasTask && dropAllowed && isOver && "drag-over-cell",
+        dragActive && !hasTask && !dropAllowed && "drag-disallowed-cell",
       )}
     >
       {children}

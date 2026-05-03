@@ -366,6 +366,15 @@ export function ProcessMatrix({
         (t) => t.skillId === targetSkillId && t.stageId === targetStageId,
       );
       if (occupied) return;
+      // Constrain skill-row moves to the playbook's allowed skills.
+      const playbook = dragged.playbookId ? playbookById.get(dragged.playbookId) : null;
+      if (
+        dragged.skillId !== targetSkillId &&
+        playbook &&
+        !(playbook.allowedSkillIds ?? []).includes(targetSkillId)
+      ) {
+        return;
+      }
 
       setLocalTasks((tasks) =>
         tasks.map((item) =>
@@ -375,12 +384,24 @@ export function ProcessMatrix({
         ),
       );
     },
-    [editMode, localTasks],
+    [editMode, localTasks, playbookById],
   );
 
   const handleDragCancel = useCallback(() => {
     setDragTaskId(null);
   }, []);
+
+  // While dragging, the set of skill rows the dragged task's playbook is
+  // allowed to land on. `null` means "no playbook attached" (drag is
+  // unconstrained — only the occupied-cell + same-skill checks apply).
+  const dragAllowedSkillIds = useMemo<Set<string> | null>(() => {
+    if (!dragTaskId) return null;
+    const dragged = localTasks.find((t) => t.id === dragTaskId);
+    if (!dragged?.playbookId) return null;
+    const playbook = playbookById.get(dragged.playbookId);
+    if (!playbook) return null;
+    return new Set([dragged.skillId, ...(playbook.allowedSkillIds ?? [])]);
+  }, [dragTaskId, localTasks, playbookById]);
 
   return (
     <>
@@ -509,6 +530,10 @@ export function ProcessMatrix({
                         hasTask={Boolean(task)}
                         editMode={editMode}
                         dragActive={Boolean(dragTaskId)}
+                        dropAllowed={
+                          dragAllowedSkillIds === null ||
+                          dragAllowedSkillIds.has(skill.id)
+                        }
                       >
                         {task ? (
                           <DraggableTaskCard
@@ -725,6 +750,7 @@ function DroppableTaskCell({
   hasTask,
   editMode,
   dragActive,
+  dropAllowed,
   children,
 }: {
   skillId: string;
@@ -732,11 +758,12 @@ function DroppableTaskCell({
   hasTask: boolean;
   editMode: boolean;
   dragActive: boolean;
+  dropAllowed: boolean;
   children: React.ReactNode;
 }) {
   const { setNodeRef, isOver } = useDroppable({
     id: `cell::${skillId}::${stageId}`,
-    disabled: !editMode || hasTask,
+    disabled: !editMode || hasTask || !dropAllowed,
   });
 
   return (
@@ -747,7 +774,8 @@ function DroppableTaskCell({
       className={cn(
         "mx-task-cell",
         hasTask && "has-task",
-        editMode && dragActive && !hasTask && isOver && "drag-over-cell",
+        editMode && dragActive && !hasTask && dropAllowed && isOver && "drag-over-cell",
+        editMode && dragActive && !hasTask && !dropAllowed && "drag-disallowed-cell",
       )}
     >
       {children}

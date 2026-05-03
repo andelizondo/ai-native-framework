@@ -147,6 +147,24 @@
   border-color: color-mix(in srgb, var(--accent) 55%, transparent);
   box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--accent) 18%, transparent);
 }
+
+/* Disallowed-drop indicator — cells whose skill row is not in the dragged
+   playbook's allowed list. Dimmed + diagonal stripe pattern so the user can
+   see which rows accept the drop without trying. */
+.matrix-wrap[data-dragging="true"] .mx-task-cell.drag-disallowed-cell {
+  cursor: not-allowed;
+  opacity: 0.5;
+}
+.matrix-wrap[data-dragging="true"] .mx-task-cell.drag-disallowed-cell .mx-empty-cell {
+  background: repeating-linear-gradient(
+    -45deg,
+    transparent 0,
+    transparent 6px,
+    color-mix(in srgb, var(--t3) 14%, transparent) 6px,
+    color-mix(in srgb, var(--t3) 14%, transparent) 7px
+  );
+  border-color: color-mix(in srgb, var(--t3) 25%, transparent);
+}
 .mx-stage-hd:last-child {
   border-right: none;
 }
