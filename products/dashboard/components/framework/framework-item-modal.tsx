@@ -5,6 +5,7 @@ import { ArrowRight, Loader2 } from "lucide-react";
 
 import { ColorDotPicker } from "@/components/framework/color-dot-picker";
 import { CompactEmojiPicker } from "@/components/framework/compact-emoji-picker";
+import { OwnerPicker } from "@/components/framework/owner-picker";
 import { fallbackColorForId } from "@/lib/workflows/skill-colors";
 
 function getFocusableElements(container: HTMLElement): HTMLElement[] {
@@ -31,6 +32,12 @@ interface FrameworkItemModalProps {
   itemIdForColorFallback?: string;
   /** When true, render emoji + color pickers next to the title field. */
   showAvatarPickers?: boolean;
+  /** When true, render an Owners picker (used for playbooks). */
+  showOwners?: boolean;
+  /** Existing owners when editing a playbook; ignored when `showOwners` is false. */
+  initialOwners?: readonly string[];
+  /** Require at least one owner when `showOwners` is true. */
+  requireOwners?: boolean;
   submitLabel: string;
   pending?: boolean;
   onSubmit: (values: {
@@ -38,6 +45,7 @@ interface FrameworkItemModalProps {
     description: string;
     icon: string;
     color: string;
+    owners?: string[];
   }) => void | Promise<void>;
   onClose: () => void;
 }
@@ -52,6 +60,9 @@ export function FrameworkItemModal({
   initialColor,
   itemIdForColorFallback,
   showAvatarPickers = false,
+  showOwners = false,
+  initialOwners,
+  requireOwners = false,
   submitLabel,
   pending = false,
   onSubmit,
@@ -70,9 +81,13 @@ export function FrameworkItemModal({
   const [color, setColor] = useState<string>(
     initialColor || (itemIdForColorFallback ? fallbackColorForId(itemIdForColorFallback) : "#6366f1"),
   );
+  const [owners, setOwners] = useState<string[]>(
+    initialOwners ? [...initialOwners] : [],
+  );
   const [inFlight, setInFlight] = useState(false);
+  const ownersOk = !showOwners || !requireOwners || owners.length > 0;
   // Description is optional; only the title is required to submit.
-  const canSubmit = Boolean(name.trim()) && !pending && !inFlight;
+  const canSubmit = Boolean(name.trim()) && ownersOk && !pending && !inFlight;
 
   useEffect(() => {
     previousFocusRef.current =
@@ -125,7 +140,17 @@ export function FrameworkItemModal({
     if (!canSubmit || inFlight) return;
     setInFlight(true);
     void Promise.resolve(
-      onSubmit({ name: name.trim(), description: summary.trim(), icon, color }),
+      onSubmit({
+        name: name.trim(),
+        description: summary.trim(),
+        icon,
+        color,
+        owners: showOwners
+          ? owners
+              .map((value) => value.trim())
+              .filter((value) => value.length > 0)
+          : undefined,
+      }),
     )
       .catch(() => {
         // Parent handlers surface user-facing errors via toast.
@@ -204,6 +229,25 @@ export function FrameworkItemModal({
           className="block w-full resize-none rounded-lg border border-border bg-bg-3 px-3 py-2.5 text-[13px] leading-6 text-t1 placeholder:text-t3 focus:border-primary focus:outline-none"
           placeholder="Short description"
         />
+
+        {showOwners ? (
+          <>
+            <label className="mb-1.5 mt-4 block text-[11px] font-medium text-t2">
+              Owners
+              {requireOwners ? (
+                <span className="font-normal text-t3"> (at least one)</span>
+              ) : null}
+            </label>
+            <OwnerPicker
+              values={owners}
+              onChange={setOwners}
+              variant="field"
+              required={requireOwners}
+              placeholder="Pick a person or AI agent"
+              ariaLabel="Owners"
+            />
+          </>
+        ) : null}
 
         <div className="mt-6 flex justify-end gap-2">
           <button

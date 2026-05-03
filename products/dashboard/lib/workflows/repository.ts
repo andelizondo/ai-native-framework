@@ -75,6 +75,7 @@ interface FrameworkItemRow {
   icon: string | null;
   color: string | null;
   content: string;
+  owners: unknown;
   created_at: string;
   updated_at: string;
 }
@@ -204,6 +205,9 @@ function mapFrameworkItem(
   };
   if (row.type === "playbook") {
     item.allowedSkillIds = allowedSkillIds ?? [];
+    item.owners = toJsonArray<unknown>(row.owners)
+      .filter((value): value is string => typeof value === "string" && value.trim().length > 0)
+      .map((value) => value.trim());
   } else if (row.type === "skill") {
     item.allowedPlaybookIds = allowedPlaybookIds ?? [];
   }
@@ -798,6 +802,13 @@ export function createWorkflowRepository(
           icon: item.icon,
           color: item.color ?? null,
           content: item.content,
+          owners:
+            item.type === "playbook" && Array.isArray(item.owners)
+              ? item.owners.filter(
+                  (value): value is string =>
+                    typeof value === "string" && value.trim().length > 0,
+                )
+              : [],
         })
         .select("*")
         .single();

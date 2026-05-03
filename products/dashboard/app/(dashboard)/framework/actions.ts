@@ -54,7 +54,14 @@ export async function upsertFrameworkItemAction(
       MAX_DESCRIPTION_LENGTH,
     ),
     icon: item.icon?.trim() ? item.icon.trim().slice(0, 16) : null,
+    color: typeof item.color === "string" && item.color.trim() ? item.color.trim().slice(0, 32) : null,
     content: typeof item.content === "string" ? item.content : "",
+    owners:
+      type === "playbook" && Array.isArray(item.owners)
+        ? item.owners
+            .filter((label): label is string => typeof label === "string" && label.trim().length > 0)
+            .map((label) => label.trim().slice(0, 80))
+        : undefined,
     allowedSkillIds:
       type === "playbook" && Array.isArray(item.allowedSkillIds)
         ? item.allowedSkillIds

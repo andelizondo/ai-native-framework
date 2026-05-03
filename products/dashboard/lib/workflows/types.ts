@@ -159,6 +159,13 @@ export interface FrameworkItem {
    * is allowed to run.
    */
   allowedPlaybookIds?: string[];
+  /**
+   * Only populated for `type === "playbook"`. The owner labels (people or
+   * AI agents) responsible for the playbook. The instance matrix derives
+   * each Skill row's owner stack by aggregating this list across the
+   * playbooks assigned to the row.
+   */
+  owners?: string[];
   createdAt?: string;
   updatedAt?: string;
 }
