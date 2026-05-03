@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import { Loader2, Pencil } from "lucide-react";
+import { Loader2, Save, SlidersHorizontal } from "lucide-react";
 
 import {
   type DashboardTopBarCrumb,
@@ -200,12 +200,9 @@ export function TopBar() {
               )}
             >
               {savePending ? (
-                <Loader2 className="h-3 w-3 animate-spin" aria-hidden />
+                <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden />
               ) : !saveDisabled ? (
-                <span
-                  aria-hidden
-                  className="h-1.5 w-1.5 rounded-full bg-white shadow-[0_0_10px_rgba(255,255,255,0.7)]"
-                />
+                <Save className="h-3.5 w-3.5" aria-hidden strokeWidth={2.4} />
               ) : null}
               Save
             </button>
@@ -216,11 +213,11 @@ export function TopBar() {
               type="button"
               aria-pressed={editMode}
               onClick={toggleEditMode}
-              title="Edit workflow tasks"
+              title="Customize this instance"
               className="flex cursor-pointer items-center gap-1.5 rounded-md border border-border bg-bg-2 px-2.5 py-1.5 text-[11.5px] font-medium text-t2 transition hover:border-border-hi hover:bg-bg-3 hover:text-t1 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
             >
-              <Pencil className="h-3.5 w-3.5" />
-              Edit
+              <SlidersHorizontal className="h-3.5 w-3.5" />
+              Customize
             </button>
           ) : null}
         </div>

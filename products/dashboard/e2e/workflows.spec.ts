@@ -216,7 +216,7 @@ test.describe("workflows — matrix edit mode (AEL-52)", () => {
     await authenticateWithBypass(page);
     await createFreshInstance(page, "E2E Edit Mode");
 
-    await page.getByRole("button", { name: "Edit" }).click();
+    await page.getByRole("button", { name: "Customize" }).click();
     await expect(page).toHaveURL(/edit=1/);
 
     const addTrigger = page.locator('[data-testid^="matrix-add-task-"]').first();
