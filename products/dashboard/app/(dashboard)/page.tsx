@@ -3,6 +3,7 @@ import { OverviewScreen } from "@/components/overview/overview-screen";
 import { getCurrentUser } from "@/lib/auth/service.server";
 import { captureError } from "@/lib/monitoring";
 import type { OverviewSnapshot } from "@/lib/workflows/aggregate";
+import type { FrameworkItem } from "@/lib/workflows/types";
 import { getServerWorkflowRepository } from "@/lib/workflows/repository.server";
 
 /**
@@ -23,26 +24,33 @@ export const dynamic = "force-dynamic";
 
 const RECENT_EVENT_LIMIT = 4;
 
-async function loadOverviewSnapshot(): Promise<OverviewSnapshot> {
+async function loadOverviewSnapshot(): Promise<{
+  snapshot: OverviewSnapshot;
+  playbooks: FrameworkItem[];
+}> {
   try {
     const repo = await getServerWorkflowRepository();
-    const [templates, instances, tasks, events] = await Promise.all([
+    const [templates, instances, tasks, events, playbooks] = await Promise.all([
       repo.getTemplates(),
       repo.listInstances(),
       repo.listAllTasks(),
       repo.listRecentEvents(RECENT_EVENT_LIMIT),
+      repo.getFrameworkItems("playbook"),
     ]);
-    return { templates, instances, tasks, events };
+    return { snapshot: { templates, instances, tasks, events }, playbooks };
   } catch (error) {
     captureError(error, { feature: "overview.snapshot" });
-    return { templates: [], instances: [], tasks: [], events: [] };
+    return {
+      snapshot: { templates: [], instances: [], tasks: [], events: [] },
+      playbooks: [],
+    };
   }
 }
 
 export default async function HomePage() {
   // Layout already redirects unauthenticated users; we still read the
   // user here to personalize the greeting without re-validating auth.
-  const [user, snapshot] = await Promise.all([
+  const [user, { snapshot, playbooks }] = await Promise.all([
     getCurrentUser(),
     loadOverviewSnapshot(),
   ]);
@@ -53,6 +61,7 @@ export default async function HomePage() {
       <OverviewScreen
         snapshot={snapshot}
         user={user}
+        playbooks={playbooks}
         recentEventLimit={RECENT_EVENT_LIMIT}
       />
     </>

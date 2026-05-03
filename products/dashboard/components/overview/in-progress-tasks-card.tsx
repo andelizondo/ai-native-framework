@@ -2,12 +2,17 @@ import Link from "next/link";
 
 import { cn } from "@/lib/utils";
 import type { ActiveTask } from "@/lib/workflows/aggregate";
+import type { FrameworkItem } from "@/lib/workflows/types";
 
 export interface InProgressTasksCardProps {
   tasks: ActiveTask[];
+  playbookById?: Map<string, FrameworkItem>;
 }
 
-export function InProgressTasksCard({ tasks }: InProgressTasksCardProps) {
+export function InProgressTasksCard({
+  tasks,
+  playbookById,
+}: InProgressTasksCardProps) {
   return (
     <section
       data-testid="overview-in-progress-tasks"
@@ -28,7 +33,13 @@ export function InProgressTasksCard({ tasks }: InProgressTasksCardProps) {
         </p>
       ) : (
         <ul className="divide-y divide-border-2">
-          {tasks.map(({ task, instance, template }) => (
+          {tasks.map(({ task, instance, template }) => {
+            const playbook = task.playbookId
+              ? playbookById?.get(task.playbookId)
+              : undefined;
+            const title = playbook?.name ?? (task.playbookId ? "Playbook removed" : "Task");
+            const icon = playbook?.icon || "📘";
+            return (
             <li key={task.id}>
               <Link
                 href={`/workflows/${instance.id}`}
@@ -42,14 +53,10 @@ export function InProgressTasksCard({ tasks }: InProgressTasksCardProps) {
                   >
                     {template?.label ?? "Workflow"} · {instance.label}
                   </p>
-                  <p className="mt-1 text-[12.5px] font-semibold text-t1">
-                    {task.playbookId ?? "Task"}
+                  <p className="mt-1 flex items-center gap-1.5 text-[12.5px] font-semibold text-t1">
+                    <span aria-hidden>{icon}</span>
+                    <span className="truncate">{title}</span>
                   </p>
-                  {task.playbookId && (
-                    <p className="mt-1 truncate font-mono text-[11px] text-t3">
-                      📘 {task.playbookId}
-                    </p>
-                  )}
                 </div>
                 <span
                   aria-label="status active"
@@ -60,7 +67,8 @@ export function InProgressTasksCard({ tasks }: InProgressTasksCardProps) {
                 />
               </Link>
             </li>
-          ))}
+            );
+          })}
         </ul>
       )}
     </section>

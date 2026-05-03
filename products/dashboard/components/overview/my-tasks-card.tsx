@@ -6,6 +6,7 @@ import { resolveCheckpointAction } from "@/app/(dashboard)/workflows/actions";
 import { captureError } from "@/lib/monitoring";
 import { cn } from "@/lib/utils";
 import type { PendingCheckpoint } from "@/lib/workflows/aggregate";
+import type { FrameworkItem } from "@/lib/workflows/types";
 
 /**
  * My Tasks card — pending checkpoint list with inline Approve / Reject.
@@ -25,6 +26,7 @@ import type { PendingCheckpoint } from "@/lib/workflows/aggregate";
  */
 export interface MyTasksCardProps {
   checkpoints: PendingCheckpoint[];
+  playbookById?: Map<string, FrameworkItem>;
 }
 
 interface PendingAction {
@@ -32,7 +34,7 @@ interface PendingAction {
   resolution: "approved" | "rejected";
 }
 
-export function MyTasksCard({ checkpoints }: MyTasksCardProps) {
+export function MyTasksCard({ checkpoints, playbookById }: MyTasksCardProps) {
   const [isPending, startTransition] = useTransition();
   const [pendingAction, setPendingAction] = useState<PendingAction | null>(
     null,
@@ -118,9 +120,19 @@ export function MyTasksCard({ checkpoints }: MyTasksCardProps) {
                 >
                   {template?.label ?? "Workflow"} · {instance.label}
                 </p>
-                <p className="mt-1 text-[12.5px] font-semibold text-t1">
-                  {task.playbookId ?? "Task"}
-                </p>
+                {(() => {
+                  const playbook = task.playbookId
+                    ? playbookById?.get(task.playbookId)
+                    : undefined;
+                  const title = playbook?.name ?? (task.playbookId ? "Playbook removed" : "Task");
+                  const icon = playbook?.icon || "📘";
+                  return (
+                    <p className="mt-1 flex items-center gap-1.5 text-[12.5px] font-semibold text-t1">
+                      <span aria-hidden>{icon}</span>
+                      <span className="truncate">{title}</span>
+                    </p>
+                  );
+                })()}
                 <div className="mt-2 flex gap-1.5">
                   <button
                     type="button"
