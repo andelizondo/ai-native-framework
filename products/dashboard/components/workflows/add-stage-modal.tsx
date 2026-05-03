@@ -34,7 +34,13 @@ export function AddStageModal({
         }
       }}
     >
-      <div
+      <form
+        onSubmit={(event) => {
+          event.preventDefault();
+          if (!canSubmit) return;
+          onSubmit({ label: label.trim(), sub: sub.trim() });
+          onClose();
+        }}
         className="w-full max-w-[420px] rounded-[14px] border border-border-hi bg-bg-2 p-7 shadow-[var(--shadow-canvas)]"
         role="dialog"
         aria-modal="true"
@@ -79,19 +85,14 @@ export function AddStageModal({
             Cancel
           </button>
           <button
-            type="button"
+            type="submit"
             disabled={!canSubmit}
-            onClick={() => {
-              if (!canSubmit) return;
-              onSubmit({ label: label.trim(), sub: sub.trim() });
-              onClose();
-            }}
             className="rounded-lg bg-primary px-5 py-2 text-[13px] font-semibold text-white transition hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50"
           >
             {mode === "edit" ? "Save stage →" : "Add stage →"}
           </button>
         </div>
-      </div>
+      </form>
     </div>
   );
 }
