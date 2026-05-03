@@ -6,6 +6,7 @@ import {
   computeOverviewStats,
   computeTemplateHealth,
   percentComplete,
+  pickActiveTasks,
   pickPendingCheckpoints,
   pickRecentEvents,
   type OverviewSnapshot,
@@ -38,7 +39,7 @@ function template(
     color,
     multiInstance: true,
     stages: [],
-    roles: [],
+    skills: [],
     taskTemplates: [],
     createdAt: "2026-04-19T12:00:00Z",
     updatedAt: "2026-04-19T12:00:00Z",
@@ -55,7 +56,7 @@ function instance(
     templateId,
     label: id,
     status,
-    roles: [],
+    skills: [],
     createdAt: "2026-04-19T12:00:00Z",
     updatedAt: "2026-04-19T12:00:00Z",
   };
@@ -70,18 +71,15 @@ function task(
   return {
     id,
     instanceId,
-    roleId: "role-x",
+    skillId: "skill-x",
     stageId: "stage-x",
-    title: id,
-    description: "",
+    notes: "",
     status,
     substatus: "",
     checkpoint: false,
     triggers: [],
     gates: [],
-    agent: null,
-    skill: null,
-    playbook: null,
+    playbookId: null,
     createdAt: "2026-04-19T12:00:00Z",
     updatedAt: "2026-04-19T12:00:00Z",
     ...overrides,
@@ -236,6 +234,59 @@ describe("pickPendingCheckpoints", () => {
       events: [],
     };
     expect(pickPendingCheckpoints(snapshot)).toEqual([]);
+  });
+});
+
+describe("pickActiveTasks", () => {
+  it("returns only active tasks with their parent template attached", () => {
+    const t1 = template("delivery", "Client Delivery", "#6366f1");
+    const i1 = instance("i-1", "delivery");
+    const snapshot: OverviewSnapshot = {
+      templates: [t1],
+      instances: [i1],
+      tasks: [
+        task("k-1", "i-1", "active", { playbookId: "Discovery call v3" }),
+        task("k-2", "i-1", "pending_approval"),
+        task("k-3", "i-1", "complete"),
+        task("k-4", "i-1", "active", { playbookId: null }),
+      ],
+      events: [],
+    };
+
+    const active = pickActiveTasks(snapshot);
+    expect(active.map((a) => a.task.id)).toEqual(["k-1", "k-4"]);
+    expect(active[0]!.template?.id).toBe("delivery");
+    expect(active[0]!.task.playbookId).toBe("Discovery call v3");
+    expect(active[1]!.task.playbookId).toBeNull();
+  });
+
+  it("drops orphaned tasks whose instance no longer exists", () => {
+    const snapshot: OverviewSnapshot = {
+      templates: [],
+      instances: [],
+      tasks: [task("k-orphan", "ghost", "active")],
+      events: [],
+    };
+    expect(pickActiveTasks(snapshot)).toEqual([]);
+  });
+
+  it("returns null template when the parent template is missing", () => {
+    const i1 = instance("i-1", "missing-template");
+    const snapshot: OverviewSnapshot = {
+      templates: [],
+      instances: [i1],
+      tasks: [task("k-1", "i-1", "active")],
+      events: [],
+    };
+    const active = pickActiveTasks(snapshot);
+    expect(active).toHaveLength(1);
+    expect(active[0]!.template).toBeNull();
+  });
+
+  it("returns an empty list for an empty snapshot", () => {
+    expect(
+      pickActiveTasks({ templates: [], instances: [], tasks: [], events: [] }),
+    ).toEqual([]);
   });
 });
 

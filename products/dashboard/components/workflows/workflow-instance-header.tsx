@@ -1,14 +1,14 @@
 interface WorkflowInstanceHeaderProps {
   instanceLabel: string;
   taskCount: number;
-  roleCount: number;
+  skillCount: number;
   stageCount: number;
 }
 
 export function WorkflowInstanceHeader({
   instanceLabel,
   taskCount,
-  roleCount,
+  skillCount,
   stageCount,
 }: WorkflowInstanceHeaderProps) {
   return (
@@ -21,8 +21,8 @@ export function WorkflowInstanceHeader({
           {instanceLabel}
         </h1>
         <p className="mt-1 text-[13px] text-t2">
-          {taskCount} {taskCount === 1 ? "task" : "tasks"} · {roleCount}{" "}
-          {roleCount === 1 ? "role" : "roles"} · {stageCount}{" "}
+          {taskCount} {taskCount === 1 ? "task" : "tasks"} · {skillCount}{" "}
+          {skillCount === 1 ? "skill" : "skills"} · {stageCount}{" "}
           {stageCount === 1 ? "stage" : "stages"}
         </p>
       </div>

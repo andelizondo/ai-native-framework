@@ -11,7 +11,7 @@ import type {
   WorkflowEvent,
   WorkflowGate,
   WorkflowInstanceDetail,
-  WorkflowRole,
+  WorkflowSkill,
   WorkflowTask,
   WorkflowTemplate,
   WorkflowTrigger,
@@ -162,8 +162,7 @@ const STATUS_LABELS: Record<WorkflowTask["status"], string> = {
 
 interface DetailsTabProps {
   task: WorkflowTask;
-  roles: WorkflowRole[];
-  skillOptions: FrameworkItem[];
+  skills: WorkflowSkill[];
   playbookOptions: FrameworkItem[];
   isPending: boolean;
   onStart: () => void;
@@ -179,8 +178,7 @@ interface DetailsTabProps {
 
 function DetailsTab({
   task,
-  roles,
-  skillOptions,
+  skills,
   playbookOptions,
   isPending,
   onStart,
@@ -196,16 +194,13 @@ function DetailsTab({
   const isActive = task.status === "active";
   const isNotStarted = task.status === "not_started";
   const playbookCardClickable = !!onViewLiveRun;
-  const skillIcon = task.skill ? (SKILL_ICONS[task.skill] ?? "🤖") : "🤖";
-  const skillItem = task.skill
-    ? skillOptions.find((item) => item.name === task.skill || item.id === task.skill)
-    : null;
-  const playbookItem = task.playbook
-    ? playbookOptions.find(
-        (item) => item.name === task.playbook || item.id === task.playbook,
-      )
+  const skillRow = skills.find((s) => s.id === task.skillId);
+  const skillIcon = SKILL_ICONS[task.skillId] ?? "🤖";
+  const playbookItem = task.playbookId
+    ? playbookOptions.find((item) => item.id === task.playbookId)
     : null;
   const playbookDescription = playbookItem?.description?.trim();
+  const playbookFallbackName = task.playbookId ? "Playbook removed" : null;
 
   return (
     <>
@@ -227,15 +222,13 @@ function DetailsTab({
           </div>
         </div>
 
-        {(task.agent ?? task.skill) && (
+        {skillRow && (
           <div className="td-skill-col">
             <div className="td-sec-lbl">Skill</div>
             <div className="td-agent-profile">
               <div className="td-agent-profile-icon">{skillIcon}</div>
               <div className="td-agent-profile-info">
-                <div className="td-agent-profile-name">
-                  {skillItem?.name ?? task.skill ?? task.agent}
-                </div>
+                <div className="td-agent-profile-name">{skillRow.label}</div>
               </div>
             </div>
           </div>
@@ -277,7 +270,7 @@ function DetailsTab({
       )}
 
       {/* 3. Playbook — what is being run, with inline run state */}
-      {task.playbook && (
+      {task.playbookId && (
         <div className="td-sec">
           <div className="td-sec-lbl">Playbook</div>
           <div
@@ -312,7 +305,7 @@ function DetailsTab({
               )}
             </div>
             <div className="td-pb-info">
-              <div className="td-pb-name">{playbookItem?.name ?? task.playbook}</div>
+              <div className="td-pb-name">{playbookItem?.name ?? playbookFallbackName}</div>
               <div
                 className={cn(
                   "td-item-desc",
@@ -475,9 +468,8 @@ export interface TaskDrawerProps {
   /** null → closed (drawer stays in DOM for CSS slide-out animation). */
   task: WorkflowTask | null;
   instance: WorkflowInstanceDetail;
-  roles: WorkflowRole[];
+  skills: WorkflowSkill[];
   template: WorkflowTemplate | null;
-  skillOptions?: FrameworkItem[];
   playbookOptions?: FrameworkItem[];
   onClose: () => void;
   onTaskUpdate: (task: WorkflowTask) => void;
@@ -488,9 +480,8 @@ export interface TaskDrawerProps {
 export function TaskDrawer({
   task,
   instance,
-  roles,
+  skills,
   template,
-  skillOptions = [],
   playbookOptions = [],
   onClose,
   onTaskUpdate,
@@ -632,11 +623,15 @@ export function TaskDrawer({
     });
   }
 
-  const roleLabel = task ? (roles.find((r) => r.id === task.roleId)?.label ?? task.roleId) : "";
+  const skillLabel = task ? (skills.find((r) => r.id === task.skillId)?.label ?? task.skillId) : "";
   const stageLabel = task
     ? (template?.stages.find((s) => s.id === task.stageId)?.label ?? task.stageId)
     : "";
   const taskEvents = task ? instance.events.filter((e) => e.taskId === task.id) : [];
+  const playbookForTitle = task?.playbookId
+    ? playbookOptions.find((p) => p.id === task.playbookId)
+    : null;
+  const drawerTitle = playbookForTitle?.name ?? (task?.playbookId ? "Playbook removed" : "Task");
 
   // Closed state: render empty shell so the slide-out CSS transition works.
   if (!task) {
@@ -662,14 +657,14 @@ export function TaskDrawer({
       <div
         role="dialog"
         aria-modal="true"
-        aria-label={`Task: ${task.title}`}
+        aria-label={`Task: ${drawerTitle}`}
         className={cn("task-drawer", open && "open")}
         data-testid="task-drawer"
       >
         {/* Header: title row → breadcrumb → tabs (prototype order) */}
         <header className="td-header">
           <div className="td-header-top">
-            <h2 className="td-title">{task.title}</h2>
+            <h2 className="td-title">{drawerTitle}</h2>
             <button
               ref={closeRef}
               type="button"
@@ -687,7 +682,7 @@ export function TaskDrawer({
             <span className="td-crumb-sep" aria-hidden>›</span>
             <span className="td-crumb">{stageLabel}</span>
             <span className="td-crumb-sep" aria-hidden>›</span>
-            <span className="td-crumb">{roleLabel}</span>
+            <span className="td-crumb">{skillLabel}</span>
           </div>
 
           <div className="td-tabs" role="tablist" aria-label="Task sections">
@@ -715,8 +710,7 @@ export function TaskDrawer({
           {activeTab === "details" && (
             <DetailsTab
               task={task}
-              roles={roles}
-              skillOptions={skillOptions}
+              skills={skills}
               playbookOptions={playbookOptions}
               isPending={isPending}
               onStart={handleStart}

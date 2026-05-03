@@ -41,13 +41,13 @@ const TEMPLATE_A: WorkflowTemplate = {
     { id: "pre-sales", label: "Pre-Sales" },
     { id: "validation", label: "Validation" },
   ],
-  roles: [
-    { id: "sales", label: "Sales" },
-    { id: "product", label: "Product" },
+  skills: [
+    { id: "sales-ops", label: "Sales Ops" },
+    { id: "pm", label: "PM" },
   ],
   taskTemplates: [
-    { role: "sales", stage: "pre-sales", title: "Project Description" },
-    { role: "product", stage: "validation", title: "PDR Review" },
+    { skillId: "sales-ops", stageId: "pre-sales", playbookId: "presales-qualification" },
+    { skillId: "pm", stageId: "validation", playbookId: "pdr-review" },
   ],
   createdAt: "2026-04-19T12:00:00Z",
   updatedAt: "2026-04-19T12:00:00Z",
@@ -59,7 +59,7 @@ const TEMPLATE_B: WorkflowTemplate = {
   color: "#10b981",
   multiInstance: false,
   stages: [],
-  roles: [],
+  skills: [],
   taskTemplates: [],
   createdAt: "2026-04-19T12:00:00Z",
   updatedAt: "2026-04-19T12:00:00Z",
@@ -100,7 +100,7 @@ describe("SidebarWorkflowTree", () => {
               templateId: "client-delivery",
               label: "Acme Corp",
               status: "active",
-              roles: TEMPLATE_A.roles,
+              skills: TEMPLATE_A.skills,
               createdAt: "2026-04-19T12:00:00Z",
               updatedAt: "2026-04-19T12:00:00Z",
             },
@@ -109,7 +109,7 @@ describe("SidebarWorkflowTree", () => {
               templateId: "client-delivery",
               label: "Globex Co",
               status: "not_started",
-              roles: TEMPLATE_A.roles,
+              skills: TEMPLATE_A.skills,
               createdAt: "2026-04-19T12:00:00Z",
               updatedAt: "2026-04-19T12:00:00Z",
             },
@@ -153,7 +153,7 @@ describe("SidebarWorkflowTree", () => {
     ).toBeInTheDocument();
     // The "N stages · N roles · N tasks" line reflects the scoped template
     expect(screen.getByTestId("create-instance-info")).toHaveTextContent(
-      /2 stages.*2 roles.*2 tasks/i,
+      /2 stages.*2 skills.*2 tasks/i,
     );
   });
 
@@ -165,7 +165,7 @@ describe("SidebarWorkflowTree", () => {
         templateId: "client-delivery",
         label: "Acme Corp",
         status: "active",
-        roles: TEMPLATE_A.roles,
+        skills: TEMPLATE_A.skills,
         createdAt: "2026-04-19T12:00:00Z",
         updatedAt: "2026-04-19T12:00:00Z",
       },

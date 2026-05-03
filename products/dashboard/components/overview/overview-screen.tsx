@@ -1,13 +1,14 @@
 import { OverviewEvents } from "./overview-events";
 import { ProcessHealthCard } from "./process-health-card";
 import { MyTasksCard } from "./my-tasks-card";
-import { AgentPulseCard } from "./agent-pulse-card";
+import { InProgressTasksCard } from "./in-progress-tasks-card";
 import { RecentEventsCard } from "./recent-events-card";
 import { StatCard } from "./stat-card";
 import type { AuthUser } from "@/lib/auth/types";
 import {
   computeOverviewStats,
   computeTemplateHealth,
+  pickActiveTasks,
   pickPendingCheckpoints,
   pickRecentEvents,
   type OverviewSnapshot,
@@ -20,7 +21,7 @@ import {
  * Visual contract: prototype `OverviewScreen` (`pc-components.jsx`
  * lines 771-819, CSS lines 368-422 in `Process Canvas.html`):
  * greeting + 4 stat cards across the top, then a 2-col grid:
- *   - left column: Process health + Recent events
+ *   - left column: Workflows + Recent events
  *   - right column: My tasks + Agent pulse
  *
  * Pure server component; the only interactive children are
@@ -61,6 +62,7 @@ export function OverviewScreen({
   const stats = computeOverviewStats(snapshot);
   const health = computeTemplateHealth(snapshot);
   const checkpoints = pickPendingCheckpoints(snapshot);
+  const activeTasks = pickActiveTasks(snapshot);
   const recentEvents = pickRecentEvents(snapshot, recentEventLimit);
 
   const greeting = `${timeOfDayGreeting(now)}, ${firstNameFromUser(user)}.`;
@@ -151,7 +153,7 @@ export function OverviewScreen({
           </div>
           <div className="flex flex-col gap-3">
             <MyTasksCard checkpoints={checkpoints} />
-            <AgentPulseCard />
+            <InProgressTasksCard tasks={activeTasks} />
           </div>
         </div>
       </div>

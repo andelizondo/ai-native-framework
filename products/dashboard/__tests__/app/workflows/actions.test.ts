@@ -68,18 +68,15 @@ function makeTask(overrides: Partial<WorkflowTask> = {}): WorkflowTask {
   return {
     id: "task-1",
     instanceId: "instance-1",
-    roleId: "role-1",
+    skillId: "skill-1",
     stageId: "stage-1",
-    title: "Approve scope",
-    description: "",
+    notes: "",
     status: "pending_approval",
     substatus: "",
     checkpoint: true,
     triggers: [],
     gates: [],
-    agent: null,
-    skill: null,
-    playbook: null,
+    playbookId: null,
     createdAt: "2026-04-19T12:00:00Z",
     updatedAt: "2026-04-19T12:00:00Z",
     ...overrides,
@@ -259,13 +256,10 @@ describe("workflow matrix edit actions", () => {
 
     const result = await createTaskAction({
       instanceId: created.instanceId,
-      roleId: created.roleId,
+      skillId: created.skillId,
       stageId: created.stageId,
-      title: created.title,
-      description: created.description,
-      skill: "pm",
-      agent: "PM",
-      playbook: "slice-spec",
+      playbookId: "slice-spec",
+      notes: created.notes,
     });
 
     expect(createTask).toHaveBeenCalled();
@@ -275,8 +269,8 @@ describe("workflow matrix edit actions", () => {
   });
 
   it("moveTaskAction updates the task position and records an event", async () => {
-    const current = makeTask({ id: "task-move", roleId: "sales", stageId: "pre-sales" });
-    const moved = makeTask({ id: "task-move", roleId: "product", stageId: "stage-2" });
+    const current = makeTask({ id: "task-move", skillId: "sales-ops", stageId: "pre-sales" });
+    const moved = makeTask({ id: "task-move", skillId: "pm", stageId: "stage-2" });
     const getTask = vi.fn().mockResolvedValue(current);
     const updateTask = vi.fn().mockResolvedValue(moved);
     const addEvent = vi.fn().mockResolvedValue({
@@ -295,14 +289,14 @@ describe("workflow matrix edit actions", () => {
       addEvent,
     } satisfies Partial<WorkflowRepository>);
 
-    const result = await moveTaskAction("task-move", "product", "stage-2");
+    const result = await moveTaskAction("task-move", "pm", "stage-2");
 
     expect(updateTask).toHaveBeenCalledWith("task-move", {
-      roleId: "product",
+      skillId: "pm",
       stageId: "stage-2",
     });
     expect(addEvent.mock.calls[0]?.[1].name).toBe("workflow.task_moved");
-    expect(result.task.roleId).toBe("product");
+    expect(result.task.skillId).toBe("pm");
   });
 
   it("deleteTaskAction deletes the task and records an instance event", async () => {
@@ -340,17 +334,14 @@ describe("workflow matrix edit actions", () => {
       color: "#6366f1",
       multiInstance: true,
       stages: [{ id: "stage-1", label: "Planning", sub: "Scope" }],
-      roles: [{ id: "role-1", label: "Product", owner: "Andres", color: "#6366f1" }],
+      skills: [{ id: "pm", label: "Product", owner: "Andres", color: "#6366f1" }],
       taskTemplates: [
         {
           id: "tt-1",
-          role: "role-1",
-          stage: "stage-1",
-          title: "Define scope",
-          desc: "Trimmed",
-          agent: "PM",
-          skill: "pm",
-          playbook: "slice-spec",
+          skillId: "pm",
+          stageId: "stage-1",
+          playbookId: "slice-spec",
+          notes: "Trimmed",
         },
       ],
       createdAt: "2026-04-19T12:00:00Z",
@@ -368,17 +359,14 @@ describe("workflow matrix edit actions", () => {
       label: "  Client Project Delivery  ",
       color: "  #14b8a6  ",
       stages: [{ id: " stage-1 ", label: " Planning ", sub: " Scope " }],
-      roles: [{ id: " role-1 ", label: " Product ", owner: " Andres ", color: "#6366f1" }],
+      skills: [{ id: " pm ", label: " Product ", owner: " Andres ", color: "#6366f1" }],
       taskTemplates: [
         {
           id: " tt-1 ",
-          role: " role-1 ",
-          stage: " stage-1 ",
-          title: " Define scope ",
-          desc: " Trimmed ",
-          agent: " PM ",
-          skill: " pm ",
-          playbook: " slice-spec ",
+          skillId: " pm ",
+          stageId: " stage-1 ",
+          playbookId: " slice-spec ",
+          notes: " Trimmed ",
         },
       ],
     });
@@ -387,17 +375,14 @@ describe("workflow matrix edit actions", () => {
       label: "Client Project Delivery",
       color: "#14b8a6",
       stages: [{ id: "stage-1", label: "Planning", sub: "Scope" }],
-      roles: [{ id: "role-1", label: "Product", owner: "Andres", color: "#6366f1" }],
+      skills: [{ id: "pm", label: "Product", owner: "Andres", color: "#6366f1" }],
       taskTemplates: [
         {
           id: "tt-1",
-          role: "role-1",
-          stage: "stage-1",
-          title: "Define scope",
-          desc: "Trimmed",
-          agent: "PM",
-          skill: "pm",
-          playbook: "slice-spec",
+          skillId: "pm",
+          stageId: "stage-1",
+          playbookId: "slice-spec",
+          notes: "Trimmed",
           checkpoint: false,
           triggers: [],
           gates: [],
@@ -423,7 +408,7 @@ describe("workflow matrix edit actions", () => {
         color: "   ",
         multiInstance: true,
         stages: [],
-        roles: [],
+        skills: [],
         taskTemplates: [],
         createdAt: "2026-04-19T12:00:00Z",
         updatedAt: "2026-04-19T12:00:00Z",

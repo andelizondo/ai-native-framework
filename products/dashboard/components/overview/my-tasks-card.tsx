@@ -119,11 +119,8 @@ export function MyTasksCard({ checkpoints }: MyTasksCardProps) {
                   {template?.label ?? "Workflow"} · {instance.label}
                 </p>
                 <p className="mt-1 text-[12.5px] font-semibold text-t1">
-                  {task.title}
+                  {task.playbookId ?? "Task"}
                 </p>
-                {task.agent && (
-                  <p className="mt-1 text-[11px] text-t3">By {task.agent}</p>
-                )}
                 <div className="mt-2 flex gap-1.5">
                   <button
                     type="button"

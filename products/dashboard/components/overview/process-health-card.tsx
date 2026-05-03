@@ -27,12 +27,12 @@ export function ProcessHealthCard({ health }: ProcessHealthCardProps) {
       className="overflow-hidden rounded-[10px] border border-border bg-bg-2"
     >
       <header className="flex items-center justify-between border-b border-border px-4 py-3">
-        <h2 className="text-[12px] font-semibold text-t1">Process health</h2>
+        <h2 className="text-[12px] font-semibold text-t1">Workflows</h2>
       </header>
 
       {health.length === 0 ? (
         <p className="px-4 py-7 text-center text-[12px] text-t2">
-          No workflow templates yet — process health will appear here once you
+          No workflow templates yet — your workflows will appear here once you
           define one.
         </p>
       ) : (

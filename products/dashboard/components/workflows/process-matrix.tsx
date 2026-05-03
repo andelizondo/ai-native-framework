@@ -43,17 +43,17 @@ import { useToast } from "@/lib/toast";
 import { useUnsavedChangesGuard } from "@/lib/use-unsaved-changes-guard";
 import { cn } from "@/lib/utils";
 import { barClass, canStart } from "@/lib/workflows/matrix";
-import { getRoleColor } from "@/lib/workflows/role-colors";
+import { getSkillColor } from "@/lib/workflows/skill-colors";
 import type {
   FrameworkItem,
   WorkflowInstanceDetail,
-  WorkflowRole,
+  WorkflowSkill,
   WorkflowStage,
   WorkflowTask,
   WorkflowTemplate,
 } from "@/lib/workflows/types";
 
-import { AddTaskModal } from "./add-task-modal";
+import { AddPlaybookModal } from "./add-playbook-modal";
 import { AgentRunPanel } from "./agent-run-panel";
 import { HeaderActionsMenu } from "./header-actions-menu";
 import { TaskCard } from "./task-card";
@@ -82,16 +82,13 @@ export function ProcessMatrix({
   const [addTaskFor, setAddTaskFor] = useState<{
     mode: "create" | "edit";
     taskId?: string;
-    roleId: string;
-    roleName: string;
+    skillId: string;
+    skillLabel: string;
     stageId: string;
     stageName: string;
-    initialTask?: {
-      title: string;
-      description?: string;
-      agent?: string | null;
-      skill?: string | null;
-      playbook?: string | null;
+    initial?: {
+      playbookId?: string | null;
+      notes?: string;
     };
   } | null>(null);
   const [confirmDeleteTask, setConfirmDeleteTask] = useState<WorkflowTask | null>(
@@ -108,19 +105,17 @@ export function ProcessMatrix({
   const pathname = usePathname();
   const searchParams = useSearchParams();
 
-  // Re-baseline local + saved snapshots from server props when not editing.
-  // While in edit mode, the user's draft is preserved; we only re-baseline
-  // after Save (or Cancel) so a parallel server revalidation (e.g. status
-  // pill change in the drawer) doesn't clobber unsaved structural edits.
+  const playbookById = useMemo(
+    () => new Map(playbookOptions.map((pb) => [pb.id, pb])),
+    [playbookOptions],
+  );
+
   useEffect(() => {
     if (editMode) return;
     setLocalTasks(instance.tasks);
     setLastSavedTasks(instance.tasks);
   }, [instance.tasks, editMode]);
 
-  // View-mode mutations (status pills, checkpoint approvals) flow through
-  // here. They reflect server truth, so update both the draft and the
-  // baseline to keep `isDirty` honest.
   const handleTaskUpdate = useCallback((updated: WorkflowTask) => {
     setLocalTasks((prev) => prev.map((task) => (task.id === updated.id ? updated : task)));
     setLastSavedTasks((prev) => prev.map((task) => (task.id === updated.id ? updated : task)));
@@ -172,15 +167,15 @@ export function ProcessMatrix({
   }, [lastSavedTasks, pendingNavigation]);
 
   const stages: WorkflowStage[] = template?.stages ?? [];
-  const roles: WorkflowRole[] =
-    instance.roles && instance.roles.length > 0
-      ? instance.roles
-      : template?.roles ?? [];
+  const skills: WorkflowSkill[] =
+    instance.skills && instance.skills.length > 0
+      ? instance.skills
+      : template?.skills ?? [];
 
   const tasksByCell = useMemo(() => {
     const map = new Map<string, WorkflowTask>();
     for (const task of localTasks) {
-      map.set(`${task.roleId}::${task.stageId}`, task);
+      map.set(`${task.skillId}::${task.stageId}`, task);
     }
     return map;
   }, [localTasks]);
@@ -199,7 +194,7 @@ export function ProcessMatrix({
     ? (localTasks.find((task) => task.id === selectedTaskId) ?? null)
     : null;
 
-  const isEmpty = stages.length === 0 || roles.length === 0;
+  const isEmpty = stages.length === 0 || skills.length === 0;
 
   const saveInstanceEdits = useCallback(() => {
     startTransition(async () => {
@@ -219,16 +214,10 @@ export function ProcessMatrix({
           }
           const saved = savedById.get(task.id);
           if (!saved) continue;
-          if (saved.roleId !== task.roleId || saved.stageId !== task.stageId) {
+          if (saved.skillId !== task.skillId || saved.stageId !== task.stageId) {
             toMove.push(task);
           }
-          if (
-            saved.title !== task.title ||
-            saved.description !== task.description ||
-            saved.agent !== task.agent ||
-            saved.skill !== task.skill ||
-            saved.playbook !== task.playbook
-          ) {
+          if (saved.notes !== task.notes || saved.playbookId !== task.playbookId) {
             toUpdate.push(task);
           }
         }
@@ -236,9 +225,6 @@ export function ProcessMatrix({
           if (!draftById.has(saved.id)) toDelete.push(saved);
         }
 
-        // Replay order: deletes free up cells before any creates/moves into
-        // them, then creates seed new tasks at their final position, then
-        // moves and detail updates apply to remaining tasks.
         const finalById = new Map<string, WorkflowTask>(
           localTasks.map((t) => [t.id, t]),
         );
@@ -250,34 +236,28 @@ export function ProcessMatrix({
         for (const task of toCreate) {
           const result = await createTaskAction({
             instanceId: instance.id,
-            roleId: task.roleId,
+            skillId: task.skillId,
             stageId: task.stageId,
-            title: task.title,
-            description: task.description,
+            playbookId: task.playbookId,
+            notes: task.notes,
             checkpoint: task.checkpoint,
             triggers: task.triggers,
             gates: task.gates,
-            agent: task.agent,
-            skill: task.skill,
-            playbook: task.playbook,
           });
           finalById.delete(task.id);
           finalById.set(result.task.id, result.task);
         }
 
         for (const task of toMove) {
-          const result = await moveTaskAction(task.id, task.roleId, task.stageId);
+          const result = await moveTaskAction(task.id, task.skillId, task.stageId);
           finalById.set(result.task.id, result.task);
         }
 
         for (const task of toUpdate) {
           const result = await updateTaskDetailsAction({
             taskId: task.id,
-            title: task.title,
-            description: task.description,
-            agent: task.agent,
-            skill: task.skill,
-            playbook: task.playbook,
+            playbookId: task.playbookId,
+            notes: task.notes,
           });
           finalById.set(result.task.id, result.task);
         }
@@ -377,20 +357,20 @@ export function ProcessMatrix({
       if (!editMode) return;
       const overId = event.over?.id;
       if (typeof overId !== "string" || !overId.startsWith("cell::")) return;
-      const [, targetRoleId, targetStageId] = overId.split("::");
-      if (!targetRoleId || !targetStageId) return;
+      const [, targetSkillId, targetStageId] = overId.split("::");
+      if (!targetSkillId || !targetStageId) return;
       const dragged = localTasks.find((t) => t.id === draggedId);
       if (!dragged) return;
-      if (dragged.roleId === targetRoleId && dragged.stageId === targetStageId) return;
+      if (dragged.skillId === targetSkillId && dragged.stageId === targetStageId) return;
       const occupied = localTasks.some(
-        (t) => t.roleId === targetRoleId && t.stageId === targetStageId,
+        (t) => t.skillId === targetSkillId && t.stageId === targetStageId,
       );
       if (occupied) return;
 
       setLocalTasks((tasks) =>
         tasks.map((item) =>
           item.id === draggedId
-            ? { ...item, roleId: targetRoleId, stageId: targetStageId }
+            ? { ...item, skillId: targetSkillId, stageId: targetStageId }
             : item,
         ),
       );
@@ -421,13 +401,13 @@ export function ProcessMatrix({
         <div className="matrix" role="table" aria-label="Workflow process matrix">
           <div className="matrix-head-row" role="row">
             <div className="mx-corner" role="columnheader">
-              {!collapsed && <span className="flex-1">Roles</span>}
+              {!collapsed && <span className="flex-1">Skills</span>}
               <button
                 type="button"
-                data-testid="matrix-roles-toggle"
+                data-testid="matrix-skills-toggle"
                 aria-pressed={collapsed}
-                aria-label={collapsed ? "Expand role labels" : "Collapse role labels"}
-                title={collapsed ? "Expand role labels" : "Collapse role labels"}
+                aria-label={collapsed ? "Expand skill labels" : "Collapse skill labels"}
+                title={collapsed ? "Expand skill labels" : "Collapse skill labels"}
                 onClick={() => setCollapsed((value) => !value)}
                 className="mx-corner-toggle"
                 style={collapsed ? { marginLeft: 0 } : undefined}
@@ -452,7 +432,7 @@ export function ProcessMatrix({
                   {stageTasks.length > 0 ? (
                     <div className="mx-stage-pips" aria-hidden>
                       {stageTasks.map((task) => {
-                        const color = getRoleColor(task.roleId, roles);
+                        const color = getSkillColor(task.skillId, skills);
                         const opacity =
                           task.status === "not_started"
                             ? 0.2
@@ -483,47 +463,48 @@ export function ProcessMatrix({
                 className="px-4 py-6 text-center text-[12px] text-t2"
               >
                 {template
-                  ? "This workflow has no stages or roles defined yet."
+                  ? "This workflow has no stages or skills defined yet."
                   : "The template that defines this workflow is no longer available."}
               </div>
             </div>
           ) : (
-            roles.map((role) => {
-              const roleColor = getRoleColor(role.id, roles);
+            skills.map((skill) => {
+              const skillColor = getSkillColor(skill.id, skills);
               return (
                 <div
-                  key={role.id}
+                  key={skill.id}
                   role="row"
                   className="mx-body-row"
-                  data-testid={`matrix-role-row-${role.id}`}
+                  data-testid={`matrix-skill-row-${skill.id}`}
                 >
                   <div className="mx-role-cell" role="rowheader">
                     <span
                       aria-hidden
-                      data-testid={`matrix-role-dot-${role.id}`}
+                      data-testid={`matrix-skill-dot-${skill.id}`}
                       className="block h-2 w-2 shrink-0 rounded-full"
-                      style={{ background: roleColor }}
+                      style={{ background: skillColor }}
                     />
                     {!collapsed ? (
                       <div
                         className="min-w-0 flex-1"
-                        data-testid={`matrix-role-label-${role.id}`}
+                        data-testid={`matrix-skill-label-${skill.id}`}
                       >
-                        <div className="mx-role-name">{role.label}</div>
-                        <div className={cn("mx-role-owner", role.owner?.trim() && "mx-role-owner-plain")}>
-                          {role.owner?.trim() || "No description"}
+                        <div className="mx-role-name">{skill.label}</div>
+                        <div className={cn("mx-role-owner", skill.owner?.trim() && "mx-role-owner-plain")}>
+                          {skill.owner?.trim() || "No owner"}
                         </div>
                       </div>
                     ) : null}
                   </div>
 
                   {stages.map((stage) => {
-                    const task = tasksByCell.get(`${role.id}::${stage.id}`);
+                    const task = tasksByCell.get(`${skill.id}::${stage.id}`);
+                    const playbook = task?.playbookId ? playbookById.get(task.playbookId) ?? null : null;
 
                     return (
                       <DroppableTaskCell
-                        key={`${role.id}-${stage.id}`}
-                        roleId={role.id}
+                        key={`${skill.id}-${stage.id}`}
+                        skillId={skill.id}
                         stageId={stage.id}
                         hasTask={Boolean(task)}
                         editMode={editMode}
@@ -537,7 +518,8 @@ export function ProcessMatrix({
                           >
                             <TaskCard
                               task={task}
-                              roleColor={roleColor}
+                              playbook={playbook}
+                              skillColor={skillColor}
                               barState={barClass(task, canStart(task, localTasks))}
                               editMode={editMode}
                               onClick={() => setSelectedTaskId(task.id)}
@@ -547,16 +529,13 @@ export function ProcessMatrix({
                                       setAddTaskFor({
                                         mode: "edit",
                                         taskId: task.id,
-                                        roleId: role.id,
-                                        roleName: role.label,
+                                        skillId: skill.id,
+                                        skillLabel: skill.label,
                                         stageId: stage.id,
                                         stageName: stage.label,
-                                        initialTask: {
-                                          title: task.title,
-                                          description: task.description,
-                                          agent: task.agent ?? null,
-                                          skill: task.skill ?? null,
-                                          playbook: task.playbook ?? null,
+                                        initial: {
+                                          playbookId: task.playbookId ?? null,
+                                          notes: task.notes ?? "",
                                         },
                                       })
                                   : undefined
@@ -572,8 +551,8 @@ export function ProcessMatrix({
                             onClick={() =>
                               setAddTaskFor({
                                 mode: "create",
-                                roleId: role.id,
-                                roleName: role.label,
+                                skillId: skill.id,
+                                skillLabel: skill.label,
                                 stageId: stage.id,
                                 stageName: stage.label,
                               })
@@ -582,8 +561,8 @@ export function ProcessMatrix({
                             <button
                               type="button"
                               className="mx-add-btn"
-                              data-testid={`matrix-add-task-${role.id}-${stage.id}`}
-                              aria-label={`Add task for ${role.label} in ${stage.label}`}
+                              data-testid={`matrix-add-task-${skill.id}-${stage.id}`}
+                              aria-label={`Add task for ${skill.label} in ${stage.label}`}
                             >
                               <Plus className="h-3.5 w-3.5" />
                             </button>
@@ -603,13 +582,12 @@ export function ProcessMatrix({
       <TaskDrawer
         task={selectedTask}
         instance={instance}
-        roles={roles}
+        skills={skills}
         template={template}
-        skillOptions={skillOptions}
         playbookOptions={playbookOptions}
         onClose={() => { setSelectedTaskId(null); setAgentRunOpen(false); }}
         onTaskUpdate={handleTaskUpdate}
-        onViewLiveRun={selectedTask?.playbook ? () => setAgentRunOpen(true) : undefined}
+        onViewLiveRun={selectedTask?.playbookId ? () => setAgentRunOpen(true) : undefined}
       />
 
       <AgentRunPanel
@@ -621,16 +599,14 @@ export function ProcessMatrix({
       />
 
       {addTaskFor ? (
-        <AddTaskModal
+        <AddPlaybookModal
           mode={addTaskFor.mode}
-          instanceId={instance.id}
-          roleId={addTaskFor.roleId}
-          roleName={addTaskFor.roleName}
+          skillId={addTaskFor.skillId}
+          skillLabel={addTaskFor.skillLabel}
           stageId={addTaskFor.stageId}
           stageName={addTaskFor.stageName}
-          initialTask={addTaskFor.initialTask}
-          skillOptions={skillOptions}
-          playbookOptions={playbookOptions}
+          playbooks={playbookOptions}
+          initial={addTaskFor.initial}
           onClose={() => setAddTaskFor(null)}
           onSubmit={(input) => {
             const target = addTaskFor;
@@ -641,11 +617,8 @@ export function ProcessMatrix({
                   task.id === target.taskId
                     ? {
                         ...task,
-                        title: input.title.trim(),
-                        description: input.description?.trim() ?? "",
-                        agent: input.agent ?? null,
-                        skill: input.skill ?? null,
-                        playbook: input.playbook ?? null,
+                        playbookId: input.playbookId,
+                        notes: input.notes,
                       }
                     : task,
                 ),
@@ -661,19 +634,16 @@ export function ProcessMatrix({
             const now = new Date().toISOString();
             const draftTask: WorkflowTask = {
               id: localId,
-              instanceId: input.instanceId,
-              roleId: input.roleId,
-              stageId: input.stageId,
-              title: input.title.trim(),
-              description: input.description?.trim() ?? "",
+              instanceId: instance.id,
+              skillId: target.skillId,
+              stageId: target.stageId,
+              notes: input.notes,
               status: "not_started",
               substatus: "",
-              checkpoint: Boolean(input.checkpoint),
-              triggers: input.triggers ?? [],
-              gates: input.gates ?? [],
-              agent: input.agent ?? null,
-              skill: input.skill ?? null,
-              playbook: input.playbook ?? null,
+              checkpoint: false,
+              triggers: [],
+              gates: [],
+              playbookId: input.playbookId,
               createdAt: now,
               updatedAt: now,
             };
@@ -684,7 +654,7 @@ export function ProcessMatrix({
 
       {confirmDeleteTask ? (
         <ConfirmModal
-          title={`Delete "${confirmDeleteTask.title}"?`}
+          title={`Delete task?`}
           description="This task will be removed from the draft. The deletion is committed when you click Save."
           onCancel={() => setConfirmDeleteTask(null)}
           onConfirm={() => {
@@ -750,14 +720,14 @@ function DraggableTaskCard({
 }
 
 function DroppableTaskCell({
-  roleId,
+  skillId,
   stageId,
   hasTask,
   editMode,
   dragActive,
   children,
 }: {
-  roleId: string;
+  skillId: string;
   stageId: string;
   hasTask: boolean;
   editMode: boolean;
@@ -765,7 +735,7 @@ function DroppableTaskCell({
   children: React.ReactNode;
 }) {
   const { setNodeRef, isOver } = useDroppable({
-    id: `cell::${roleId}::${stageId}`,
+    id: `cell::${skillId}::${stageId}`,
     disabled: !editMode || hasTask,
   });
 
@@ -773,7 +743,7 @@ function DroppableTaskCell({
     <div
       ref={setNodeRef}
       role="cell"
-      data-testid={`matrix-cell-${roleId}-${stageId}`}
+      data-testid={`matrix-cell-${skillId}-${stageId}`}
       className={cn(
         "mx-task-cell",
         hasTask && "has-task",
