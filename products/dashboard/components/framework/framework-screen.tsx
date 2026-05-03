@@ -40,7 +40,7 @@ import {
   upsertFrameworkItemAction,
 } from "@/app/(dashboard)/framework/actions";
 import { useDashboardTopBar } from "@/components/dashboard-topbar-context";
-import { AllowedSkillsPicker } from "@/components/framework/allowed-skills-picker";
+import { AllowedItemsPicker } from "@/components/framework/allowed-items-picker";
 import { FrameworkHeaderActionsMenu } from "@/components/framework/framework-header-actions-menu";
 import { FrameworkItemModal } from "@/components/framework/framework-item-modal";
 import { ConfirmModal } from "@/components/ui/confirm-modal";
@@ -61,6 +61,9 @@ interface FrameworkScreenProps {
   /** All Skills (FrameworkItem of type "skill"). Required when `type === "playbook"`
    * so the editor can render the "Allowed skills" multi-select. */
   availableSkills?: FrameworkItem[];
+  /** All Playbooks. Required when `type === "skill"` so the editor can
+   * render the inverse "Allowed playbooks" multi-select. */
+  availablePlaybooks?: FrameworkItem[];
 }
 
 type EditorViewMode = "markdown" | "plain-text";
@@ -123,12 +126,19 @@ function areFrameworkItemsEqual(left: FrameworkItem | null, right: FrameworkItem
   ) {
     return false;
   }
-  // Order-insensitive comparison of allowedSkillIds for playbooks. The Save
-  // button must light up when the user toggles a chip on the editor header.
+  // Order-insensitive comparison of the allowed-items relation. The Save
+  // button must light up when the user toggles a chip on the editor header,
+  // whether they're editing a playbook (allowedSkillIds) or a skill
+  // (allowedPlaybookIds — the inverse projection of the same join).
   const leftSkills = [...(left.allowedSkillIds ?? [])].sort();
   const rightSkills = [...(right.allowedSkillIds ?? [])].sort();
   if (leftSkills.length !== rightSkills.length) return false;
-  return leftSkills.every((id, i) => id === rightSkills[i]);
+  if (!leftSkills.every((id, i) => id === rightSkills[i])) return false;
+
+  const leftPlaybooks = [...(left.allowedPlaybookIds ?? [])].sort();
+  const rightPlaybooks = [...(right.allowedPlaybookIds ?? [])].sort();
+  if (leftPlaybooks.length !== rightPlaybooks.length) return false;
+  return leftPlaybooks.every((id, i) => id === rightPlaybooks[i]);
 }
 
 function CompactEmojiPicker({
@@ -371,6 +381,7 @@ export function FrameworkScreen({
   initialItems,
   type,
   availableSkills = [],
+  availablePlaybooks = [],
 }: FrameworkScreenProps) {
   const { setConfig } = useDashboardTopBar();
   const { capture } = useAnalytics();
@@ -707,6 +718,8 @@ export function FrameworkScreen({
           icon: draftItem.icon?.trim() ?? null,
           allowedSkillIds:
             draftItem.type === "playbook" ? draftItem.allowedSkillIds ?? [] : undefined,
+          allowedPlaybookIds:
+            draftItem.type === "skill" ? draftItem.allowedPlaybookIds ?? [] : undefined,
         });
         setItems((current) =>
           sortItems(
@@ -904,16 +917,28 @@ export function FrameworkScreen({
             <div className="flex shrink-0 items-center justify-between gap-3 border-b border-border bg-bg px-6 py-3">
               <div className="flex min-w-0 items-center gap-2">
                 {type === "playbook" ? (
-                  <AllowedSkillsPicker
+                  <AllowedItemsPicker
+                    kind="skills"
                     value={draftItem.allowedSkillIds ?? []}
-                    availableSkills={availableSkills}
+                    available={availableSkills}
                     onChange={(next) =>
                       setDraftItem((current) =>
                         current ? { ...current, allowedSkillIds: next } : current,
                       )
                     }
                   />
-                ) : null}
+                ) : (
+                  <AllowedItemsPicker
+                    kind="playbooks"
+                    value={draftItem.allowedPlaybookIds ?? []}
+                    available={availablePlaybooks}
+                    onChange={(next) =>
+                      setDraftItem((current) =>
+                        current ? { ...current, allowedPlaybookIds: next } : current,
+                      )
+                    }
+                  />
+                )}
               </div>
 
               <div className="flex items-center gap-2">

@@ -143,6 +143,12 @@ export interface FrameworkItem {
    * to use this playbook in the matrix.
    */
   allowedSkillIds?: string[];
+  /**
+   * Only populated for `type === "skill"`. The inverse projection of the
+   * same `framework_item_allowed_skills` join: which playbooks this skill
+   * is allowed to run.
+   */
+  allowedPlaybookIds?: string[];
   createdAt?: string;
   updatedAt?: string;
 }

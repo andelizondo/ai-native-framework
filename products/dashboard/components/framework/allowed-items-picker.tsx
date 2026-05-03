@@ -14,19 +14,24 @@ import { cn } from "@/lib/utils";
 import { SKILL_COLORS } from "@/lib/workflows/skill-colors";
 import type { FrameworkItem } from "@/lib/workflows/types";
 
-interface AllowedSkillsPickerProps {
-  /** Skill ids currently allowed (subset of `availableSkills` ids). */
+type PickerKind = "skills" | "playbooks";
+
+interface AllowedItemsPickerProps {
+  /** The picker's flavor — drives copy and the empty-state link target. */
+  kind: PickerKind;
+  /** Item ids currently allowed (subset of `available` ids). */
   value: readonly string[];
-  /** All `framework_items` of type 'skill'. */
-  availableSkills: readonly FrameworkItem[];
+  /** All `framework_items` of the matching type. */
+  available: readonly FrameworkItem[];
   onChange: (next: string[]) => void;
 }
 
 /**
- * Stable per-skill palette index. Same skill id always maps to the same
- * SKILL_COLORS entry across the app, regardless of which skill subset the
- * avatar is rendered in. djb2-ish hash — fast and good enough for a fixed
- * 8-color palette.
+ * Stable per-item palette index. Same id always maps to the same
+ * SKILL_COLORS entry across the app, regardless of which subset the avatar
+ * is rendered in. djb2-ish hash — fast and good enough for a fixed
+ * 8-color palette. Reused for both skills and playbooks since both render
+ * a colored ring around an emoji.
  */
 function hashIndex(id: string, len: number): number {
   let h = 5381;
@@ -36,24 +41,59 @@ function hashIndex(id: string, len: number): number {
   return Math.abs(h) % len;
 }
 
-function colorForSkill(id: string): string {
+function colorForItem(id: string): string {
   return SKILL_COLORS[hashIndex(id, SKILL_COLORS.length)]!;
 }
 
-function SkillAvatar({
-  skill,
+const COPY: Record<
+  PickerKind,
+  {
+    heading: string;
+    blurb: string;
+    addLabel: string;
+    editLabel: string;
+    searchPlaceholder: string;
+    emptyTitle: string;
+    emptyHref: string;
+    emptyCta: string;
+  }
+> = {
+  skills: {
+    heading: "Allowed skills",
+    blurb: "Pick which skills can run this playbook.",
+    addLabel: "Add allowed skills",
+    editLabel: "Edit allowed skills",
+    searchPlaceholder: "Search skills",
+    emptyTitle: "No skills defined yet",
+    emptyHref: "/framework/skills",
+    emptyCta: "Create one in the Skills page →",
+  },
+  playbooks: {
+    heading: "Allowed playbooks",
+    blurb: "Pick which playbooks this skill can run.",
+    addLabel: "Add allowed playbooks",
+    editLabel: "Edit allowed playbooks",
+    searchPlaceholder: "Search playbooks",
+    emptyTitle: "No playbooks defined yet",
+    emptyHref: "/framework/playbooks",
+    emptyCta: "Create one in the Playbooks page →",
+  },
+};
+
+function ItemAvatar({
+  item,
   index,
   total,
 }: {
-  skill: FrameworkItem;
+  item: FrameworkItem;
   index: number;
   total: number;
 }) {
-  const color = colorForSkill(skill.id);
+  const color = colorForItem(item.id);
   return (
     <span
       role="img"
-      aria-label={skill.name}
+      aria-label={item.name}
       className="group/avatar relative flex h-8 w-8 items-center justify-center rounded-full bg-bg-2 text-[14px] leading-none transition-transform hover:z-50 hover:-translate-y-px"
       style={{
         marginLeft: index === 0 ? 0 : -8,
@@ -62,22 +102,24 @@ function SkillAvatar({
         boxShadow: `0 0 0 2px ${color}1f`,
       }}
     >
-      <span aria-hidden>{skill.icon || "•"}</span>
+      <span aria-hidden>{item.icon || "•"}</span>
       <span
         role="tooltip"
         className="pointer-events-none absolute left-1/2 top-[calc(100%+6px)] z-[60] -translate-x-1/2 whitespace-nowrap rounded-md border border-border-hi bg-bg-2 px-2 py-1 text-[11px] font-medium text-t1 opacity-0 shadow-[var(--shadow-canvas)] transition-opacity duration-100 group-hover/avatar:opacity-100"
       >
-        {skill.name}
+        {item.name}
       </span>
     </span>
   );
 }
 
-export function AllowedSkillsPicker({
+export function AllowedItemsPicker({
+  kind,
   value,
-  availableSkills,
+  available,
   onChange,
-}: AllowedSkillsPickerProps) {
+}: AllowedItemsPickerProps) {
+  const copy = COPY[kind];
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
   const rootRef = useRef<HTMLDivElement | null>(null);
@@ -85,18 +127,18 @@ export function AllowedSkillsPicker({
   const headingId = useId();
 
   const valueSet = useMemo(() => new Set(value), [value]);
-  const allowedSkills = useMemo(
-    () => availableSkills.filter((s) => valueSet.has(s.id)),
-    [availableSkills, valueSet],
+  const allowed = useMemo(
+    () => available.filter((s) => valueSet.has(s.id)),
+    [available, valueSet],
   );
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
-    if (!q) return availableSkills;
-    return availableSkills.filter((s) =>
+    if (!q) return available;
+    return available.filter((s) =>
       [s.name, s.description].some((field) => field.toLowerCase().includes(q)),
     );
-  }, [availableSkills, query]);
+  }, [available, query]);
 
   // Close on outside click / Escape — same pattern as ColorDot.
   useEffect(() => {
@@ -125,15 +167,15 @@ export function AllowedSkillsPicker({
     }
   }, [open]);
 
-  function toggleSkill(id: string) {
+  function toggleItem(id: string) {
     const set = new Set(value);
     if (set.has(id)) set.delete(id);
     else set.add(id);
     onChange(Array.from(set));
   }
 
-  const triggerLabel =
-    allowedSkills.length === 0 ? "Add allowed skills" : "Edit allowed skills";
+  const triggerLabel = allowed.length === 0 ? copy.addLabel : copy.editLabel;
+  const testIdSuffix = kind === "skills" ? "skills" : "playbooks";
 
   return (
     <div ref={rootRef} className={cn("relative inline-flex items-center")}>
@@ -144,7 +186,7 @@ export function AllowedSkillsPicker({
           aria-haspopup="dialog"
           aria-expanded={open}
           onClick={() => setOpen((v) => !v)}
-          data-testid="allowed-skills-trigger"
+          data-testid={`allowed-${testIdSuffix}-trigger`}
           className={cn(
             "flex h-8 w-8 items-center justify-center rounded-full border border-dashed text-t3 transition focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent",
             open
@@ -166,14 +208,14 @@ export function AllowedSkillsPicker({
 
       <div
         className="ml-2 flex items-center"
-        data-testid="allowed-skills-avatars"
+        data-testid={`allowed-${testIdSuffix}-avatars`}
       >
-        {allowedSkills.map((skill, index) => (
-          <SkillAvatar
-            key={skill.id}
-            skill={skill}
+        {allowed.map((item, index) => (
+          <ItemAvatar
+            key={item.id}
+            item={item}
             index={index}
-            total={allowedSkills.length}
+            total={allowed.length}
           />
         ))}
       </div>
@@ -183,28 +225,28 @@ export function AllowedSkillsPicker({
           role="dialog"
           aria-labelledby={headingId}
           className="absolute left-0 top-[calc(100%+8px)] z-40 w-[280px] overflow-hidden rounded-[12px] border border-border-hi bg-bg-2 shadow-[var(--shadow-canvas)]"
-          data-testid="allowed-skills-dropdown"
+          data-testid={`allowed-${testIdSuffix}-dropdown`}
         >
           <div className="border-b border-border px-3 py-2.5">
             <div
               id={headingId}
               className="font-mono text-[10px] font-semibold uppercase tracking-[0.13em] text-t3"
             >
-              Allowed skills
+              {copy.heading}
             </div>
             <div className="mt-1 text-[11.5px] leading-[1.5] text-t3">
-              Pick which skills can run this playbook.
+              {copy.blurb}
             </div>
           </div>
 
-          {availableSkills.length === 0 ? (
+          {available.length === 0 ? (
             <div className="px-3 py-6 text-center text-[12px] text-t3">
-              <div className="mb-2 font-medium text-t2">No skills defined yet</div>
+              <div className="mb-2 font-medium text-t2">{copy.emptyTitle}</div>
               <Link
-                href="/framework/skills"
+                href={copy.emptyHref}
                 className="text-[12px] text-accent hover:underline"
               >
-                Create one in the Skills page →
+                {copy.emptyCta}
               </Link>
             </div>
           ) : (
@@ -215,7 +257,7 @@ export function AllowedSkillsPicker({
                   ref={searchRef}
                   value={query}
                   onChange={(e) => setQuery(e.target.value)}
-                  placeholder="Search skills"
+                  placeholder={copy.searchPlaceholder}
                   className="w-full bg-transparent text-[12.5px] text-t1 placeholder:text-t3 focus:outline-none"
                 />
               </div>
@@ -225,17 +267,17 @@ export function AllowedSkillsPicker({
                     No matches.
                   </div>
                 ) : (
-                  filtered.map((skill) => {
-                    const checked = valueSet.has(skill.id);
-                    const color = colorForSkill(skill.id);
+                  filtered.map((item) => {
+                    const checked = valueSet.has(item.id);
+                    const color = colorForItem(item.id);
                     return (
                       <button
-                        key={skill.id}
+                        key={item.id}
                         type="button"
                         role="checkbox"
                         aria-checked={checked}
-                        onClick={() => toggleSkill(skill.id)}
-                        data-testid={`allowed-skills-item-${skill.id}`}
+                        onClick={() => toggleItem(item.id)}
+                        data-testid={`allowed-${testIdSuffix}-item-${item.id}`}
                         className={cn(
                           "flex w-full items-center gap-2.5 rounded-md px-2 py-1.5 text-left transition",
                           checked
@@ -265,15 +307,15 @@ export function AllowedSkillsPicker({
                             background: "var(--bg-2)",
                           }}
                         >
-                          <span>{skill.icon || "•"}</span>
+                          <span>{item.icon || "•"}</span>
                         </span>
                         <span className="min-w-0 flex-1">
                           <span className="block truncate text-[12.5px] font-semibold">
-                            {skill.name}
+                            {item.name}
                           </span>
-                          {skill.description ? (
+                          {item.description ? (
                             <span className="mt-[1px] block truncate text-[10.5px] text-t3">
-                              {skill.description}
+                              {item.description}
                             </span>
                           ) : null}
                         </span>
