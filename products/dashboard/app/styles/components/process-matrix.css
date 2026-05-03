@@ -141,7 +141,18 @@
   background: transparent;
 }
 
-/* Drop target indicator — only while a task drag is over an empty cell. */
+/* Faint "droppable" hint on every allowed empty cell while a task drag is in
+   flight — just enough to visually distinguish landing zones from the
+   striped disallowed cells, without competing with the active over-state. */
+.matrix-wrap[data-dragging="true"]
+  .mx-task-cell:not(.has-task):not(.drag-disallowed-cell)
+  .mx-empty-cell {
+  background: color-mix(in srgb, var(--accent) 3%, transparent);
+  border-color: color-mix(in srgb, var(--accent) 18%, transparent);
+}
+
+/* Drop target indicator — full-strength when the drag is actually over an
+   allowed empty cell. Wins over the faint hint above thanks to specificity. */
 .matrix-wrap[data-dragging="true"] .mx-task-cell.drag-over-cell .mx-empty-cell {
   background: color-mix(in srgb, var(--accent) 12%, var(--bg-2));
   border-color: color-mix(in srgb, var(--accent) 55%, transparent);
