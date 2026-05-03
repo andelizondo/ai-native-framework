@@ -3,9 +3,11 @@
 import { useState, useTransition } from "react";
 
 import { resolveCheckpointAction } from "@/app/(dashboard)/workflows/actions";
+import { ItemAvatar } from "@/components/framework/item-avatar";
 import { captureError } from "@/lib/monitoring";
 import { cn } from "@/lib/utils";
 import type { PendingCheckpoint } from "@/lib/workflows/aggregate";
+import { resolveItemColor } from "@/lib/workflows/skill-colors";
 import type { FrameworkItem } from "@/lib/workflows/types";
 
 /**
@@ -126,11 +128,21 @@ export function MyTasksCard({ checkpoints, playbookById }: MyTasksCardProps) {
                     : undefined;
                   const title = playbook?.name ?? (task.playbookId ? "Playbook removed" : "Playbook");
                   const icon = playbook?.icon || "📘";
+                  const avatarColor = playbook
+                    ? resolveItemColor(playbook)
+                    : "#94a3b8";
                   return (
-                    <p className="mt-1 flex items-center gap-1.5 text-[12.5px] font-semibold text-t1">
-                      <span aria-hidden>{icon}</span>
-                      <span className="truncate">{title}</span>
-                    </p>
+                    <div className="mt-1.5 flex items-center gap-2">
+                      <ItemAvatar
+                        emoji={icon}
+                        color={avatarColor}
+                        label={title}
+                        size="xs"
+                      />
+                      <span className="min-w-0 flex-1 truncate text-[12.5px] font-semibold text-t1">
+                        {title}
+                      </span>
+                    </div>
                   );
                 })()}
                 <div className="mt-2 flex gap-1.5">
