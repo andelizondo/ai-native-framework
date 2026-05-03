@@ -1,13 +1,14 @@
 import { OverviewEvents } from "./overview-events";
 import { ProcessHealthCard } from "./process-health-card";
 import { MyTasksCard } from "./my-tasks-card";
-import { AgentPulseCard } from "./agent-pulse-card";
+import { InProgressTasksCard } from "./in-progress-tasks-card";
 import { RecentEventsCard } from "./recent-events-card";
 import { StatCard } from "./stat-card";
 import type { AuthUser } from "@/lib/auth/types";
 import {
   computeOverviewStats,
   computeTemplateHealth,
+  pickActiveTasks,
   pickPendingCheckpoints,
   pickRecentEvents,
   type OverviewSnapshot,
@@ -61,6 +62,7 @@ export function OverviewScreen({
   const stats = computeOverviewStats(snapshot);
   const health = computeTemplateHealth(snapshot);
   const checkpoints = pickPendingCheckpoints(snapshot);
+  const activeTasks = pickActiveTasks(snapshot);
   const recentEvents = pickRecentEvents(snapshot, recentEventLimit);
 
   const greeting = `${timeOfDayGreeting(now)}, ${firstNameFromUser(user)}.`;
@@ -151,7 +153,7 @@ export function OverviewScreen({
           </div>
           <div className="flex flex-col gap-3">
             <MyTasksCard checkpoints={checkpoints} />
-            <AgentPulseCard />
+            <InProgressTasksCard tasks={activeTasks} />
           </div>
         </div>
       </div>

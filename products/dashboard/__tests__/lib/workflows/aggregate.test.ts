@@ -6,6 +6,7 @@ import {
   computeOverviewStats,
   computeTemplateHealth,
   percentComplete,
+  pickActiveTasks,
   pickPendingCheckpoints,
   pickRecentEvents,
   type OverviewSnapshot,
@@ -236,6 +237,59 @@ describe("pickPendingCheckpoints", () => {
       events: [],
     };
     expect(pickPendingCheckpoints(snapshot)).toEqual([]);
+  });
+});
+
+describe("pickActiveTasks", () => {
+  it("returns only active tasks with their parent template attached", () => {
+    const t1 = template("delivery", "Client Delivery", "#6366f1");
+    const i1 = instance("i-1", "delivery");
+    const snapshot: OverviewSnapshot = {
+      templates: [t1],
+      instances: [i1],
+      tasks: [
+        task("k-1", "i-1", "active", { playbook: "Discovery call v3" }),
+        task("k-2", "i-1", "pending_approval"),
+        task("k-3", "i-1", "complete"),
+        task("k-4", "i-1", "active", { playbook: null }),
+      ],
+      events: [],
+    };
+
+    const active = pickActiveTasks(snapshot);
+    expect(active.map((a) => a.task.id)).toEqual(["k-1", "k-4"]);
+    expect(active[0]!.template?.id).toBe("delivery");
+    expect(active[0]!.task.playbook).toBe("Discovery call v3");
+    expect(active[1]!.task.playbook).toBeNull();
+  });
+
+  it("drops orphaned tasks whose instance no longer exists", () => {
+    const snapshot: OverviewSnapshot = {
+      templates: [],
+      instances: [],
+      tasks: [task("k-orphan", "ghost", "active")],
+      events: [],
+    };
+    expect(pickActiveTasks(snapshot)).toEqual([]);
+  });
+
+  it("returns null template when the parent template is missing", () => {
+    const i1 = instance("i-1", "missing-template");
+    const snapshot: OverviewSnapshot = {
+      templates: [],
+      instances: [i1],
+      tasks: [task("k-1", "i-1", "active")],
+      events: [],
+    };
+    const active = pickActiveTasks(snapshot);
+    expect(active).toHaveLength(1);
+    expect(active[0]!.template).toBeNull();
+  });
+
+  it("returns an empty list for an empty snapshot", () => {
+    expect(
+      pickActiveTasks({ templates: [], instances: [], tasks: [], events: [] }),
+    ).toEqual([]);
   });
 });
 
