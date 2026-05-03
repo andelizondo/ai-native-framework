@@ -295,8 +295,8 @@ describe("workflow repository", () => {
         color: "#6366f1",
       });
       expect(templates[0].skills).toEqual([
-        { id: "sales-ops", label: "Sales Ops", owner: "Hans / Dave" },
-        { id: "pm", label: "PM", owner: "Andres" },
+        { id: "sales-ops", label: "Sales Ops", owners: ["Hans / Dave"] },
+        { id: "pm", label: "PM", owners: ["Andres"] },
       ]);
       expect(templates[0].taskTemplates).toHaveLength(2);
       expect(templates[1].id).toBe("product-dev");
@@ -313,8 +313,8 @@ describe("workflow repository", () => {
       expect(instance.label).toBe("Acme Corp");
       expect(instance.status).toBe("active");
       expect(instance.skills).toEqual([
-        { id: "sales-ops", label: "Sales Ops", owner: "Hans / Dave" },
-        { id: "pm", label: "PM", owner: "Andres" },
+        { id: "sales-ops", label: "Sales Ops", owners: ["Hans / Dave"] },
+        { id: "pm", label: "PM", owners: ["Andres"] },
       ]);
       expect(instance.tasks).toHaveLength(2);
       expect(instance.events).toEqual([]);
@@ -398,8 +398,8 @@ describe("workflow repository", () => {
           { id: "delivery", label: "Delivery", sub: "Execution" },
         ],
         skills: [
-          { id: "sales-ops", label: "Sales Ops", owner: "Hans / Dave", color: "#6366f1" },
-          { id: "project", label: "Project Mgmt", owner: "Patrick", color: "#10b981" },
+          { id: "sales-ops", label: "Sales Ops", owners: ["Hans / Dave"] },
+          { id: "project", label: "Project Mgmt", owners: ["Patrick"] },
         ],
         taskTemplates: [
           {
@@ -421,8 +421,7 @@ describe("workflow repository", () => {
       });
       expect(updated.skills[1]).toMatchObject({
         id: "project",
-        owner: "Patrick",
-        color: "#10b981",
+        owners: ["Patrick"],
       });
       expect(updated.taskTemplates[0]).toMatchObject({
         id: "tt-1",

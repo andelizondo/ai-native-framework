@@ -334,7 +334,7 @@ describe("workflow matrix edit actions", () => {
       color: "#6366f1",
       multiInstance: true,
       stages: [{ id: "stage-1", label: "Planning", sub: "Scope" }],
-      skills: [{ id: "pm", label: "Product", owner: "Andres", color: "#6366f1" }],
+      skills: [{ id: "pm", label: "Product", owners: ["Andres"] }],
       taskTemplates: [
         {
           id: "tt-1",
@@ -359,7 +359,7 @@ describe("workflow matrix edit actions", () => {
       label: "  Client Project Delivery  ",
       color: "  #14b8a6  ",
       stages: [{ id: " stage-1 ", label: " Planning ", sub: " Scope " }],
-      skills: [{ id: " pm ", label: " Product ", owner: " Andres ", color: "#6366f1" }],
+      skills: [{ id: " pm ", label: " Product ", owners: [" Andres "] }],
       taskTemplates: [
         {
           id: " tt-1 ",
@@ -375,7 +375,7 @@ describe("workflow matrix edit actions", () => {
       label: "Client Project Delivery",
       color: "#14b8a6",
       stages: [{ id: "stage-1", label: "Planning", sub: "Scope" }],
-      skills: [{ id: "pm", label: "Product", owner: "Andres", color: "#6366f1" }],
+      skills: [{ id: "pm", label: "Product", owners: ["Andres"] }],
       taskTemplates: [
         {
           id: "tt-1",

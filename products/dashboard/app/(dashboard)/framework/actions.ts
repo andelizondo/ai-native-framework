@@ -61,6 +61,12 @@ export async function upsertFrameworkItemAction(
             .filter((id): id is string => typeof id === "string" && id.trim().length > 0)
             .map((id) => id.trim().slice(0, 80))
         : undefined,
+    allowedPlaybookIds:
+      type === "skill" && Array.isArray(item.allowedPlaybookIds)
+        ? item.allowedPlaybookIds
+            .filter((id): id is string => typeof id === "string" && id.trim().length > 0)
+            .map((id) => id.trim().slice(0, 80))
+        : undefined,
   });
 
   revalidateFrameworkPaths();

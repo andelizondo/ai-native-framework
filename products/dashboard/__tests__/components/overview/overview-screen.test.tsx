@@ -166,7 +166,7 @@ describe("OverviewScreen", () => {
       /Good morning, Andres\./,
     );
     expect(
-      screen.getByText(/1 task needs your decision/i),
+      screen.getByText(/1 playbook needs your decision/i),
     ).toBeInTheDocument();
   });
 
@@ -183,10 +183,10 @@ describe("OverviewScreen", () => {
     // 2 instances active (none completed)
     expect(stats).toHaveTextContent("2");
     // 1 pending checkpoint
-    expect(stats).toHaveTextContent(/My tasks/);
-    // 33% completion (1 of 3 tasks complete)
+    expect(stats).toHaveTextContent(/My playbooks/);
+    // 33% completion (1 of 3 playbooks complete)
     expect(stats).toHaveTextContent("33%");
-    expect(stats).toHaveTextContent(/1 \/ 3 tasks/);
+    expect(stats).toHaveTextContent(/1 \/ 3 playbooks/);
   });
 
   it("renders one Process Health row per template, with chips that link into the matrix", () => {

@@ -2,19 +2,24 @@ import Link from "next/link";
 
 import { cn } from "@/lib/utils";
 import type { ActiveTask } from "@/lib/workflows/aggregate";
+import type { FrameworkItem } from "@/lib/workflows/types";
 
 export interface InProgressTasksCardProps {
   tasks: ActiveTask[];
+  playbookById?: Map<string, FrameworkItem>;
 }
 
-export function InProgressTasksCard({ tasks }: InProgressTasksCardProps) {
+export function InProgressTasksCard({
+  tasks,
+  playbookById,
+}: InProgressTasksCardProps) {
   return (
     <section
       data-testid="overview-in-progress-tasks"
       className="overflow-hidden rounded-[10px] border border-border bg-bg-2"
     >
       <header className="flex items-center justify-between border-b border-border px-4 py-3">
-        <h2 className="text-[12px] font-semibold text-t1">Tasks in progress</h2>
+        <h2 className="text-[12px] font-semibold text-t1">Playbooks in progress</h2>
         {tasks.length > 0 && (
           <span className="rounded-full bg-primary-bg px-2 py-[1px] font-mono text-[10px] font-semibold text-accent">
             {tasks.length}
@@ -24,11 +29,17 @@ export function InProgressTasksCard({ tasks }: InProgressTasksCardProps) {
 
       {tasks.length === 0 ? (
         <p className="px-4 py-7 text-center text-[12px] text-t2">
-          No tasks in progress
+          No playbooks in progress
         </p>
       ) : (
         <ul className="divide-y divide-border-2">
-          {tasks.map(({ task, instance, template }) => (
+          {tasks.map(({ task, instance, template }) => {
+            const playbook = task.playbookId
+              ? playbookById?.get(task.playbookId)
+              : undefined;
+            const title = playbook?.name ?? (task.playbookId ? "Playbook removed" : "Playbook");
+            const icon = playbook?.icon || "📘";
+            return (
             <li key={task.id}>
               <Link
                 href={`/workflows/${instance.id}`}
@@ -42,14 +53,10 @@ export function InProgressTasksCard({ tasks }: InProgressTasksCardProps) {
                   >
                     {template?.label ?? "Workflow"} · {instance.label}
                   </p>
-                  <p className="mt-1 text-[12.5px] font-semibold text-t1">
-                    {task.playbookId ?? "Task"}
+                  <p className="mt-1 flex items-center gap-1.5 text-[12.5px] font-semibold text-t1">
+                    <span aria-hidden>{icon}</span>
+                    <span className="truncate">{title}</span>
                   </p>
-                  {task.playbookId && (
-                    <p className="mt-1 truncate font-mono text-[11px] text-t3">
-                      📘 {task.playbookId}
-                    </p>
-                  )}
                 </div>
                 <span
                   aria-label="status active"
@@ -60,7 +67,8 @@ export function InProgressTasksCard({ tasks }: InProgressTasksCardProps) {
                 />
               </Link>
             </li>
-          ))}
+            );
+          })}
         </ul>
       )}
     </section>

@@ -631,7 +631,7 @@ export function TaskDrawer({
   const playbookForTitle = task?.playbookId
     ? playbookOptions.find((p) => p.id === task.playbookId)
     : null;
-  const drawerTitle = playbookForTitle?.name ?? (task?.playbookId ? "Playbook removed" : "Task");
+  const drawerTitle = playbookForTitle?.name ?? (task?.playbookId ? "Playbook removed" : "Playbook");
 
   // Closed state: render empty shell so the slide-out CSS transition works.
   if (!task) {
@@ -657,7 +657,7 @@ export function TaskDrawer({
       <div
         role="dialog"
         aria-modal="true"
-        aria-label={`Task: ${drawerTitle}`}
+        aria-label={`Playbook: ${drawerTitle}`}
         className={cn("task-drawer", open && "open")}
         data-testid="task-drawer"
       >
@@ -669,7 +669,7 @@ export function TaskDrawer({
               ref={closeRef}
               type="button"
               className="td-close"
-              aria-label="Close task drawer"
+              aria-label="Close playbook drawer"
               onClick={onClose}
               data-testid="task-drawer-close"
             >
@@ -685,7 +685,7 @@ export function TaskDrawer({
             <span className="td-crumb">{skillLabel}</span>
           </div>
 
-          <div className="td-tabs" role="tablist" aria-label="Task sections">
+          <div className="td-tabs" role="tablist" aria-label="Playbook sections">
             {(["details", "deps", "events"] as const).map((tab) => (
               <button
                 key={tab}

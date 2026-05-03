@@ -21,7 +21,7 @@ export function WorkflowInstanceHeader({
           {instanceLabel}
         </h1>
         <p className="mt-1 text-[13px] text-t2">
-          {taskCount} {taskCount === 1 ? "task" : "tasks"} · {skillCount}{" "}
+          {taskCount} {taskCount === 1 ? "playbook" : "playbooks"} · {skillCount}{" "}
           {skillCount === 1 ? "skill" : "skills"} · {stageCount}{" "}
           {stageCount === 1 ? "stage" : "stages"}
         </p>

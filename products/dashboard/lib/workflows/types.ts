@@ -38,8 +38,10 @@ export interface WorkflowStage {
 export interface WorkflowSkill {
   id: string;
   label: string;
-  owner?: string;
-  color?: string;
+  /** One or more owner labels (people or AI agents). Required to be at
+   *  least one in the editor; older rows that stored a single `owner`
+   *  string get migrated to a one-element array on read in the repo. */
+  owners: string[];
 }
 
 export interface WorkflowTrigger {
@@ -69,6 +71,9 @@ export interface WorkflowTaskTemplate {
 export interface WorkflowTemplate {
   id: string;
   label: string;
+  /** Identity color for the template itself (surfaced in the editor header
+   *  and template list chrome). Distinct from the per-row colors which
+   *  derive from each linked Skill (`FrameworkItem.color`). */
   color: string;
   multiInstance: boolean;
   stages: WorkflowStage[];
@@ -136,6 +141,11 @@ export interface FrameworkItem {
   name: string;
   description: string;
   icon: string | null;
+  /** Hex color (e.g. "#6366f1") chosen by the founder. Drives the colored
+   *  ring around the emoji avatar everywhere this item is rendered, plus the
+   *  matrix row + task accent. Falls back to a stable id-derived hash when
+   *  null (`resolveItemColor` in `lib/workflows/skill-colors.ts`). */
+  color?: string | null;
   content: string;
   /**
    * Only populated for `type === "playbook"`. The list of skill ids
@@ -143,6 +153,12 @@ export interface FrameworkItem {
    * to use this playbook in the matrix.
    */
   allowedSkillIds?: string[];
+  /**
+   * Only populated for `type === "skill"`. The inverse projection of the
+   * same `framework_item_allowed_skills` join: which playbooks this skill
+   * is allowed to run.
+   */
+  allowedPlaybookIds?: string[];
   createdAt?: string;
   updatedAt?: string;
 }

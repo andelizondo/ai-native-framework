@@ -5,6 +5,7 @@ import { InProgressTasksCard } from "./in-progress-tasks-card";
 import { RecentEventsCard } from "./recent-events-card";
 import { StatCard } from "./stat-card";
 import type { AuthUser } from "@/lib/auth/types";
+import type { FrameworkItem } from "@/lib/workflows/types";
 import {
   computeOverviewStats,
   computeTemplateHealth,
@@ -47,6 +48,9 @@ function firstNameFromUser(user: AuthUser | null): string {
 export interface OverviewScreenProps {
   snapshot: OverviewSnapshot;
   user: AuthUser | null;
+  /** All framework_items of type 'playbook'; used to render playbook
+   * names/icons on the My Tasks and In Progress cards. */
+  playbooks?: FrameworkItem[];
   /** Pinned to keep SSR + tests deterministic. */
   now?: Date;
   /** How many recent events to render. Defaults to 4 per the issue. */
@@ -56,9 +60,11 @@ export interface OverviewScreenProps {
 export function OverviewScreen({
   snapshot,
   user,
+  playbooks = [],
   now = new Date(),
   recentEventLimit = 4,
 }: OverviewScreenProps) {
+  const playbookById = new Map(playbooks.map((p) => [p.id, p]));
   const stats = computeOverviewStats(snapshot);
   const health = computeTemplateHealth(snapshot);
   const checkpoints = pickPendingCheckpoints(snapshot);
@@ -69,8 +75,8 @@ export function OverviewScreen({
   const subtitle =
     stats.pendingTasks > 0
       ? stats.pendingTasks === 1
-        ? "1 task needs your decision."
-        : `${stats.pendingTasks} tasks need your decision.`
+        ? "1 playbook needs your decision."
+        : `${stats.pendingTasks} playbooks need your decision.`
       : "All processes running smoothly.";
 
   // Pre-format the four stat cards so the JSX reads top-to-bottom.
@@ -88,25 +94,25 @@ export function OverviewScreen({
     {
       key: "pending",
       value: String(stats.pendingTasks),
-      label: "My tasks",
+      label: "My playbooks",
       hint: stats.pendingTasks > 0 ? "Action required" : "All clear",
       tone: stats.pendingTasks > 0 ? "warn" : "up",
     },
     {
       key: "active",
       value: String(stats.activeTasks),
-      label: "Active tasks",
+      label: "Active playbooks",
       hint:
         stats.activeTasks > 0
           ? `${stats.activeTasks} in flight`
-          : "No tasks running",
+          : "No playbooks running",
       tone: stats.activeTasks > 0 ? "up" : "mute",
     },
     {
       key: "completion",
       value: `${stats.completionPct}%`,
       label: "Completion",
-      hint: `${stats.completedTasks} / ${stats.totalTasks} tasks`,
+      hint: `${stats.completedTasks} / ${stats.totalTasks} playbooks`,
       tone: stats.totalTasks === 0 ? "mute" : "up",
     },
   ] as const;
@@ -152,8 +158,8 @@ export function OverviewScreen({
             <RecentEventsCard events={recentEvents} now={now} />
           </div>
           <div className="flex flex-col gap-3">
-            <MyTasksCard checkpoints={checkpoints} />
-            <InProgressTasksCard tasks={activeTasks} />
+            <MyTasksCard checkpoints={checkpoints} playbookById={playbookById} />
+            <InProgressTasksCard tasks={activeTasks} playbookById={playbookById} />
           </div>
         </div>
       </div>

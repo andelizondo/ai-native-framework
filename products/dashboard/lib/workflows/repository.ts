@@ -73,6 +73,7 @@ interface FrameworkItemRow {
   name: string;
   description: string;
   icon: string | null;
+  color: string | null;
   content: string;
   created_at: string;
   updated_at: string;
@@ -93,6 +94,32 @@ function toJsonObject(value: unknown): Record<string, unknown> {
     : {};
 }
 
+/**
+ * Read-side migration for `WorkflowSkill`: rows authored before the
+ * multi-owner change carry a single `owner: string`. Wrap that into a
+ * one-element `owners` array so the rest of the app sees a uniform shape.
+ */
+function migrateSkill(raw: unknown): WorkflowSkill {
+  const obj = raw as { id: string; label: string; owner?: string; owners?: unknown };
+  if (Array.isArray(obj.owners)) {
+    return {
+      id: obj.id,
+      label: obj.label,
+      owners: obj.owners.filter((o): o is string => typeof o === "string" && o.trim().length > 0),
+    };
+  }
+  const legacy = typeof obj.owner === "string" ? obj.owner.trim() : "";
+  return {
+    id: obj.id,
+    label: obj.label,
+    owners: legacy ? [legacy] : [],
+  };
+}
+
+function migrateSkills(raw: unknown): WorkflowSkill[] {
+  return toJsonArray<unknown>(raw).map(migrateSkill);
+}
+
 function mapTemplate(row: WorkflowTemplateRow): WorkflowTemplate {
   const taskTemplates = toJsonArray<WorkflowTaskTemplate>(row.task_templates).map(
     (task, index) => ({
@@ -110,7 +137,7 @@ function mapTemplate(row: WorkflowTemplateRow): WorkflowTemplate {
     color: row.color,
     multiInstance: row.multi_instance,
     stages: toJsonArray(row.stages),
-    skills: toJsonArray(row.skills),
+    skills: migrateSkills(row.skills),
     taskTemplates,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
@@ -123,7 +150,7 @@ function mapInstance(row: WorkflowInstanceRow): WorkflowInstance {
     templateId: row.template_id,
     label: row.label,
     status: row.status,
-    skills: toJsonArray(row.skills),
+    skills: migrateSkills(row.skills),
     createdAt: row.created_at,
     updatedAt: row.updated_at,
   };
@@ -162,6 +189,7 @@ function mapEvent(row: WorkflowEventRow): WorkflowEvent {
 function mapFrameworkItem(
   row: FrameworkItemRow,
   allowedSkillIds?: string[],
+  allowedPlaybookIds?: string[],
 ): FrameworkItem {
   const item: FrameworkItem = {
     id: row.id,
@@ -169,12 +197,15 @@ function mapFrameworkItem(
     name: row.name,
     description: row.description,
     icon: row.icon,
+    color: row.color,
     content: row.content,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
   };
   if (row.type === "playbook") {
     item.allowedSkillIds = allowedSkillIds ?? [];
+  } else if (row.type === "skill") {
+    item.allowedPlaybookIds = allowedPlaybookIds ?? [];
   }
   return item;
 }
@@ -704,15 +735,31 @@ export function createWorkflowRepository(
 
       const rows = (data ?? []) as FrameworkItemRow[];
 
-      // Bulk-fetch allowed-skill rows for any returned playbook so we
-      // populate `allowedSkillIds` in a single round-trip.
+      // Bulk-fetch the allowed-skills join so we can project both directions
+      // (skills allowed by a playbook, and the inverse: playbooks a skill
+      // is allowed in) in a single round-trip.
       const playbookIds = rows.filter((r) => r.type === "playbook").map((r) => r.id);
+      const skillIds = rows.filter((r) => r.type === "skill").map((r) => r.id);
       const allowedByPlaybook = new Map<string, string[]>();
-      if (playbookIds.length > 0) {
-        const { data: allowedRows, error: allowedErr } = await client
+      const allowedBySkill = new Map<string, string[]>();
+      if (playbookIds.length > 0 || skillIds.length > 0) {
+        let joinQuery = client
           .from("framework_item_allowed_skills")
-          .select("playbook_id, skill_id")
-          .in("playbook_id", playbookIds);
+          .select("playbook_id, skill_id");
+
+        // Constrain to ids we actually returned. `or()` lets us union the
+        // two sides; if one list is empty we fall back to the non-empty side.
+        if (playbookIds.length > 0 && skillIds.length > 0) {
+          joinQuery = joinQuery.or(
+            `playbook_id.in.(${playbookIds.join(",")}),skill_id.in.(${skillIds.join(",")})`,
+          );
+        } else if (playbookIds.length > 0) {
+          joinQuery = joinQuery.in("playbook_id", playbookIds);
+        } else {
+          joinQuery = joinQuery.in("skill_id", skillIds);
+        }
+
+        const { data: allowedRows, error: allowedErr } = await joinQuery;
 
         if (allowedErr) {
           throw new WorkflowRepositoryError(
@@ -721,14 +768,22 @@ export function createWorkflowRepository(
           );
         }
         for (const row of (allowedRows ?? []) as AllowedSkillRow[]) {
-          const list = allowedByPlaybook.get(row.playbook_id) ?? [];
-          list.push(row.skill_id);
-          allowedByPlaybook.set(row.playbook_id, list);
+          const skillList = allowedByPlaybook.get(row.playbook_id) ?? [];
+          skillList.push(row.skill_id);
+          allowedByPlaybook.set(row.playbook_id, skillList);
+
+          const playbookList = allowedBySkill.get(row.skill_id) ?? [];
+          playbookList.push(row.playbook_id);
+          allowedBySkill.set(row.skill_id, playbookList);
         }
       }
 
       return rows.map((row) =>
-        mapFrameworkItem(row, allowedByPlaybook.get(row.id) ?? []),
+        mapFrameworkItem(
+          row,
+          allowedByPlaybook.get(row.id) ?? [],
+          allowedBySkill.get(row.id) ?? [],
+        ),
       );
     },
 
@@ -741,6 +796,7 @@ export function createWorkflowRepository(
           name: item.name,
           description: item.description,
           icon: item.icon,
+          color: item.color ?? null,
           content: item.content,
         })
         .select("*")
@@ -750,11 +806,16 @@ export function createWorkflowRepository(
         unwrap("upsertFrameworkItem", data, error) as FrameworkItemRow,
       );
 
-      // For playbooks, replace the allowed-skills relation. We do this in
-      // two statements because Supabase JS doesn't expose transactional
-      // batches — accept the brief inconsistency window for V1 simplicity.
-      if (saved.type === "playbook") {
-        const desired = item.allowedSkillIds ?? [];
+      // Replace the allowed-skills relation only on the side the caller
+      // actually provided — the join table is symmetric, so editing a
+      // playbook owns the (playbook_id=self, *) projection and editing a
+      // skill owns the (*, skill_id=self) projection. Skipping the replace
+      // when the field is undefined ensures we never wipe rows authored
+      // from the other side. Two statements (delete + insert) because
+      // Supabase JS doesn't expose transactional batches — accept the
+      // brief inconsistency window for V1 simplicity.
+      if (saved.type === "playbook" && item.allowedSkillIds !== undefined) {
+        const desired = item.allowedSkillIds;
 
         const { error: deleteErr } = await client
           .from("framework_item_allowed_skills")
@@ -785,6 +846,38 @@ export function createWorkflowRepository(
         }
 
         saved.allowedSkillIds = desired;
+      } else if (saved.type === "skill" && item.allowedPlaybookIds !== undefined) {
+        const desired = item.allowedPlaybookIds;
+
+        const { error: deleteErr } = await client
+          .from("framework_item_allowed_skills")
+          .delete()
+          .eq("skill_id", saved.id);
+        if (deleteErr) {
+          throw new WorkflowRepositoryError(
+            "upsertFrameworkItem allowed_playbooks delete failed",
+            deleteErr,
+          );
+        }
+
+        if (desired.length > 0) {
+          const { error: insertErr } = await client
+            .from("framework_item_allowed_skills")
+            .insert(
+              desired.map((playbookId) => ({
+                playbook_id: playbookId,
+                skill_id: saved.id,
+              })),
+            );
+          if (insertErr) {
+            throw new WorkflowRepositoryError(
+              "upsertFrameworkItem allowed_playbooks insert failed",
+              insertErr,
+            );
+          }
+        }
+
+        saved.allowedPlaybookIds = desired;
       }
 
       return saved;

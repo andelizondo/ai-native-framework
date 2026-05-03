@@ -34,7 +34,9 @@ export interface TaskCardProps {
   editMode?: boolean;
   onEdit?: () => void;
   onRemove?: () => void;
-  showDefaultPill?: boolean;
+  /** Suppress the status pill in the footer. Templates pass this since
+   *  template tasks don't have a meaningful runtime status. */
+  hideStatusPill?: boolean;
 }
 
 export function TaskCard({
@@ -46,7 +48,7 @@ export function TaskCard({
   editMode = false,
   onEdit,
   onRemove,
-  showDefaultPill = false,
+  hideStatusPill = false,
 }: TaskCardProps) {
   const statusClass = STATUS_PILL_CLASS[task.status];
   const statusLabel = STATUS_LABEL[task.status];
@@ -64,7 +66,7 @@ export function TaskCard({
         "task-card",
         statusClass,
         barState,
-        showDefaultPill && "task-card-default",
+        hideStatusPill && "task-card-default",
         onClick && "cursor-pointer",
       )}
       style={{ "--role-color": skillColor } as React.CSSProperties}
@@ -81,7 +83,7 @@ export function TaskCard({
             }
           : undefined
       }
-      aria-label={onClick ? `Open task: ${title}` : undefined}
+      aria-label={onClick ? `Open playbook: ${title}` : undefined}
     >
       <div className="tc-top">
         <div className="tc-title">{title}</div>
@@ -98,11 +100,11 @@ export function TaskCard({
       </div>
       {description ? <div className="tc-desc">{description}</div> : null}
       <div className="tc-footer">
-        {showDefaultPill ? (
-          <div className="s-pill rounded-full bg-bg-3">
-            <div className="s-dot bg-t3" aria-hidden />
-            <div className="s-text italic text-t2">default</div>
-          </div>
+        {hideStatusPill ? (
+          // Templates render no status pill — there's no runtime state to
+          // surface yet. We still render an empty span so the footer keeps
+          // its `space-between` layout for the action buttons.
+          <span aria-hidden />
         ) : (
           <div className={cn("s-pill", statusClass)}>
             <div className="s-dot" aria-hidden />
@@ -115,7 +117,7 @@ export function TaskCard({
               <button
                 type="button"
                 className="mx-entity-action"
-                aria-label={`Edit task: ${title}`}
+                aria-label={`Edit playbook: ${title}`}
                 title={`Edit ${title}`}
                 onClick={(event) => {
                   event.stopPropagation();
@@ -129,7 +131,7 @@ export function TaskCard({
               <button
                 type="button"
                 className="mx-entity-action mx-entity-action-danger"
-                aria-label={`Remove task: ${title}`}
+                aria-label={`Remove playbook: ${title}`}
                 title={`Delete ${title}`}
                 onClick={(event) => {
                   event.stopPropagation();

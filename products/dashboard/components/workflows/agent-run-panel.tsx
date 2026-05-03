@@ -359,7 +359,7 @@ export function AgentRunPanel({
   const agentName  = run.agentName;
   const skill      = task.skillId    ?? run.skill;
   const playbook   = task.playbookId ?? run.playbook;
-  const taskLabel  = playbook ?? "Task";
+  const taskLabel  = playbook ?? "Playbook";
   const elapsed    = formatElapsed(task.updatedAt);
   const doneCount  = run.steps.filter((s) => s.status === "done").length;
   const totalSteps = run.steps.length;
