@@ -89,7 +89,7 @@ describe("SidebarWorkflowTree", () => {
     expect(screen.getByTestId("sidebar-workflows-empty")).toBeInTheDocument();
   });
 
-  it("renders one section per template with an instance count and per-instance links", () => {
+  it("renders one section per template with template-edit links and per-instance links", () => {
     renderWithToast(
       <SidebarWorkflowTree
         templates={[TEMPLATE_A, TEMPLATE_B]}
@@ -129,10 +129,10 @@ describe("SidebarWorkflowTree", () => {
       screen.getByTestId("workflow-instance-link-inst-2"),
     ).toHaveAttribute("href", "/workflows/inst-2");
 
-    // Count pill shows instance count for the populated template
+    // Template name navigates to the template editor
     expect(
-      screen.getByTestId("workflow-template-count-client-delivery"),
-    ).toHaveTextContent("2");
+      screen.getByTestId("workflow-template-link-client-delivery"),
+    ).toHaveAttribute("href", "/workflows/templates/client-delivery/edit");
   });
 
   it("opens the create-instance modal scoped to the clicked template", async () => {

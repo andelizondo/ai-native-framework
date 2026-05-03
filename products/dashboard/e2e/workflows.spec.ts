@@ -252,7 +252,7 @@ test.describe("workflows — template editor (AEL-55)", () => {
     await page.goto("/");
 
     const editTemplate = page
-      .locator('[data-testid^="workflow-template-count-"]')
+      .locator('[data-testid^="workflow-template-link-"]')
       .first();
     await expect(editTemplate).toBeVisible();
     await editTemplate.click();
