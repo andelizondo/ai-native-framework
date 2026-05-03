@@ -41,8 +41,10 @@ import {
   deleteTaskAction,
   moveTaskAction,
   renameInstanceAction,
+  setTaskStatusAction,
   updateTaskDetailsAction,
 } from "@/app/(dashboard)/workflows/actions";
+import { upsertFrameworkItemAction } from "@/app/(dashboard)/framework/actions";
 import { useDashboardTopBar } from "@/components/dashboard-topbar-context";
 import { ConfirmModal } from "@/components/ui/confirm-modal";
 import { captureError } from "@/lib/monitoring";
@@ -50,7 +52,7 @@ import { useToast } from "@/lib/toast";
 import { useUnsavedChangesGuard } from "@/lib/use-unsaved-changes-guard";
 import { cn } from "@/lib/utils";
 import { barClass, canStart } from "@/lib/workflows/matrix";
-import { resolveItemColor, resolveSkillColor } from "@/lib/workflows/skill-colors";
+import { resolveSkillColor } from "@/lib/workflows/skill-colors";
 import { ItemAvatar } from "@/components/framework/item-avatar";
 import type {
   FrameworkItem,
@@ -58,8 +60,10 @@ import type {
   WorkflowSkill,
   WorkflowStage,
   WorkflowTask,
+  WorkflowTaskStatus,
   WorkflowTemplate,
 } from "@/lib/workflows/types";
+import { TASK_STATUS_VAR } from "@/lib/workflows/task-status";
 
 import { AddPlaybookModal } from "./add-playbook-modal";
 import { AgentRunPanel } from "./agent-run-panel";
@@ -161,9 +165,81 @@ export function ProcessMatrix({
   const pathname = usePathname();
   const searchParams = useSearchParams();
 
+  // Owner edits made in edit mode stay in `localPlaybooks` until the user
+  // hits Save; we then diff against `lastSavedPlaybooks` and post a single
+  // `upsertFrameworkItemAction` per changed playbook alongside the task
+  // batch. In non-edit mode the matrix is read-only for owners, so this
+  // state is only ever written by the prop-sync effect below.
+  const [localPlaybooks, setLocalPlaybooks] = useState<FrameworkItem[]>(playbookOptions);
+  const [lastSavedPlaybooks, setLastSavedPlaybooks] =
+    useState<FrameworkItem[]>(playbookOptions);
+  useEffect(() => {
+    // Sync from props only when the array contents actually changed (the
+    // default `playbookOptions = []` parameter creates a fresh array on
+    // every render — without this guard the setState would re-fire the
+    // effect via the new prop reference and loop indefinitely).
+    setLocalPlaybooks((current) => {
+      if (current === playbookOptions) return current;
+      if (current.length !== playbookOptions.length) return playbookOptions;
+      for (let i = 0; i < current.length; i++) {
+        if (current[i] !== playbookOptions[i]) return playbookOptions;
+      }
+      return current;
+    });
+    setLastSavedPlaybooks((current) => {
+      if (current === playbookOptions) return current;
+      if (current.length !== playbookOptions.length) return playbookOptions;
+      for (let i = 0; i < current.length; i++) {
+        if (current[i] !== playbookOptions[i]) return playbookOptions;
+      }
+      return current;
+    });
+  }, [playbookOptions]);
+
   const playbookById = useMemo(
-    () => new Map(playbookOptions.map((pb) => [pb.id, pb])),
-    [playbookOptions],
+    () => new Map(localPlaybooks.map((pb) => [pb.id, pb])),
+    [localPlaybooks],
+  );
+
+  const handleStatusChange = useCallback(
+    (taskId: string, next: WorkflowTaskStatus) => {
+      const previous = localTasks.find((t) => t.id === taskId);
+      if (!previous || previous.status === next) return;
+      const optimistic: WorkflowTask = {
+        ...previous,
+        status: next,
+        updatedAt: new Date().toISOString(),
+      };
+      setLocalTasks((prev) => prev.map((t) => (t.id === taskId ? optimistic : t)));
+      setLastSavedTasks((prev) => prev.map((t) => (t.id === taskId ? optimistic : t)));
+      startTransition(async () => {
+        try {
+          const { task } = await setTaskStatusAction(taskId, next);
+          setLocalTasks((prev) => prev.map((t) => (t.id === taskId ? task : t)));
+          setLastSavedTasks((prev) => prev.map((t) => (t.id === taskId ? task : t)));
+        } catch (err) {
+          captureError(err, {
+            feature: "workflows.matrix_status_change",
+            extra: { task_id: taskId, status: next },
+          });
+          toastError("Could not update status. Please try again.");
+          setLocalTasks((prev) => prev.map((t) => (t.id === taskId ? previous : t)));
+          setLastSavedTasks((prev) => prev.map((t) => (t.id === taskId ? previous : t)));
+        }
+      });
+    },
+    [localTasks, toastError],
+  );
+
+  // Edit-mode-only: stage owner changes locally; the Save handler diffs
+  // and posts a single update per playbook below.
+  const handlePlaybookOwnersChange = useCallback(
+    (playbookId: string, owners: string[]) => {
+      setLocalPlaybooks((prev) =>
+        prev.map((pb) => (pb.id === playbookId ? { ...pb, owners } : pb)),
+      );
+    },
+    [],
   );
 
   useEffect(() => {
@@ -177,9 +253,30 @@ export function ProcessMatrix({
     setLastSavedTasks((prev) => prev.map((task) => (task.id === updated.id ? updated : task)));
   }, []);
 
+  const playbookOwnerEdits = useMemo(() => {
+    const original = new Map(
+      lastSavedPlaybooks.map((pb) => [pb.id, pb.owners ?? []]),
+    );
+    const changed: FrameworkItem[] = [];
+    for (const pb of localPlaybooks) {
+      const before = original.get(pb.id);
+      const after = pb.owners ?? [];
+      if (!before) continue;
+      if (
+        before.length !== after.length ||
+        before.some((value, index) => value !== after[index])
+      ) {
+        changed.push(pb);
+      }
+    }
+    return changed;
+  }, [localPlaybooks, lastSavedPlaybooks]);
+
   const isDirty = useMemo(
-    () => JSON.stringify(localTasks) !== JSON.stringify(lastSavedTasks),
-    [localTasks, lastSavedTasks],
+    () =>
+      JSON.stringify(localTasks) !== JSON.stringify(lastSavedTasks) ||
+      playbookOwnerEdits.length > 0,
+    [localTasks, lastSavedTasks, playbookOwnerEdits],
   );
 
   const exitEditMode = useCallback(() => {
@@ -200,9 +297,10 @@ export function ProcessMatrix({
 
   const discardAndExit = useCallback(() => {
     setLocalTasks(lastSavedTasks);
+    setLocalPlaybooks(lastSavedPlaybooks);
     setConfirmDiscardOpen(false);
     exitEditMode();
-  }, [exitEditMode, lastSavedTasks]);
+  }, [exitEditMode, lastSavedTasks, lastSavedPlaybooks]);
 
   const handleBlockedNavigation = useCallback((proceed: () => void) => {
     setPendingNavigation(() => proceed);
@@ -219,8 +317,9 @@ export function ProcessMatrix({
     if (!proceed) return;
     setLocalTasks(lastSavedTasks);
     setLastSavedTasks(lastSavedTasks);
+    setLocalPlaybooks(lastSavedPlaybooks);
     proceed();
-  }, [lastSavedTasks, pendingNavigation]);
+  }, [lastSavedTasks, lastSavedPlaybooks, pendingNavigation]);
 
   const tasksByCell = useMemo(() => {
     const map = new Map<string, WorkflowTask>();
@@ -315,6 +414,25 @@ export function ProcessMatrix({
         const finalTasks = Array.from(finalById.values());
         setLocalTasks(finalTasks);
         setLastSavedTasks(finalTasks);
+
+        if (playbookOwnerEdits.length > 0) {
+          const updated: FrameworkItem[] = [];
+          for (const pb of playbookOwnerEdits) {
+            const { item } = await upsertFrameworkItemAction(pb);
+            updated.push(item);
+          }
+          setLocalPlaybooks((prev) => {
+            const map = new Map(prev.map((p) => [p.id, p]));
+            for (const item of updated) map.set(item.id, item);
+            return Array.from(map.values());
+          });
+          setLastSavedPlaybooks((prev) => {
+            const map = new Map(prev.map((p) => [p.id, p]));
+            for (const item of updated) map.set(item.id, item);
+            return Array.from(map.values());
+          });
+        }
+
         toastSuccess("Workflow saved");
         exitEditMode();
       } catch (err) {
@@ -326,7 +444,15 @@ export function ProcessMatrix({
         );
       }
     });
-  }, [exitEditMode, instance.id, lastSavedTasks, localTasks, toastError, toastSuccess]);
+  }, [
+    exitEditMode,
+    instance.id,
+    lastSavedTasks,
+    localTasks,
+    playbookOwnerEdits,
+    toastError,
+    toastSuccess,
+  ]);
 
   useEffect(() => {
     setConfig({
@@ -627,6 +753,24 @@ export function ProcessMatrix({
               );
               const isSkillCollapsed = collapsedSkillIds.has(skill.id);
               const labelHidden = collapsed || isSkillCollapsed;
+              // Derive the row's owner stack from the playbooks currently
+              // assigned to this skill row (deduped, order-preserved). Owners
+              // live on the playbook now, so the row label aggregates across
+              // every playbook in this row.
+              const rowOwners: string[] = [];
+              {
+                const seen = new Set<string>();
+                for (const t of localTasks) {
+                  if (t.skillId !== skill.id || !t.playbookId) continue;
+                  const pb = playbookById.get(t.playbookId);
+                  for (const owner of pb?.owners ?? []) {
+                    if (!seen.has(owner)) {
+                      seen.add(owner);
+                      rowOwners.push(owner);
+                    }
+                  }
+                }
+              }
               return (
                 <div
                   key={skill.id}
@@ -657,8 +801,8 @@ export function ProcessMatrix({
                         <FloatingHoverTooltip
                           name={skill.label}
                           sub={
-                            skill.owners.length > 0
-                              ? skill.owners.join(", ")
+                            rowOwners.length > 0
+                              ? rowOwners.join(", ")
                               : "No owner"
                           }
                           placement="right"
@@ -674,11 +818,11 @@ export function ProcessMatrix({
                         <div
                           className={cn(
                             "mx-role-owner",
-                            skill.owners.length > 0 && "mx-role-owner-plain",
+                            rowOwners.length > 0 && "mx-role-owner-plain",
                           )}
                         >
-                          {skill.owners.length > 0
-                            ? skill.owners.join(", ")
+                          {rowOwners.length > 0
+                            ? rowOwners.join(", ")
                             : "No owner"}
                         </div>
                       </div>
@@ -764,6 +908,17 @@ export function ProcessMatrix({
                                 barState={barClass(task, canStart(task, localTasks))}
                                 editMode={editMode}
                                 onClick={() => setSelectedTaskId(task.id)}
+                                onStatusChange={
+                                  editMode
+                                    ? undefined
+                                    : (next) => handleStatusChange(task.id, next)
+                                }
+                                onOwnersChange={
+                                  editMode && playbook
+                                    ? (owners) =>
+                                        handlePlaybookOwnersChange(playbook.id, owners)
+                                    : undefined
+                                }
                                 onEdit={
                                   editMode
                                     ? () =>
@@ -1022,7 +1177,9 @@ function MiniTaskCell({
   onClick?: () => void;
 }) {
   const title = playbook?.name ?? (task.playbookId ? "Playbook removed" : "No playbook");
-  const playbookColor = playbook ? resolveItemColor(playbook) : skillColor;
+  // In mini mode the avatar ring carries the *status* (semantic) rather than
+  // the playbook identity color. Full task cards keep the playbook color.
+  const ringColor = TASK_STATUS_VAR[task.status];
   const opacity =
     task.status === "not_started"
       ? 0.35
@@ -1061,7 +1218,7 @@ function MiniTaskCell({
     >
       <ItemAvatar
         emoji={playbook?.icon ?? null}
-        color={playbookColor}
+        color={ringColor}
         label={title}
         size="xs"
       />

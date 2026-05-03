@@ -139,7 +139,7 @@
   outline-offset: 2px;
 }
 .mx-stage-hd {
-  width: 192px;
+  width: 232px;
   flex-shrink: 0;
   padding: 10px 14px;
   position: relative;
@@ -492,8 +492,8 @@
   align-items: center;
   gap: 7px;
   /* Locked height keeps the row stable while task cards are dragged in/out.
-   * Card height = 124px + cell padding (14px*2) + breathing → 140px. */
-  height: 140px;
+   * Card height = 116px + cell padding (7×2) + breathing → 132px. */
+  height: 132px;
   overflow: visible;
   transition: width 0.2s;
 }
@@ -609,14 +609,15 @@
   outline-offset: 2px;
 }
 .mx-task-cell {
-  width: 192px;
+  width: 232px;
   flex-shrink: 0;
   padding: 7px;
   border-right: 1px solid var(--border-2);
   /* Locked height matches `.mx-role-cell` so the row stays a stable
-   * rectangle while task cards drag in/out (cards themselves are 124px
-   * fixed height; cell padding 7×2 = 14, plus 2px breathing → 140px). */
-  height: 140px;
+   * rectangle while task cards drag in/out. The card itself is 116px
+   * (set in task-card.css); cell padding 7×2 = 14, plus 2px breathing →
+   * 132px. */
+  height: 132px;
   background: var(--bg);
   transition: background 0.14s;
 }
@@ -763,7 +764,7 @@
   flex-shrink: 0;
 }
 .mx-col-insert-empty {
-  width: 192px;
+  width: 232px;
   gap: 8px;
   justify-content: center;
 }

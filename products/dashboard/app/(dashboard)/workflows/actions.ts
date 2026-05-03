@@ -13,9 +13,22 @@ import type {
   WorkflowInstance,
   WorkflowTask,
   WorkflowTaskCreateInput,
+  WorkflowTaskStatus,
   WorkflowTemplate,
   WorkflowTrigger,
 } from "@/lib/workflows/types";
+
+const TASK_STATUS_VALUES: readonly WorkflowTaskStatus[] = [
+  "not_started",
+  "active",
+  "pending_approval",
+  "blocked",
+  "complete",
+];
+
+function isWorkflowTaskStatus(value: unknown): value is WorkflowTaskStatus {
+  return typeof value === "string" && (TASK_STATUS_VALUES as readonly string[]).includes(value);
+}
 
 /**
  * Server action invoked by the create-instance modal.
@@ -446,6 +459,43 @@ export async function updateTaskDetailsAction(
   } catch (eventError) {
     captureError(eventError, {
       feature: "workflows.update_task_details",
+      action: "addEvent",
+      extra: { task_id: task.id, instance_id: task.instanceId },
+    });
+  }
+
+  revalidatePath("/", "layout");
+  return { task };
+}
+
+export async function setTaskStatusAction(
+  taskId: string,
+  status: WorkflowTaskStatus,
+): Promise<{ task: WorkflowTask }> {
+  const trimmedId = normalizeTaskField(taskId, "taskId", 80);
+  if (!trimmedId) {
+    throw new Error("setTaskStatusAction: taskId is required");
+  }
+  if (!isWorkflowTaskStatus(status)) {
+    throw new Error("setTaskStatusAction: invalid status");
+  }
+
+  const repo = await getServerWorkflowRepository();
+  const task = await repo.updateTask(trimmedId, { status });
+
+  try {
+    await repo.addEvent(task.id, {
+      name: "workflow.task_status_set",
+      description: `Status set to ${status}`,
+      payload: {
+        task_id: task.id,
+        instance_id: task.instanceId,
+        status,
+      },
+    });
+  } catch (eventError) {
+    captureError(eventError, {
+      feature: "workflows.set_task_status",
       action: "addEvent",
       extra: { task_id: task.id, instance_id: task.instanceId },
     });

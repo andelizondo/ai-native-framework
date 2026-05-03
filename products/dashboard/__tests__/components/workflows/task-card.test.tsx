@@ -38,17 +38,32 @@ const PLAYBOOK: FrameworkItem = {
 };
 
 describe("TaskCard", () => {
-  it("renders the playbook name + description and active status pill", () => {
+  it("renders the playbook name and active status pill", () => {
     render(
       <TaskCard task={task()} playbook={PLAYBOOK} skillColor="#6366f1" barState="bar-active" />,
     );
 
     const card = screen.getByTestId("task-card-task-1");
     expect(within(card).getByText("Project Description")).toBeInTheDocument();
+    // Playbook description no longer appears on the matrix card; the slot is
+    // reserved for per-task notes.
     expect(
-      within(card).getByText("Define objective, identify PDR need"),
-    ).toBeInTheDocument();
+      within(card).queryByText("Define objective, identify PDR need"),
+    ).not.toBeInTheDocument();
     expect(within(card).getByText("In progress")).toBeInTheDocument();
+  });
+
+  it("renders task notes when present", () => {
+    render(
+      <TaskCard
+        task={task({ id: "with-notes", notes: "Pre-sales follow-up" })}
+        playbook={PLAYBOOK}
+        skillColor="#6366f1"
+        barState="bar-active"
+      />,
+    );
+    const card = screen.getByTestId("task-card-with-notes");
+    expect(within(card).getByText("Pre-sales follow-up")).toBeInTheDocument();
   });
 
   it.each<[WorkflowTask["status"], TaskBarState, string]>([
@@ -107,7 +122,7 @@ describe("TaskCard", () => {
     expect(within(avatar).getByText("📄")).toBeInTheDocument();
   });
 
-  it("overlays the checkpoint badge on the avatar (not in the title row)", () => {
+  it("renders the checkpoint as a warning info-badge in the status row", () => {
     render(
       <TaskCard
         task={task({ id: "cp-overlay", checkpoint: true })}
@@ -118,9 +133,25 @@ describe("TaskCard", () => {
     );
 
     const badge = screen.getByTestId("task-checkpoint-cp-overlay");
+    expect(badge).toBeInTheDocument();
+    expect(badge.className).toContain("tc-info-badge--warning");
+    // The badge no longer overlays the avatar — it lives in the status row.
     const avatarWrap = screen.getByTestId("task-card-avatar-cp-overlay");
-    expect(avatarWrap).toContainElement(badge);
-    expect(badge.className).toContain("tc-cp-badge-overlay");
+    expect(avatarWrap).not.toContainElement(badge);
+  });
+
+  it("renders an error info-badge when the task is blocked", () => {
+    render(
+      <TaskCard
+        task={task({ id: "blocked-task", status: "blocked" })}
+        playbook={PLAYBOOK}
+        skillColor="#6366f1"
+        barState="bar-cancelled"
+      />,
+    );
+    const badge = screen.getByTestId("task-error-blocked-task");
+    expect(badge).toBeInTheDocument();
+    expect(badge.className).toContain("tc-info-badge--error");
   });
 
   it("renders the checkpoint pip only when the task has checkpoint: true", () => {

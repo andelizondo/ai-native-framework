@@ -52,6 +52,10 @@ interface ItemAvatarProps {
   stackIndex?: number;
   /** Total stack length, used to compute z-index for the stack overlap. */
   stackTotal?: number;
+  /** When true, replaces the colored halo with a solid background-color
+   *  ring so overlapping avatars in a tight stack read with a clean
+   *  separator instead of the (transparent-feeling) tinted halo. */
+  stackedSeparator?: boolean;
   className?: string;
 }
 
@@ -70,17 +74,30 @@ export function ItemAvatar({
   tooltipPlacement = "below",
   stackIndex,
   stackTotal,
+  stackedSeparator = false,
   className,
 }: ItemAvatarProps) {
   const px = SIZE_PX[size];
   const stacked = typeof stackIndex === "number" && stackIndex > 0;
   const usingInitials = !emoji && Boolean(initials);
+  // In stacked-separator mode the disc has to be OPAQUE so that
+  // overlapping avatars actually mask the ones behind them — a hex-alpha
+  // fill like `${color}33` reads as transparent (you see the next ring
+  // through the body, which made the original screenshot look blended).
+  // `color-mix` gives us a solid tinted chip on top of the card surface.
+  const fill = stackedSeparator
+    ? `color-mix(in srgb, ${color} 22%, var(--bg-2))`
+    : usingInitials
+      ? `${color}1a`
+      : "var(--bg-2)";
   const style: CSSProperties = {
     width: px,
     height: px,
     border: `1.5px solid ${color}`,
-    boxShadow: `0 0 0 2px ${color}1f`,
-    background: usingInitials ? `${color}1a` : "var(--bg-2)",
+    boxShadow: stackedSeparator
+      ? `0 0 0 2px var(--bg-2)`
+      : `0 0 0 2px ${color}1f`,
+    background: fill,
     color: usingInitials ? color : undefined,
     marginLeft: stacked ? -8 : undefined,
     zIndex:
