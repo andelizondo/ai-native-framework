@@ -7,11 +7,11 @@ function Bone({ className }: { className?: string }) {
 const COLS = 3;
 const ROWS = 4;
 
-export default function WorkflowInstanceLoading() {
+export default function TemplateEditorLoading() {
   return (
     <div className="flex h-full min-h-0 flex-col overflow-hidden">
-      {/* Header — matches WorkflowInstanceHeader footprint so the page
-          doesn't jump on hydration. */}
+      {/* Header — matches template-editor's `border-b ... px-6 py-4`
+          eyebrow + title + subtitle so the page doesn't jump. */}
       <header className="flex shrink-0 flex-col border-b border-border bg-bg px-6 py-4">
         <Bone className="h-2.5 w-28" />
         <Bone className="mt-1 h-6 w-56" />
@@ -20,7 +20,6 @@ export default function WorkflowInstanceLoading() {
 
       {/* Matrix */}
       <div className="min-h-0 flex-1 overflow-auto p-4">
-        {/* Role header row */}
         <div
           className="mb-2 grid gap-2"
           style={{ gridTemplateColumns: `120px repeat(${COLS}, 1fr)` }}
@@ -31,7 +30,6 @@ export default function WorkflowInstanceLoading() {
           ))}
         </div>
 
-        {/* Stage rows */}
         <div className="flex flex-col gap-2">
           {Array.from({ length: ROWS }).map((_, row) => (
             <div
