@@ -91,6 +91,38 @@ describe("TaskCard", () => {
     expect(card.style.getPropertyValue("--role-color")).toBe("#10b981");
   });
 
+  it("renders the playbook avatar with the playbook's own colour", () => {
+    render(
+      <TaskCard
+        task={task({ id: "with-avatar" })}
+        playbook={{ ...PLAYBOOK, color: "#a855f7" }}
+        skillColor="#10b981"
+        barState="bar-active"
+      />,
+    );
+
+    const avatar = screen.getByTestId("task-card-avatar-with-avatar");
+    expect(avatar).toBeInTheDocument();
+    // The ItemAvatar inside renders the emoji.
+    expect(within(avatar).getByText("📄")).toBeInTheDocument();
+  });
+
+  it("overlays the checkpoint badge on the avatar (not in the title row)", () => {
+    render(
+      <TaskCard
+        task={task({ id: "cp-overlay", checkpoint: true })}
+        playbook={PLAYBOOK}
+        skillColor="#6366f1"
+        barState="bar-pending"
+      />,
+    );
+
+    const badge = screen.getByTestId("task-checkpoint-cp-overlay");
+    const avatarWrap = screen.getByTestId("task-card-avatar-cp-overlay");
+    expect(avatarWrap).toContainElement(badge);
+    expect(badge.className).toContain("tc-cp-badge-overlay");
+  });
+
   it("renders the checkpoint pip only when the task has checkpoint: true", () => {
     const { rerender } = render(
       <TaskCard

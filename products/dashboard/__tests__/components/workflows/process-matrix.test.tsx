@@ -212,6 +212,58 @@ describe("ProcessMatrix", () => {
     expect(screen.getByTestId("matrix-skill-dot-sales-ops")).toBeInTheDocument();
   });
 
+  it("collapses an individual stage column and renders only its pip strip", async () => {
+    const inst = instance([
+      task({ id: "k-1", skillId: "sales-ops", stageId: "pre-sales", status: "active" }),
+      task({ id: "k-2", skillId: "pm", stageId: "pre-sales", status: "complete" }),
+    ]);
+    const user = userEvent.setup();
+
+    renderWithTopBarProvider(<ProcessMatrix instance={inst} template={TEMPLATE} />);
+
+    const header = screen.getByTestId("matrix-stage-pre-sales");
+    expect(within(header).getByText("Pre-Sales")).toBeInTheDocument();
+
+    await user.click(screen.getByTestId("matrix-stage-toggle-pre-sales"));
+
+    expect(header).toHaveAttribute("data-collapsed", "true");
+    // The stage name no longer appears inline in the collapsed header — it
+    // surfaces only in the hover-portaled tooltip outside this subtree.
+    expect(within(header).queryByText("Pre-Sales")).not.toBeInTheDocument();
+    // Pips remain visible to convey task density even when collapsed.
+    expect(within(header).getAllByTestId(/^matrix-pip-/)).toHaveLength(2);
+    // Body cells in the collapsed column are narrowed and become mini cells.
+    const cell = screen.getByTestId("matrix-cell-sales-ops-pre-sales");
+    expect(cell).toHaveAttribute("data-stage-collapsed", "true");
+    expect(cell).toHaveAttribute("data-mini", "true");
+    expect(within(cell).getByTestId("task-mini-k-1")).toBeInTheDocument();
+  });
+
+  it("collapses an individual skill row and renders mini cells across the row", async () => {
+    const inst = instance([
+      task({ id: "k-1", skillId: "sales-ops", stageId: "pre-sales", status: "active" }),
+      task({ id: "k-2", skillId: "sales-ops", stageId: "validation", status: "complete" }),
+      task({ id: "k-3", skillId: "pm", stageId: "pre-sales", status: "not_started" }),
+    ]);
+    const user = userEvent.setup();
+
+    renderWithTopBarProvider(<ProcessMatrix instance={inst} template={TEMPLATE} />);
+
+    expect(screen.getByTestId("matrix-skill-label-sales-ops")).toBeInTheDocument();
+
+    await user.click(screen.getByTestId("matrix-skill-toggle-sales-ops"));
+
+    const row = screen.getByTestId("matrix-skill-row-sales-ops");
+    expect(row).toHaveAttribute("data-collapsed", "true");
+    expect(
+      screen.queryByTestId("matrix-skill-label-sales-ops"),
+    ).not.toBeInTheDocument();
+    expect(screen.getByTestId("task-mini-k-1")).toBeInTheDocument();
+    expect(screen.getByTestId("task-mini-k-2")).toBeInTheDocument();
+    // Other rows remain expanded.
+    expect(screen.getByTestId("task-card-k-3")).toBeInTheDocument();
+  });
+
   it("renders the placeholder when the template is missing", () => {
     const inst = instance([]);
     renderWithTopBarProvider(<ProcessMatrix instance={inst} template={null} />);
