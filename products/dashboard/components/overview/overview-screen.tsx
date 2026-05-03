@@ -21,7 +21,7 @@ import {
  * Visual contract: prototype `OverviewScreen` (`pc-components.jsx`
  * lines 771-819, CSS lines 368-422 in `Process Canvas.html`):
  * greeting + 4 stat cards across the top, then a 2-col grid:
- *   - left column: Process health + Recent events
+ *   - left column: Workflows + Recent events
  *   - right column: My tasks + Agent pulse
  *
  * Pure server component; the only interactive children are
