@@ -12,6 +12,8 @@ import {
 import {
   Bold,
   Code,
+  ArrowDownAZ,
+  ArrowUpAZ,
   Heading1,
   Heading2,
   Download,
@@ -274,7 +276,7 @@ export function FrameworkScreen({
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
   const [deletingItemId, setDeletingItemId] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
-  const [searchOpen, setSearchOpen] = useState(false);
+  const [sortDirection, setSortDirection] = useState<"asc" | "desc">("asc");
   const [pending, startTransition] = useTransition();
   const editorTextareaRef = useRef<HTMLTextAreaElement | null>(null);
   const importInputRef = useRef<HTMLInputElement | null>(null);
@@ -287,8 +289,8 @@ export function FrameworkScreen({
   const routeMetaLabel = type === "skill" ? "Framework library" : "Framework procedures";
   const routeDescription =
     type === "skill"
-      ? "A compact library of reusable agent capabilities. Select a skill to read or edit its markdown source."
-      : "A compact library of reusable execution procedures. Select a playbook to read or edit its markdown source.";
+      ? "A compact library of reusable agent capabilities."
+      : "A compact library of reusable execution procedures.";
   const createLabel = type === "skill" ? "New skill" : "New playbook";
   const emojiOptions = type === "skill" ? SKILL_EMOJIS : PLAYBOOK_EMOJIS;
   const typedItems = useMemo(
@@ -307,10 +309,12 @@ export function FrameworkScreen({
         .some((value) => value.toLowerCase().includes(normalizedSearchQuery)),
     );
   }, [normalizedSearchQuery, typedItems]);
-  const visibleItems = useMemo(
-    () => [...filteredItems].sort((left, right) => left.name.localeCompare(right.name)),
-    [filteredItems],
-  );
+  const visibleItems = useMemo(() => {
+    const direction = sortDirection === "asc" ? 1 : -1;
+    return [...filteredItems].sort(
+      (left, right) => direction * left.name.localeCompare(right.name),
+    );
+  }, [filteredItems, sortDirection]);
   const isDirty =
     draftItem !== null &&
     (lastSavedItem === null || !areFrameworkItemsEqual(draftItem, lastSavedItem));
@@ -321,12 +325,6 @@ export function FrameworkScreen({
   useEffect(() => {
     setItems(initialItems);
   }, [initialItems]);
-
-  useEffect(() => {
-    if (searchOpen) {
-      searchInputRef.current?.focus();
-    }
-  }, [searchOpen]);
 
   useLayoutEffect(() => {
     if (editorView !== "plain-text") {
@@ -840,17 +838,9 @@ export function FrameworkScreen({
               </div>
             </div>
 
-            <div className="min-h-0 flex-1 overflow-hidden px-6 py-6">
-              <div className="mx-auto flex h-full min-h-0 w-full max-w-[1180px] flex-col">
-                <div
-                  className={cn(
-                    "relative h-full min-h-0 overflow-hidden rounded-[22px] border transition-[border-color,box-shadow,background-color]",
-                    editorView === "markdown"
-                      ? "border-border bg-linear-to-b from-bg to-bg-2/92 shadow-[0_24px_80px_rgba(15,23,42,0.08)]"
-                      : "border-border-hi bg-linear-to-b from-bg to-bg-3/90 shadow-[0_28px_90px_rgba(15,23,42,0.12)]",
-                  )}
-                >
-                  <div className="pointer-events-none absolute inset-x-0 top-0 h-14 bg-linear-to-b from-white/6 to-transparent opacity-70" />
+            <div className="min-h-0 flex-1 overflow-hidden">
+              <div className="flex h-full min-h-0 w-full flex-col">
+                <div className="relative h-full min-h-0 overflow-hidden">
                   {editorView === "markdown" ? (
                     <div className="h-full min-h-0 overflow-auto">
                       <div
@@ -997,82 +987,65 @@ export function FrameworkScreen({
             </div>
           </div>
         ) : (
-          <div className="flex h-full min-h-0 flex-1 flex-col overflow-hidden px-6 py-6">
-            <div className="mx-auto flex h-full min-h-0 w-full max-w-[1180px] flex-col">
-              <div className="flex h-full min-h-0 flex-col overflow-hidden rounded-[22px] border border-border bg-linear-to-b from-bg to-bg-2/92 shadow-[0_24px_80px_rgba(15,23,42,0.08)]">
+          <div className="flex h-full min-h-0 flex-1 flex-col overflow-hidden">
+            <div className="flex h-full min-h-0 w-full flex-col">
+              <div className="flex h-full min-h-0 flex-col overflow-hidden">
                 <div className="min-h-0 flex-1 overflow-y-auto">
-                  <div className="sticky top-0 z-10 border-b border-border bg-linear-to-b from-bg via-bg to-bg-2/96 px-3 py-5 backdrop-blur-sm md:px-4">
-                    <div className="flex flex-wrap items-end justify-between gap-4 md:flex-nowrap">
-                      <div className="min-w-0">
-                        <p className="font-mono text-[10px] uppercase tracking-[0.13em] text-t3">
-                          {typedItems.length} {type === "skill" ? "skills" : "playbooks"}
-                        </p>
-                        <p className="mt-2 text-[15px] font-semibold tracking-[-0.01em] text-t1">
-                          {normalizedSearchQuery.length > 0
-                            ? `${filteredItems.length} matching ${
-                                filteredItems.length === 1
-                                  ? type === "skill"
-                                    ? "skill"
-                                    : "playbook"
-                                  : type === "skill"
-                                    ? "skills"
-                                    : "playbooks"
-                              }`
-                            : type === "skill"
-                              ? "Skill Library"
-                              : "Playbook Library"}
-                        </p>
-                      </div>
-
-                      <div className="flex w-full justify-start md:ml-auto md:w-auto md:justify-end">
-                        <div
-                          className={cn(
-                            "flex items-center overflow-hidden rounded-lg border border-border bg-bg-2 transition-[width,border-color,background-color,box-shadow] duration-200",
-                            searchOpen || searchQuery.length > 0
-                              ? "w-full max-w-[320px] border-border-hi bg-bg-3 shadow-[0_10px_24px_rgba(15,23,42,0.08)]"
-                              : "w-10",
-                          )}
-                        >
-                          <button
-                            type="button"
-                            aria-label={`Search ${type === "skill" ? "skills" : "playbooks"}`}
-                            onClick={() => setSearchOpen(true)}
-                            className="flex h-10 w-10 shrink-0 items-center justify-center text-t3 transition hover:text-t1 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
+                  <div className="sticky top-0 z-10 border-b border-border bg-bg px-6 py-3">
+                    <div className="flex items-center justify-between gap-3">
+                      <div className="flex justify-start">
+                        <div className="flex w-full max-w-[320px] items-center overflow-hidden rounded-md border border-border bg-bg-2 focus-within:border-border-hi focus-within:bg-bg-3 focus-within:shadow-[0_10px_24px_rgba(15,23,42,0.08)] transition-[border-color,background-color,box-shadow] duration-200">
+                          <span
+                            aria-hidden
+                            className="flex h-9 w-9 shrink-0 items-center justify-center text-t3"
                           >
                             <Search className="h-3.5 w-3.5" />
-                          </button>
+                          </span>
                           <input
                             ref={searchInputRef}
                             value={searchQuery}
                             onChange={(event) => setSearchQuery(event.target.value)}
-                            onFocus={() => setSearchOpen(true)}
-                            onBlur={() => {
-                              if (searchQuery.trim().length === 0) {
-                                setSearchOpen(false);
-                              }
-                            }}
                             placeholder={`Search ${type === "skill" ? "skills" : "playbooks"}`}
-                            className={cn(
-                              "min-w-0 bg-transparent pr-3 text-[12.5px] text-t1 outline-none placeholder:text-t3 transition-[opacity,width,padding] duration-200",
-                              searchOpen || searchQuery.length > 0
-                                ? "w-[min(274px,calc(100vw-10rem))] px-0 opacity-100"
-                                : "w-0 px-0 opacity-0",
-                            )}
+                            aria-label={`Search ${type === "skill" ? "skills" : "playbooks"}`}
+                            className="min-w-0 flex-1 bg-transparent pr-3 text-[12px] text-t1 outline-none placeholder:text-t3"
                           />
-                          {searchQuery.length > 0 ? (
-                            <button
-                              type="button"
-                              aria-label="Clear search"
-                              onClick={() => {
-                                setSearchQuery("");
-                                searchInputRef.current?.focus();
-                              }}
-                              className="mr-1.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-t3 transition hover:bg-bg hover:text-t1 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
-                            >
-                              <X className="h-3 w-3" />
-                            </button>
-                          ) : null}
+                          <button
+                            type="button"
+                            aria-label="Clear search"
+                            tabIndex={searchQuery.length > 0 ? 0 : -1}
+                            aria-hidden={searchQuery.length === 0}
+                            onClick={() => {
+                              setSearchQuery("");
+                              searchInputRef.current?.focus();
+                            }}
+                            className={cn(
+                              "mr-1.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-t3 transition hover:bg-bg hover:text-t1 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent",
+                              searchQuery.length === 0 &&
+                                "pointer-events-none invisible",
+                            )}
+                          >
+                            <X className="h-3 w-3" />
+                          </button>
                         </div>
+                      </div>
+
+                      <div className="flex justify-end">
+                        <button
+                          type="button"
+                          onClick={() =>
+                            setSortDirection((prev) => (prev === "asc" ? "desc" : "asc"))
+                          }
+                          aria-label={`Sort by name ${sortDirection === "asc" ? "Z to A" : "A to Z"}`}
+                          data-testid={`framework-sort-${type}`}
+                          className="flex items-center gap-1.5 rounded-md border border-border bg-bg px-3 py-2 text-[12px] font-medium text-t2 transition hover:bg-bg-3 hover:text-t1 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
+                        >
+                          {sortDirection === "asc" ? (
+                            <ArrowDownAZ className="h-3.5 w-3.5" />
+                          ) : (
+                            <ArrowUpAZ className="h-3.5 w-3.5" />
+                          )}
+                          Name {sortDirection === "asc" ? "A→Z" : "Z→A"}
+                        </button>
                       </div>
                     </div>
                   </div>
