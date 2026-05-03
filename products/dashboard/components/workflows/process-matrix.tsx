@@ -1,8 +1,15 @@
 "use client";
 
-import { useCallback, useEffect, useId, useMemo, useState, useTransition } from "react";
+import { useCallback, useEffect, useId, useMemo, useRef, useState, useTransition } from "react";
+import { createPortal } from "react-dom";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import { ChevronsLeftRight, Plus } from "lucide-react";
+import {
+  ChevronsLeftRight,
+  ChevronsRightLeft,
+  Maximize2,
+  Minimize2,
+  Plus,
+} from "lucide-react";
 import {
   DndContext,
   KeyboardSensor,
@@ -43,7 +50,7 @@ import { useToast } from "@/lib/toast";
 import { useUnsavedChangesGuard } from "@/lib/use-unsaved-changes-guard";
 import { cn } from "@/lib/utils";
 import { barClass, canStart } from "@/lib/workflows/matrix";
-import { resolveSkillColor } from "@/lib/workflows/skill-colors";
+import { resolveItemColor, resolveSkillColor } from "@/lib/workflows/skill-colors";
 import { ItemAvatar } from "@/components/framework/item-avatar";
 import type {
   FrameworkItem,
@@ -78,6 +85,54 @@ export function ProcessMatrix({
   const { setConfig } = useDashboardTopBar();
   const { success: toastSuccess, error: toastError } = useToast();
   const [collapsed, setCollapsed] = useState(false);
+  const [collapsedStageIds, setCollapsedStageIds] = useState<Set<string>>(
+    () => new Set(),
+  );
+  const [collapsedSkillIds, setCollapsedSkillIds] = useState<Set<string>>(
+    () => new Set(),
+  );
+
+  const toggleStageCollapsed = useCallback((stageId: string) => {
+    setCollapsedStageIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(stageId)) next.delete(stageId);
+      else next.add(stageId);
+      return next;
+    });
+  }, []);
+
+  const toggleSkillCollapsed = useCallback((skillId: string) => {
+    setCollapsedSkillIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(skillId)) next.delete(skillId);
+      else next.add(skillId);
+      return next;
+    });
+  }, []);
+
+  const stages: WorkflowStage[] = template?.stages ?? [];
+  const skills: WorkflowSkill[] =
+    instance.skills && instance.skills.length > 0
+      ? instance.skills
+      : template?.skills ?? [];
+  const allCollapsed =
+    collapsed &&
+    stages.length > 0 &&
+    skills.length > 0 &&
+    stages.every((s) => collapsedStageIds.has(s.id)) &&
+    skills.every((s) => collapsedSkillIds.has(s.id));
+
+  const toggleCollapseAll = useCallback(() => {
+    if (allCollapsed) {
+      setCollapsed(false);
+      setCollapsedStageIds(new Set());
+      setCollapsedSkillIds(new Set());
+    } else {
+      setCollapsed(true);
+      setCollapsedStageIds(new Set(stages.map((s) => s.id)));
+      setCollapsedSkillIds(new Set(skills.map((s) => s.id)));
+    }
+  }, [allCollapsed, stages, skills]);
   const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null);
   const [dragTaskId, setDragTaskId] = useState<string | null>(null);
   const [addTaskFor, setAddTaskFor] = useState<{
@@ -166,12 +221,6 @@ export function ProcessMatrix({
     setLastSavedTasks(lastSavedTasks);
     proceed();
   }, [lastSavedTasks, pendingNavigation]);
-
-  const stages: WorkflowStage[] = template?.stages ?? [];
-  const skills: WorkflowSkill[] =
-    instance.skills && instance.skills.length > 0
-      ? instance.skills
-      : template?.skills ?? [];
 
   const tasksByCell = useMemo(() => {
     const map = new Map<string, WorkflowTask>();
@@ -423,6 +472,32 @@ export function ProcessMatrix({
         <div className="matrix" role="table" aria-label="Workflow process matrix">
           <div className="matrix-head-row" role="row">
             <div className="mx-corner" role="columnheader">
+              <button
+                type="button"
+                data-testid="matrix-collapse-all"
+                aria-pressed={allCollapsed}
+                aria-label={
+                  allCollapsed
+                    ? "Expand all rows and columns"
+                    : "Collapse all rows and columns"
+                }
+                title={
+                  allCollapsed
+                    ? "Expand all rows and columns"
+                    : "Collapse all rows and columns"
+                }
+                onClick={(event) => {
+                  event.currentTarget.blur();
+                  toggleCollapseAll();
+                }}
+                className="mx-corner-collapse-all"
+              >
+                {allCollapsed ? (
+                  <Maximize2 aria-hidden size={11} />
+                ) : (
+                  <Minimize2 aria-hidden size={11} />
+                )}
+              </button>
               {!collapsed && <span className="flex-1">Skills</span>}
               <button
                 type="button"
@@ -430,27 +505,55 @@ export function ProcessMatrix({
                 aria-pressed={collapsed}
                 aria-label={collapsed ? "Expand skill labels" : "Collapse skill labels"}
                 title={collapsed ? "Expand skill labels" : "Collapse skill labels"}
-                onClick={() => setCollapsed((value) => !value)}
+                onClick={(event) => {
+                  event.currentTarget.blur();
+                  setCollapsed((value) => !value);
+                }}
                 className="mx-corner-toggle"
-                style={collapsed ? { marginLeft: 0 } : undefined}
               >
-                <ChevronsLeftRight aria-hidden size={11} />
+                {collapsed ? (
+                  <ChevronsLeftRight aria-hidden size={11} />
+                ) : (
+                  <ChevronsRightLeft aria-hidden size={11} />
+                )}
               </button>
             </div>
 
             {stages.map((stage) => {
               const stageTasks = tasksByStage.get(stage.id) ?? [];
+              const isStageCollapsed = collapsedStageIds.has(stage.id);
               return (
                 <div
                   key={stage.id}
                   role="columnheader"
-                  className="mx-stage-hd"
+                  className={cn(
+                    "mx-stage-hd",
+                    isStageCollapsed && "mx-stage-hd-collapsed",
+                  )}
                   data-testid={`matrix-stage-${stage.id}`}
+                  data-collapsed={isStageCollapsed ? "true" : undefined}
+                  aria-label={isStageCollapsed ? stage.label : undefined}
+                  onClick={
+                    isStageCollapsed
+                      ? () => toggleStageCollapsed(stage.id)
+                      : undefined
+                  }
                 >
-                  <div className="mx-stage-name">{stage.label}</div>
-                  <div className={cn("mx-stage-sub", stage.sub?.trim() && "mx-stage-sub-plain")}>
-                    {stage.sub?.trim() || "No description"}
-                  </div>
+                  {!isStageCollapsed && (
+                    <>
+                      <div className="mx-stage-name">{stage.label}</div>
+                      <div className={cn("mx-stage-sub", stage.sub?.trim() && "mx-stage-sub-plain")}>
+                        {stage.sub?.trim() || "No description"}
+                      </div>
+                    </>
+                  )}
+                  {isStageCollapsed ? (
+                    <FloatingHoverTooltip
+                      name={stage.label}
+                      sub={stage.sub?.trim() ?? ""}
+                      placement="above"
+                    />
+                  ) : null}
                   {stageTasks.length > 0 ? (
                     <div className="mx-stage-pips" aria-hidden>
                       {stageTasks.map((task) => {
@@ -472,6 +575,33 @@ export function ProcessMatrix({
                       })}
                     </div>
                   ) : null}
+                  <button
+                    type="button"
+                    className="mx-stage-collapse-btn"
+                    data-testid={`matrix-stage-toggle-${stage.id}`}
+                    aria-pressed={isStageCollapsed}
+                    aria-label={
+                      isStageCollapsed
+                        ? `Expand ${stage.label}`
+                        : `Collapse ${stage.label}`
+                    }
+                    title={
+                      isStageCollapsed
+                        ? `Expand ${stage.label}`
+                        : `Collapse ${stage.label}`
+                    }
+                    onClick={(event) => {
+                      event.stopPropagation();
+                      event.currentTarget.blur();
+                      toggleStageCollapsed(stage.id);
+                    }}
+                  >
+                    {isStageCollapsed ? (
+                      <ChevronsLeftRight aria-hidden size={11} />
+                    ) : (
+                      <ChevronsRightLeft aria-hidden size={11} />
+                    )}
+                  </button>
                 </div>
               );
             })}
@@ -495,25 +625,47 @@ export function ProcessMatrix({
               const frameworkSkill = skillOptions.find(
                 (item) => item.id === skill.id,
               );
+              const isSkillCollapsed = collapsedSkillIds.has(skill.id);
+              const labelHidden = collapsed || isSkillCollapsed;
               return (
                 <div
                   key={skill.id}
                   role="row"
-                  className="mx-body-row"
+                  className={cn(
+                    "mx-body-row",
+                    isSkillCollapsed && "mx-body-row-collapsed",
+                  )}
                   data-testid={`matrix-skill-row-${skill.id}`}
+                  data-collapsed={isSkillCollapsed ? "true" : undefined}
                 >
-                  <div className="mx-role-cell" role="rowheader">
-                    <span data-testid={`matrix-skill-dot-${skill.id}`}>
+                  <div
+                    className="mx-role-cell"
+                    role="rowheader"
+                    title={isSkillCollapsed ? skill.label : undefined}
+                  >
+                    <span
+                      data-testid={`matrix-skill-dot-${skill.id}`}
+                      className="mx-skill-avatar-anchor"
+                    >
                       <ItemAvatar
                         emoji={frameworkSkill?.icon ?? "•"}
                         color={skillColor}
                         label={skill.label}
-                        size={collapsed ? "xs" : "sm"}
-                        withTooltip={collapsed}
-                        tooltipPlacement="right"
+                        size={labelHidden ? "xs" : "sm"}
                       />
+                      {labelHidden ? (
+                        <FloatingHoverTooltip
+                          name={skill.label}
+                          sub={
+                            skill.owners.length > 0
+                              ? skill.owners.join(", ")
+                              : "No owner"
+                          }
+                          placement="right"
+                        />
+                      ) : null}
                     </span>
-                    {!collapsed ? (
+                    {!labelHidden ? (
                       <div
                         className="min-w-0 flex-1"
                         data-testid={`matrix-skill-label-${skill.id}`}
@@ -531,11 +683,50 @@ export function ProcessMatrix({
                         </div>
                       </div>
                     ) : null}
+                    {(
+                      <button
+                        type="button"
+                        className="mx-skill-collapse-btn"
+                        data-testid={`matrix-skill-toggle-${skill.id}`}
+                        aria-pressed={isSkillCollapsed}
+                        aria-label={
+                          isSkillCollapsed
+                            ? `Expand ${skill.label}`
+                            : `Collapse ${skill.label}`
+                        }
+                        title={
+                          isSkillCollapsed
+                            ? `Expand ${skill.label}`
+                            : `Collapse ${skill.label}`
+                        }
+                        onClick={(event) => {
+                          event.stopPropagation();
+                          event.currentTarget.blur();
+                          toggleSkillCollapsed(skill.id);
+                        }}
+                      >
+                        {isSkillCollapsed ? (
+                          <ChevronsLeftRight
+                            aria-hidden
+                            size={11}
+                            style={{ transform: "rotate(90deg)" }}
+                          />
+                        ) : (
+                          <ChevronsRightLeft
+                            aria-hidden
+                            size={11}
+                            style={{ transform: "rotate(90deg)" }}
+                          />
+                        )}
+                      </button>
+                    )}
                   </div>
 
                   {stages.map((stage) => {
                     const task = tasksByCell.get(`${skill.id}::${stage.id}`);
                     const playbook = task?.playbookId ? playbookById.get(task.playbookId) ?? null : null;
+                    const isStageCollapsed = collapsedStageIds.has(stage.id);
+                    const isMini = isStageCollapsed || isSkillCollapsed;
 
                     return (
                       <DroppableTaskCell
@@ -543,49 +734,60 @@ export function ProcessMatrix({
                         skillId={skill.id}
                         stageId={stage.id}
                         hasTask={Boolean(task)}
-                        editMode={editMode}
+                        editMode={editMode && !isMini}
                         dragActive={Boolean(dragTaskId)}
                         dropAllowed={
                           dragAllowedSkillIds === null ||
                           dragAllowedSkillIds.has(skill.id)
                         }
+                        mini={isMini}
+                        stageCollapsed={isStageCollapsed}
                       >
                         {task ? (
-                          <DraggableTaskCard
-                            taskId={task.id}
-                            disabled={!editMode}
-                            isActive={dragTaskId === task.id}
-                          >
-                            <TaskCard
+                          isMini ? (
+                            <MiniTaskCell
                               task={task}
                               playbook={playbook}
                               skillColor={skillColor}
-                              barState={barClass(task, canStart(task, localTasks))}
-                              editMode={editMode}
                               onClick={() => setSelectedTaskId(task.id)}
-                              onEdit={
-                                editMode
-                                  ? () =>
-                                      setAddTaskFor({
-                                        mode: "edit",
-                                        taskId: task.id,
-                                        skillId: skill.id,
-                                        skillLabel: skill.label,
-                                        stageId: stage.id,
-                                        stageName: stage.label,
-                                        initial: {
-                                          playbookId: task.playbookId ?? null,
-                                          notes: task.notes ?? "",
-                                        },
-                                      })
-                                  : undefined
-                              }
-                              onRemove={
-                                editMode ? () => setConfirmDeleteTask(task) : undefined
-                              }
                             />
-                          </DraggableTaskCard>
-                        ) : editMode ? (
+                          ) : (
+                            <DraggableTaskCard
+                              taskId={task.id}
+                              disabled={!editMode}
+                              isActive={dragTaskId === task.id}
+                            >
+                              <TaskCard
+                                task={task}
+                                playbook={playbook}
+                                skillColor={skillColor}
+                                barState={barClass(task, canStart(task, localTasks))}
+                                editMode={editMode}
+                                onClick={() => setSelectedTaskId(task.id)}
+                                onEdit={
+                                  editMode
+                                    ? () =>
+                                        setAddTaskFor({
+                                          mode: "edit",
+                                          taskId: task.id,
+                                          skillId: skill.id,
+                                          skillLabel: skill.label,
+                                          stageId: stage.id,
+                                          stageName: stage.label,
+                                          initial: {
+                                            playbookId: task.playbookId ?? null,
+                                            notes: task.notes ?? "",
+                                          },
+                                        })
+                                    : undefined
+                                }
+                                onRemove={
+                                  editMode ? () => setConfirmDeleteTask(task) : undefined
+                                }
+                              />
+                            </DraggableTaskCard>
+                          )
+                        ) : editMode && !isMini ? (
                           <div
                             className="mx-empty-cell"
                             onClick={() =>
@@ -768,6 +970,8 @@ function DroppableTaskCell({
   editMode,
   dragActive,
   dropAllowed,
+  mini = false,
+  stageCollapsed = false,
   children,
 }: {
   skillId: string;
@@ -776,6 +980,8 @@ function DroppableTaskCell({
   editMode: boolean;
   dragActive: boolean;
   dropAllowed: boolean;
+  mini?: boolean;
+  stageCollapsed?: boolean;
   children: React.ReactNode;
 }) {
   const { setNodeRef, isOver } = useDroppable({
@@ -788,8 +994,12 @@ function DroppableTaskCell({
       ref={setNodeRef}
       role="cell"
       data-testid={`matrix-cell-${skillId}-${stageId}`}
+      data-mini={mini ? "true" : undefined}
+      data-stage-collapsed={stageCollapsed ? "true" : undefined}
       className={cn(
         "mx-task-cell",
+        mini && "mx-task-cell-mini",
+        stageCollapsed && "mx-task-cell-narrow",
         hasTask && "has-task",
         editMode && dragActive && !hasTask && dropAllowed && isOver && "drag-over-cell",
         editMode && dragActive && !hasTask && !dropAllowed && "drag-disallowed-cell",
@@ -797,5 +1007,145 @@ function DroppableTaskCell({
     >
       {children}
     </div>
+  );
+}
+
+function MiniTaskCell({
+  task,
+  playbook,
+  skillColor,
+  onClick,
+}: {
+  task: WorkflowTask;
+  playbook: FrameworkItem | null;
+  skillColor: string;
+  onClick?: () => void;
+}) {
+  const title = playbook?.name ?? (task.playbookId ? "Playbook removed" : "No playbook");
+  const playbookColor = playbook ? resolveItemColor(playbook) : skillColor;
+  const opacity =
+    task.status === "not_started"
+      ? 0.35
+      : task.status === "complete"
+        ? 0.55
+        : 1;
+  const statusLabel =
+    task.status === "active"
+      ? "In progress"
+      : task.status === "pending_approval"
+        ? "Pending approval"
+        : task.status === "blocked"
+          ? "Failed"
+          : task.status === "complete"
+            ? "Complete"
+            : "Not started";
+  const statusClass =
+    task.status === "active"
+      ? "s-active"
+      : task.status === "pending_approval"
+        ? "s-pending"
+        : task.status === "blocked"
+          ? "s-blocked"
+          : task.status === "complete"
+            ? "s-complete"
+            : "s-not_started";
+  return (
+    <button
+      type="button"
+      className="mx-mini-cell-btn"
+      data-testid={`task-mini-${task.id}`}
+      data-status={task.status}
+      onClick={onClick}
+      aria-label={`Open playbook: ${title} (${statusLabel})`}
+      style={{ opacity, "--role-color": skillColor } as React.CSSProperties}
+    >
+      <ItemAvatar
+        emoji={playbook?.icon ?? null}
+        color={playbookColor}
+        label={title}
+        size="xs"
+      />
+      <FloatingHoverTooltip
+        name={title}
+        sub={statusLabel}
+        placement="above"
+        subStatusClass={statusClass}
+      />
+    </button>
+  );
+}
+
+/**
+ * Hover tooltip portaled to `document.body` so it can paint above the
+ * matrix scroll wrap (`overflow: auto`) without being clipped. Anchors to
+ * its parent element via `getBoundingClientRect`. Two placements: `above`
+ * (used by collapsed stage column headers) and `right` (used by collapsed
+ * skill row avatars).
+ */
+function FloatingHoverTooltip({
+  name,
+  sub,
+  placement,
+  subStatusClass,
+}: {
+  name: string;
+  sub: string;
+  placement: "above" | "right";
+  /** Optional status pill class (`s-active`, `s-complete`, …). When set,
+   *  the subtitle inherits the matching status text colour. */
+  subStatusClass?: string;
+}) {
+  const anchorRef = useRef<HTMLSpanElement | null>(null);
+  const [pos, setPos] = useState<{ top: number; left: number } | null>(null);
+
+  useEffect(() => {
+    const anchor = anchorRef.current?.parentElement;
+    if (!anchor) return;
+    const show = () => {
+      const rect = anchor.getBoundingClientRect();
+      if (placement === "above") {
+        setPos({ top: rect.top, left: rect.left + rect.width / 2 });
+      } else {
+        setPos({ top: rect.top + rect.height / 2, left: rect.right });
+      }
+    };
+    const hide = () => setPos(null);
+    anchor.addEventListener("mouseenter", show);
+    anchor.addEventListener("mouseleave", hide);
+    return () => {
+      anchor.removeEventListener("mouseenter", show);
+      anchor.removeEventListener("mouseleave", hide);
+    };
+  }, [placement]);
+
+  return (
+    <>
+      <span ref={anchorRef} aria-hidden style={{ display: "none" }} />
+      {pos && typeof document !== "undefined"
+        ? createPortal(
+            <span
+              role="tooltip"
+              className={cn(
+                "mx-floating-tooltip",
+                placement === "above"
+                  ? "mx-floating-tooltip-above"
+                  : "mx-floating-tooltip-right",
+              )}
+              style={{
+                top: placement === "above" ? pos.top - 6 : pos.top,
+                left: placement === "above" ? pos.left : pos.left + 8,
+              }}
+            >
+              <span className="mx-floating-tooltip-name">{name}</span>
+              {sub ? (
+                <span className={cn("mx-floating-tooltip-sub", subStatusClass)}>
+                  {sub}
+                </span>
+              ) : null}
+            </span>,
+            document.body,
+          )
+        : null}
+    </>
   );
 }

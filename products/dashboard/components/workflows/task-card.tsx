@@ -1,7 +1,9 @@
 import { AlertTriangle, Pencil, Trash2 } from "lucide-react";
 
+import { ItemAvatar } from "@/components/framework/item-avatar";
 import { cn } from "@/lib/utils";
 import type { TaskBarState } from "@/lib/workflows/matrix";
+import { resolveItemColor } from "@/lib/workflows/skill-colors";
 import type { FrameworkItem, WorkflowTask } from "@/lib/workflows/types";
 
 const STATUS_LABEL: Record<WorkflowTask["status"], string> = {
@@ -56,6 +58,8 @@ export function TaskCard({
 
   const title = playbook?.name ?? (task.playbookId ? "Playbook removed" : "No playbook");
   const description = playbook?.description ?? task.notes ?? "";
+  const playbookColor = playbook ? resolveItemColor(playbook) : skillColor;
+  const playbookEmoji = playbook?.icon ?? null;
 
   return (
     <div
@@ -86,24 +90,29 @@ export function TaskCard({
       aria-label={onClick ? `Open playbook: ${title}` : undefined}
     >
       <div className="tc-top">
+        <span className="tc-avatar-wrap" data-testid={`task-card-avatar-${task.id}`}>
+          <ItemAvatar
+            emoji={playbookEmoji}
+            color={playbookColor}
+            label={title}
+            size="sm"
+          />
+          {task.checkpoint && (
+            <span
+              className="tc-cp-badge tc-cp-badge-overlay"
+              data-testid={`task-checkpoint-${task.id}`}
+              aria-label="Checkpoint required"
+              title="Checkpoint required"
+            >
+              <AlertTriangle aria-hidden size={9} strokeWidth={2.5} color="white" />
+            </span>
+          )}
+        </span>
         <div className="tc-title">{title}</div>
-        {task.checkpoint && (
-          <div
-            className="tc-cp-badge"
-            data-testid={`task-checkpoint-${task.id}`}
-            aria-label="Checkpoint required"
-            title="Checkpoint required"
-          >
-            <AlertTriangle aria-hidden size={9} strokeWidth={2.5} color="white" />
-          </div>
-        )}
       </div>
       {description ? <div className="tc-desc">{description}</div> : null}
       <div className="tc-footer">
         {hideStatusPill ? (
-          // Templates render no status pill — there's no runtime state to
-          // surface yet. We still render an empty span so the footer keeps
-          // its `space-between` layout for the action buttons.
           <span aria-hidden />
         ) : (
           <div className={cn("s-pill", statusClass)}>
