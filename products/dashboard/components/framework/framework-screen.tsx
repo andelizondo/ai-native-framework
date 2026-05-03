@@ -135,12 +135,20 @@ function sortItems(nextItems: FrameworkItem[]) {
 
 function areFrameworkItemsEqual(left: FrameworkItem | null, right: FrameworkItem | null) {
   if (!left || !right) return false;
-  return (
-    left.name === right.name &&
-    left.description === right.description &&
-    (left.icon ?? "") === (right.icon ?? "") &&
-    left.content === right.content
-  );
+  if (
+    left.name !== right.name ||
+    left.description !== right.description ||
+    (left.icon ?? "") !== (right.icon ?? "") ||
+    left.content !== right.content
+  ) {
+    return false;
+  }
+  // Order-insensitive comparison of allowedSkillIds for playbooks. The Save
+  // button must light up when the user toggles a chip on the editor header.
+  const leftSkills = [...(left.allowedSkillIds ?? [])].sort();
+  const rightSkills = [...(right.allowedSkillIds ?? [])].sort();
+  if (leftSkills.length !== rightSkills.length) return false;
+  return leftSkills.every((id, i) => id === rightSkills[i]);
 }
 
 function CompactEmojiPicker({
