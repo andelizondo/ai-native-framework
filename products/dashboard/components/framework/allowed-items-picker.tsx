@@ -10,8 +10,9 @@ import {
 import Link from "next/link";
 import { Check, Plus, Search } from "lucide-react";
 
+import { ItemAvatar } from "@/components/framework/item-avatar";
 import { cn } from "@/lib/utils";
-import { SKILL_COLORS } from "@/lib/workflows/skill-colors";
+import { resolveItemColor } from "@/lib/workflows/skill-colors";
 import type { FrameworkItem } from "@/lib/workflows/types";
 
 type PickerKind = "skills" | "playbooks";
@@ -24,25 +25,6 @@ interface AllowedItemsPickerProps {
   /** All `framework_items` of the matching type. */
   available: readonly FrameworkItem[];
   onChange: (next: string[]) => void;
-}
-
-/**
- * Stable per-item palette index. Same id always maps to the same
- * SKILL_COLORS entry across the app, regardless of which subset the avatar
- * is rendered in. djb2-ish hash — fast and good enough for a fixed
- * 8-color palette. Reused for both skills and playbooks since both render
- * a colored ring around an emoji.
- */
-function hashIndex(id: string, len: number): number {
-  let h = 5381;
-  for (let i = 0; i < id.length; i++) {
-    h = ((h << 5) + h + id.charCodeAt(i)) | 0;
-  }
-  return Math.abs(h) % len;
-}
-
-function colorForItem(id: string): string {
-  return SKILL_COLORS[hashIndex(id, SKILL_COLORS.length)]!;
 }
 
 const COPY: Record<
@@ -79,39 +61,6 @@ const COPY: Record<
     emptyCta: "Create one in the Playbooks page →",
   },
 };
-
-function ItemAvatar({
-  item,
-  index,
-  total,
-}: {
-  item: FrameworkItem;
-  index: number;
-  total: number;
-}) {
-  const color = colorForItem(item.id);
-  return (
-    <span
-      role="img"
-      aria-label={item.name}
-      className="group/avatar relative flex h-8 w-8 items-center justify-center rounded-full bg-bg-2 text-[14px] leading-none transition-transform hover:z-50 hover:-translate-y-px"
-      style={{
-        marginLeft: index === 0 ? 0 : -8,
-        zIndex: total - index,
-        border: `1.5px solid ${color}`,
-        boxShadow: `0 0 0 2px ${color}1f`,
-      }}
-    >
-      <span aria-hidden>{item.icon || "•"}</span>
-      <span
-        role="tooltip"
-        className="pointer-events-none absolute left-1/2 top-[calc(100%+6px)] z-[60] -translate-x-1/2 whitespace-nowrap rounded-md border border-border-hi bg-bg-2 px-2 py-1 text-[11px] font-medium text-t1 opacity-0 shadow-[var(--shadow-canvas)] transition-opacity duration-100 group-hover/avatar:opacity-100"
-      >
-        {item.name}
-      </span>
-    </span>
-  );
-}
 
 export function AllowedItemsPicker({
   kind,
@@ -213,9 +162,13 @@ export function AllowedItemsPicker({
         {allowed.map((item, index) => (
           <ItemAvatar
             key={item.id}
-            item={item}
-            index={index}
-            total={allowed.length}
+            emoji={item.icon}
+            color={resolveItemColor(item)}
+            label={item.name}
+            size="md"
+            withTooltip
+            stackIndex={index}
+            stackTotal={allowed.length}
           />
         ))}
       </div>
@@ -269,7 +222,6 @@ export function AllowedItemsPicker({
                 ) : (
                   filtered.map((item) => {
                     const checked = valueSet.has(item.id);
-                    const color = colorForItem(item.id);
                     return (
                       <button
                         key={item.id}
@@ -298,17 +250,12 @@ export function AllowedItemsPicker({
                             <Check className="h-3 w-3" strokeWidth={3} />
                           ) : null}
                         </span>
-                        <span
-                          aria-hidden
-                          className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-[13px]"
-                          style={{
-                            border: `1.5px solid ${color}`,
-                            boxShadow: `0 0 0 2px ${color}1f`,
-                            background: "var(--bg-2)",
-                          }}
-                        >
-                          <span>{item.icon || "•"}</span>
-                        </span>
+                        <ItemAvatar
+                          emoji={item.icon}
+                          color={resolveItemColor(item)}
+                          label={item.name}
+                          size="sm"
+                        />
                         <span className="min-w-0 flex-1">
                           <span className="block truncate text-[12.5px] font-semibold">
                             {item.name}

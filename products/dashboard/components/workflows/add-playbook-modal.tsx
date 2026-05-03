@@ -2,9 +2,11 @@
 
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import { Search } from "lucide-react";
+import { Search, SearchX } from "lucide-react";
 
 import { cn } from "@/lib/utils";
+import { ItemAvatar } from "@/components/framework/item-avatar";
+import { resolveItemColor } from "@/lib/workflows/skill-colors";
 import type { FrameworkItem } from "@/lib/workflows/types";
 
 interface AddPlaybookModalProps {
@@ -72,8 +74,13 @@ export function AddPlaybookModal({
         if (event.target === event.currentTarget) onClose();
       }}
     >
-      <div
-        className="w-full max-w-[560px] rounded-[14px] border border-border-hi bg-bg-2 p-7 shadow-[var(--shadow-canvas)]"
+      <form
+        onSubmit={(event) => {
+          event.preventDefault();
+          if (!canSubmit) return;
+          onSubmit({ playbookId: selectedId, notes });
+        }}
+        className="w-full max-w-[520px] rounded-[14px] border border-border-hi bg-bg-2 p-7 shadow-[var(--shadow-canvas)]"
         role="dialog"
         aria-modal="true"
         aria-labelledby="add-playbook-modal-title"
@@ -82,20 +89,19 @@ export function AddPlaybookModal({
           id="add-playbook-modal-title"
           className="text-[16px] font-bold tracking-tight text-t1"
         >
-          {mode === "edit" ? "Edit task" : "Add playbook"}
+          {mode === "edit" ? "Edit playbook" : "Add playbook"}
         </div>
-        <div className="mb-[18px] mt-1 flex items-center gap-2 text-[12.5px] text-t3">
-          <span className="rounded-md border border-border bg-bg-3 px-2 py-0.5 text-[11px] text-t2">
-            {skillLabel}
-          </span>
-          <span>·</span>
-          <span>{stageName}</span>
+        <div className="mb-4 mt-1 text-[12.5px] text-t3">
+          Pick a playbook from your framework library.{" "}
+          <Link href="/framework/playbooks" className="text-accent hover:underline">
+            Manage playbooks →
+          </Link>
         </div>
 
         {allowed.length === 0 ? (
           <div className="mb-4 rounded-lg border border-dashed border-border-hi bg-bg-3 px-4 py-6 text-center text-[12.5px] text-t3">
             <div className="mb-2 font-medium text-t2">
-              No playbooks allowed for this skill yet
+              No playbooks allowed for &ldquo;{skillLabel}&rdquo; yet
             </div>
             <Link
               href="/framework/playbooks"
@@ -106,9 +112,6 @@ export function AddPlaybookModal({
           </div>
         ) : (
           <>
-            <label className="mb-1.5 block text-[11px] font-medium text-t2">
-              Playbook
-            </label>
             <div className="mb-3 rounded-lg border border-border bg-bg-3">
               <div className="flex items-center gap-2 border-b border-border px-3 py-2">
                 <Search className="h-3.5 w-3.5 text-t3" />
@@ -120,9 +123,20 @@ export function AddPlaybookModal({
                   className="w-full bg-transparent text-[13px] text-t1 placeholder:text-t3 focus:outline-none"
                 />
               </div>
-              <div className="max-h-56 overflow-y-auto p-1.5">
+              <div className="h-56 overflow-y-auto p-1.5">
                 {filtered.length === 0 ? (
-                  <div className="px-2.5 py-3 text-[11.5px] text-t3">No matches.</div>
+                  // Keep the list at a stable height when no matches so the
+                  // modal doesn't shrink under the search field while typing.
+                  <div className="flex h-full flex-col items-center justify-center gap-2 rounded-md bg-bg-2/40 px-4 text-center">
+                    <SearchX aria-hidden className="h-5 w-5 text-t3" />
+                    <div className="text-[12.5px] font-medium text-t2">
+                      No playbooks match &ldquo;{query.trim()}&rdquo;
+                    </div>
+                    <div className="text-[10.5px] leading-[1.5] text-t3">
+                      Try a different keyword, or allow this skill on a
+                      playbook in the Playbooks page.
+                    </div>
+                  </div>
                 ) : (
                   filtered.map((pb) => {
                     const active = pb.id === selectedId;
@@ -132,13 +146,18 @@ export function AddPlaybookModal({
                         type="button"
                         onClick={() => setSelectedId(pb.id)}
                         className={cn(
-                          "flex w-full items-start gap-2 rounded-md px-2.5 py-2 text-left transition",
+                          "flex w-full items-center gap-2.5 rounded-md px-2.5 py-2 text-left transition",
                           active
                             ? "bg-primary-bg text-accent"
                             : "text-t2 hover:bg-bg-4 hover:text-t1",
                         )}
                       >
-                        <span className="mt-0.5 text-[14px]">{pb.icon || "•"}</span>
+                        <ItemAvatar
+                          emoji={pb.icon}
+                          color={resolveItemColor(pb)}
+                          label={pb.name}
+                          size="sm"
+                        />
                         <span className="min-w-0 flex-1">
                           <span className="block truncate text-[12.5px] font-semibold">
                             {pb.name}
@@ -157,13 +176,13 @@ export function AddPlaybookModal({
             </div>
 
             <label className="mb-1.5 block text-[11px] font-medium text-t2">
-              Notes (optional)
+              Notes <span className="font-normal text-t3">(optional)</span>
             </label>
             <textarea
               value={notes}
               onChange={(event) => setNotes(event.target.value)}
               rows={2}
-              placeholder="Per-instance context for this task"
+              placeholder="Per-instance context for this playbook"
               className="mb-5 block w-full resize-none rounded-lg border border-border bg-bg-3 px-3 py-2.5 text-[13px] leading-6 text-t1 placeholder:text-t3 focus:border-primary focus:outline-none"
             />
           </>
@@ -178,18 +197,14 @@ export function AddPlaybookModal({
             Cancel
           </button>
           <button
-            type="button"
+            type="submit"
             disabled={!canSubmit}
-            onClick={() => {
-              if (!canSubmit) return;
-              onSubmit({ playbookId: selectedId, notes });
-            }}
             className="rounded-lg bg-primary px-5 py-2 text-[13px] font-semibold text-white transition hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50"
           >
-            {mode === "edit" ? "Save task →" : "Add task →"}
+            {mode === "edit" ? "Save playbook →" : "Add playbook →"}
           </button>
         </div>
-      </div>
+      </form>
     </div>
   );
 }

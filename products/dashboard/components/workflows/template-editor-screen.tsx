@@ -2,6 +2,9 @@
 
 import { useCallback, useEffect, useId, useMemo, useRef, useState, useTransition } from "react";
 import { CircleAlert, GripVertical, Pencil, Plus, Trash2 } from "lucide-react";
+import { ColorDotPicker } from "@/components/framework/color-dot-picker";
+import { ItemAvatar } from "@/components/framework/item-avatar";
+import { OwnerPicker } from "@/components/framework/owner-picker";
 import {
   DndContext,
   KeyboardSensor,
@@ -42,7 +45,7 @@ import { HeaderActionsMenu } from "@/components/workflows/header-actions-menu";
 import { ConfirmModal } from "@/components/ui/confirm-modal";
 import { useAnalytics } from "@/lib/analytics/events";
 import { emitEvent } from "@/lib/events";
-import { SKILL_COLORS, getSkillColor } from "@/lib/workflows/skill-colors";
+import { resolveSkillColor } from "@/lib/workflows/skill-colors";
 import type {
   FrameworkItem,
   WorkflowSkill,
@@ -76,7 +79,7 @@ type SkillModalState =
       mode: "create" | "edit";
       index: number;
       skillId?: string;
-      initialSkill?: Pick<WorkflowSkill, "id" | "label" | "owner">;
+      initialSkill?: Pick<WorkflowSkill, "id" | "label" | "owners">;
     };
 
 type StageModalState =
@@ -127,82 +130,10 @@ function insertAt<T>(items: T[], index: number, value: T): T[] {
   return [...items.slice(0, index), value, ...items.slice(index)];
 }
 
-function ColorDot({
-  color,
-  onChange,
-  ariaLabel = "Change skill color",
-}: {
-  color: string;
-  onChange: (color: string) => void;
-  ariaLabel?: string;
-}) {
-  const rootRef = useRef<HTMLDivElement | null>(null);
-  const [open, setOpen] = useState(false);
-
-  useEffect(() => {
-    if (!open) return;
-
-    function handlePointerDown(event: MouseEvent) {
-      if (!rootRef.current?.contains(event.target as Node)) {
-        setOpen(false);
-      }
-    }
-
-    function handleKeyDown(event: KeyboardEvent) {
-      if (event.key === "Escape") {
-        setOpen(false);
-      }
-    }
-
-    document.addEventListener("mousedown", handlePointerDown);
-    document.addEventListener("keydown", handleKeyDown);
-
-    return () => {
-      document.removeEventListener("mousedown", handlePointerDown);
-      document.removeEventListener("keydown", handleKeyDown);
-    };
-  }, [open]);
-
-  return (
-    <div
-      ref={rootRef}
-      data-skill-color-open={open ? "true" : "false"}
-      className={cn("relative shrink-0", open && "z-30")}
-    >
-      <button
-        type="button"
-        aria-label={ariaLabel}
-        onClick={() => setOpen((current) => !current)}
-        className="flex h-5 w-5 cursor-pointer items-center justify-center rounded-full border border-border bg-bg-3 shadow-[inset_0_1px_0_rgba(255,255,255,0.03)] transition hover:border-border-hi hover:bg-bg-4 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
-      />
-      <span
-        aria-hidden
-        className="pointer-events-none absolute left-1/2 top-1/2 h-2.5 w-2.5 -translate-x-1/2 -translate-y-1/2 rounded-full transition-transform duration-150"
-        style={{ backgroundColor: color, boxShadow: `0 0 0 2px ${color}28` }}
-      />
-      {open ? (
-        <div className="absolute left-0 top-[calc(100%+8px)] z-40 grid w-[100px] grid-cols-4 gap-1 rounded-lg border border-border-hi bg-bg-3 p-2 shadow-[var(--shadow-canvas)]">
-          {SKILL_COLORS.map((swatch) => (
-            <button
-              key={swatch}
-              type="button"
-              aria-label={`Use ${swatch}`}
-              onClick={() => {
-                onChange(swatch);
-                setOpen(false);
-              }}
-              className="h-4 w-4 cursor-pointer rounded-full"
-              style={{
-                backgroundColor: swatch,
-                outline: swatch === color ? `2px solid ${swatch}` : undefined,
-                outlineOffset: 2,
-              }}
-            />
-          ))}
-        </div>
-      ) : null}
-    </div>
-  );
+function blurActiveElement() {
+  if (typeof document === "undefined") return;
+  const active = document.activeElement;
+  if (active instanceof HTMLElement) active.blur();
 }
 
 const matrixCollisionDetection: CollisionDetection = (args) => {
@@ -392,12 +323,16 @@ export function TemplateEditorScreen({
 
   function handleDragCancel() {
     setDragTaskId(null);
+    blurActiveElement();
   }
 
   function handleDragEnd(event: DragEndEvent) {
     const { active, over } = event;
     const activeId = String(active.id);
     setDragTaskId(null);
+    // dnd-kit leaves the activator focused, which keeps the floating drag
+    // chip visible after drop. Blurring releases the focus so it fades back.
+    blurActiveElement();
 
     if (activeId.startsWith("stage::")) {
       if (!over || active.id === over.id) return;
@@ -486,24 +421,23 @@ export function TemplateEditorScreen({
     setLastSaved(template);
   }, [template]);
 
-  function addSkill(skill: Pick<WorkflowSkill, "id" | "label" | "owner">, index: number) {
+  function addSkill(skill: Pick<WorkflowSkill, "id" | "label" | "owners">, index: number) {
     setDraft((current) => ({
       ...current,
       skills: insertAt(current.skills, index, {
         id: skill.id,
         label: skill.label,
-        owner: skill.owner,
-        color: SKILL_COLORS[index % SKILL_COLORS.length],
+        owners: skill.owners,
       }),
     }));
   }
 
-  function updateSkill(skillId: string, next: Pick<WorkflowSkill, "id" | "label" | "owner">) {
+  function updateSkill(skillId: string, next: Pick<WorkflowSkill, "id" | "label" | "owners">) {
     setDraft((current) => ({
       ...current,
       skills: current.skills.map((skill) =>
         skill.id === skillId
-          ? { ...skill, id: next.id, label: next.label, owner: next.owner }
+          ? { ...skill, id: next.id, label: next.label, owners: next.owners }
           : skill,
       ),
       taskTemplates:
@@ -650,17 +584,17 @@ export function TemplateEditorScreen({
             </div>
             <div className="mt-1 flex items-center gap-2">
               <h1 className="truncate text-[20px] font-bold tracking-tight text-t1">{draft.label}</h1>
-              <ColorDot
+              <ColorDotPicker
                 color={draft.color}
                 ariaLabel="Change workflow template color"
-                onChange={(color) =>
-                  setDraft((current) => ({ ...current, color }))
+                onChange={(nextColor) =>
+                  setDraft((current) => ({ ...current, color: nextColor }))
                 }
               />
             </div>
             <p className="mt-1 text-[13px] text-t2">
               {draft.taskTemplates.length}{" "}
-              {draft.taskTemplates.length === 1 ? "task" : "tasks"} ·{" "}
+              {draft.taskTemplates.length === 1 ? "playbook" : "playbooks"} ·{" "}
               {draft.skills.length} {draft.skills.length === 1 ? "skill" : "skills"} ·{" "}
               {draft.stages.length} {draft.stages.length === 1 ? "stage" : "stages"}
             </p>
@@ -750,7 +684,7 @@ export function TemplateEditorScreen({
                               onClick={() =>
                                 setConfirmState({
                                   title: `Remove stage "${stage.label}"?`,
-                                  description: "All tasks in this stage will be removed.",
+                                  description: "All playbooks in this stage will be removed.",
                                   onConfirm: () => {
                                     setDraft((current) => ({
                                       ...current,
@@ -838,44 +772,42 @@ export function TemplateEditorScreen({
                           handleProps={handleProps}
                           ariaLabel={`Reorder skill ${skill.label}`}
                         />
-                        <ColorDot
-                          color={skill.color || getSkillColor(skill.id, draft.skills)}
-                          onChange={(color) =>
-                            setDraft((current) => ({
-                              ...current,
-                              skills: current.skills.map((item) =>
-                                item.id === skill.id ? { ...item, color } : item,
-                              ),
-                            }))
-                          }
-                        />
+                        {(() => {
+                          const frameworkSkill = skillOptions.find(
+                            (item) => item.id === skill.id,
+                          );
+                          return (
+                            <ItemAvatar
+                              emoji={frameworkSkill?.icon ?? "•"}
+                              color={resolveSkillColor(skill.id, skillOptions)}
+                              label={skill.label}
+                              size="sm"
+                            />
+                          );
+                        })()}
                         <div className="mx-entity-content">
                           <div className="min-w-0">
                             <div className="mx-role-name">{skill.label}</div>
                             <div className="mx-role-owner mx-role-owner-plain">
-                              {skill.owner?.trim() || "No owner"}
+                              <OwnerPicker
+                                values={skill.owners}
+                                onChange={(nextOwners) =>
+                                  setDraft((current) => ({
+                                    ...current,
+                                    skills: current.skills.map((item) =>
+                                      item.id === skill.id
+                                        ? { ...item, owners: nextOwners }
+                                        : item,
+                                    ),
+                                  }))
+                                }
+                                required
+                                placeholder="Pick owners"
+                                ariaLabel={`Change owners for ${skill.label}`}
+                              />
                             </div>
                           </div>
                           <div className="mx-entity-actions mx-entity-actions-group">
-                            <button
-                              type="button"
-                              className="mx-entity-action"
-                              aria-label={`Edit skill ${skill.label}`}
-                              onClick={() =>
-                                setSkillModalState({
-                                  mode: "edit",
-                                  index: skillIndex,
-                                  skillId: skill.id,
-                                  initialSkill: {
-                                    id: skill.id,
-                                    label: skill.label,
-                                    owner: skill.owner,
-                                  },
-                                })
-                              }
-                            >
-                              <Pencil className="h-[11px] w-[11px]" />
-                            </button>
                             <button
                               type="button"
                               className="mx-entity-action mx-entity-action-danger"
@@ -884,7 +816,7 @@ export function TemplateEditorScreen({
                                 setConfirmState({
                                   title: `Remove skill "${skill.label}"?`,
                                   description:
-                                    "All tasks assigned to this skill in this template will be removed.",
+                                    "All playbooks assigned to this skill in this template will be removed.",
                                   onConfirm: () => {
                                     setDraft((current) => ({
                                       ...current,
@@ -957,10 +889,10 @@ export function TemplateEditorScreen({
                         <TaskCard
                           task={task}
                           playbook={playbook}
-                          skillColor={skill.color || getSkillColor(skill.id, draft.skills)}
+                          skillColor={resolveSkillColor(skill.id, skillOptions)}
                           barState="bar-ready"
                           editMode
-                          showDefaultPill
+                          hideStatusPill
                           onEdit={() =>
                             setAddTaskFor({
                               mode: "edit",
@@ -977,9 +909,9 @@ export function TemplateEditorScreen({
                           }
                           onRemove={() =>
                             setConfirmState({
-                              title: `Delete task?`,
+                              title: `Delete playbook?`,
                               description:
-                                "This task and its default configuration will be removed from the template.",
+                                "This playbook and its default configuration will be removed from the template.",
                               onConfirm: () => {
                                 setDraft((current) => ({
                                   ...current,
@@ -1121,6 +1053,7 @@ export function TemplateEditorScreen({
         <ConfirmModal
           title="Discard unsaved changes?"
           description="Leaving this page will discard your in-progress edits."
+          confirmLabel="Discard"
           onCancel={() => setPendingNavigation(null)}
           onConfirm={confirmPendingNavigation}
         />

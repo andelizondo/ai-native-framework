@@ -70,8 +70,8 @@ const TEMPLATE: WorkflowTemplate = {
     { id: "validation", label: "Validation", sub: "PDR" },
   ],
   skills: [
-    { id: "sales-ops", label: "Sales Ops", owner: "Hans / Dave" },
-    { id: "pm", label: "PM", owner: "Andres" },
+    { id: "sales-ops", label: "Sales Ops", owners: ["Hans / Dave"] },
+    { id: "pm", label: "PM", owners: ["Andres"] },
   ],
   taskTemplates: [],
   createdAt: "2026-04-19T12:00:00Z",
@@ -260,8 +260,8 @@ describe("ProcessMatrix", () => {
 
     renderWithTopBarProvider(<ProcessMatrix instance={inst} template={TEMPLATE} editMode />);
 
-    await user.click(screen.getByLabelText(/^Remove task:/));
-    expect(screen.getByRole("dialog", { name: /Delete task/ })).toBeInTheDocument();
+    await user.click(screen.getByLabelText(/^Remove playbook:/));
+    expect(screen.getByRole("dialog", { name: /Delete playbook/ })).toBeInTheDocument();
 
     await user.click(screen.getByRole("button", { name: "Delete" }));
 

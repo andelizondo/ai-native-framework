@@ -41,17 +41,16 @@ import {
 } from "@/app/(dashboard)/framework/actions";
 import { useDashboardTopBar } from "@/components/dashboard-topbar-context";
 import { AllowedItemsPicker } from "@/components/framework/allowed-items-picker";
+import { ColorDotPicker } from "@/components/framework/color-dot-picker";
+import { CompactEmojiPicker } from "@/components/framework/compact-emoji-picker";
 import { FrameworkHeaderActionsMenu } from "@/components/framework/framework-header-actions-menu";
 import { FrameworkItemModal } from "@/components/framework/framework-item-modal";
+import { ItemAvatar } from "@/components/framework/item-avatar";
 import { ConfirmModal } from "@/components/ui/confirm-modal";
 import { useAnalytics } from "@/lib/analytics/events";
 import { useToast } from "@/lib/toast";
-import {
-  ALL_EMOJIS,
-  EMOJI_CATEGORIES,
-  type EmojiEntry,
-} from "@/lib/framework/emoji-catalog";
 import { useUnsavedChangesGuard } from "@/lib/use-unsaved-changes-guard";
+import { resolveItemColor } from "@/lib/workflows/skill-colors";
 import type { FrameworkItem, FrameworkItemType } from "@/lib/workflows/types";
 import { cn } from "@/lib/utils";
 
@@ -101,13 +100,20 @@ function createFrameworkItemId(type: FrameworkItemType, name: string): string {
   return `${prefix}-${slug || "item"}-${Date.now().toString(36)}`;
 }
 
-function createDraftItem(type: FrameworkItemType, name: string, description: string): FrameworkItem {
+function createDraftItem(
+  type: FrameworkItemType,
+  name: string,
+  description: string,
+  icon: string,
+  color: string,
+): FrameworkItem {
   return {
     id: createFrameworkItemId(type, name),
     type,
     name: name.trim(),
     description: description.trim(),
-    icon: type === "skill" ? "🤖" : "📄",
+    icon,
+    color,
     content: `# ${name.trim()}\n\n`,
   };
 }
@@ -122,6 +128,7 @@ function areFrameworkItemsEqual(left: FrameworkItem | null, right: FrameworkItem
     left.name !== right.name ||
     left.description !== right.description ||
     (left.icon ?? "") !== (right.icon ?? "") ||
+    (left.color ?? "") !== (right.color ?? "") ||
     left.content !== right.content
   ) {
     return false;
@@ -139,242 +146,6 @@ function areFrameworkItemsEqual(left: FrameworkItem | null, right: FrameworkItem
   const rightPlaybooks = [...(right.allowedPlaybookIds ?? [])].sort();
   if (leftPlaybooks.length !== rightPlaybooks.length) return false;
   return leftPlaybooks.every((id, i) => id === rightPlaybooks[i]);
-}
-
-function CompactEmojiPicker({
-  value,
-  onSelect,
-}: {
-  value: string;
-  onSelect: (emoji: string) => void;
-}) {
-  const rootRef = useRef<HTMLDivElement | null>(null);
-  const inputRef = useRef<HTMLInputElement | null>(null);
-  const scrollRef = useRef<HTMLDivElement | null>(null);
-  // One ref per category section so the bottom jump bar can scroll to it.
-  const sectionRefs = useRef<Record<string, HTMLDivElement | null>>({});
-  const [open, setOpen] = useState(false);
-  const [query, setQuery] = useState("");
-
-  useEffect(() => {
-    if (!open) return;
-
-    inputRef.current?.focus();
-
-    function handlePointerDown(event: MouseEvent) {
-      if (!rootRef.current?.contains(event.target as Node)) {
-        setOpen(false);
-        setQuery("");
-      }
-    }
-
-    function handleKeyDown(event: KeyboardEvent) {
-      if (event.key === "Escape") {
-        setOpen(false);
-        setQuery("");
-      }
-    }
-
-    document.addEventListener("mousedown", handlePointerDown);
-    document.addEventListener("keydown", handleKeyDown);
-    return () => {
-      document.removeEventListener("mousedown", handlePointerDown);
-      document.removeEventListener("keydown", handleKeyDown);
-    };
-  }, [open]);
-
-  // On open, scroll so the currently selected emoji sits ~one row below
-  // the sticky category header (i.e. visually in the second row). Clamped
-  // to the category's top so we never scroll into the previous category
-  // when the selection is in row 0. If `value` isn't in the catalog
-  // (custom typed emoji), leave the panel at its natural top.
-  useEffect(() => {
-    if (!open) return;
-    const scroller = scrollRef.current;
-    if (!scroller) return;
-    const button = scroller.querySelector<HTMLButtonElement>(
-      `[data-emoji-value="true"]`,
-    );
-    if (!button) return;
-    // Sticky header is ~30px (text + py-1.5 + border); button rows are
-    // 36px tall with a 2px grid gap. Show one row of context above the
-    // selection so it lands in row 2.
-    const headerHeight = 30;
-    const rowHeight = button.clientHeight + 2;
-    const desired = button.offsetTop - headerHeight - rowHeight;
-
-    // Don't scroll past the start of the button's own category — keeps
-    // the right header sticky at the top of the panel.
-    const category = EMOJI_CATEGORIES.find((cat) =>
-      cat.emojis.some((entry) => entry.emoji === value),
-    );
-    const sectionTop = category
-      ? sectionRefs.current[category.id]?.offsetTop ?? 0
-      : 0;
-    scroller.scrollTop = Math.max(sectionTop, desired);
-  }, [open, value]);
-
-  const normalizedQuery = query.trim().toLowerCase();
-  // While searching we collapse all categories into a single "Results" group,
-  // matching macOS where the picker hides categories during a query.
-  const searchHits = useMemo<readonly EmojiEntry[]>(() => {
-    if (normalizedQuery.length === 0) return [];
-    return ALL_EMOJIS.filter((entry) =>
-      [entry.emoji, entry.name].some((token) =>
-        token.toLowerCase().includes(normalizedQuery),
-      ),
-    );
-  }, [normalizedQuery]);
-
-  const typedEmoji = query.trim();
-  const hasTypedEmoji = /\p{Extended_Pictographic}/u.test(typedEmoji);
-
-  function commitSelection(emoji: string) {
-    onSelect(emoji);
-    setOpen(false);
-    setQuery("");
-  }
-
-  function jumpToCategory(categoryId: string) {
-    const section = sectionRefs.current[categoryId];
-    const scroller = scrollRef.current;
-    if (!section || !scroller) return;
-    // Manual offset (vs scrollIntoView) so the sticky header lands flush
-    // against the top of the scroller rather than below other elements.
-    scroller.scrollTo({ top: section.offsetTop, behavior: "smooth" });
-  }
-
-  return (
-    <div ref={rootRef} className="relative shrink-0">
-      <button
-        type="button"
-        aria-label="Change icon"
-        onClick={() => setOpen((current) => !current)}
-        className="flex h-8 w-8 items-center justify-center rounded-full border border-border bg-bg text-[16px] transition hover:border-border-hi hover:bg-bg-3 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
-      >
-        {value}
-      </button>
-      {open ? (
-        <div className="absolute left-0 top-[calc(100%+10px)] z-30 w-[336px] overflow-hidden rounded-xl border border-border-hi bg-bg-2 shadow-[var(--shadow-canvas)]">
-          <div className="border-b border-border p-3">
-            <div className="relative">
-              <Search className="pointer-events-none absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-t3" />
-              <input
-                ref={inputRef}
-                value={query}
-                onChange={(event) => setQuery(event.target.value)}
-                aria-label="Search or type emoji"
-                placeholder="Search or type emoji"
-                className="w-full rounded-lg border border-border bg-bg px-9 py-2 text-[12.5px] text-t1 outline-none transition placeholder:text-t3 focus:border-primary"
-              />
-            </div>
-
-            {hasTypedEmoji ? (
-              <button
-                type="button"
-                onClick={() => commitSelection(typedEmoji.slice(0, 8))}
-                className="mt-2 flex w-full items-center gap-2 rounded-lg border border-border bg-bg px-3 py-2 text-left text-[12.5px] text-t1 transition hover:bg-bg-3"
-              >
-                <span className="text-[16px]">{typedEmoji}</span>
-                Use typed emoji
-              </button>
-            ) : null}
-          </div>
-
-          <div
-            ref={scrollRef}
-            className="relative max-h-[300px] overflow-y-auto"
-          >
-            {normalizedQuery.length > 0 ? (
-              <div className="p-2">
-                <div className="px-1 pb-1.5 pt-1 font-mono text-[10px] font-semibold uppercase tracking-[0.13em] text-t3">
-                  {searchHits.length === 0
-                    ? "No matches"
-                    : `${searchHits.length} ${searchHits.length === 1 ? "match" : "matches"}`}
-                </div>
-                {searchHits.length > 0 ? (
-                  <div className="grid grid-cols-8 gap-0.5">
-                    {searchHits.map((entry) => (
-                      <button
-                        key={entry.emoji}
-                        type="button"
-                        aria-label={`Use ${entry.name}`}
-                        title={entry.name}
-                        onClick={() => commitSelection(entry.emoji)}
-                        className={cn(
-                          "flex h-9 w-9 items-center justify-center rounded-lg border border-transparent text-[18px] transition hover:border-border hover:bg-bg-3",
-                          entry.emoji === value
-                            ? "border-border bg-bg-3"
-                            : "bg-transparent",
-                        )}
-                      >
-                        {entry.emoji}
-                      </button>
-                    ))}
-                  </div>
-                ) : null}
-              </div>
-            ) : (
-              EMOJI_CATEGORIES.map((category) => (
-                <div
-                  key={category.id}
-                  ref={(node) => {
-                    sectionRefs.current[category.id] = node;
-                  }}
-                >
-                  <div className="sticky top-0 z-10 border-b border-border bg-bg-2/95 px-3 py-1.5 font-mono text-[10px] font-semibold uppercase tracking-[0.13em] text-t3 backdrop-blur">
-                    {category.label}
-                  </div>
-                  <div className="grid grid-cols-8 gap-0.5 p-2">
-                    {category.emojis.map((entry) => (
-                      <button
-                        key={entry.emoji}
-                        type="button"
-                        aria-label={`Use ${entry.name}`}
-                        title={entry.name}
-                        data-emoji-value={entry.emoji === value ? "true" : undefined}
-                        onClick={() => commitSelection(entry.emoji)}
-                        className={cn(
-                          "flex h-9 w-9 items-center justify-center rounded-lg border border-transparent text-[18px] transition hover:border-border hover:bg-bg-3",
-                          entry.emoji === value
-                            ? "border-border bg-bg-3"
-                            : "bg-transparent",
-                        )}
-                      >
-                        {entry.emoji}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-              ))
-            )}
-          </div>
-
-          {normalizedQuery.length === 0 ? (
-            <div
-              role="tablist"
-              aria-label="Emoji categories"
-              className="flex items-center justify-between gap-0.5 border-t border-border bg-bg px-1 py-1"
-            >
-              {EMOJI_CATEGORIES.map((category) => (
-                <button
-                  key={category.id}
-                  type="button"
-                  role="tab"
-                  aria-label={`Jump to ${category.label}`}
-                  title={category.label}
-                  onClick={() => jumpToCategory(category.id)}
-                  className="flex h-7 w-7 items-center justify-center rounded-md text-[14px] text-t2 transition hover:bg-bg-3 hover:text-t1 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
-                >
-                  {category.icon}
-                </button>
-              ))}
-            </div>
-          ) : null}
-        </div>
-      ) : null}
-    </div>
-  );
 }
 
 export function FrameworkScreen({
@@ -887,14 +658,26 @@ export function FrameworkScreen({
             <div className="mt-2 flex items-center gap-3">
               <CompactEmojiPicker
                 value={draftItem.icon || defaultIcon}
+                color={resolveItemColor(draftItem)}
                 onSelect={(emoji) =>
                   setDraftItem((current) => (current ? { ...current, icon: emoji } : current))
                 }
               />
               <div className="min-w-0">
-                <h1 className="truncate text-[22px] font-bold tracking-tight text-t1">
-                  {draftItem.name}
-                </h1>
+                <div className="flex items-center gap-2">
+                  <h1 className="truncate text-[22px] font-bold tracking-tight text-t1">
+                    {draftItem.name}
+                  </h1>
+                  <ColorDotPicker
+                    color={resolveItemColor(draftItem)}
+                    ariaLabel={`Change ${type} color`}
+                    onChange={(nextColor) =>
+                      setDraftItem((current) =>
+                        current ? { ...current, color: nextColor } : current,
+                      )
+                    }
+                  />
+                </div>
                 <p className="mt-1 max-w-3xl text-[13px] leading-6 text-t2">
                   {draftItem.description}
                 </p>
@@ -1232,12 +1015,12 @@ export function FrameworkScreen({
                           data-testid={`framework-card-${item.id}`}
                           className="group flex min-h-[92px] items-center gap-3 rounded-[16px] border border-border bg-bg px-4 py-4 text-left transition-[background-color,border-color,transform,box-shadow] duration-150 hover:border-border-hi hover:bg-bg hover:shadow-[0_14px_34px_rgba(15,23,42,0.08)] focus-visible:-translate-y-[1px] focus-visible:border-border-hi focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
                         >
-                          <span
-                            className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-border bg-bg text-[15px] text-t1 transition-colors group-hover:border-border-hi group-hover:bg-bg-2"
-                            aria-hidden
-                          >
-                            {item.icon || (type === "skill" ? "🤖" : "📄")}
-                          </span>
+                          <ItemAvatar
+                            emoji={item.icon || (type === "skill" ? "🤖" : "📄")}
+                            color={resolveItemColor(item)}
+                            label={item.name}
+                            size="md"
+                          />
                           <div className="min-w-0 flex-1">
                             <h2 className="overflow-hidden whitespace-nowrap text-[16px] leading-[1.15] font-semibold tracking-[-0.02em] text-t1 text-ellipsis">
                               {item.name}
@@ -1286,11 +1069,19 @@ export function FrameworkScreen({
           }
           description={
             itemModalState.mode === "create"
-              ? `Add the ${type === "skill" ? "skill" : "playbook"} title and description first.`
+              ? `Pick an icon, color, and title for your new ${type === "skill" ? "skill" : "playbook"}.`
               : `Update the ${type === "skill" ? "skill" : "playbook"} title and description.`
           }
           initialName={itemModalState.initialName}
           initialDescription={itemModalState.initialDescription}
+          defaultIcon={defaultIcon}
+          initialIcon={
+            itemModalState.mode === "rename" ? draftItem?.icon ?? null : null
+          }
+          initialColor={
+            itemModalState.mode === "rename" ? draftItem?.color ?? null : null
+          }
+          showAvatarPickers={itemModalState.mode === "create"}
           submitLabel={itemModalState.mode === "create" ? "Create" : "Apply"}
           pending={pending}
           onClose={() => {
@@ -1298,7 +1089,7 @@ export function FrameworkScreen({
               setItemModalState(null);
             }
           }}
-          onSubmit={({ name, description }) => {
+          onSubmit={({ name, description, icon, color }) => {
             if (itemModalState.mode === "rename") {
               setDraftItem((current) =>
                 current
@@ -1313,7 +1104,7 @@ export function FrameworkScreen({
               return;
             }
 
-            const draft = createDraftItem(type, name, description);
+            const draft = createDraftItem(type, name, description, icon, color);
             startTransition(async () => {
               try {
                 const result = await upsertFrameworkItemAction(draft);
@@ -1357,6 +1148,7 @@ export function FrameworkScreen({
         <ConfirmModal
           title="Discard unsaved changes?"
           description="Leaving this page will discard your in-progress edits."
+          confirmLabel="Discard"
           onCancel={() => setPendingNavigation(null)}
           onConfirm={confirmPendingNavigation}
         />

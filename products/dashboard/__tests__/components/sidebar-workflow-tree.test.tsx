@@ -42,8 +42,8 @@ const TEMPLATE_A: WorkflowTemplate = {
     { id: "validation", label: "Validation" },
   ],
   skills: [
-    { id: "sales-ops", label: "Sales Ops" },
-    { id: "pm", label: "PM" },
+    { id: "sales-ops", label: "Sales Ops", owners: ["Hans"] },
+    { id: "pm", label: "PM", owners: ["Andres"] },
   ],
   taskTemplates: [
     { skillId: "sales-ops", stageId: "pre-sales", playbookId: "presales-qualification" },
@@ -153,7 +153,7 @@ describe("SidebarWorkflowTree", () => {
     ).toBeInTheDocument();
     // The "N stages · N roles · N tasks" line reflects the scoped template
     expect(screen.getByTestId("create-instance-info")).toHaveTextContent(
-      /2 stages.*2 skills.*2 tasks/i,
+      /2 stages.*2 skills.*2 playbooks/i,
     );
   });
 

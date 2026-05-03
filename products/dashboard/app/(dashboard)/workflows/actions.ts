@@ -721,8 +721,9 @@ function normalizeTemplateSkills(
     .map((skill) => ({
       id: normalizeTaskField(skill.id, "skill.id", 80),
       label: trimTemplateLabel(skill.label),
-      owner: trimTemplateLabel(skill.owner ?? ""),
-      color: skill.color?.trim() || undefined,
+      owners: (skill.owners ?? [])
+        .map((owner) => trimTemplateLabel(owner))
+        .filter(Boolean),
     }))
     .filter((skill) => skill.id && skill.label);
 }

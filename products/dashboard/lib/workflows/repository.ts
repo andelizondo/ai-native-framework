@@ -73,6 +73,7 @@ interface FrameworkItemRow {
   name: string;
   description: string;
   icon: string | null;
+  color: string | null;
   content: string;
   created_at: string;
   updated_at: string;
@@ -93,6 +94,32 @@ function toJsonObject(value: unknown): Record<string, unknown> {
     : {};
 }
 
+/**
+ * Read-side migration for `WorkflowSkill`: rows authored before the
+ * multi-owner change carry a single `owner: string`. Wrap that into a
+ * one-element `owners` array so the rest of the app sees a uniform shape.
+ */
+function migrateSkill(raw: unknown): WorkflowSkill {
+  const obj = raw as { id: string; label: string; owner?: string; owners?: unknown };
+  if (Array.isArray(obj.owners)) {
+    return {
+      id: obj.id,
+      label: obj.label,
+      owners: obj.owners.filter((o): o is string => typeof o === "string" && o.trim().length > 0),
+    };
+  }
+  const legacy = typeof obj.owner === "string" ? obj.owner.trim() : "";
+  return {
+    id: obj.id,
+    label: obj.label,
+    owners: legacy ? [legacy] : [],
+  };
+}
+
+function migrateSkills(raw: unknown): WorkflowSkill[] {
+  return toJsonArray<unknown>(raw).map(migrateSkill);
+}
+
 function mapTemplate(row: WorkflowTemplateRow): WorkflowTemplate {
   const taskTemplates = toJsonArray<WorkflowTaskTemplate>(row.task_templates).map(
     (task, index) => ({
@@ -110,7 +137,7 @@ function mapTemplate(row: WorkflowTemplateRow): WorkflowTemplate {
     color: row.color,
     multiInstance: row.multi_instance,
     stages: toJsonArray(row.stages),
-    skills: toJsonArray(row.skills),
+    skills: migrateSkills(row.skills),
     taskTemplates,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
@@ -123,7 +150,7 @@ function mapInstance(row: WorkflowInstanceRow): WorkflowInstance {
     templateId: row.template_id,
     label: row.label,
     status: row.status,
-    skills: toJsonArray(row.skills),
+    skills: migrateSkills(row.skills),
     createdAt: row.created_at,
     updatedAt: row.updated_at,
   };
@@ -170,6 +197,7 @@ function mapFrameworkItem(
     name: row.name,
     description: row.description,
     icon: row.icon,
+    color: row.color,
     content: row.content,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
@@ -768,6 +796,7 @@ export function createWorkflowRepository(
           name: item.name,
           description: item.description,
           icon: item.icon,
+          color: item.color ?? null,
           content: item.content,
         })
         .select("*")

@@ -41,8 +41,8 @@ const TEMPLATE: WorkflowTemplate = {
     { id: "validation", label: "Validation", sub: "PDR" },
   ],
   skills: [
-    { id: "sales-ops", label: "Sales Ops", owner: "Hans / Dave", color: "#7dd3fc" },
-    { id: "pm", label: "PM", owner: "Andres", color: "#f9a8d4" },
+    { id: "sales-ops", label: "Sales Ops", owners: ["Hans / Dave"] },
+    { id: "pm", label: "PM", owners: ["Andres"] },
   ],
   taskTemplates: [],
   createdAt: "2026-04-19T12:00:00Z",

@@ -10,74 +10,6 @@ import { useToast } from "@/lib/toast";
 import { cn } from "@/lib/utils";
 import { SKILL_COLORS } from "@/lib/workflows/skill-colors";
 
-function ColorPicker({
-  color,
-  onChange,
-}: {
-  color: string;
-  onChange: (color: string) => void;
-}) {
-  const rootRef = useRef<HTMLDivElement | null>(null);
-  const [open, setOpen] = useState(false);
-
-  useEffect(() => {
-    if (!open) return;
-
-    function handlePointerDown(event: MouseEvent) {
-      if (!rootRef.current?.contains(event.target as Node)) {
-        setOpen(false);
-      }
-    }
-    function handleKeyDown(event: KeyboardEvent) {
-      if (event.key === "Escape") setOpen(false);
-    }
-
-    document.addEventListener("mousedown", handlePointerDown);
-    document.addEventListener("keydown", handleKeyDown);
-    return () => {
-      document.removeEventListener("mousedown", handlePointerDown);
-      document.removeEventListener("keydown", handleKeyDown);
-    };
-  }, [open]);
-
-  return (
-    <div ref={rootRef} className={cn("relative shrink-0", open && "z-30")}>
-      <button
-        type="button"
-        aria-label="Pick template color"
-        onClick={() => setOpen((v) => !v)}
-        className="flex h-7 w-7 cursor-pointer items-center justify-center rounded-full border border-border bg-bg-3 shadow-[inset_0_1px_0_rgba(255,255,255,0.03)] transition hover:border-border-hi hover:bg-bg-4 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
-      />
-      <span
-        aria-hidden
-        className="pointer-events-none absolute left-1/2 top-1/2 h-3.5 w-3.5 -translate-x-1/2 -translate-y-1/2 rounded-full transition-transform duration-150"
-        style={{ backgroundColor: color, boxShadow: `0 0 0 2px ${color}28` }}
-      />
-      {open && (
-        <div className="absolute left-0 top-[calc(100%+8px)] z-[60] grid w-[100px] grid-cols-4 gap-1 rounded-lg border border-border-hi bg-bg-3 p-2 shadow-[var(--shadow-canvas)]">
-          {SKILL_COLORS.map((swatch) => (
-            <button
-              key={swatch}
-              type="button"
-              aria-label={`Use color ${swatch}`}
-              onClick={() => {
-                onChange(swatch);
-                setOpen(false);
-              }}
-              className="h-4 w-4 cursor-pointer rounded-full"
-              style={{
-                backgroundColor: swatch,
-                outline: swatch === color ? `2px solid ${swatch}` : undefined,
-                outlineOffset: 2,
-              }}
-            />
-          ))}
-        </div>
-      )}
-    </div>
-  );
-}
-
 export function CreateTemplateModal({
   open,
   onClose,
@@ -86,7 +18,6 @@ export function CreateTemplateModal({
   onClose: () => void;
 }) {
   const [label, setLabel] = useState("");
-  const [color, setColor] = useState<string>(SKILL_COLORS[0]);
   const [error, setError] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
   const router = useRouter();
@@ -101,7 +32,6 @@ export function CreateTemplateModal({
   useEffect(() => {
     if (open) {
       setLabel("");
-      setColor(SKILL_COLORS[0]);
       setError(null);
     }
   }, [open]);
@@ -158,7 +88,10 @@ export function CreateTemplateModal({
     setError(null);
 
     const submittedLabel = trimmed;
-    const submittedColor = color;
+    // Templates no longer surface their own color — row + task colors derive
+    // from the linked Skill. We pass the first palette entry to satisfy the
+    // not-null column kept for backward-compat.
+    const submittedColor = SKILL_COLORS[0];
 
     startTransition(async () => {
       try {
@@ -219,23 +152,18 @@ export function CreateTemplateModal({
           <span className="mb-1.5 block text-[11px] font-medium text-t2">
             Workflow name
           </span>
-        <div className="relative">
-          <input
-            ref={inputRef}
-            type="text"
-            value={label}
-            onChange={(event) => setLabel(event.target.value)}
-            placeholder="e.g. Client Onboarding"
-            maxLength={120}
-            required
-            aria-invalid={error ? true : undefined}
-            aria-describedby={error ? errorId : undefined}
-            className="block w-full rounded-lg border border-border bg-bg-3 py-2.5 pl-3 pr-10 text-[13px] text-t1 placeholder:text-t3 focus:border-primary focus:outline-none"
-          />
-          <div className="absolute right-2.5 top-1/2 z-10 -translate-y-1/2">
-            <ColorPicker color={color} onChange={setColor} />
-          </div>
-        </div>
+        <input
+          ref={inputRef}
+          type="text"
+          value={label}
+          onChange={(event) => setLabel(event.target.value)}
+          placeholder="e.g. Client Onboarding"
+          maxLength={120}
+          required
+          aria-invalid={error ? true : undefined}
+          aria-describedby={error ? errorId : undefined}
+          className="block w-full rounded-lg border border-border bg-bg-3 px-3 py-2.5 text-[13px] text-t1 placeholder:text-t3 focus:border-primary focus:outline-none"
+        />
         </label>
 
         {error && (

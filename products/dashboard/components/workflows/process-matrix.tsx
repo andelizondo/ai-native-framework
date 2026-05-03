@@ -43,7 +43,8 @@ import { useToast } from "@/lib/toast";
 import { useUnsavedChangesGuard } from "@/lib/use-unsaved-changes-guard";
 import { cn } from "@/lib/utils";
 import { barClass, canStart } from "@/lib/workflows/matrix";
-import { getSkillColor } from "@/lib/workflows/skill-colors";
+import { resolveSkillColor } from "@/lib/workflows/skill-colors";
+import { ItemAvatar } from "@/components/framework/item-avatar";
 import type {
   FrameworkItem,
   WorkflowInstanceDetail,
@@ -453,7 +454,7 @@ export function ProcessMatrix({
                   {stageTasks.length > 0 ? (
                     <div className="mx-stage-pips" aria-hidden>
                       {stageTasks.map((task) => {
-                        const color = getSkillColor(task.skillId, skills);
+                        const color = resolveSkillColor(task.skillId, skillOptions);
                         const opacity =
                           task.status === "not_started"
                             ? 0.2
@@ -490,7 +491,10 @@ export function ProcessMatrix({
             </div>
           ) : (
             skills.map((skill) => {
-              const skillColor = getSkillColor(skill.id, skills);
+              const skillColor = resolveSkillColor(skill.id, skillOptions);
+              const frameworkSkill = skillOptions.find(
+                (item) => item.id === skill.id,
+              );
               return (
                 <div
                   key={skill.id}
@@ -499,20 +503,31 @@ export function ProcessMatrix({
                   data-testid={`matrix-skill-row-${skill.id}`}
                 >
                   <div className="mx-role-cell" role="rowheader">
-                    <span
-                      aria-hidden
-                      data-testid={`matrix-skill-dot-${skill.id}`}
-                      className="block h-2 w-2 shrink-0 rounded-full"
-                      style={{ background: skillColor }}
-                    />
+                    <span data-testid={`matrix-skill-dot-${skill.id}`}>
+                      <ItemAvatar
+                        emoji={frameworkSkill?.icon ?? "•"}
+                        color={skillColor}
+                        label={skill.label}
+                        size={collapsed ? "xs" : "sm"}
+                        withTooltip={collapsed}
+                        tooltipPlacement="right"
+                      />
+                    </span>
                     {!collapsed ? (
                       <div
                         className="min-w-0 flex-1"
                         data-testid={`matrix-skill-label-${skill.id}`}
                       >
                         <div className="mx-role-name">{skill.label}</div>
-                        <div className={cn("mx-role-owner", skill.owner?.trim() && "mx-role-owner-plain")}>
-                          {skill.owner?.trim() || "No owner"}
+                        <div
+                          className={cn(
+                            "mx-role-owner",
+                            skill.owners.length > 0 && "mx-role-owner-plain",
+                          )}
+                        >
+                          {skill.owners.length > 0
+                            ? skill.owners.join(", ")
+                            : "No owner"}
                         </div>
                       </div>
                     ) : null}
@@ -587,7 +602,7 @@ export function ProcessMatrix({
                               type="button"
                               className="mx-add-btn"
                               data-testid={`matrix-add-task-${skill.id}-${stage.id}`}
-                              aria-label={`Add task for ${skill.label} in ${stage.label}`}
+                              aria-label={`Add playbook for ${skill.label} in ${stage.label}`}
                             >
                               <Plus className="h-3.5 w-3.5" />
                             </button>
@@ -679,8 +694,8 @@ export function ProcessMatrix({
 
       {confirmDeleteTask ? (
         <ConfirmModal
-          title={`Delete task?`}
-          description="This task will be removed from the draft. The deletion is committed when you click Save."
+          title={`Delete playbook?`}
+          description="This playbook will be removed from the draft. The deletion is committed when you click Save."
           onCancel={() => setConfirmDeleteTask(null)}
           onConfirm={() => {
             const task = confirmDeleteTask;
@@ -694,6 +709,7 @@ export function ProcessMatrix({
         <ConfirmModal
           title="Discard unsaved changes?"
           description="Your in-progress edits to this workflow will be lost."
+          confirmLabel="Discard"
           onCancel={() => setConfirmDiscardOpen(false)}
           onConfirm={discardAndExit}
         />
@@ -703,6 +719,7 @@ export function ProcessMatrix({
         <ConfirmModal
           title="Discard unsaved changes?"
           description="Leaving this page will discard your in-progress edits."
+          confirmLabel="Discard"
           onCancel={() => setPendingNavigation(null)}
           onConfirm={confirmPendingNavigation}
         />
