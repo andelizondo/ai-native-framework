@@ -87,16 +87,16 @@ export function CheckpointPanel({
         role="dialog"
         aria-modal="true"
         aria-hidden={!open}
-        aria-label="My Tasks"
+        aria-label="My Playbooks"
         className={cn("cp-panel", open && "cp-panel--open")}
         data-testid="checkpoint-panel"
       >
         <header className="cp-header">
-          <span className="cp-title">My Tasks</span>
+          <span className="cp-title">My Playbooks</span>
           <button
             type="button"
             className="cp-close"
-            aria-label="Close My Tasks panel"
+            aria-label="Close My Playbooks panel"
             onClick={onClose}
             data-testid="checkpoint-panel-close"
           >
@@ -107,14 +107,14 @@ export function CheckpointPanel({
         <div className="cp-body">
           {loadError && (
             <p role="alert" className="cp-error">
-              Could not load tasks. Try closing and reopening.
+              Could not load playbooks. Try closing and reopening.
             </p>
           )}
 
           {!loadError && checkpoints.length === 0 && (
             <div className="cp-empty" data-testid="checkpoint-panel-empty">
               <span className="cp-empty-icon" aria-hidden>✓</span>
-              <span className="cp-empty-text">No pending tasks</span>
+              <span className="cp-empty-text">No pending playbooks</span>
             </div>
           )}
 
@@ -132,7 +132,7 @@ export function CheckpointPanel({
                     <p className="cp-item-process" style={template ? { color: template.color } : undefined}>
                       {template?.label ?? "Workflow"} · {instance.label}
                     </p>
-                    <p className="cp-item-title">{task.playbookId ?? "Task"}</p>
+                    <p className="cp-item-title">{task.playbookId ?? "Playbook"}</p>
                     {task.notes && (
                       <p className="cp-item-desc">{task.notes}</p>
                     )}

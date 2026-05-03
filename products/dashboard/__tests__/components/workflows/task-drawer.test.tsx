@@ -75,8 +75,8 @@ vi.mock("@/lib/monitoring", () => ({
 // ── Fixtures ─────────────────────────────────────────────────────────────────
 
 const SKILLS: WorkflowSkill[] = [
-  { id: "sales-ops", label: "Sales Ops", owner: "Hans" },
-  { id: "pm", label: "PM", owner: "Andres" },
+  { id: "sales-ops", label: "Sales Ops", owners: ["Hans"] },
+  { id: "pm", label: "PM", owners: ["Andres"] },
 ];
 
 const TEMPLATE: WorkflowTemplate = {
@@ -195,8 +195,8 @@ describe("TaskDrawer", () => {
     expect(within(drawer).getByText("Pre-Sales")).toBeInTheDocument();
     expect(within(drawer).getAllByText("Sales Ops").length).toBeGreaterThan(0);
 
-    // Title (no playbook attached → "Task")
-    expect(within(drawer).getByText("Task")).toBeInTheDocument();
+    // Title (no playbook attached → "Playbook" fallback)
+    expect(within(drawer).getByText("Playbook")).toBeInTheDocument();
 
     // Tabs
     expect(screen.getByTestId("td-tab-details")).toBeInTheDocument();

@@ -75,7 +75,7 @@ export function MyTasksCard({ checkpoints, playbookById }: MyTasksCardProps) {
       className="overflow-hidden rounded-[10px] border border-border bg-bg-2"
     >
       <header className="flex items-center justify-between border-b border-border px-4 py-3">
-        <h2 className="text-[12px] font-semibold text-t1">My tasks</h2>
+        <h2 className="text-[12px] font-semibold text-t1">My playbooks</h2>
         {checkpoints.length > 0 && (
           <span className="rounded-full bg-primary-bg px-2 py-[1px] font-mono text-[10px] font-semibold text-accent">
             {checkpoints.length}
@@ -124,7 +124,7 @@ export function MyTasksCard({ checkpoints, playbookById }: MyTasksCardProps) {
                   const playbook = task.playbookId
                     ? playbookById?.get(task.playbookId)
                     : undefined;
-                  const title = playbook?.name ?? (task.playbookId ? "Playbook removed" : "Task");
+                  const title = playbook?.name ?? (task.playbookId ? "Playbook removed" : "Playbook");
                   const icon = playbook?.icon || "📘";
                   return (
                     <p className="mt-1 flex items-center gap-1.5 text-[12.5px] font-semibold text-t1">

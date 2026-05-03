@@ -75,8 +75,8 @@ export function OverviewScreen({
   const subtitle =
     stats.pendingTasks > 0
       ? stats.pendingTasks === 1
-        ? "1 task needs your decision."
-        : `${stats.pendingTasks} tasks need your decision.`
+        ? "1 playbook needs your decision."
+        : `${stats.pendingTasks} playbooks need your decision.`
       : "All processes running smoothly.";
 
   // Pre-format the four stat cards so the JSX reads top-to-bottom.
@@ -94,25 +94,25 @@ export function OverviewScreen({
     {
       key: "pending",
       value: String(stats.pendingTasks),
-      label: "My tasks",
+      label: "My playbooks",
       hint: stats.pendingTasks > 0 ? "Action required" : "All clear",
       tone: stats.pendingTasks > 0 ? "warn" : "up",
     },
     {
       key: "active",
       value: String(stats.activeTasks),
-      label: "Active tasks",
+      label: "Active playbooks",
       hint:
         stats.activeTasks > 0
           ? `${stats.activeTasks} in flight`
-          : "No tasks running",
+          : "No playbooks running",
       tone: stats.activeTasks > 0 ? "up" : "mute",
     },
     {
       key: "completion",
       value: `${stats.completionPct}%`,
       label: "Completion",
-      hint: `${stats.completedTasks} / ${stats.totalTasks} tasks`,
+      hint: `${stats.completedTasks} / ${stats.totalTasks} playbooks`,
       tone: stats.totalTasks === 0 ? "mute" : "up",
     },
   ] as const;

@@ -209,7 +209,7 @@ export function CreateInstanceModal({
           New {template.label} instance
         </h2>
         <p className="mt-1 text-[12.5px] text-t3">
-          Creates an instance with all default stages, skills, and tasks.
+          Creates an instance with all default stages, skills, and playbooks.
         </p>
 
         <label className="mt-[22px] block">
@@ -243,9 +243,9 @@ export function CreateInstanceModal({
           </strong>{" "}
           ·{" "}
           <strong className="text-t1">
-            {taskCount} {taskCount === 1 ? "task" : "tasks"}
+            {taskCount} {taskCount === 1 ? "playbook" : "playbooks"}
           </strong>{" "}
-          — pre-configured. Roles and tasks editable after creation.
+          — pre-configured. Skills and playbooks editable after creation.
         </p>
 
         {error && (

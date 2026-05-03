@@ -19,7 +19,7 @@ export function InProgressTasksCard({
       className="overflow-hidden rounded-[10px] border border-border bg-bg-2"
     >
       <header className="flex items-center justify-between border-b border-border px-4 py-3">
-        <h2 className="text-[12px] font-semibold text-t1">Tasks in progress</h2>
+        <h2 className="text-[12px] font-semibold text-t1">Playbooks in progress</h2>
         {tasks.length > 0 && (
           <span className="rounded-full bg-primary-bg px-2 py-[1px] font-mono text-[10px] font-semibold text-accent">
             {tasks.length}
@@ -29,7 +29,7 @@ export function InProgressTasksCard({
 
       {tasks.length === 0 ? (
         <p className="px-4 py-7 text-center text-[12px] text-t2">
-          No tasks in progress
+          No playbooks in progress
         </p>
       ) : (
         <ul className="divide-y divide-border-2">
@@ -37,7 +37,7 @@ export function InProgressTasksCard({
             const playbook = task.playbookId
               ? playbookById?.get(task.playbookId)
               : undefined;
-            const title = playbook?.name ?? (task.playbookId ? "Playbook removed" : "Task");
+            const title = playbook?.name ?? (task.playbookId ? "Playbook removed" : "Playbook");
             const icon = playbook?.icon || "📘";
             return (
             <li key={task.id}>
