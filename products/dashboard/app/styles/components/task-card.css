@@ -324,6 +324,13 @@
   gap: 6px;
   min-width: 0;
 }
+/* `OwnerAvatarStack` ships with `ml-2` to space itself from a sibling
+ * label in the owner picker; inside the task-card footer there's no such
+ * label, so the 8px shoves the stack out of alignment with the title and
+ * status pill above. Reset it here. */
+.tc-bottom-left > [data-testid^="owners-stack-task-"] {
+  margin-left: 0;
+}
 /* Empty-owner placeholder. Renders in the read-only mode whenever a card
  * has no owners on its linked playbook so the row's left side never sits
  * "blank" — the dashed circle reads as an absence rather than as
