@@ -6,6 +6,7 @@ import { Search, SearchX } from "lucide-react";
 
 import { cn } from "@/lib/utils";
 import { ItemAvatar } from "@/components/framework/item-avatar";
+import { OwnerPicker } from "@/components/framework/owner-picker";
 import { resolveItemColor } from "@/lib/workflows/skill-colors";
 import type { FrameworkItem } from "@/lib/workflows/types";
 
@@ -21,9 +22,10 @@ interface AddPlaybookModalProps {
   initial?: {
     playbookId?: string | null;
     notes?: string;
+    owners?: readonly string[];
   };
   onClose: () => void;
-  onSubmit: (input: { playbookId: string; notes: string }) => void;
+  onSubmit: (input: { playbookId: string; notes: string; owners: string[] }) => void;
 }
 
 export function AddPlaybookModal({
@@ -38,6 +40,9 @@ export function AddPlaybookModal({
 }: AddPlaybookModalProps) {
   const [selectedId, setSelectedId] = useState<string>(initial?.playbookId ?? "");
   const [notes, setNotes] = useState(initial?.notes ?? "");
+  const [owners, setOwners] = useState<string[]>(
+    initial?.owners ? [...initial.owners] : [],
+  );
   const [query, setQuery] = useState("");
 
   const allowed = useMemo(
@@ -78,7 +83,7 @@ export function AddPlaybookModal({
         onSubmit={(event) => {
           event.preventDefault();
           if (!canSubmit) return;
-          onSubmit({ playbookId: selectedId, notes });
+          onSubmit({ playbookId: selectedId, notes, owners });
         }}
         className="w-full max-w-[520px] rounded-[14px] border border-border-hi bg-bg-2 p-7 shadow-[var(--shadow-canvas)]"
         role="dialog"
@@ -183,8 +188,22 @@ export function AddPlaybookModal({
               onChange={(event) => setNotes(event.target.value)}
               rows={2}
               placeholder="Per-instance context for this playbook"
-              className="mb-5 block w-full resize-none rounded-lg border border-border bg-bg-3 px-3 py-2.5 text-[13px] leading-6 text-t1 placeholder:text-t3 focus:border-primary focus:outline-none"
+              className="mb-4 block w-full resize-none rounded-lg border border-border bg-bg-3 px-3 py-2.5 text-[13px] leading-6 text-t1 placeholder:text-t3 focus:border-primary focus:outline-none"
             />
+
+            <label className="mb-1.5 block text-[11px] font-medium text-t2">
+              Owners <span className="font-normal text-t3">(optional)</span>
+            </label>
+            <div className="mb-5">
+              <OwnerPicker
+                values={owners}
+                onChange={setOwners}
+                variant="field"
+                required={false}
+                placeholder="Pick a person or AI agent"
+                ariaLabel="Owners"
+              />
+            </div>
           </>
         )}
 

@@ -106,7 +106,6 @@ function createDraftItem(
   description: string,
   icon: string,
   color: string,
-  owners?: string[],
 ): FrameworkItem {
   return {
     id: createFrameworkItemId(type, name),
@@ -116,7 +115,6 @@ function createDraftItem(
     icon,
     color,
     content: `# ${name.trim()}\n\n`,
-    ...(type === "playbook" ? { owners: owners ?? [] } : {}),
   };
 }
 
@@ -147,12 +145,7 @@ function areFrameworkItemsEqual(left: FrameworkItem | null, right: FrameworkItem
   const leftPlaybooks = [...(left.allowedPlaybookIds ?? [])].sort();
   const rightPlaybooks = [...(right.allowedPlaybookIds ?? [])].sort();
   if (leftPlaybooks.length !== rightPlaybooks.length) return false;
-  if (!leftPlaybooks.every((id, i) => id === rightPlaybooks[i])) return false;
-
-  const leftOwners = [...(left.owners ?? [])].sort();
-  const rightOwners = [...(right.owners ?? [])].sort();
-  if (leftOwners.length !== rightOwners.length) return false;
-  return leftOwners.every((value, i) => value === rightOwners[i]);
+  return leftPlaybooks.every((id, i) => id === rightPlaybooks[i]);
 }
 
 export function FrameworkScreen({
@@ -498,8 +491,6 @@ export function FrameworkScreen({
             draftItem.type === "playbook" ? draftItem.allowedSkillIds ?? [] : undefined,
           allowedPlaybookIds:
             draftItem.type === "skill" ? draftItem.allowedPlaybookIds ?? [] : undefined,
-          owners:
-            draftItem.type === "playbook" ? draftItem.owners ?? [] : undefined,
         });
         setItems((current) =>
           sortItems(
@@ -1093,13 +1084,6 @@ export function FrameworkScreen({
             itemModalState.mode === "rename" ? draftItem?.color ?? null : null
           }
           showAvatarPickers={itemModalState.mode === "create"}
-          showOwners={type === "playbook"}
-          initialOwners={
-            type === "playbook" && itemModalState.mode === "rename"
-              ? draftItem?.owners ?? []
-              : []
-          }
-          requireOwners={type === "playbook"}
           submitLabel={itemModalState.mode === "create" ? "Create" : "Apply"}
           pending={pending}
           onClose={() => {
@@ -1107,7 +1091,7 @@ export function FrameworkScreen({
               setItemModalState(null);
             }
           }}
-          onSubmit={({ name, description, icon, color, owners }) => {
+          onSubmit={({ name, description, icon, color }) => {
             if (itemModalState.mode === "rename") {
               setDraftItem((current) =>
                 current
@@ -1115,9 +1099,6 @@ export function FrameworkScreen({
                       ...current,
                       name: name.trim(),
                       description: description.trim(),
-                      ...(current.type === "playbook" && owners
-                        ? { owners }
-                        : {}),
                     }
                   : current,
               );
@@ -1125,7 +1106,7 @@ export function FrameworkScreen({
               return;
             }
 
-            const draft = createDraftItem(type, name, description, icon, color, owners);
+            const draft = createDraftItem(type, name, description, icon, color);
             startTransition(async () => {
               try {
                 const result = await upsertFrameworkItemAction(draft);

@@ -364,6 +364,17 @@ export interface UpdateTaskDetailsInput {
   taskId: string;
   playbookId?: string | null;
   notes?: string;
+  owners?: string[];
+}
+
+const MAX_OWNER_LABEL_LENGTH = 80;
+
+function normalizeOwnerList(input: unknown): string[] | undefined {
+  if (input === undefined) return undefined;
+  if (!Array.isArray(input)) return [];
+  return input
+    .filter((value): value is string => typeof value === "string" && value.trim().length > 0)
+    .map((value) => value.trim().slice(0, MAX_OWNER_LABEL_LENGTH));
 }
 
 export async function createTaskAction(
@@ -397,6 +408,7 @@ export async function createTaskAction(
     stageId,
     notes,
     playbookId: playbookId || null,
+    owners: normalizeOwnerList(input.owners) ?? [],
   });
 
   try {
@@ -442,9 +454,11 @@ export async function updateTaskDetailsAction(
   }
 
   const repo = await getServerWorkflowRepository();
+  const owners = normalizeOwnerList(input.owners);
   const task = await repo.updateTask(taskId, {
     playbookId: playbookId || null,
     notes,
+    ...(owners !== undefined ? { owners } : {}),
   });
 
   try {
@@ -794,6 +808,7 @@ function normalizeTemplateTaskTemplates(
       triggers: task.triggers ?? [],
       gates: task.gates ?? [],
       checkpoint: Boolean(task.checkpoint),
+      owners: normalizeOwnerList(task.owners) ?? [],
     }))
     .filter((task) => task.id && task.skillId && task.stageId);
 }

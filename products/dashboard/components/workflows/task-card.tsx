@@ -13,7 +13,6 @@ import type { LucideIcon } from "lucide-react";
 
 import { ItemAvatar } from "@/components/framework/item-avatar";
 import { OwnerAvatarStack } from "@/components/framework/owner-avatar-stack";
-import { OwnerPicker } from "@/components/framework/owner-picker";
 import { cn } from "@/lib/utils";
 import type { TaskBarState } from "@/lib/workflows/matrix";
 import { resolveItemColor } from "@/lib/workflows/skill-colors";
@@ -51,11 +50,6 @@ export interface TaskCardProps {
   /** Called when the user picks a new status from the badge popover.
    *  Omit to render the status badge as a static pill (no popover). */
   onStatusChange?: (next: WorkflowTaskStatus) => void;
-  /** Called with the new owner list when the user edits owners through the
-   *  card's owners picker. The handler is responsible for persisting the
-   *  change on the linked playbook framework item. Omit to hide the owners
-   *  stack entirely. */
-  onOwnersChange?: (next: string[]) => void;
 }
 
 export function TaskCard({
@@ -69,7 +63,6 @@ export function TaskCard({
   onRemove,
   templateView = false,
   onStatusChange,
-  onOwnersChange,
 }: TaskCardProps) {
   const statusClass = TASK_STATUS_PILL_CLASS[task.status];
   const statusLabel = TASK_STATUS_LABEL[task.status];
@@ -77,8 +70,7 @@ export function TaskCard({
   const title = playbook?.name ?? (task.playbookId ? "Playbook removed" : "No playbook");
   const playbookColor = playbook ? resolveItemColor(playbook) : skillColor;
   const playbookEmoji = playbook?.icon ?? null;
-  const owners = playbook?.owners ?? [];
-  const ownersEditable = Boolean(onOwnersChange) && Boolean(playbook);
+  const owners = task.owners ?? [];
   const showActions = editMode && (Boolean(onEdit) || Boolean(onRemove));
 
   return (
@@ -176,17 +168,7 @@ export function TaskCard({
           className="tc-bottom-left"
           onClick={(event) => event.stopPropagation()}
         >
-          {ownersEditable && onOwnersChange ? (
-            <OwnerPicker
-              values={owners}
-              onChange={onOwnersChange}
-              variant="stack"
-              required={false}
-              ariaLabel={`Owners for ${title}`}
-              stackAvatarSize="xs"
-              testIdSuffix={`task-${task.id}`}
-            />
-          ) : owners.length > 0 ? (
+          {owners.length > 0 ? (
             <OwnerAvatarStack
               labels={owners}
               size="xs"

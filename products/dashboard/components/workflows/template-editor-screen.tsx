@@ -34,7 +34,6 @@ import {
   renameTemplateAction,
   updateTemplateAction,
 } from "@/app/(dashboard)/workflows/actions";
-import { upsertFrameworkItemAction } from "@/app/(dashboard)/framework/actions";
 import { captureError } from "@/lib/monitoring";
 import { useDashboardTopBar } from "@/components/dashboard-topbar-context";
 import { useToast } from "@/lib/toast";
@@ -122,6 +121,7 @@ function templateTaskToCard(task: WorkflowTaskTemplate): WorkflowTask {
     triggers: task.triggers ?? [],
     gates: task.gates ?? [],
     playbookId: task.playbookId ?? null,
+    owners: task.owners ?? [],
     createdAt: "",
     updatedAt: "",
   };
@@ -290,69 +290,16 @@ export function TemplateEditorScreen({
     initial?: {
       playbookId?: string | null;
       notes?: string;
+      owners?: string[];
     };
   } | null>(null);
   const [pending, startTransition] = useTransition();
   const dndContextId = useId();
 
-  // Owner edits stay local until the user hits the Save button — the
-  // template editor's save flow diffs `localPlaybooks` against
-  // `lastSavedPlaybooks` and posts one `upsertFrameworkItemAction` per
-  // changed playbook alongside `updateTemplateAction`.
-  const [localPlaybooks, setLocalPlaybooks] = useState<FrameworkItem[]>(playbookOptions);
-  const [lastSavedPlaybooks, setLastSavedPlaybooks] =
-    useState<FrameworkItem[]>(playbookOptions);
-  useEffect(() => {
-    setLocalPlaybooks((current) => {
-      if (current === playbookOptions) return current;
-      if (current.length !== playbookOptions.length) return playbookOptions;
-      for (let i = 0; i < current.length; i++) {
-        if (current[i] !== playbookOptions[i]) return playbookOptions;
-      }
-      return current;
-    });
-    setLastSavedPlaybooks((current) => {
-      if (current === playbookOptions) return current;
-      if (current.length !== playbookOptions.length) return playbookOptions;
-      for (let i = 0; i < current.length; i++) {
-        if (current[i] !== playbookOptions[i]) return playbookOptions;
-      }
-      return current;
-    });
-  }, [playbookOptions]);
-
   const playbookById = useMemo(
-    () => new Map(localPlaybooks.map((pb) => [pb.id, pb])),
-    [localPlaybooks],
+    () => new Map(playbookOptions.map((pb) => [pb.id, pb])),
+    [playbookOptions],
   );
-
-  const handlePlaybookOwnersChange = useCallback(
-    (playbookId: string, owners: string[]) => {
-      setLocalPlaybooks((prev) =>
-        prev.map((pb) => (pb.id === playbookId ? { ...pb, owners } : pb)),
-      );
-    },
-    [],
-  );
-
-  const playbookOwnerEdits = useMemo(() => {
-    const original = new Map(
-      lastSavedPlaybooks.map((pb) => [pb.id, pb.owners ?? []]),
-    );
-    const changed: FrameworkItem[] = [];
-    for (const pb of localPlaybooks) {
-      const before = original.get(pb.id);
-      const after = pb.owners ?? [];
-      if (!before) continue;
-      if (
-        before.length !== after.length ||
-        before.some((value, index) => value !== after[index])
-      ) {
-        changed.push(pb);
-      }
-    }
-    return changed;
-  }, [localPlaybooks, lastSavedPlaybooks]);
 
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
@@ -446,9 +393,7 @@ export function TemplateEditorScreen({
     }
   }
 
-  const isDirty =
-    JSON.stringify(draft) !== JSON.stringify(lastSaved) ||
-    playbookOwnerEdits.length > 0;
+  const isDirty = JSON.stringify(draft) !== JSON.stringify(lastSaved);
 
   const [pendingNavigation, setPendingNavigation] = useState<(() => void) | null>(null);
 
@@ -466,9 +411,8 @@ export function TemplateEditorScreen({
     setPendingNavigation(null);
     if (!proceed) return;
     setDraft(lastSaved);
-    setLocalPlaybooks(lastSavedPlaybooks);
     proceed();
-  }, [lastSaved, lastSavedPlaybooks, pendingNavigation]);
+  }, [lastSaved, pendingNavigation]);
 
   useEffect(() => {
     draftRef.current = draft;
@@ -533,24 +477,6 @@ export function TemplateEditorScreen({
         const result = await updateTemplateAction(draftRef.current.id, draftRef.current);
         setDraft(result.template);
         setLastSaved(result.template);
-
-        if (playbookOwnerEdits.length > 0) {
-          const updated: FrameworkItem[] = [];
-          for (const pb of playbookOwnerEdits) {
-            const { item } = await upsertFrameworkItemAction(pb);
-            updated.push(item);
-          }
-          setLocalPlaybooks((prev) => {
-            const map = new Map(prev.map((p) => [p.id, p]));
-            for (const item of updated) map.set(item.id, item);
-            return Array.from(map.values());
-          });
-          setLastSavedPlaybooks((prev) => {
-            const map = new Map(prev.map((p) => [p.id, p]));
-            for (const item of updated) map.set(item.id, item);
-            return Array.from(map.values());
-          });
-        }
 
         emitEvent("workflow.template_edited", {
           template_id: result.template.id,
@@ -952,12 +878,6 @@ export function TemplateEditorScreen({
                           barState="bar-ready"
                           editMode
                           templateView
-                          onOwnersChange={
-                            playbook
-                              ? (owners) =>
-                                  handlePlaybookOwnersChange(playbook.id, owners)
-                              : undefined
-                          }
                           onEdit={() =>
                             setAddTaskFor({
                               mode: "edit",
@@ -969,6 +889,7 @@ export function TemplateEditorScreen({
                               initial: {
                                 playbookId: templateTask.playbookId ?? null,
                                 notes: templateTask.notes ?? "",
+                                owners: templateTask.owners ?? [],
                               },
                             })
                           }
@@ -1078,6 +999,7 @@ export function TemplateEditorScreen({
                           ...item,
                           playbookId: input.playbookId,
                           notes: input.notes,
+                          owners: input.owners,
                         }
                       : item,
                   ),
@@ -1096,6 +1018,7 @@ export function TemplateEditorScreen({
                     notes: input.notes,
                     triggers: [],
                     gates: [],
+                    owners: input.owners,
                   },
                 ],
               };

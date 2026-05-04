@@ -22,6 +22,7 @@ function task(overrides: Partial<WorkflowTask> = {}): WorkflowTask {
     triggers: [],
     gates: [],
     playbookId: "presales-qualification",
+    owners: [],
     createdAt: "2026-04-19T12:00:00Z",
     updatedAt: "2026-04-19T12:00:00Z",
     ...overrides,

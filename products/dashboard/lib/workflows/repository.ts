@@ -53,6 +53,7 @@ interface WorkflowTaskRow {
   triggers: unknown;
   gates: unknown;
   playbook_id: string | null;
+  owners: unknown;
   created_at: string;
   updated_at: string;
 }
@@ -75,7 +76,6 @@ interface FrameworkItemRow {
   icon: string | null;
   color: string | null;
   content: string;
-  owners: unknown;
   created_at: string;
   updated_at: string;
 }
@@ -170,6 +170,9 @@ function mapTask(row: WorkflowTaskRow): WorkflowTask {
     triggers: toJsonArray(row.triggers),
     gates: toJsonArray(row.gates),
     playbookId: row.playbook_id,
+    owners: toJsonArray<unknown>(row.owners)
+      .filter((value): value is string => typeof value === "string" && value.trim().length > 0)
+      .map((value) => value.trim()),
     createdAt: row.created_at,
     updatedAt: row.updated_at,
   };
@@ -205,9 +208,6 @@ function mapFrameworkItem(
   };
   if (row.type === "playbook") {
     item.allowedSkillIds = allowedSkillIds ?? [];
-    item.owners = toJsonArray<unknown>(row.owners)
-      .filter((value): value is string => typeof value === "string" && value.trim().length > 0)
-      .map((value) => value.trim());
   } else if (row.type === "skill") {
     item.allowedPlaybookIds = allowedPlaybookIds ?? [];
   }
@@ -225,6 +225,7 @@ function patchToRow(patch: WorkflowTaskPatch): Record<string, unknown> {
   if (patch.triggers !== undefined) row.triggers = patch.triggers;
   if (patch.gates !== undefined) row.gates = patch.gates;
   if (patch.playbookId !== undefined) row.playbook_id = patch.playbookId;
+  if (patch.owners !== undefined) row.owners = patch.owners;
   return row;
 }
 
@@ -468,6 +469,7 @@ export function createWorkflowRepository(
             triggers: tpl.triggers ?? [],
             gates: tpl.gates ?? [],
             playbook_id: tpl.playbookId ?? null,
+            owners: tpl.owners ?? [],
           }),
         );
 
@@ -523,6 +525,7 @@ export function createWorkflowRepository(
           triggers: input.triggers ?? [],
           gates: input.gates ?? [],
           playbook_id: input.playbookId ?? null,
+          owners: input.owners ?? [],
         })
         .select("*")
         .single();
@@ -802,13 +805,6 @@ export function createWorkflowRepository(
           icon: item.icon,
           color: item.color ?? null,
           content: item.content,
-          owners:
-            item.type === "playbook" && Array.isArray(item.owners)
-              ? item.owners.filter(
-                  (value): value is string =>
-                    typeof value === "string" && value.trim().length > 0,
-                )
-              : [],
         })
         .select("*")
         .single();

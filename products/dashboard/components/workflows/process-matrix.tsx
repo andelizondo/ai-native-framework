@@ -44,7 +44,6 @@ import {
   setTaskStatusAction,
   updateTaskDetailsAction,
 } from "@/app/(dashboard)/workflows/actions";
-import { upsertFrameworkItemAction } from "@/app/(dashboard)/framework/actions";
 import { useDashboardTopBar } from "@/components/dashboard-topbar-context";
 import { ConfirmModal } from "@/components/ui/confirm-modal";
 import { captureError } from "@/lib/monitoring";
@@ -149,6 +148,7 @@ export function ProcessMatrix({
     initial?: {
       playbookId?: string | null;
       notes?: string;
+      owners?: string[];
     };
   } | null>(null);
   const [confirmDeleteTask, setConfirmDeleteTask] = useState<WorkflowTask | null>(
@@ -165,40 +165,9 @@ export function ProcessMatrix({
   const pathname = usePathname();
   const searchParams = useSearchParams();
 
-  // Owner edits made in edit mode stay in `localPlaybooks` until the user
-  // hits Save; we then diff against `lastSavedPlaybooks` and post a single
-  // `upsertFrameworkItemAction` per changed playbook alongside the task
-  // batch. In non-edit mode the matrix is read-only for owners, so this
-  // state is only ever written by the prop-sync effect below.
-  const [localPlaybooks, setLocalPlaybooks] = useState<FrameworkItem[]>(playbookOptions);
-  const [lastSavedPlaybooks, setLastSavedPlaybooks] =
-    useState<FrameworkItem[]>(playbookOptions);
-  useEffect(() => {
-    // Sync from props only when the array contents actually changed (the
-    // default `playbookOptions = []` parameter creates a fresh array on
-    // every render — without this guard the setState would re-fire the
-    // effect via the new prop reference and loop indefinitely).
-    setLocalPlaybooks((current) => {
-      if (current === playbookOptions) return current;
-      if (current.length !== playbookOptions.length) return playbookOptions;
-      for (let i = 0; i < current.length; i++) {
-        if (current[i] !== playbookOptions[i]) return playbookOptions;
-      }
-      return current;
-    });
-    setLastSavedPlaybooks((current) => {
-      if (current === playbookOptions) return current;
-      if (current.length !== playbookOptions.length) return playbookOptions;
-      for (let i = 0; i < current.length; i++) {
-        if (current[i] !== playbookOptions[i]) return playbookOptions;
-      }
-      return current;
-    });
-  }, [playbookOptions]);
-
   const playbookById = useMemo(
-    () => new Map(localPlaybooks.map((pb) => [pb.id, pb])),
-    [localPlaybooks],
+    () => new Map(playbookOptions.map((pb) => [pb.id, pb])),
+    [playbookOptions],
   );
 
   const handleStatusChange = useCallback(
@@ -231,17 +200,6 @@ export function ProcessMatrix({
     [localTasks, toastError],
   );
 
-  // Edit-mode-only: stage owner changes locally; the Save handler diffs
-  // and posts a single update per playbook below.
-  const handlePlaybookOwnersChange = useCallback(
-    (playbookId: string, owners: string[]) => {
-      setLocalPlaybooks((prev) =>
-        prev.map((pb) => (pb.id === playbookId ? { ...pb, owners } : pb)),
-      );
-    },
-    [],
-  );
-
   useEffect(() => {
     if (editMode) return;
     setLocalTasks(instance.tasks);
@@ -253,30 +211,9 @@ export function ProcessMatrix({
     setLastSavedTasks((prev) => prev.map((task) => (task.id === updated.id ? updated : task)));
   }, []);
 
-  const playbookOwnerEdits = useMemo(() => {
-    const original = new Map(
-      lastSavedPlaybooks.map((pb) => [pb.id, pb.owners ?? []]),
-    );
-    const changed: FrameworkItem[] = [];
-    for (const pb of localPlaybooks) {
-      const before = original.get(pb.id);
-      const after = pb.owners ?? [];
-      if (!before) continue;
-      if (
-        before.length !== after.length ||
-        before.some((value, index) => value !== after[index])
-      ) {
-        changed.push(pb);
-      }
-    }
-    return changed;
-  }, [localPlaybooks, lastSavedPlaybooks]);
-
   const isDirty = useMemo(
-    () =>
-      JSON.stringify(localTasks) !== JSON.stringify(lastSavedTasks) ||
-      playbookOwnerEdits.length > 0,
-    [localTasks, lastSavedTasks, playbookOwnerEdits],
+    () => JSON.stringify(localTasks) !== JSON.stringify(lastSavedTasks),
+    [localTasks, lastSavedTasks],
   );
 
   const exitEditMode = useCallback(() => {
@@ -297,10 +234,9 @@ export function ProcessMatrix({
 
   const discardAndExit = useCallback(() => {
     setLocalTasks(lastSavedTasks);
-    setLocalPlaybooks(lastSavedPlaybooks);
     setConfirmDiscardOpen(false);
     exitEditMode();
-  }, [exitEditMode, lastSavedTasks, lastSavedPlaybooks]);
+  }, [exitEditMode, lastSavedTasks]);
 
   const handleBlockedNavigation = useCallback((proceed: () => void) => {
     setPendingNavigation(() => proceed);
@@ -317,9 +253,8 @@ export function ProcessMatrix({
     if (!proceed) return;
     setLocalTasks(lastSavedTasks);
     setLastSavedTasks(lastSavedTasks);
-    setLocalPlaybooks(lastSavedPlaybooks);
     proceed();
-  }, [lastSavedTasks, lastSavedPlaybooks, pendingNavigation]);
+  }, [lastSavedTasks, pendingNavigation]);
 
   const tasksByCell = useMemo(() => {
     const map = new Map<string, WorkflowTask>();
@@ -366,7 +301,16 @@ export function ProcessMatrix({
           if (saved.skillId !== task.skillId || saved.stageId !== task.stageId) {
             toMove.push(task);
           }
-          if (saved.notes !== task.notes || saved.playbookId !== task.playbookId) {
+          const ownersChanged =
+            (saved.owners ?? []).length !== (task.owners ?? []).length ||
+            (saved.owners ?? []).some(
+              (value, index) => value !== (task.owners ?? [])[index],
+            );
+          if (
+            saved.notes !== task.notes ||
+            saved.playbookId !== task.playbookId ||
+            ownersChanged
+          ) {
             toUpdate.push(task);
           }
         }
@@ -392,6 +336,7 @@ export function ProcessMatrix({
             checkpoint: task.checkpoint,
             triggers: task.triggers,
             gates: task.gates,
+            owners: task.owners,
           });
           finalById.delete(task.id);
           finalById.set(result.task.id, result.task);
@@ -407,6 +352,7 @@ export function ProcessMatrix({
             taskId: task.id,
             playbookId: task.playbookId,
             notes: task.notes,
+            owners: task.owners,
           });
           finalById.set(result.task.id, result.task);
         }
@@ -414,24 +360,6 @@ export function ProcessMatrix({
         const finalTasks = Array.from(finalById.values());
         setLocalTasks(finalTasks);
         setLastSavedTasks(finalTasks);
-
-        if (playbookOwnerEdits.length > 0) {
-          const updated: FrameworkItem[] = [];
-          for (const pb of playbookOwnerEdits) {
-            const { item } = await upsertFrameworkItemAction(pb);
-            updated.push(item);
-          }
-          setLocalPlaybooks((prev) => {
-            const map = new Map(prev.map((p) => [p.id, p]));
-            for (const item of updated) map.set(item.id, item);
-            return Array.from(map.values());
-          });
-          setLastSavedPlaybooks((prev) => {
-            const map = new Map(prev.map((p) => [p.id, p]));
-            for (const item of updated) map.set(item.id, item);
-            return Array.from(map.values());
-          });
-        }
 
         toastSuccess("Workflow saved");
         exitEditMode();
@@ -449,7 +377,6 @@ export function ProcessMatrix({
     instance.id,
     lastSavedTasks,
     localTasks,
-    playbookOwnerEdits,
     toastError,
     toastSuccess,
   ]);
@@ -753,17 +680,16 @@ export function ProcessMatrix({
               );
               const isSkillCollapsed = collapsedSkillIds.has(skill.id);
               const labelHidden = collapsed || isSkillCollapsed;
-              // Derive the row's owner stack from the playbooks currently
-              // assigned to this skill row (deduped, order-preserved). Owners
-              // live on the playbook now, so the row label aggregates across
-              // every playbook in this row.
+              // Derive the row's owner stack from the cards currently in
+              // this skill row (deduped, order-preserved). Owners live on
+              // each task now, so the same playbook can carry different
+              // owners in different cells.
               const rowOwners: string[] = [];
               {
                 const seen = new Set<string>();
                 for (const t of localTasks) {
-                  if (t.skillId !== skill.id || !t.playbookId) continue;
-                  const pb = playbookById.get(t.playbookId);
-                  for (const owner of pb?.owners ?? []) {
+                  if (t.skillId !== skill.id) continue;
+                  for (const owner of t.owners ?? []) {
                     if (!seen.has(owner)) {
                       seen.add(owner);
                       rowOwners.push(owner);
@@ -893,7 +819,11 @@ export function ProcessMatrix({
                               task={task}
                               playbook={playbook}
                               skillColor={skillColor}
-                              onClick={() => setSelectedTaskId(task.id)}
+                              onClick={
+                                editMode
+                                  ? undefined
+                                  : () => setSelectedTaskId(task.id)
+                              }
                             />
                           ) : (
                             <DraggableTaskCard
@@ -907,17 +837,15 @@ export function ProcessMatrix({
                                 skillColor={skillColor}
                                 barState={barClass(task, canStart(task, localTasks))}
                                 editMode={editMode}
-                                onClick={() => setSelectedTaskId(task.id)}
+                                onClick={
+                                  editMode
+                                    ? undefined
+                                    : () => setSelectedTaskId(task.id)
+                                }
                                 onStatusChange={
                                   editMode
                                     ? undefined
                                     : (next) => handleStatusChange(task.id, next)
-                                }
-                                onOwnersChange={
-                                  editMode && playbook
-                                    ? (owners) =>
-                                        handlePlaybookOwnersChange(playbook.id, owners)
-                                    : undefined
                                 }
                                 onEdit={
                                   editMode
@@ -932,6 +860,7 @@ export function ProcessMatrix({
                                           initial: {
                                             playbookId: task.playbookId ?? null,
                                             notes: task.notes ?? "",
+                                            owners: task.owners ?? [],
                                           },
                                         })
                                     : undefined
@@ -1016,6 +945,7 @@ export function ProcessMatrix({
                         ...task,
                         playbookId: input.playbookId,
                         notes: input.notes,
+                        owners: input.owners,
                       }
                     : task,
                 ),
@@ -1041,6 +971,7 @@ export function ProcessMatrix({
               triggers: [],
               gates: [],
               playbookId: input.playbookId,
+              owners: input.owners,
               createdAt: now,
               updatedAt: now,
             };
