@@ -136,6 +136,7 @@ function makeInstance(
     templateId: "tpl-1",
     label: "Acme Corp",
     status: "active",
+    stages: TEMPLATE.stages,
     skills: SKILLS,
     createdAt: "2026-04-19T12:00:00Z",
     updatedAt: "2026-04-19T12:00:00Z",

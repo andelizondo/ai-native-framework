@@ -114,6 +114,7 @@ function instance(tasks: WorkflowTask[]): WorkflowInstanceDetail {
     templateId: "client-delivery",
     label: "Acme Corp",
     status: "active",
+    stages: TEMPLATE.stages,
     skills: TEMPLATE.skills,
     createdAt: "2026-04-19T12:00:00Z",
     updatedAt: "2026-04-19T12:00:00Z",
@@ -275,16 +276,18 @@ describe("ProcessMatrix", () => {
     expect(screen.getByTestId("task-card-k-3")).toBeInTheDocument();
   });
 
-  it("renders the placeholder when the template is missing", () => {
+  it("still renders the matrix when the template was deleted, using the instance snapshot", () => {
+    // Instance carries its own stages/skills snapshot (set at create time),
+    // so a deleted template no longer collapses the matrix.
     const inst = instance([]);
     renderWithTopBarProvider(<ProcessMatrix instance={inst} template={null} />);
 
-    const empty = screen.getByTestId("matrix-empty");
-    expect(empty).toHaveTextContent(/no longer available/i);
+    expect(screen.queryByTestId("matrix-empty")).not.toBeInTheDocument();
+    expect(screen.getByTestId("matrix-stage-pre-sales")).toBeInTheDocument();
   });
 
-  it("renders the placeholder when the template has no stages or roles", () => {
-    const inst = instance([]);
+  it("renders the placeholder when the instance has no stages or skills", () => {
+    const inst = { ...instance([]), stages: [], skills: [] };
     renderWithTopBarProvider(
       <ProcessMatrix
         instance={inst}

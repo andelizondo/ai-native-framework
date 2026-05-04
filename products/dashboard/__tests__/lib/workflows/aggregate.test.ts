@@ -56,6 +56,7 @@ function instance(
     templateId,
     label: id,
     status,
+    stages: [],
     skills: [],
     createdAt: "2026-04-19T12:00:00Z",
     updatedAt: "2026-04-19T12:00:00Z",

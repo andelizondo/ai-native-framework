@@ -625,7 +625,9 @@ export function TaskDrawer({
 
   const skillLabel = task ? (skills.find((r) => r.id === task.skillId)?.label ?? task.skillId) : "";
   const stageLabel = task
-    ? (template?.stages.find((s) => s.id === task.stageId)?.label ?? task.stageId)
+    ? ((instance.stages.find((s) => s.id === task.stageId)
+        ?? template?.stages.find((s) => s.id === task.stageId))?.label
+        ?? task.stageId)
     : "";
   const taskEvents = task ? instance.events.filter((e) => e.taskId === task.id) : [];
   const playbookForTitle = task?.playbookId

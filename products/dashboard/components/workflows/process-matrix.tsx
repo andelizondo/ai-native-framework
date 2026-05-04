@@ -114,7 +114,14 @@ export function ProcessMatrix({
     });
   }, []);
 
-  const stages: WorkflowStage[] = template?.stages ?? [];
+  // Stages and skills are snapshotted onto the instance at create time so
+  // template edits do not mutate or orphan tasks on existing instances.
+  // Fall back to the template only for legacy instances persisted before
+  // the snapshot column existed.
+  const stages: WorkflowStage[] =
+    instance.stages && instance.stages.length > 0
+      ? instance.stages
+      : template?.stages ?? [];
   const skills: WorkflowSkill[] =
     instance.skills && instance.skills.length > 0
       ? instance.skills
