@@ -1108,14 +1108,22 @@ function MiniTaskCell({
   onClick?: () => void;
 }) {
   const title = playbook?.name ?? (task.playbookId ? "Playbook removed" : "No playbook");
-  // In mini mode the avatar ring carries the *status* (semantic) rather than
-  // the playbook identity color. Full task cards keep the playbook color.
-  const ringColor = TASK_STATUS_VAR[task.status];
+  // Ring carries the skill identity color; the disc background encodes the
+  // task's status as a tint, so a row of mini cells reads as "same family,
+  // different states" at a glance.
+  const statusColor = TASK_STATUS_VAR[task.status];
+  const statusFill =
+    task.status === "not_started"
+      ? "var(--bg-2)"
+      : `color-mix(in srgb, ${statusColor} 45%, var(--bg-2))`;
+  // Halo color is only set for active/pending/blocked/complete — not_started
+  // gets no halo so an empty workflow reads as quiet rather than glowing.
+  const haloColor = task.status === "not_started" ? undefined : statusColor;
   const opacity =
     task.status === "not_started"
-      ? 0.35
+      ? 0.55
       : task.status === "complete"
-        ? 0.55
+        ? 0.7
         : 1;
   const statusLabel =
     task.status === "active"
@@ -1143,22 +1151,35 @@ function MiniTaskCell({
       className="mx-mini-cell-btn"
       data-testid={`task-mini-${task.id}`}
       data-status={task.status}
+      data-pulse={task.status === "pending_approval" ? "true" : undefined}
       onClick={onClick}
       aria-label={`Open playbook: ${title} (${statusLabel})`}
-      style={{ opacity, "--role-color": skillColor } as React.CSSProperties}
+      style={
+        {
+          opacity,
+          "--role-color": skillColor,
+          ...(haloColor ? { "--status-color": haloColor } : {}),
+        } as React.CSSProperties
+      }
     >
-      <ItemAvatar
-        emoji={playbook?.icon ?? null}
-        color={ringColor}
-        label={title}
-        size="xs"
-      />
-      <FloatingHoverTooltip
-        name={title}
-        sub={statusLabel}
-        placement="above"
-        subStatusClass={statusClass}
-      />
+      {/* Wrap avatar + tooltip so the tooltip's anchor (its parent) is the
+       *  avatar's footprint, not the full mini-cell. The tooltip's
+       *  `placement="above"` then floats from the top of the avatar. */}
+      <span className="mx-mini-cell-anchor">
+        <ItemAvatar
+          emoji={playbook?.icon ?? null}
+          color={skillColor}
+          backgroundFill={statusFill}
+          label={title}
+          size="xs"
+        />
+        <FloatingHoverTooltip
+          name={title}
+          sub={statusLabel}
+          placement="above"
+          subStatusClass={statusClass}
+        />
+      </span>
     </button>
   );
 }

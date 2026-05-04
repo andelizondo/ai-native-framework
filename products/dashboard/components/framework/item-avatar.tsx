@@ -56,6 +56,11 @@ interface ItemAvatarProps {
    *  ring so overlapping avatars in a tight stack read with a clean
    *  separator instead of the (transparent-feeling) tinted halo. */
   stackedSeparator?: boolean;
+  /** Optional override for the disc fill. When set, the avatar body is
+   *  tinted with this color instead of the default `var(--bg-2)` — used
+   *  by the mini task cell to encode task status separately from the
+   *  ring's identity color. */
+  backgroundFill?: string;
   className?: string;
 }
 
@@ -75,6 +80,7 @@ export function ItemAvatar({
   stackIndex,
   stackTotal,
   stackedSeparator = false,
+  backgroundFill,
   className,
 }: ItemAvatarProps) {
   const px = SIZE_PX[size];
@@ -85,11 +91,13 @@ export function ItemAvatar({
   // fill like `${color}33` reads as transparent (you see the next ring
   // through the body, which made the original screenshot look blended).
   // `color-mix` gives us a solid tinted chip on top of the card surface.
-  const fill = stackedSeparator
-    ? `color-mix(in srgb, ${color} 22%, var(--bg-2))`
-    : usingInitials
-      ? `${color}1a`
-      : "var(--bg-2)";
+  const fill = backgroundFill
+    ? backgroundFill
+    : stackedSeparator
+      ? `color-mix(in srgb, ${color} 22%, var(--bg-2))`
+      : usingInitials
+        ? `${color}1a`
+        : "var(--bg-2)";
   const style: CSSProperties = {
     width: px,
     height: px,

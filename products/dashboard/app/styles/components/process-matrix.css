@@ -1141,6 +1141,51 @@
   cursor: pointer;
   position: relative;
 }
+/* Status halo. Sits behind the 22px ItemAvatar and glows in the task's
+ * status color; absent for `not_started` (no `--status-color` set). The
+ * `data-pulse` flag on `pending_approval` swaps in a slow pulsing variant
+ * so a checkpoint that needs attention reads even at the mini scale. */
+.mx-mini-cell-btn::before {
+  content: "";
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 22px;
+  height: 22px;
+  border-radius: 9999px;
+  transform: translate(-50%, -50%);
+  pointer-events: none;
+  box-shadow: 0 0 8px 1px var(--status-color, transparent);
+  opacity: 0.75;
+}
+.mx-mini-cell-btn[data-pulse="true"]::before {
+  animation: ainative-mini-pulse 2s ease-in-out infinite;
+}
+@keyframes ainative-mini-pulse {
+  0%,
+  100% {
+    box-shadow: 0 0 6px 0 var(--status-color);
+    opacity: 0.5;
+  }
+  50% {
+    box-shadow: 0 0 14px 2px var(--status-color);
+    opacity: 1;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .mx-mini-cell-btn[data-pulse="true"]::before {
+    animation: none;
+  }
+}
+/* Avatar-sized anchor inside the mini cell. Sized exactly to the xs
+ * avatar (22px) so the FloatingHoverTooltip — which anchors to its
+ * parent element — floats above the avatar rather than the full cell. */
+.mx-mini-cell-anchor {
+  position: relative;
+  display: inline-flex;
+  width: 22px;
+  height: 22px;
+}
 .mx-mini-cell-btn:hover {
   background: var(--bg-2);
 }
