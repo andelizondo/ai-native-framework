@@ -4,6 +4,7 @@ import { useCallback, useEffect, useId, useMemo, useRef, useState, useTransition
 import { createPortal } from "react-dom";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import {
+  Check,
   ChevronsLeftRight,
   ChevronsRightLeft,
   Maximize2,
@@ -41,6 +42,7 @@ import {
   deleteTaskAction,
   moveTaskAction,
   renameInstanceAction,
+  setTaskStatusAction,
   updateTaskDetailsAction,
 } from "@/app/(dashboard)/workflows/actions";
 import { useDashboardTopBar } from "@/components/dashboard-topbar-context";
@@ -50,7 +52,7 @@ import { useToast } from "@/lib/toast";
 import { useUnsavedChangesGuard } from "@/lib/use-unsaved-changes-guard";
 import { cn } from "@/lib/utils";
 import { barClass, canStart } from "@/lib/workflows/matrix";
-import { resolveItemColor, resolveSkillColor } from "@/lib/workflows/skill-colors";
+import { resolveSkillColor } from "@/lib/workflows/skill-colors";
 import { ItemAvatar } from "@/components/framework/item-avatar";
 import type {
   FrameworkItem,
@@ -58,8 +60,10 @@ import type {
   WorkflowSkill,
   WorkflowStage,
   WorkflowTask,
+  WorkflowTaskStatus,
   WorkflowTemplate,
 } from "@/lib/workflows/types";
+import { TASK_STATUS_VAR } from "@/lib/workflows/task-status";
 
 import { AddPlaybookModal } from "./add-playbook-modal";
 import { AgentRunPanel } from "./agent-run-panel";
@@ -145,6 +149,7 @@ export function ProcessMatrix({
     initial?: {
       playbookId?: string | null;
       notes?: string;
+      owners?: string[];
     };
   } | null>(null);
   const [confirmDeleteTask, setConfirmDeleteTask] = useState<WorkflowTask | null>(
@@ -164,6 +169,36 @@ export function ProcessMatrix({
   const playbookById = useMemo(
     () => new Map(playbookOptions.map((pb) => [pb.id, pb])),
     [playbookOptions],
+  );
+
+  const handleStatusChange = useCallback(
+    (taskId: string, next: WorkflowTaskStatus) => {
+      const previous = localTasks.find((t) => t.id === taskId);
+      if (!previous || previous.status === next) return;
+      const optimistic: WorkflowTask = {
+        ...previous,
+        status: next,
+        updatedAt: new Date().toISOString(),
+      };
+      setLocalTasks((prev) => prev.map((t) => (t.id === taskId ? optimistic : t)));
+      setLastSavedTasks((prev) => prev.map((t) => (t.id === taskId ? optimistic : t)));
+      startTransition(async () => {
+        try {
+          const { task } = await setTaskStatusAction(taskId, next);
+          setLocalTasks((prev) => prev.map((t) => (t.id === taskId ? task : t)));
+          setLastSavedTasks((prev) => prev.map((t) => (t.id === taskId ? task : t)));
+        } catch (err) {
+          captureError(err, {
+            feature: "workflows.matrix_status_change",
+            extra: { task_id: taskId, status: next },
+          });
+          toastError("Could not update status. Please try again.");
+          setLocalTasks((prev) => prev.map((t) => (t.id === taskId ? previous : t)));
+          setLastSavedTasks((prev) => prev.map((t) => (t.id === taskId ? previous : t)));
+        }
+      });
+    },
+    [localTasks, toastError],
   );
 
   useEffect(() => {
@@ -267,7 +302,16 @@ export function ProcessMatrix({
           if (saved.skillId !== task.skillId || saved.stageId !== task.stageId) {
             toMove.push(task);
           }
-          if (saved.notes !== task.notes || saved.playbookId !== task.playbookId) {
+          const ownersChanged =
+            (saved.owners ?? []).length !== (task.owners ?? []).length ||
+            (saved.owners ?? []).some(
+              (value, index) => value !== (task.owners ?? [])[index],
+            );
+          if (
+            saved.notes !== task.notes ||
+            saved.playbookId !== task.playbookId ||
+            ownersChanged
+          ) {
             toUpdate.push(task);
           }
         }
@@ -293,6 +337,7 @@ export function ProcessMatrix({
             checkpoint: task.checkpoint,
             triggers: task.triggers,
             gates: task.gates,
+            owners: task.owners,
           });
           finalById.delete(task.id);
           finalById.set(result.task.id, result.task);
@@ -308,6 +353,7 @@ export function ProcessMatrix({
             taskId: task.id,
             playbookId: task.playbookId,
             notes: task.notes,
+            owners: task.owners,
           });
           finalById.set(result.task.id, result.task);
         }
@@ -315,6 +361,7 @@ export function ProcessMatrix({
         const finalTasks = Array.from(finalById.values());
         setLocalTasks(finalTasks);
         setLastSavedTasks(finalTasks);
+
         toastSuccess("Workflow saved");
         exitEditMode();
       } catch (err) {
@@ -326,7 +373,14 @@ export function ProcessMatrix({
         );
       }
     });
-  }, [exitEditMode, instance.id, lastSavedTasks, localTasks, toastError, toastSuccess]);
+  }, [
+    exitEditMode,
+    instance.id,
+    lastSavedTasks,
+    localTasks,
+    toastError,
+    toastSuccess,
+  ]);
 
   useEffect(() => {
     setConfig({
@@ -627,6 +681,23 @@ export function ProcessMatrix({
               );
               const isSkillCollapsed = collapsedSkillIds.has(skill.id);
               const labelHidden = collapsed || isSkillCollapsed;
+              // Derive the row's owner stack from the cards currently in
+              // this skill row (deduped, order-preserved). Owners live on
+              // each task now, so the same playbook can carry different
+              // owners in different cells.
+              const rowOwners: string[] = [];
+              {
+                const seen = new Set<string>();
+                for (const t of localTasks) {
+                  if (t.skillId !== skill.id) continue;
+                  for (const owner of t.owners ?? []) {
+                    if (!seen.has(owner)) {
+                      seen.add(owner);
+                      rowOwners.push(owner);
+                    }
+                  }
+                }
+              }
               return (
                 <div
                   key={skill.id}
@@ -657,8 +728,8 @@ export function ProcessMatrix({
                         <FloatingHoverTooltip
                           name={skill.label}
                           sub={
-                            skill.owners.length > 0
-                              ? skill.owners.join(", ")
+                            rowOwners.length > 0
+                              ? rowOwners.join(", ")
                               : "No owner"
                           }
                           placement="right"
@@ -674,11 +745,11 @@ export function ProcessMatrix({
                         <div
                           className={cn(
                             "mx-role-owner",
-                            skill.owners.length > 0 && "mx-role-owner-plain",
+                            rowOwners.length > 0 && "mx-role-owner-plain",
                           )}
                         >
-                          {skill.owners.length > 0
-                            ? skill.owners.join(", ")
+                          {rowOwners.length > 0
+                            ? rowOwners.join(", ")
                             : "No owner"}
                         </div>
                       </div>
@@ -749,7 +820,11 @@ export function ProcessMatrix({
                               task={task}
                               playbook={playbook}
                               skillColor={skillColor}
-                              onClick={() => setSelectedTaskId(task.id)}
+                              onClick={
+                                editMode
+                                  ? undefined
+                                  : () => setSelectedTaskId(task.id)
+                              }
                             />
                           ) : (
                             <DraggableTaskCard
@@ -763,7 +838,16 @@ export function ProcessMatrix({
                                 skillColor={skillColor}
                                 barState={barClass(task, canStart(task, localTasks))}
                                 editMode={editMode}
-                                onClick={() => setSelectedTaskId(task.id)}
+                                onClick={
+                                  editMode
+                                    ? undefined
+                                    : () => setSelectedTaskId(task.id)
+                                }
+                                onStatusChange={
+                                  editMode
+                                    ? undefined
+                                    : (next) => handleStatusChange(task.id, next)
+                                }
                                 onEdit={
                                   editMode
                                     ? () =>
@@ -777,6 +861,7 @@ export function ProcessMatrix({
                                           initial: {
                                             playbookId: task.playbookId ?? null,
                                             notes: task.notes ?? "",
+                                            owners: task.owners ?? [],
                                           },
                                         })
                                     : undefined
@@ -861,6 +946,7 @@ export function ProcessMatrix({
                         ...task,
                         playbookId: input.playbookId,
                         notes: input.notes,
+                        owners: input.owners,
                       }
                     : task,
                 ),
@@ -886,6 +972,7 @@ export function ProcessMatrix({
               triggers: [],
               gates: [],
               playbookId: input.playbookId,
+              owners: input.owners,
               createdAt: now,
               updatedAt: now,
             };
@@ -1022,12 +1109,22 @@ function MiniTaskCell({
   onClick?: () => void;
 }) {
   const title = playbook?.name ?? (task.playbookId ? "Playbook removed" : "No playbook");
-  const playbookColor = playbook ? resolveItemColor(playbook) : skillColor;
+  // Ring carries the skill identity color; the disc background encodes the
+  // task's status as a tint, so a row of mini cells reads as "same family,
+  // different states" at a glance.
+  const statusColor = TASK_STATUS_VAR[task.status];
+  const statusFill =
+    task.status === "not_started"
+      ? "var(--bg-2)"
+      : `color-mix(in srgb, ${statusColor} 45%, var(--bg-2))`;
+  // Halo color is only set for active/pending/blocked/complete — not_started
+  // gets no halo so an empty workflow reads as quiet rather than glowing.
+  const haloColor = task.status === "not_started" ? undefined : statusColor;
   const opacity =
     task.status === "not_started"
-      ? 0.35
+      ? 0.55
       : task.status === "complete"
-        ? 0.55
+        ? 0.7
         : 1;
   const statusLabel =
     task.status === "active"
@@ -1055,22 +1152,49 @@ function MiniTaskCell({
       className="mx-mini-cell-btn"
       data-testid={`task-mini-${task.id}`}
       data-status={task.status}
+      data-pulse={
+        task.status === "pending_approval" || task.status === "blocked"
+          ? "true"
+          : undefined
+      }
       onClick={onClick}
       aria-label={`Open playbook: ${title} (${statusLabel})`}
-      style={{ opacity, "--role-color": skillColor } as React.CSSProperties}
+      style={
+        {
+          opacity,
+          "--role-color": skillColor,
+          ...(haloColor ? { "--status-color": haloColor } : {}),
+        } as React.CSSProperties
+      }
     >
-      <ItemAvatar
-        emoji={playbook?.icon ?? null}
-        color={playbookColor}
-        label={title}
-        size="xs"
-      />
-      <FloatingHoverTooltip
-        name={title}
-        sub={statusLabel}
-        placement="above"
-        subStatusClass={statusClass}
-      />
+      {/* Wrap avatar + tooltip so the tooltip's anchor (its parent) is the
+       *  avatar's footprint, not the full mini-cell. The tooltip's
+       *  `placement="above"` then floats from the top of the avatar. */}
+      <span className="mx-mini-cell-anchor">
+        <ItemAvatar
+          emoji={playbook?.icon ?? null}
+          color={skillColor}
+          backgroundFill={statusFill}
+          icon={
+            task.status === "complete" ? (
+              <Check
+                aria-hidden
+                size={12}
+                strokeWidth={2.6}
+                style={{ color: statusColor }}
+              />
+            ) : undefined
+          }
+          label={title}
+          size="xs"
+        />
+        <FloatingHoverTooltip
+          name={title}
+          sub={statusLabel}
+          placement="above"
+          subStatusClass={statusClass}
+        />
+      </span>
     </button>
   );
 }

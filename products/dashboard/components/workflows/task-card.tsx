@@ -1,26 +1,31 @@
-import { AlertTriangle, Pencil, Trash2 } from "lucide-react";
+"use client";
 
-import { ItemAvatar } from "@/components/framework/item-avatar";
+import { useEffect, useRef, useState } from "react";
+import {
+  AlertTriangle,
+  Check,
+  CircleAlert,
+  Pencil,
+  StickyNote,
+  Trash2,
+  UserRound,
+} from "lucide-react";
+import type { LucideIcon } from "lucide-react";
+
+import { OwnerAvatarStack } from "@/components/framework/owner-avatar-stack";
 import { cn } from "@/lib/utils";
 import type { TaskBarState } from "@/lib/workflows/matrix";
-import { resolveItemColor } from "@/lib/workflows/skill-colors";
-import type { FrameworkItem, WorkflowTask } from "@/lib/workflows/types";
-
-const STATUS_LABEL: Record<WorkflowTask["status"], string> = {
-  complete: "Complete",
-  active: "In progress",
-  pending_approval: "Pending approval",
-  blocked: "Failed",
-  not_started: "Not started",
-};
-
-const STATUS_PILL_CLASS: Record<WorkflowTask["status"], string> = {
-  complete: "s-complete",
-  active: "s-active",
-  pending_approval: "s-pending",
-  blocked: "s-blocked",
-  not_started: "s-not_started",
-};
+import {
+  TASK_STATUS_LABEL,
+  TASK_STATUS_ORDER,
+  TASK_STATUS_PILL_CLASS,
+  TASK_STATUS_VAR,
+} from "@/lib/workflows/task-status";
+import type {
+  FrameworkItem,
+  WorkflowTask,
+  WorkflowTaskStatus,
+} from "@/lib/workflows/types";
 
 export interface TaskCardProps {
   task: WorkflowTask;
@@ -36,9 +41,14 @@ export interface TaskCardProps {
   editMode?: boolean;
   onEdit?: () => void;
   onRemove?: () => void;
-  /** Suppress the status pill in the footer. Templates pass this since
-   *  template tasks don't have a meaningful runtime status. */
-  hideStatusPill?: boolean;
+  /** Render the card in template-editor mode: the status pill becomes a
+   *  neutral "Default" badge (template tasks don't have a runtime status)
+   *  and the per-task note collapses into a small icon badge with the
+   *  note text revealed on hover. */
+  templateView?: boolean;
+  /** Called when the user picks a new status from the badge popover.
+   *  Omit to render the status badge as a static pill (no popover). */
+  onStatusChange?: (next: WorkflowTaskStatus) => void;
 }
 
 export function TaskCard({
@@ -50,16 +60,15 @@ export function TaskCard({
   editMode = false,
   onEdit,
   onRemove,
-  hideStatusPill = false,
+  templateView = false,
+  onStatusChange,
 }: TaskCardProps) {
-  const statusClass = STATUS_PILL_CLASS[task.status];
-  const statusLabel = STATUS_LABEL[task.status];
-  const showTaskActions = editMode && (Boolean(onEdit) || Boolean(onRemove));
+  const statusClass = TASK_STATUS_PILL_CLASS[task.status];
+  const statusLabel = TASK_STATUS_LABEL[task.status];
 
   const title = playbook?.name ?? (task.playbookId ? "Playbook removed" : "No playbook");
-  const description = playbook?.description ?? task.notes ?? "";
-  const playbookColor = playbook ? resolveItemColor(playbook) : skillColor;
-  const playbookEmoji = playbook?.icon ?? null;
+  const owners = task.owners ?? [];
+  const showActions = editMode && (Boolean(onEdit) || Boolean(onRemove));
 
   return (
     <div
@@ -70,7 +79,7 @@ export function TaskCard({
         "task-card",
         statusClass,
         barState,
-        hideStatusPill && "task-card-default",
+        templateView && "task-card-default",
         onClick && "cursor-pointer",
       )}
       style={{ "--role-color": skillColor } as React.CSSProperties}
@@ -90,37 +99,82 @@ export function TaskCard({
       aria-label={onClick ? `Open playbook: ${title}` : undefined}
     >
       <div className="tc-top">
-        <span className="tc-avatar-wrap" data-testid={`task-card-avatar-${task.id}`}>
-          <ItemAvatar
-            emoji={playbookEmoji}
-            color={playbookColor}
-            label={title}
-            size="sm"
-          />
-          {task.checkpoint && (
-            <span
-              className="tc-cp-badge tc-cp-badge-overlay"
-              data-testid={`task-checkpoint-${task.id}`}
-              aria-label="Checkpoint required"
-              title="Checkpoint required"
-            >
-              <AlertTriangle aria-hidden size={9} strokeWidth={2.5} color="white" />
-            </span>
-          )}
-        </span>
         <div className="tc-title">{title}</div>
       </div>
-      {description ? <div className="tc-desc">{description}</div> : null}
-      <div className="tc-footer">
-        {hideStatusPill ? (
-          <span aria-hidden />
+      <div className="tc-status-row">
+        {templateView ? (
+          <div
+            className="s-pill s-default"
+            data-testid={`task-status-${task.id}`}
+          >
+            <span className="s-text">Default</span>
+          </div>
+        ) : onStatusChange ? (
+          <StatusBadgePopover
+            status={task.status}
+            onChange={onStatusChange}
+            taskId={task.id}
+          />
         ) : (
-          <div className={cn("s-pill", statusClass)}>
-            <div className="s-dot" aria-hidden />
+          <div className={cn("s-pill", statusClass)} data-testid={`task-status-${task.id}`}>
             <div className="s-text">{statusLabel}</div>
           </div>
         )}
-        {showTaskActions ? (
+        <div className="tc-info-badges">
+          {task.notes ? (
+            <InfoBadge
+              tone="note"
+              icon={StickyNote}
+              header="Note"
+              body={task.notes}
+              testId={`task-note-${task.id}`}
+            />
+          ) : null}
+          {task.checkpoint ? (
+            <InfoBadge
+              tone="warning"
+              icon={AlertTriangle}
+              header="Warning"
+              body="This task requires a checkpoint approval before it can complete."
+              testId={`task-checkpoint-${task.id}`}
+            />
+          ) : null}
+          {!templateView && task.status === "blocked" ? (
+            <InfoBadge
+              tone="error"
+              icon={CircleAlert}
+              header="Error"
+              body={task.substatus || "This task failed and needs attention."}
+              testId={`task-error-${task.id}`}
+            />
+          ) : null}
+          {!templateView && task.status === "complete" ? (
+            <InfoBadge
+              tone="success"
+              icon={Check}
+              header="Completed"
+              body={formatCompletionTimestamp(task.updatedAt)}
+              testId={`task-complete-${task.id}`}
+            />
+          ) : null}
+        </div>
+      </div>
+      <div className="tc-bottom">
+        <div
+          className="tc-bottom-left"
+          onClick={(event) => event.stopPropagation()}
+        >
+          {owners.length > 0 ? (
+            <OwnerAvatarStack
+              labels={owners}
+              size="xs"
+              testIdSuffix={`task-${task.id}`}
+            />
+          ) : (
+            <EmptyOwnerAvatar taskId={task.id} />
+          )}
+        </div>
+        {showActions ? (
           <div className="tc-actions mx-entity-actions mx-entity-actions-group">
             {onEdit ? (
               <button
@@ -153,6 +207,160 @@ export function TaskCard({
           </div>
         ) : null}
       </div>
+    </div>
+  );
+}
+
+function EmptyOwnerAvatar({ taskId }: { taskId: string }) {
+  return (
+    <span
+      className="group/empty-owner tc-empty-owner"
+      data-testid={`task-owners-empty-${taskId}`}
+      role="img"
+      aria-label="No owner assigned"
+    >
+      <UserRound aria-hidden size={12} strokeWidth={2} />
+      <span role="tooltip" className="tc-empty-owner-tooltip">
+        No owner assigned
+      </span>
+    </span>
+  );
+}
+
+type InfoBadgeTone = "note" | "warning" | "error" | "success";
+
+function formatCompletionTimestamp(iso: string): string {
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return "Completion time unavailable";
+  return d.toLocaleString(undefined, {
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
+  });
+}
+
+function InfoBadge({
+  tone,
+  icon: Icon,
+  header,
+  body,
+  testId,
+}: {
+  tone: InfoBadgeTone;
+  icon: LucideIcon;
+  header: string;
+  body: string;
+  testId?: string;
+}) {
+  return (
+    <span
+      className={cn("group/tc-info tc-info-badge", `tc-info-badge--${tone}`)}
+      data-testid={testId}
+    >
+      <span
+        className="tc-info-badge-icon"
+        role="img"
+        aria-label={`${header}: ${body}`}
+      >
+        <Icon aria-hidden size={12} strokeWidth={2.1} />
+      </span>
+      <span role="tooltip" className="tc-info-badge-popover">
+        <span className="tc-info-badge-popover-header">{header}</span>
+        <span className="tc-info-badge-popover-body">{body}</span>
+      </span>
+    </span>
+  );
+}
+
+function useDismissPopover(
+  rootRef: React.RefObject<HTMLDivElement | null>,
+  open: boolean,
+  setOpen: (next: boolean) => void,
+) {
+  useEffect(() => {
+    if (!open) return;
+    function handlePointerDown(event: MouseEvent) {
+      if (!rootRef.current?.contains(event.target as Node)) setOpen(false);
+    }
+    function handleKey(event: KeyboardEvent) {
+      if (event.key === "Escape") setOpen(false);
+    }
+    document.addEventListener("mousedown", handlePointerDown);
+    document.addEventListener("keydown", handleKey);
+    return () => {
+      document.removeEventListener("mousedown", handlePointerDown);
+      document.removeEventListener("keydown", handleKey);
+    };
+  }, [open, rootRef, setOpen]);
+}
+
+function StatusBadgePopover({
+  status,
+  onChange,
+  taskId,
+}: {
+  status: WorkflowTaskStatus;
+  onChange: (next: WorkflowTaskStatus) => void;
+  taskId: string;
+}) {
+  const rootRef = useRef<HTMLDivElement | null>(null);
+  const [open, setOpen] = useState(false);
+  useDismissPopover(rootRef, open, setOpen);
+
+  const statusClass = TASK_STATUS_PILL_CLASS[status];
+  const statusLabel = TASK_STATUS_LABEL[status];
+
+  return (
+    <div ref={rootRef} className="tc-status-wrap">
+      <button
+        type="button"
+        className={cn("s-pill tc-status-trigger", statusClass)}
+        data-testid={`task-status-${taskId}`}
+        aria-haspopup="listbox"
+        aria-expanded={open}
+        onClick={(event) => {
+          event.stopPropagation();
+          setOpen((prev) => !prev);
+        }}
+        title="Change status"
+      >
+        <span className="s-text">{statusLabel}</span>
+      </button>
+      {open ? (
+        <div
+          className="tc-popover tc-popover-status"
+          role="listbox"
+          aria-label="Set status"
+          onClick={(event) => event.stopPropagation()}
+        >
+          {TASK_STATUS_ORDER.map((option) => {
+            const selected = option === status;
+            return (
+              <button
+                key={option}
+                type="button"
+                role="option"
+                aria-selected={selected}
+                className={cn("tc-popover-item", selected && "is-selected")}
+                onClick={(event) => {
+                  event.stopPropagation();
+                  setOpen(false);
+                  if (!selected) onChange(option);
+                }}
+              >
+                <span
+                  className="tc-popover-dot"
+                  aria-hidden
+                  style={{ background: TASK_STATUS_VAR[option] }}
+                />
+                <span className="tc-popover-text">{TASK_STATUS_LABEL[option]}</span>
+              </button>
+            );
+          })}
+        </div>
+      ) : null}
     </div>
   );
 }

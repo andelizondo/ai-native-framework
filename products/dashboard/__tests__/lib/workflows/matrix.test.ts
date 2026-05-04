@@ -21,6 +21,7 @@ function task(
     triggers: [],
     gates: [],
     playbookId: null,
+    owners: [],
     createdAt: "2026-04-19T12:00:00Z",
     updatedAt: "2026-04-19T12:00:00Z",
     ...overrides,
@@ -76,8 +77,8 @@ describe("barClass", () => {
   it("maps each task status to its prototype bar-state class", () => {
     expect(barClass(task("c", { status: "complete" }), false)).toBe("bar-complete");
     expect(barClass(task("a", { status: "active" }), false)).toBe("bar-active");
-    expect(barClass(task("p", { status: "pending_approval" }), true)).toBe("bar-pending");
-    expect(barClass(task("b", { status: "blocked" }), true)).toBe("bar-cancelled");
+    expect(barClass(task("p", { status: "pending_approval" }), true)).toBe("bar-glow");
+    expect(barClass(task("b", { status: "blocked" }), true)).toBe("bar-glow");
   });
 
   it("splits not_started tasks into ready/locked based on canStart", () => {

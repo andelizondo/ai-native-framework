@@ -5,7 +5,6 @@ import Link from "next/link";
 import { Search, SearchX } from "lucide-react";
 
 import { ItemAvatar } from "@/components/framework/item-avatar";
-import { OwnerPicker } from "@/components/framework/owner-picker";
 import { resolveItemColor } from "@/lib/workflows/skill-colors";
 import type { FrameworkItem, WorkflowSkill } from "@/lib/workflows/types";
 import { cn } from "@/lib/utils";
@@ -31,9 +30,6 @@ export function AddSkillModal({
 }: AddSkillModalProps) {
   const [selectedId, setSelectedId] = useState<string>(initialSkill?.id ?? "");
   const [query, setQuery] = useState("");
-  const [owners, setOwners] = useState<string[]>(
-    initialSkill?.owners ? [...initialSkill.owners] : [],
-  );
 
   const usedIdSet = useMemo(
     () => new Set(alreadyUsedIds.filter((id) => id !== initialSkill?.id)),
@@ -49,7 +45,7 @@ export function AddSkillModal({
   }, [skills, query]);
 
   const selected = skills.find((s) => s.id === selectedId);
-  const canSubmit = Boolean(selected) && owners.length > 0;
+  const canSubmit = Boolean(selected);
 
   useEffect(() => {
     function handleKeyDown(event: KeyboardEvent) {
@@ -63,12 +59,14 @@ export function AddSkillModal({
 
   function submit() {
     if (!selected) return;
-    const trimmedOwners = owners.map((o) => o.trim()).filter(Boolean);
-    if (trimmedOwners.length === 0) return;
     onSubmit({
       id: selected.id,
       label: selected.name,
-      owners: trimmedOwners,
+      // Owners now live on the Playbook framework item; the skill row owner
+      // stack is derived from the playbooks assigned to that row in the
+      // matrix. Keep the field on the type for read-side back-compat with
+      // older templates/instances persisted before the migration.
+      owners: [],
     });
     onClose();
   }
@@ -114,90 +112,74 @@ export function AddSkillModal({
             </Link>
           </div>
         ) : (
-          <>
-            <div className="mb-3 rounded-lg border border-border bg-bg-3">
-              <div className="flex items-center gap-2 border-b border-border px-3 py-2">
-                <Search className="h-3.5 w-3.5 text-t3" />
-                <input
-                  value={query}
-                  onChange={(event) => setQuery(event.target.value)}
-                  placeholder="Search skills"
-                  autoFocus
-                  className="w-full bg-transparent text-[13px] text-t1 placeholder:text-t3 focus:outline-none"
-                />
-              </div>
-              <div className="h-60 overflow-y-auto p-1.5">
-                {filtered.length === 0 ? (
-                  // Keep the list area at the same height when empty so
-                  // the modal doesn't shrink under the search field while
-                  // the user is still typing.
-                  <div className="flex h-full flex-col items-center justify-center gap-2 rounded-md bg-bg-2/40 px-4 text-center">
-                    <SearchX aria-hidden className="h-5 w-5 text-t3" />
-                    <div className="text-[12.5px] font-medium text-t2">
-                      No skills match &ldquo;{query.trim()}&rdquo;
-                    </div>
-                    <div className="text-[10.5px] leading-[1.5] text-t3">
-                      Try a different keyword or create a new skill in the
-                      Skills page.
-                    </div>
-                  </div>
-                ) : (
-                  filtered.map((skill) => {
-                    const used = usedIdSet.has(skill.id);
-                    const active = skill.id === selectedId;
-                    return (
-                      <button
-                        key={skill.id}
-                        type="button"
-                        disabled={used}
-                        onClick={() => setSelectedId(skill.id)}
-                        className={cn(
-                          "flex w-full items-center gap-2.5 rounded-md px-2.5 py-2 text-left transition",
-                          active
-                            ? "bg-primary-bg text-accent"
-                            : used
-                              ? "cursor-not-allowed text-t3 opacity-60"
-                              : "text-t2 hover:bg-bg-4 hover:text-t1",
-                        )}
-                      >
-                        <ItemAvatar
-                          emoji={skill.icon}
-                          color={resolveItemColor(skill)}
-                          label={skill.name}
-                          size="sm"
-                        />
-                        <span className="min-w-0 flex-1">
-                          <span className="block truncate text-[12.5px] font-semibold">
-                            {skill.name}
-                            {used ? <span className="ml-2 text-[10px] text-t3">already added</span> : null}
-                          </span>
-                          {skill.description ? (
-                            <span className="mt-0.5 block truncate text-[10.5px] text-t3">
-                              {skill.description}
-                            </span>
-                          ) : null}
-                        </span>
-                      </button>
-                    );
-                  })
-                )}
-              </div>
-            </div>
-
-            <label className="mb-1.5 block text-[11px] font-medium text-t2">
-              Owners <span className="font-normal text-t3">(at least one)</span>
-            </label>
-            <div className="mb-5">
-              <OwnerPicker
-                values={owners}
-                onChange={setOwners}
-                variant="field"
-                required
-                placeholder="Pick a person or AI agent"
-                ariaLabel="Owners"
+          <div className="mb-5 rounded-lg border border-border bg-bg-3">
+            <div className="flex items-center gap-2 border-b border-border px-3 py-2">
+              <Search className="h-3.5 w-3.5 text-t3" />
+              <input
+                value={query}
+                onChange={(event) => setQuery(event.target.value)}
+                placeholder="Search skills"
+                autoFocus
+                className="w-full bg-transparent text-[13px] text-t1 placeholder:text-t3 focus:outline-none"
               />
             </div>
-          </>
+            <div className="h-60 overflow-y-auto p-1.5">
+              {filtered.length === 0 ? (
+                // Keep the list area at the same height when empty so
+                // the modal doesn't shrink under the search field while
+                // the user is still typing.
+                <div className="flex h-full flex-col items-center justify-center gap-2 rounded-md bg-bg-2/40 px-4 text-center">
+                  <SearchX aria-hidden className="h-5 w-5 text-t3" />
+                  <div className="text-[12.5px] font-medium text-t2">
+                    No skills match &ldquo;{query.trim()}&rdquo;
+                  </div>
+                  <div className="text-[10.5px] leading-[1.5] text-t3">
+                    Try a different keyword or create a new skill in the
+                    Skills page.
+                  </div>
+                </div>
+              ) : (
+                filtered.map((skill) => {
+                  const used = usedIdSet.has(skill.id);
+                  const active = skill.id === selectedId;
+                  return (
+                    <button
+                      key={skill.id}
+                      type="button"
+                      disabled={used}
+                      onClick={() => setSelectedId(skill.id)}
+                      className={cn(
+                        "flex w-full items-center gap-2.5 rounded-md px-2.5 py-2 text-left transition",
+                        active
+                          ? "bg-primary-bg text-accent"
+                          : used
+                            ? "cursor-not-allowed text-t3 opacity-60"
+                            : "text-t2 hover:bg-bg-4 hover:text-t1",
+                      )}
+                    >
+                      <ItemAvatar
+                        emoji={skill.icon}
+                        color={resolveItemColor(skill)}
+                        label={skill.name}
+                        size="sm"
+                      />
+                      <span className="min-w-0 flex-1">
+                        <span className="block truncate text-[12.5px] font-semibold">
+                          {skill.name}
+                          {used ? <span className="ml-2 text-[10px] text-t3">already added</span> : null}
+                        </span>
+                        {skill.description ? (
+                          <span className="mt-0.5 block truncate text-[10.5px] text-t3">
+                            {skill.description}
+                          </span>
+                        ) : null}
+                      </span>
+                    </button>
+                  );
+                })
+              )}
+            </div>
+          </div>
         )}
 
         <div className="flex justify-end gap-2">

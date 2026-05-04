@@ -1,7 +1,9 @@
 import Link from "next/link";
 
+import { ItemAvatar } from "@/components/framework/item-avatar";
 import { cn } from "@/lib/utils";
 import type { ActiveTask } from "@/lib/workflows/aggregate";
+import { resolveItemColor } from "@/lib/workflows/skill-colors";
 import type { FrameworkItem } from "@/lib/workflows/types";
 
 export interface InProgressTasksCardProps {
@@ -39,32 +41,40 @@ export function InProgressTasksCard({
               : undefined;
             const title = playbook?.name ?? (task.playbookId ? "Playbook removed" : "Playbook");
             const icon = playbook?.icon || "📘";
+            const avatarColor = playbook
+              ? resolveItemColor(playbook)
+              : "#94a3b8";
             return (
             <li key={task.id}>
               <Link
                 href={`/workflows/${instance.id}`}
                 data-testid={`overview-in-progress-task-${task.id}`}
-                className="flex items-start gap-2.5 px-4 py-3 transition-colors hover:bg-bg-3 focus-visible:bg-bg-3 focus-visible:outline-none"
+                className="block px-4 py-3 transition-colors hover:bg-bg-3 focus-visible:bg-bg-3 focus-visible:outline-none"
               >
-                <div className="min-w-0 flex-1">
-                  <p
-                    className="font-mono text-[9.5px] font-semibold uppercase tracking-[0.1em] text-t3"
-                    style={template ? { color: template.color } : undefined}
-                  >
-                    {template?.label ?? "Workflow"} · {instance.label}
-                  </p>
-                  <p className="mt-1 flex items-center gap-1.5 text-[12.5px] font-semibold text-t1">
-                    <span aria-hidden>{icon}</span>
-                    <span className="truncate">{title}</span>
-                  </p>
+                <p
+                  className="font-mono text-[9.5px] font-semibold uppercase tracking-[0.1em] text-t3"
+                  style={template ? { color: template.color } : undefined}
+                >
+                  {template?.label ?? "Workflow"} · {instance.label}
+                </p>
+                <div className="mt-1.5 flex items-center gap-2">
+                  <ItemAvatar
+                    emoji={icon}
+                    color={avatarColor}
+                    label={title}
+                    size="xs"
+                  />
+                  <span className="min-w-0 flex-1 truncate text-[12.5px] font-semibold text-t1">
+                    {title}
+                  </span>
+                  <span
+                    aria-label="status active"
+                    className={cn(
+                      "block h-[7px] w-[7px] shrink-0 rounded-full",
+                      "bg-[color:#10b981] shadow-[0_0_6px_rgba(16,185,129,0.5)]",
+                    )}
+                  />
                 </div>
-                <span
-                  aria-label="status active"
-                  className={cn(
-                    "mt-1.5 block h-[7px] w-[7px] shrink-0 rounded-full",
-                    "bg-[color:#10b981] shadow-[0_0_6px_rgba(16,185,129,0.5)]",
-                  )}
-                />
               </Link>
             </li>
             );

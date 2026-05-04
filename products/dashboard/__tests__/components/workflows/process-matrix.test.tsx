@@ -30,11 +30,15 @@ const {
   mockCreateTaskAction,
   mockDeleteTaskAction,
   mockMoveTaskAction,
+  mockSetTaskStatusAction,
+  mockUpsertFrameworkItemAction,
   mockCaptureError,
 } = vi.hoisted(() => ({
   mockCreateTaskAction: vi.fn(),
   mockDeleteTaskAction: vi.fn(),
   mockMoveTaskAction: vi.fn(),
+  mockSetTaskStatusAction: vi.fn(),
+  mockUpsertFrameworkItemAction: vi.fn(),
   mockCaptureError: vi.fn(),
 }));
 
@@ -42,9 +46,15 @@ vi.mock("@/app/(dashboard)/workflows/actions", () => ({
   createTaskAction: mockCreateTaskAction,
   deleteTaskAction: mockDeleteTaskAction,
   moveTaskAction: mockMoveTaskAction,
+  setTaskStatusAction: mockSetTaskStatusAction,
   approveDrawerCheckpointAction: vi.fn(),
   rejectDrawerCheckpointAction: vi.fn(),
   updateTaskTriggerGatesAction: vi.fn(),
+}));
+
+vi.mock("@/app/(dashboard)/framework/actions", () => ({
+  upsertFrameworkItemAction: mockUpsertFrameworkItemAction,
+  deleteFrameworkItemAction: vi.fn(),
 }));
 
 vi.mock("@/lib/monitoring", () => ({
@@ -91,6 +101,7 @@ function task(overrides: Partial<WorkflowTask>): WorkflowTask {
     triggers: [],
     gates: [],
     playbookId: null,
+    owners: [],
     createdAt: "2026-04-19T12:00:00Z",
     updatedAt: "2026-04-19T12:00:00Z",
     ...overrides,

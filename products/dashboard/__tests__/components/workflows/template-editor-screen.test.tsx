@@ -15,6 +15,15 @@ vi.mock("@/app/(dashboard)/workflows/actions", () => ({
   updateTemplateAction: vi.fn(),
 }));
 
+vi.mock("@/app/(dashboard)/framework/actions", () => ({
+  upsertFrameworkItemAction: vi.fn(),
+  deleteFrameworkItemAction: vi.fn(),
+}));
+
+vi.mock("@/lib/monitoring", () => ({
+  captureError: vi.fn(),
+}));
+
 vi.mock("@/components/dashboard-topbar-context", () => ({
   useDashboardTopBar: () => ({
     setConfig: vi.fn(),

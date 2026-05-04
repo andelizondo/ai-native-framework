@@ -4,7 +4,6 @@ import { useCallback, useEffect, useId, useMemo, useRef, useState, useTransition
 import { CircleAlert, GripVertical, Pencil, Plus, Trash2 } from "lucide-react";
 import { ColorDotPicker } from "@/components/framework/color-dot-picker";
 import { ItemAvatar } from "@/components/framework/item-avatar";
-import { OwnerPicker } from "@/components/framework/owner-picker";
 import {
   DndContext,
   KeyboardSensor,
@@ -35,6 +34,7 @@ import {
   renameTemplateAction,
   updateTemplateAction,
 } from "@/app/(dashboard)/workflows/actions";
+import { captureError } from "@/lib/monitoring";
 import { useDashboardTopBar } from "@/components/dashboard-topbar-context";
 import { useToast } from "@/lib/toast";
 import { useUnsavedChangesGuard } from "@/lib/use-unsaved-changes-guard";
@@ -121,6 +121,7 @@ function templateTaskToCard(task: WorkflowTaskTemplate): WorkflowTask {
     triggers: task.triggers ?? [],
     gates: task.gates ?? [],
     playbookId: task.playbookId ?? null,
+    owners: task.owners ?? [],
     createdAt: "",
     updatedAt: "",
   };
@@ -289,6 +290,7 @@ export function TemplateEditorScreen({
     initial?: {
       playbookId?: string | null;
       notes?: string;
+      owners?: string[];
     };
   } | null>(null);
   const [pending, startTransition] = useTransition();
@@ -475,6 +477,7 @@ export function TemplateEditorScreen({
         const result = await updateTemplateAction(draftRef.current.id, draftRef.current);
         setDraft(result.template);
         setLastSaved(result.template);
+
         emitEvent("workflow.template_edited", {
           template_id: result.template.id,
           edited_by: "founder",
@@ -788,24 +791,6 @@ export function TemplateEditorScreen({
                         <div className="mx-entity-content">
                           <div className="min-w-0">
                             <div className="mx-role-name">{skill.label}</div>
-                            <div className="mx-role-owner mx-role-owner-plain">
-                              <OwnerPicker
-                                values={skill.owners}
-                                onChange={(nextOwners) =>
-                                  setDraft((current) => ({
-                                    ...current,
-                                    skills: current.skills.map((item) =>
-                                      item.id === skill.id
-                                        ? { ...item, owners: nextOwners }
-                                        : item,
-                                    ),
-                                  }))
-                                }
-                                required
-                                placeholder="Pick owners"
-                                ariaLabel={`Change owners for ${skill.label}`}
-                              />
-                            </div>
                           </div>
                           <div className="mx-entity-actions mx-entity-actions-group">
                             <button
@@ -892,7 +877,7 @@ export function TemplateEditorScreen({
                           skillColor={resolveSkillColor(skill.id, skillOptions)}
                           barState="bar-ready"
                           editMode
-                          hideStatusPill
+                          templateView
                           onEdit={() =>
                             setAddTaskFor({
                               mode: "edit",
@@ -904,6 +889,7 @@ export function TemplateEditorScreen({
                               initial: {
                                 playbookId: templateTask.playbookId ?? null,
                                 notes: templateTask.notes ?? "",
+                                owners: templateTask.owners ?? [],
                               },
                             })
                           }
@@ -1013,6 +999,7 @@ export function TemplateEditorScreen({
                           ...item,
                           playbookId: input.playbookId,
                           notes: input.notes,
+                          owners: input.owners,
                         }
                       : item,
                   ),
@@ -1031,6 +1018,7 @@ export function TemplateEditorScreen({
                     notes: input.notes,
                     triggers: [],
                     gates: [],
+                    owners: input.owners,
                   },
                 ],
               };

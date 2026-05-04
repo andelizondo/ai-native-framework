@@ -66,6 +66,7 @@ export interface WorkflowTaskTemplate {
   checkpoint?: boolean;
   triggers?: WorkflowTrigger[];
   gates?: WorkflowGate[];
+  owners?: string[];
 }
 
 export interface WorkflowTemplate {
@@ -95,6 +96,10 @@ export interface WorkflowTask {
   triggers: WorkflowTrigger[];
   gates: WorkflowGate[];
   playbookId: string | null;
+  /** Owner labels (people or AI agents) assigned to this specific card.
+   *  Per-task so two cards pointing at the same playbook can carry different
+   *  owners (e.g. different sales people across instances). */
+  owners: string[];
   createdAt: string;
   updatedAt: string;
 }
@@ -108,6 +113,7 @@ export interface WorkflowTaskCreateInput {
   checkpoint?: boolean;
   triggers?: WorkflowTrigger[];
   gates?: WorkflowGate[];
+  owners?: string[];
 }
 
 export interface WorkflowEvent {
@@ -173,6 +179,7 @@ export interface WorkflowTaskPatch {
   triggers?: WorkflowTrigger[];
   gates?: WorkflowGate[];
   playbookId?: string | null;
+  owners?: string[];
 }
 
 export interface WorkflowTemplatePatch {

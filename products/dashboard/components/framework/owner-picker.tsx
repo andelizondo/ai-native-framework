@@ -11,12 +11,14 @@ import {
 import {
   Check,
   ChevronDown,
+  Plus,
   Sparkles,
   User2,
   X as XIcon,
 } from "lucide-react";
 
 import { ItemAvatar } from "@/components/framework/item-avatar";
+import { OwnerAvatarStack } from "@/components/framework/owner-avatar-stack";
 import {
   AGENT_OWNERS,
   PEOPLE_OWNERS,
@@ -29,13 +31,21 @@ interface OwnerPickerProps {
   /** Currently selected owner labels. */
   values: readonly string[];
   onChange: (next: string[]) => void;
-  /** Visual treatment — `inline` for a clickable row affordance, `field`
-   *  for a full form-style trigger inside a modal. */
-  variant?: "inline" | "field";
+  /** Visual treatment:
+   *   - `inline` — a single-button affordance that shows the owner names.
+   *   - `field` — full form-style trigger with chips for use inside a modal.
+   *   - `stack` — a `+` dashed-circle button followed by an avatar stack of
+   *      the picked owners, matching the AllowedItemsPicker layout used to
+   *      link skills/playbooks. */
+  variant?: "inline" | "field" | "stack";
   placeholder?: string;
   ariaLabel?: string;
   /** When true, prevent removing the last owner (parent enforces ≥1). */
   required?: boolean;
+  /** For `stack` variant — controls avatar size. Defaults to `md`. */
+  stackAvatarSize?: "xs" | "sm" | "md";
+  /** For `stack` variant — small data-testid suffix for queries. */
+  testIdSuffix?: string;
 }
 
 const GROUP_TITLE: Record<"people" | "agents", string> = {
@@ -67,6 +77,8 @@ export function OwnerPicker({
   placeholder = "Set owner",
   ariaLabel,
   required = false,
+  stackAvatarSize = "md",
+  testIdSuffix,
 }: OwnerPickerProps) {
   const rootRef = useRef<HTMLDivElement | null>(null);
   const [open, setOpen] = useState(false);
@@ -152,10 +164,68 @@ export function OwnerPicker({
   }
 
   const triggerLabel = hasValues ? trimmedValues.join(", ") : placeholder;
+  const stackTriggerLabel = hasValues
+    ? ariaLabel ?? "Edit owners"
+    : ariaLabel ?? "Add owners";
 
   return (
-    <div ref={rootRef} className="relative inline-flex w-full">
-      {variant === "field" ? (
+    <div
+      ref={rootRef}
+      className={cn(
+        "relative inline-flex",
+        variant === "stack" ? "items-center" : "w-full",
+      )}
+    >
+      {variant === "stack" ? (
+        <>
+          <span className="group/owner-trigger relative inline-flex">
+            <button
+              type="button"
+              aria-label={stackTriggerLabel}
+              aria-haspopup="dialog"
+              aria-expanded={open}
+              onClick={() => setOpen((v) => !v)}
+              data-testid={
+                testIdSuffix ? `owners-trigger-${testIdSuffix}` : undefined
+              }
+              className={cn(
+                "flex items-center justify-center rounded-full border border-dashed text-t3 transition focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent",
+                stackAvatarSize === "md"
+                  ? "h-8 w-8"
+                  : stackAvatarSize === "sm"
+                    ? "h-[26px] w-[26px]"
+                    : "h-[22px] w-[22px]",
+                open
+                  ? "border-accent bg-primary-bg text-accent"
+                  : "border-border-hi hover:bg-bg-3 hover:text-t1",
+              )}
+            >
+              <Plus
+                aria-hidden
+                className={
+                  stackAvatarSize === "md" ? "h-4 w-4" : "h-3.5 w-3.5"
+                }
+                strokeWidth={2.25}
+              />
+            </button>
+            {!open && !hasValues ? (
+              <span
+                role="tooltip"
+                className="pointer-events-none absolute left-0 top-[calc(100%+6px)] z-[60] whitespace-nowrap rounded-md border border-border-hi bg-bg-2 px-2 py-1 text-[11px] font-medium text-t1 opacity-0 shadow-[var(--shadow-canvas)] transition-opacity duration-100 group-hover/owner-trigger:opacity-100"
+              >
+                {stackTriggerLabel}
+              </span>
+            ) : null}
+          </span>
+          {hasValues ? (
+            <OwnerAvatarStack
+              labels={trimmedValues}
+              size={stackAvatarSize}
+              testIdSuffix={testIdSuffix}
+            />
+          ) : null}
+        </>
+      ) : variant === "field" ? (
         <button
           type="button"
           aria-label={ariaLabel ?? "Pick owners"}

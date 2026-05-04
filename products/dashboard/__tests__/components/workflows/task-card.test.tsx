@@ -22,6 +22,7 @@ function task(overrides: Partial<WorkflowTask> = {}): WorkflowTask {
     triggers: [],
     gates: [],
     playbookId: "presales-qualification",
+    owners: [],
     createdAt: "2026-04-19T12:00:00Z",
     updatedAt: "2026-04-19T12:00:00Z",
     ...overrides,
@@ -38,24 +39,39 @@ const PLAYBOOK: FrameworkItem = {
 };
 
 describe("TaskCard", () => {
-  it("renders the playbook name + description and active status pill", () => {
+  it("renders the playbook name and active status pill", () => {
     render(
       <TaskCard task={task()} playbook={PLAYBOOK} skillColor="#6366f1" barState="bar-active" />,
     );
 
     const card = screen.getByTestId("task-card-task-1");
     expect(within(card).getByText("Project Description")).toBeInTheDocument();
+    // Playbook description no longer appears on the matrix card; the slot is
+    // reserved for per-task notes.
     expect(
-      within(card).getByText("Define objective, identify PDR need"),
-    ).toBeInTheDocument();
+      within(card).queryByText("Define objective, identify PDR need"),
+    ).not.toBeInTheDocument();
     expect(within(card).getByText("In progress")).toBeInTheDocument();
+  });
+
+  it("renders task notes when present", () => {
+    render(
+      <TaskCard
+        task={task({ id: "with-notes", notes: "Pre-sales follow-up" })}
+        playbook={PLAYBOOK}
+        skillColor="#6366f1"
+        barState="bar-active"
+      />,
+    );
+    const card = screen.getByTestId("task-card-with-notes");
+    expect(within(card).getByText("Pre-sales follow-up")).toBeInTheDocument();
   });
 
   it.each<[WorkflowTask["status"], TaskBarState, string]>([
     ["complete", "bar-complete", "Complete"],
     ["active", "bar-active", "In progress"],
-    ["pending_approval", "bar-pending", "Pending approval"],
-    ["blocked", "bar-cancelled", "Failed"],
+    ["pending_approval", "bar-glow", "Pending approval"],
+    ["blocked", "bar-glow", "Failed"],
     ["not_started", "bar-ready", "Not started"],
     ["not_started", "bar-locked", "Not started"],
   ])(
@@ -91,7 +107,7 @@ describe("TaskCard", () => {
     expect(card.style.getPropertyValue("--role-color")).toBe("#10b981");
   });
 
-  it("renders the playbook avatar with the playbook's own colour", () => {
+  it("renders the playbook name as title and skill colour as bar accent", () => {
     render(
       <TaskCard
         task={task({ id: "with-avatar" })}
@@ -101,26 +117,44 @@ describe("TaskCard", () => {
       />,
     );
 
-    const avatar = screen.getByTestId("task-card-avatar-with-avatar");
-    expect(avatar).toBeInTheDocument();
-    // The ItemAvatar inside renders the emoji.
-    expect(within(avatar).getByText("📄")).toBeInTheDocument();
+    const card = screen.getByTestId("task-card-with-avatar");
+    expect(within(card).getByText("Project Description")).toBeInTheDocument();
+    expect(card.style.getPropertyValue("--role-color")).toBe("#10b981");
   });
 
-  it("overlays the checkpoint badge on the avatar (not in the title row)", () => {
+  it("renders the checkpoint as a warning info-badge in the status row", () => {
     render(
       <TaskCard
         task={task({ id: "cp-overlay", checkpoint: true })}
         playbook={PLAYBOOK}
         skillColor="#6366f1"
-        barState="bar-pending"
+        barState="bar-glow"
       />,
     );
 
+    const card = screen.getByTestId("task-card-cp-overlay");
     const badge = screen.getByTestId("task-checkpoint-cp-overlay");
-    const avatarWrap = screen.getByTestId("task-card-avatar-cp-overlay");
-    expect(avatarWrap).toContainElement(badge);
-    expect(badge.className).toContain("tc-cp-badge-overlay");
+    expect(badge).toBeInTheDocument();
+    expect(badge.className).toContain("tc-info-badge--warning");
+    // The badge lives in the status row, not in the footer / owner area.
+    const statusRow = card.querySelector(".tc-status-row");
+    expect(statusRow).toBeTruthy();
+    expect(statusRow).toContainElement(badge);
+    expect(card.querySelector(".tc-bottom")).not.toContainElement(badge);
+  });
+
+  it("renders an error info-badge when the task is blocked", () => {
+    render(
+      <TaskCard
+        task={task({ id: "blocked-task", status: "blocked" })}
+        playbook={PLAYBOOK}
+        skillColor="#6366f1"
+        barState="bar-glow"
+      />,
+    );
+    const badge = screen.getByTestId("task-error-blocked-task");
+    expect(badge).toBeInTheDocument();
+    expect(badge.className).toContain("tc-info-badge--error");
   });
 
   it("renders the checkpoint pip only when the task has checkpoint: true", () => {
@@ -129,7 +163,7 @@ describe("TaskCard", () => {
         task={task({ id: "cp-on", checkpoint: true })}
         playbook={PLAYBOOK}
         skillColor="#6366f1"
-        barState="bar-pending"
+        barState="bar-glow"
       />,
     );
     expect(screen.getByTestId("task-checkpoint-cp-on")).toBeInTheDocument();
@@ -139,7 +173,7 @@ describe("TaskCard", () => {
         task={task({ id: "cp-on", checkpoint: false })}
         playbook={PLAYBOOK}
         skillColor="#6366f1"
-        barState="bar-pending"
+        barState="bar-glow"
       />,
     );
     expect(screen.queryByTestId("task-checkpoint-cp-on")).not.toBeInTheDocument();

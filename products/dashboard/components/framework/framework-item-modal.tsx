@@ -125,7 +125,12 @@ export function FrameworkItemModal({
     if (!canSubmit || inFlight) return;
     setInFlight(true);
     void Promise.resolve(
-      onSubmit({ name: name.trim(), description: summary.trim(), icon, color }),
+      onSubmit({
+        name: name.trim(),
+        description: summary.trim(),
+        icon,
+        color,
+      }),
     )
       .catch(() => {
         // Parent handlers surface user-facing errors via toast.

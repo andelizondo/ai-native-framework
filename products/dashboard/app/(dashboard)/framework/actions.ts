@@ -54,6 +54,7 @@ export async function upsertFrameworkItemAction(
       MAX_DESCRIPTION_LENGTH,
     ),
     icon: item.icon?.trim() ? item.icon.trim().slice(0, 16) : null,
+    color: typeof item.color === "string" && item.color.trim() ? item.color.trim().slice(0, 32) : null,
     content: typeof item.content === "string" ? item.content : "",
     allowedSkillIds:
       type === "playbook" && Array.isArray(item.allowedSkillIds)

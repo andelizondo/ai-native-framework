@@ -139,7 +139,7 @@
   outline-offset: 2px;
 }
 .mx-stage-hd {
-  width: 192px;
+  width: 232px;
   flex-shrink: 0;
   padding: 10px 14px;
   position: relative;
@@ -492,8 +492,8 @@
   align-items: center;
   gap: 7px;
   /* Locked height keeps the row stable while task cards are dragged in/out.
-   * Card height = 124px + cell padding (14px*2) + breathing → 140px. */
-  height: 140px;
+   * Card height = 116px + cell padding (7×2) + breathing → 132px. */
+  height: 132px;
   overflow: visible;
   transition: width 0.2s;
 }
@@ -609,14 +609,15 @@
   outline-offset: 2px;
 }
 .mx-task-cell {
-  width: 192px;
+  width: 232px;
   flex-shrink: 0;
   padding: 7px;
   border-right: 1px solid var(--border-2);
   /* Locked height matches `.mx-role-cell` so the row stays a stable
-   * rectangle while task cards drag in/out (cards themselves are 124px
-   * fixed height; cell padding 7×2 = 14, plus 2px breathing → 140px). */
-  height: 140px;
+   * rectangle while task cards drag in/out. The card itself is 116px
+   * (set in task-card.css); cell padding 7×2 = 14, plus 2px breathing →
+   * 132px. */
+  height: 132px;
   background: var(--bg);
   transition: background 0.14s;
 }
@@ -763,7 +764,7 @@
   flex-shrink: 0;
 }
 .mx-col-insert-empty {
-  width: 192px;
+  width: 232px;
   gap: 8px;
   justify-content: center;
 }
@@ -1139,6 +1140,79 @@
   padding: 0;
   cursor: pointer;
   position: relative;
+}
+/* Status halo. Sits behind the 22px ItemAvatar and glows in the task's
+ * status color; absent for `not_started` (no `--status-color` set). The
+ * `data-pulse` flag on `pending_approval` swaps in a slow pulsing variant
+ * so a checkpoint that needs attention reads even at the mini scale. */
+.mx-mini-cell-btn::before {
+  content: "";
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 22px;
+  height: 22px;
+  border-radius: 9999px;
+  transform: translate(-50%, -50%);
+  pointer-events: none;
+  box-shadow: 0 0 8px 1px var(--status-color, transparent);
+  opacity: 0.75;
+}
+.mx-mini-cell-btn[data-pulse="true"]::before {
+  animation: ainative-mini-pulse 2s ease-in-out infinite;
+}
+@keyframes ainative-mini-pulse {
+  0%,
+  100% {
+    box-shadow: 0 0 6px 0 var(--status-color);
+    opacity: 0.5;
+  }
+  50% {
+    box-shadow: 0 0 14px 2px var(--status-color);
+    opacity: 1;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .mx-mini-cell-btn[data-pulse="true"]::before {
+    animation: none;
+  }
+}
+/* Avatar-sized anchor inside the mini cell. Sized exactly to the xs
+ * avatar (22px) so the FloatingHoverTooltip — which anchors to its
+ * parent element — floats above the avatar rather than the full cell. */
+.mx-mini-cell-anchor {
+  position: relative;
+  display: inline-flex;
+  width: 22px;
+  height: 22px;
+}
+/* "In progress" wave on the mini avatar — mirrors the active task card's
+ * shimmer (`ainative-card-wave`, defined in task-card.css). The alpha is
+ * higher than the card variant because the avatar is small and sits on a
+ * tinted disc, so the sweep needs more contrast to read. */
+.mx-mini-cell-btn[data-status="active"] .mx-mini-cell-anchor::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: 9999px;
+  /* See task-card.css `bar-active::after` — tint via `--t1` so the sweep
+   * adapts between light and dark themes instead of vanishing. */
+  background: linear-gradient(
+    100deg,
+    transparent 38%,
+    color-mix(in srgb, var(--t1) 22%, transparent) 50%,
+    transparent 62%
+  );
+  background-size: 250% 100%;
+  background-repeat: no-repeat;
+  background-position: 200% 0;
+  animation: ainative-card-wave 4s ease-in-out infinite;
+  pointer-events: none;
+}
+@media (prefers-reduced-motion: reduce) {
+  .mx-mini-cell-btn[data-status="active"] .mx-mini-cell-anchor::after {
+    animation: none;
+  }
 }
 .mx-mini-cell-btn:hover {
   background: var(--bg-2);
