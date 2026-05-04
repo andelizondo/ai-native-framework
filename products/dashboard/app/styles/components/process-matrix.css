@@ -1195,10 +1195,12 @@
   position: absolute;
   inset: 0;
   border-radius: 9999px;
+  /* See task-card.css `bar-active::after` — tint via `--t1` so the sweep
+   * adapts between light and dark themes instead of vanishing. */
   background: linear-gradient(
     100deg,
     transparent 38%,
-    rgba(255, 255, 255, 0.18) 50%,
+    color-mix(in srgb, var(--t1) 22%, transparent) 50%,
     transparent 62%
   );
   background-size: 250% 100%;

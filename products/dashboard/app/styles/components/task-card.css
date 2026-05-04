@@ -54,10 +54,13 @@
   position: absolute;
   inset: 0;
   border-radius: inherit;
+  /* Tint resolved from `--t1` (the foreground text color) so the sweep
+   * is a dark wash on light backgrounds and a light wash on dark ones —
+   * otherwise a hardcoded white tint disappears entirely in light mode. */
   background: linear-gradient(
     100deg,
     transparent 38%,
-    rgba(255, 255, 255, 0.05) 50%,
+    color-mix(in srgb, var(--t1) 7%, transparent) 50%,
     transparent 62%
   );
   background-size: 250% 100%;
@@ -416,20 +419,34 @@
   line-height: 1;
   vertical-align: middle;
 }
+/* Tinted hairline border on every pill via `--pill-stroke`. The colored
+ * bg variants alone read fine in dark mode but go nearly invisible in
+ * light mode where the pill bg is a pale wash on a pale surface. Using
+ * `inset` box-shadow keeps the pill's 22px height stable (no border-box
+ * growth), and the variable lets the popover-trigger hover state
+ * compose its outline ring on top without losing the inset stroke. */
+.s-pill {
+  box-shadow: inset 0 0 0 1px var(--pill-stroke, transparent);
+}
 .s-complete .s-pill {
   background: var(--pill-complete-bg);
+  --pill-stroke: color-mix(in srgb, var(--pill-complete-d) 30%, var(--border));
 }
 .s-active .s-pill {
   background: var(--pill-active-bg);
+  --pill-stroke: color-mix(in srgb, var(--pill-active-d) 30%, var(--border));
 }
 .s-pending .s-pill {
   background: var(--pill-pending-bg);
+  --pill-stroke: color-mix(in srgb, var(--pill-pending-d) 30%, var(--border));
 }
 .s-blocked .s-pill {
   background: var(--pill-blocked-bg);
+  --pill-stroke: color-mix(in srgb, var(--pill-blocked-d) 30%, var(--border));
 }
 .s-not_started .s-pill {
   background: var(--pill-ns-bg);
+  --pill-stroke: color-mix(in srgb, var(--pill-ns-d) 30%, var(--border));
 }
 .s-text {
   font-size: 9.5px;
@@ -494,10 +511,12 @@
    * as interactive; the static edit/template pills stay flat and that
    * flatness is itself the "not clickable" signal. The ring uses the
    * neutral high-contrast border so it adapts to light/dark and doesn't
-   * fight the saturated pill backgrounds. */
+   * fight the saturated pill backgrounds. The inset `--pill-stroke` is
+   * preserved so the status-tinted hairline doesn't disappear on hover. */
   filter: brightness(1.03);
   transform: translateY(-0.5px);
   box-shadow:
+    inset 0 0 0 1px var(--pill-stroke, transparent),
     0 0 0 1.5px var(--border-hi),
     0 1px 2px rgba(0, 0, 0, 0.06);
 }
