@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import {
   AlertTriangle,
+  Check,
   CircleAlert,
   Pencil,
   StickyNote,
@@ -147,6 +148,15 @@ export function TaskCard({
               testId={`task-error-${task.id}`}
             />
           ) : null}
+          {!templateView && task.status === "complete" ? (
+            <InfoBadge
+              tone="success"
+              icon={Check}
+              header="Completed"
+              body={formatCompletionTimestamp(task.updatedAt)}
+              testId={`task-complete-${task.id}`}
+            />
+          ) : null}
         </div>
       </div>
       <div className="tc-bottom">
@@ -217,7 +227,19 @@ function EmptyOwnerAvatar({ taskId }: { taskId: string }) {
   );
 }
 
-type InfoBadgeTone = "note" | "warning" | "error";
+type InfoBadgeTone = "note" | "warning" | "error" | "success";
+
+function formatCompletionTimestamp(iso: string): string {
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return "Completion time unavailable";
+  return d.toLocaleString(undefined, {
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
+  });
+}
 
 function InfoBadge({
   tone,

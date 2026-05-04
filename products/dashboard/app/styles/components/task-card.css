@@ -193,6 +193,12 @@
   --info-badge-fg: var(--pill-blocked-t);
   --info-badge-border: color-mix(in srgb, var(--pill-blocked-d) 38%, var(--border));
 }
+.tc-info-badge--success {
+  --info-badge-d: var(--pill-complete-d);
+  --info-badge-bg: var(--pill-complete-bg);
+  --info-badge-fg: var(--pill-complete-t);
+  --info-badge-border: color-mix(in srgb, var(--pill-complete-d) 35%, var(--border));
+}
 .tc-info-badge-popover {
   pointer-events: none;
   position: absolute;
