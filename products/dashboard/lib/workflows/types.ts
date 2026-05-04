@@ -131,6 +131,9 @@ export interface WorkflowInstance {
   templateId: string;
   label: string;
   status: WorkflowInstanceStatus;
+  /** Snapshot of the template's stages at create time. Decoupled from the
+   *  template so edits to the template do not mutate existing instances. */
+  stages: WorkflowStage[];
   skills: WorkflowSkill[];
   createdAt: string;
   updatedAt: string;

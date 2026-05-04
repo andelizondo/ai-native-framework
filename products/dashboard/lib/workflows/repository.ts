@@ -36,6 +36,7 @@ interface WorkflowInstanceRow {
   template_id: string;
   label: string;
   status: WorkflowInstance["status"];
+  stages: unknown;
   skills: unknown;
   created_at: string;
   updated_at: string;
@@ -151,6 +152,7 @@ function mapInstance(row: WorkflowInstanceRow): WorkflowInstance {
     templateId: row.template_id,
     label: row.label,
     status: row.status,
+    stages: toJsonArray(row.stages),
     skills: migrateSkills(row.skills),
     createdAt: row.created_at,
     updatedAt: row.updated_at,
@@ -446,6 +448,7 @@ export function createWorkflowRepository(
           template_id: template.id,
           label,
           status: "active",
+          stages: template.stages,
           skills: template.skills as unknown as WorkflowSkill[],
         })
         .select("*")

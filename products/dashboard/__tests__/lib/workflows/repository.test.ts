@@ -312,6 +312,10 @@ describe("workflow repository", () => {
       expect(instance.templateId).toBe("client-delivery");
       expect(instance.label).toBe("Acme Corp");
       expect(instance.status).toBe("active");
+      expect(instance.stages).toEqual([
+        { id: "pre-sales", label: "Pre-Sales" },
+        { id: "validation", label: "Validation" },
+      ]);
       expect(instance.skills).toEqual([
         { id: "sales-ops", label: "Sales Ops", owners: ["Hans / Dave"] },
         { id: "pm", label: "PM", owners: ["Andres"] },
@@ -354,6 +358,34 @@ describe("workflow repository", () => {
       await expect(repo.createInstance("nope", "X")).rejects.toThrow(
         /unknown template_id/i,
       );
+    });
+
+    it("snapshots stages and skills so later template edits do not mutate the instance", async () => {
+      const repo = createWorkflowRepository(makeFakeClient(store));
+
+      const instance = await repo.createInstance("client-delivery", "Acme Corp");
+
+      // Mutate the parent template after the instance was created.
+      await repo.updateTemplate("client-delivery", {
+        stages: [{ id: "delivery", label: "Delivery" }],
+        skills: [{ id: "project", label: "Project Mgmt", owners: ["Patrick"] }],
+      });
+
+      const reloaded = await repo.getInstance(instance.id);
+      expect(reloaded?.stages).toEqual([
+        { id: "pre-sales", label: "Pre-Sales" },
+        { id: "validation", label: "Validation" },
+      ]);
+      expect(reloaded?.skills).toEqual([
+        { id: "sales-ops", label: "Sales Ops", owners: ["Hans / Dave"] },
+        { id: "pm", label: "PM", owners: ["Andres"] },
+      ]);
+      // Tasks tied to the (now removed from template) stages are still
+      // present and reachable so the operator can manage them.
+      expect(reloaded?.tasks.map((t) => t.stageId).sort()).toEqual([
+        "pre-sales",
+        "validation",
+      ]);
     });
   });
 
