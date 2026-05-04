@@ -1,5 +1,39 @@
 # Changelog
 
+## [0.23.0](https://github.com/andelizondo/ai-native-framework/compare/v0.22.1...v0.23.0) (2026-05-04)
+
+
+### Features
+
+* **dashboard:** add in-progress tasks card on overview ([c04b0bf](https://github.com/andelizondo/ai-native-framework/commit/c04b0bf0124a3f5c9889e2d2250a89ca0bbf6303))
+* **dashboard:** add subtle scrollbar styling to base CSS ([b8cd6cb](https://github.com/andelizondo/ai-native-framework/commit/b8cd6cb98e9bf91df3ea7b8219bb20ef8b7b058b))
+* **dashboard:** align workflows with skills and playbooks ([c0ce02d](https://github.com/andelizondo/ai-native-framework/commit/c0ce02d603dc094b7ec0432b520285f8fa52959d))
+* **dashboard:** playbook and skill workflow editor UI ([15517c9](https://github.com/andelizondo/ai-native-framework/commit/15517c9b5030a2ac8194cdc2c418b3c93870f387))
+* **dashboard:** playbook and skill workflow editor UI ([#203](https://github.com/andelizondo/ai-native-framework/issues/203)) ([4c672d7](https://github.com/andelizondo/ai-native-framework/commit/4c672d7b7d99477580a1b89bb6cdcb3ba178bb62))
+* **dashboard:** process matrix layout modes and task card refresh ([15517c9](https://github.com/andelizondo/ai-native-framework/commit/15517c9b5030a2ac8194cdc2c418b3c93870f387))
+* **dashboard:** process matrix layout modes and task card refresh ([#205](https://github.com/andelizondo/ai-native-framework/issues/205)) ([c95c5e3](https://github.com/andelizondo/ai-native-framework/commit/c95c5e3256ee107783869f2b8249cc2c62143638))
+* **dashboard:** process matrix task cards, owners, and avatar states ([15517c9](https://github.com/andelizondo/ai-native-framework/commit/15517c9b5030a2ac8194cdc2c418b3c93870f387))
+* **dashboard:** process matrix task cards, owners, and avatar states ([#206](https://github.com/andelizondo/ai-native-framework/issues/206)) ([994b6fe](https://github.com/andelizondo/ai-native-framework/commit/994b6fe3bcdd49e35a3f3ad055d4e6cc284e89d1))
+* **dashboard:** streamline framework library UI and name sort ([e56a5f8](https://github.com/andelizondo/ai-native-framework/commit/e56a5f8e4dbb3f9afd528595f0ff90ebdbad6af9))
+* **dashboard:** subtle scrollbar styling in base CSS ([15517c9](https://github.com/andelizondo/ai-native-framework/commit/15517c9b5030a2ac8194cdc2c418b3c93870f387))
+* **dashboard:** subtle scrollbar styling in base CSS ([b7c5d05](https://github.com/andelizondo/ai-native-framework/commit/b7c5d05f00e833f5330258248d0816028a344aeb))
+* **dashboard:** unsaved-changes guard for workflow template editor ([15517c9](https://github.com/andelizondo/ai-native-framework/commit/15517c9b5030a2ac8194cdc2c418b3c93870f387))
+* **dashboard:** unsaved-changes guard for workflow template editor ([#197](https://github.com/andelizondo/ai-native-framework/issues/197)) ([a647136](https://github.com/andelizondo/ai-native-framework/commit/a647136b2525cf220828e55f00f7808b24a2ee6d))
+* **dashboard:** workflow sidebar, toasts, and loading polish ([15517c9](https://github.com/andelizondo/ai-native-framework/commit/15517c9b5030a2ac8194cdc2c418b3c93870f387))
+* **dashboard:** workflow sidebar, toasts, and loading polish ([#204](https://github.com/andelizondo/ai-native-framework/issues/204)) ([6369699](https://github.com/andelizondo/ai-native-framework/commit/6369699710e9adee54dbdf56a79869cf8dd33174))
+* **dashboard:** workflow skills, playbooks, and overview in-progress card ([15517c9](https://github.com/andelizondo/ai-native-framework/commit/15517c9b5030a2ac8194cdc2c418b3c93870f387))
+* **dashboard:** workflow skills, playbooks, and overview in-progress card ([2f2ebe6](https://github.com/andelizondo/ai-native-framework/commit/2f2ebe6220c7afb2b913a2fdfa8f2fbd0a50c5ad))
+
+
+### Bug Fixes
+
+* **dashboard:** order seed migration after schema rename ([d280b02](https://github.com/andelizondo/ai-native-framework/commit/d280b02039a57d27f8db656804ba5a7cf1687556))
+* **dashboard:** preserve original seed migration filename for staging ([934e641](https://github.com/andelizondo/ai-native-framework/commit/934e641d12dae6b6d49229d756c9286f81f4f7a7))
+* **dashboard:** preserve workflow seed migration alignment with staging ([15517c9](https://github.com/andelizondo/ai-native-framework/commit/15517c9b5030a2ac8194cdc2c418b3c93870f387))
+* **dashboard:** preserve workflow seed migration alignment with staging ([9989bf3](https://github.com/andelizondo/ai-native-framework/commit/9989bf32a90ec28ef4a42e491dfb78a76d5d0a2d))
+* **dashboard:** snapshot stages on workflow instances ([15517c9](https://github.com/andelizondo/ai-native-framework/commit/15517c9b5030a2ac8194cdc2c418b3c93870f387))
+* **dashboard:** snapshot stages on workflow instances ([#207](https://github.com/andelizondo/ai-native-framework/issues/207)) ([2bf9279](https://github.com/andelizondo/ai-native-framework/commit/2bf927972c1087753301ffb63fc1474f3ac66421))
+
 ## [0.22.1](https://github.com/andelizondo/ai-native-framework/compare/v0.22.0...v0.22.1) (2026-05-02)
 
 
