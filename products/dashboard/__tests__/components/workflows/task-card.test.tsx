@@ -107,7 +107,7 @@ describe("TaskCard", () => {
     expect(card.style.getPropertyValue("--role-color")).toBe("#10b981");
   });
 
-  it("renders the playbook avatar with the playbook's own colour", () => {
+  it("renders the playbook name as title and skill colour as bar accent", () => {
     render(
       <TaskCard
         task={task({ id: "with-avatar" })}
@@ -117,10 +117,9 @@ describe("TaskCard", () => {
       />,
     );
 
-    const avatar = screen.getByTestId("task-card-avatar-with-avatar");
-    expect(avatar).toBeInTheDocument();
-    // The ItemAvatar inside renders the emoji.
-    expect(within(avatar).getByText("📄")).toBeInTheDocument();
+    const card = screen.getByTestId("task-card-with-avatar");
+    expect(within(card).getByText("Project Description")).toBeInTheDocument();
+    expect(card.style.getPropertyValue("--role-color")).toBe("#10b981");
   });
 
   it("renders the checkpoint as a warning info-badge in the status row", () => {
@@ -133,12 +132,15 @@ describe("TaskCard", () => {
       />,
     );
 
+    const card = screen.getByTestId("task-card-cp-overlay");
     const badge = screen.getByTestId("task-checkpoint-cp-overlay");
     expect(badge).toBeInTheDocument();
     expect(badge.className).toContain("tc-info-badge--warning");
-    // The badge no longer overlays the avatar — it lives in the status row.
-    const avatarWrap = screen.getByTestId("task-card-avatar-cp-overlay");
-    expect(avatarWrap).not.toContainElement(badge);
+    // The badge lives in the status row, not in the footer / owner area.
+    const statusRow = card.querySelector(".tc-status-row");
+    expect(statusRow).toBeTruthy();
+    expect(statusRow).toContainElement(badge);
+    expect(card.querySelector(".tc-bottom")).not.toContainElement(badge);
   });
 
   it("renders an error info-badge when the task is blocked", () => {
