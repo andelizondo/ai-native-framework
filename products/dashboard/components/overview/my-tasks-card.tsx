@@ -3,9 +3,12 @@
 import { useState, useTransition } from "react";
 
 import { resolveCheckpointAction } from "@/app/(dashboard)/workflows/actions";
+import { ItemAvatar } from "@/components/framework/item-avatar";
 import { captureError } from "@/lib/monitoring";
 import { cn } from "@/lib/utils";
 import type { PendingCheckpoint } from "@/lib/workflows/aggregate";
+import { resolveItemColor } from "@/lib/workflows/skill-colors";
+import type { FrameworkItem } from "@/lib/workflows/types";
 
 /**
  * My Tasks card — pending checkpoint list with inline Approve / Reject.
@@ -25,6 +28,7 @@ import type { PendingCheckpoint } from "@/lib/workflows/aggregate";
  */
 export interface MyTasksCardProps {
   checkpoints: PendingCheckpoint[];
+  playbookById?: Map<string, FrameworkItem>;
 }
 
 interface PendingAction {
@@ -32,7 +36,7 @@ interface PendingAction {
   resolution: "approved" | "rejected";
 }
 
-export function MyTasksCard({ checkpoints }: MyTasksCardProps) {
+export function MyTasksCard({ checkpoints, playbookById }: MyTasksCardProps) {
   const [isPending, startTransition] = useTransition();
   const [pendingAction, setPendingAction] = useState<PendingAction | null>(
     null,
@@ -73,7 +77,7 @@ export function MyTasksCard({ checkpoints }: MyTasksCardProps) {
       className="overflow-hidden rounded-[10px] border border-border bg-bg-2"
     >
       <header className="flex items-center justify-between border-b border-border px-4 py-3">
-        <h2 className="text-[12px] font-semibold text-t1">My tasks</h2>
+        <h2 className="text-[12px] font-semibold text-t1">My playbooks</h2>
         {checkpoints.length > 0 && (
           <span className="rounded-full bg-primary-bg px-2 py-[1px] font-mono text-[10px] font-semibold text-accent">
             {checkpoints.length}
@@ -118,12 +122,29 @@ export function MyTasksCard({ checkpoints }: MyTasksCardProps) {
                 >
                   {template?.label ?? "Workflow"} · {instance.label}
                 </p>
-                <p className="mt-1 text-[12.5px] font-semibold text-t1">
-                  {task.title}
-                </p>
-                {task.agent && (
-                  <p className="mt-1 text-[11px] text-t3">By {task.agent}</p>
-                )}
+                {(() => {
+                  const playbook = task.playbookId
+                    ? playbookById?.get(task.playbookId)
+                    : undefined;
+                  const title = playbook?.name ?? (task.playbookId ? "Playbook removed" : "Playbook");
+                  const icon = playbook?.icon || "📘";
+                  const avatarColor = playbook
+                    ? resolveItemColor(playbook)
+                    : "#94a3b8";
+                  return (
+                    <div className="mt-1.5 flex items-center gap-2">
+                      <ItemAvatar
+                        emoji={icon}
+                        color={avatarColor}
+                        label={title}
+                        size="xs"
+                      />
+                      <span className="min-w-0 flex-1 truncate text-[12.5px] font-semibold text-t1">
+                        {title}
+                      </span>
+                    </div>
+                  );
+                })()}
                 <div className="mt-2 flex gap-1.5">
                   <button
                     type="button"

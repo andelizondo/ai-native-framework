@@ -13,9 +13,22 @@ import type {
   WorkflowInstance,
   WorkflowTask,
   WorkflowTaskCreateInput,
+  WorkflowTaskStatus,
   WorkflowTemplate,
   WorkflowTrigger,
 } from "@/lib/workflows/types";
+
+const TASK_STATUS_VALUES: readonly WorkflowTaskStatus[] = [
+  "not_started",
+  "active",
+  "pending_approval",
+  "blocked",
+  "complete",
+];
+
+function isWorkflowTaskStatus(value: unknown): value is WorkflowTaskStatus {
+  return typeof value === "string" && (TASK_STATUS_VALUES as readonly string[]).includes(value);
+}
 
 /**
  * Server action invoked by the create-instance modal.
@@ -176,8 +189,8 @@ export async function resolveCheckpointAction(
           : "workflow.checkpoint_rejected",
       description:
         resolution === "approved"
-          ? `Approved checkpoint: ${task.title}`
-          : `Rejected checkpoint: ${task.title}`,
+          ? `Approved checkpoint: ${task.id}`
+          : `Rejected checkpoint: ${task.id}`,
       payload: {
         task_id: task.id,
         instance_id: task.instanceId,
@@ -238,7 +251,7 @@ export async function approveDrawerCheckpointAction(
   try {
     await repo.addEvent(trimmedId, {
       name: "workflow.checkpoint_approved",
-      description: `Approved checkpoint: ${task.title}`,
+      description: `Approved checkpoint: ${task.id}`,
       payload: { task_id: task.id, instance_id: task.instanceId },
     });
   } catch (eventError) {
@@ -283,7 +296,7 @@ export async function rejectDrawerCheckpointAction(
   try {
     await repo.addEvent(trimmedId, {
       name: "workflow.checkpoint_rejected",
-      description: `Rejected checkpoint: ${task.title}`,
+      description: `Rejected checkpoint: ${task.id}`,
       payload: { task_id: task.id, instance_id: task.instanceId },
     });
   } catch (eventError) {
@@ -318,7 +331,7 @@ export async function updateTaskTriggerGatesAction(
   try {
     await repo.addEvent(trimmedId, {
       name: "workflow.task_updated",
-      description: `Updated triggers/gates for: ${task.title}`,
+      description: `Updated triggers/gates for: ${task.id}`,
       payload: { task_id: task.id, instance_id: task.instanceId },
     });
   } catch (eventError) {
@@ -333,8 +346,7 @@ export async function updateTaskTriggerGatesAction(
   return { task };
 }
 
-const MAX_TASK_TITLE_LENGTH = 120;
-const MAX_TASK_DESCRIPTION_LENGTH = 240;
+const MAX_NOTES_LENGTH = 240;
 const MAX_PLAYBOOK_LENGTH = 120;
 
 function normalizeTaskField(value: string, label: string, maxLength: number): string {
@@ -350,34 +362,41 @@ export interface CreateTaskResult {
 
 export interface UpdateTaskDetailsInput {
   taskId: string;
-  title: string;
-  description?: string;
-  agent?: string | null;
-  skill?: string | null;
-  playbook?: string | null;
+  playbookId?: string | null;
+  notes?: string;
+  owners?: string[];
+}
+
+const MAX_OWNER_LABEL_LENGTH = 80;
+
+function normalizeOwnerList(input: unknown): string[] | undefined {
+  if (input === undefined) return undefined;
+  if (!Array.isArray(input)) return [];
+  return input
+    .filter((value): value is string => typeof value === "string" && value.trim().length > 0)
+    .map((value) => value.trim().slice(0, MAX_OWNER_LABEL_LENGTH));
 }
 
 export async function createTaskAction(
   input: WorkflowTaskCreateInput,
 ): Promise<CreateTaskResult> {
   const instanceId = normalizeTaskField(input.instanceId, "instanceId", 80);
-  const roleId = normalizeTaskField(input.roleId, "roleId", 80);
+  const skillId = normalizeTaskField(input.skillId, "skillId", 80);
   const stageId = normalizeTaskField(input.stageId, "stageId", 80);
-  const title = normalizeTaskField(input.title, "title", MAX_TASK_TITLE_LENGTH);
-  const description = normalizeTaskField(
-    input.description ?? "",
-    "description",
-    MAX_TASK_DESCRIPTION_LENGTH,
-  );
-  const playbook = normalizeTaskField(
-    input.playbook ?? "",
-    "playbook",
+  const playbookId = normalizeTaskField(
+    input.playbookId ?? "",
+    "playbookId",
     MAX_PLAYBOOK_LENGTH,
   );
+  const notes = normalizeTaskField(
+    input.notes ?? "",
+    "notes",
+    MAX_NOTES_LENGTH,
+  );
 
-  if (!instanceId || !roleId || !stageId || !title) {
+  if (!instanceId || !skillId || !stageId) {
     throw new Error(
-      "createTaskAction: instanceId, roleId, stageId, and title are required",
+      "createTaskAction: instanceId, skillId, and stageId are required",
     );
   }
 
@@ -385,21 +404,21 @@ export async function createTaskAction(
   const task = await repo.createTask({
     ...input,
     instanceId,
-    roleId,
+    skillId,
     stageId,
-    title,
-    description,
-    playbook: playbook || null,
+    notes,
+    playbookId: playbookId || null,
+    owners: normalizeOwnerList(input.owners) ?? [],
   });
 
   try {
     await repo.addEvent(task.id, {
       name: "workflow.task_created",
-      description: `Created task: ${task.title}`,
+      description: `Created task: ${task.id}`,
       payload: {
         task_id: task.id,
         instance_id: task.instanceId,
-        role_id: task.roleId,
+        skill_id: task.skillId,
         stage_id: task.stageId,
       },
     });
@@ -419,35 +438,33 @@ export async function updateTaskDetailsAction(
   input: UpdateTaskDetailsInput,
 ): Promise<{ task: WorkflowTask }> {
   const taskId = normalizeTaskField(input.taskId, "taskId", 80);
-  const title = normalizeTaskField(input.title, "title", MAX_TASK_TITLE_LENGTH);
-  const description = normalizeTaskField(
-    input.description ?? "",
-    "description",
-    MAX_TASK_DESCRIPTION_LENGTH,
-  );
-  const playbook = normalizeTaskField(
-    input.playbook ?? "",
-    "playbook",
+  const playbookId = normalizeTaskField(
+    input.playbookId ?? "",
+    "playbookId",
     MAX_PLAYBOOK_LENGTH,
   );
+  const notes = normalizeTaskField(
+    input.notes ?? "",
+    "notes",
+    MAX_NOTES_LENGTH,
+  );
 
-  if (!taskId || !title) {
-    throw new Error("updateTaskDetailsAction: taskId and title are required");
+  if (!taskId) {
+    throw new Error("updateTaskDetailsAction: taskId is required");
   }
 
   const repo = await getServerWorkflowRepository();
+  const owners = normalizeOwnerList(input.owners);
   const task = await repo.updateTask(taskId, {
-    title,
-    description,
-    agent: input.agent ?? null,
-    skill: input.skill ?? null,
-    playbook: playbook || null,
+    playbookId: playbookId || null,
+    notes,
+    ...(owners !== undefined ? { owners } : {}),
   });
 
   try {
     await repo.addEvent(task.id, {
       name: "workflow.task_updated",
-      description: `Updated task: ${task.title}`,
+      description: `Updated task: ${task.id}`,
       payload: {
         task_id: task.id,
         instance_id: task.instanceId,
@@ -465,21 +482,58 @@ export async function updateTaskDetailsAction(
   return { task };
 }
 
+export async function setTaskStatusAction(
+  taskId: string,
+  status: WorkflowTaskStatus,
+): Promise<{ task: WorkflowTask }> {
+  const trimmedId = normalizeTaskField(taskId, "taskId", 80);
+  if (!trimmedId) {
+    throw new Error("setTaskStatusAction: taskId is required");
+  }
+  if (!isWorkflowTaskStatus(status)) {
+    throw new Error("setTaskStatusAction: invalid status");
+  }
+
+  const repo = await getServerWorkflowRepository();
+  const task = await repo.updateTask(trimmedId, { status });
+
+  try {
+    await repo.addEvent(task.id, {
+      name: "workflow.task_status_set",
+      description: `Status set to ${status}`,
+      payload: {
+        task_id: task.id,
+        instance_id: task.instanceId,
+        status,
+      },
+    });
+  } catch (eventError) {
+    captureError(eventError, {
+      feature: "workflows.set_task_status",
+      action: "addEvent",
+      extra: { task_id: task.id, instance_id: task.instanceId },
+    });
+  }
+
+  revalidatePath("/", "layout");
+  return { task };
+}
+
 export interface MoveTaskResult {
   task: WorkflowTask;
 }
 
 export async function moveTaskAction(
   taskId: string,
-  roleId: string,
+  skillId: string,
   stageId: string,
 ): Promise<MoveTaskResult> {
   const trimmedTaskId = normalizeTaskField(taskId, "taskId", 80);
-  const trimmedRoleId = normalizeTaskField(roleId, "roleId", 80);
+  const trimmedSkillId = normalizeTaskField(skillId, "skillId", 80);
   const trimmedStageId = normalizeTaskField(stageId, "stageId", 80);
 
-  if (!trimmedTaskId || !trimmedRoleId || !trimmedStageId) {
-    throw new Error("moveTaskAction: taskId, roleId, and stageId are required");
+  if (!trimmedTaskId || !trimmedSkillId || !trimmedStageId) {
+    throw new Error("moveTaskAction: taskId, skillId, and stageId are required");
   }
 
   const repo = await getServerWorkflowRepository();
@@ -489,10 +543,10 @@ export async function moveTaskAction(
   }
 
   const task =
-    current.roleId === trimmedRoleId && current.stageId === trimmedStageId
+    current.skillId === trimmedSkillId && current.stageId === trimmedStageId
       ? current
       : await repo.updateTask(trimmedTaskId, {
-          roleId: trimmedRoleId,
+          skillId: trimmedSkillId,
           stageId: trimmedStageId,
         });
 
@@ -500,13 +554,13 @@ export async function moveTaskAction(
     try {
       await repo.addEvent(task.id, {
         name: "workflow.task_moved",
-        description: `Moved task: ${task.title}`,
+        description: `Moved task: ${task.id}`,
         payload: {
           task_id: task.id,
           instance_id: task.instanceId,
-          from_role_id: current.roleId,
+          from_skill_id: current.skillId,
           from_stage_id: current.stageId,
-          to_role_id: task.roleId,
+          to_skill_id: task.skillId,
           to_stage_id: task.stageId,
         },
       });
@@ -542,7 +596,7 @@ export async function startTaskAction(
   try {
     await repo.addEvent(trimmedId, {
       name: "workflow.task_started",
-      description: `Started task: ${task.title}`,
+      description: `Started task: ${task.id}`,
       payload: { task_id: task.id, instance_id: task.instanceId },
     });
   } catch (eventError) {
@@ -584,7 +638,7 @@ export async function cancelRunningTaskAction(
   try {
     await repo.addEvent(trimmedId, {
       name: "workflow.run_cancelled",
-      description: `Failed run: ${task.title}`,
+      description: `Failed run: ${task.id}`,
       payload: { task_id: task.id, instance_id: task.instanceId },
     });
   } catch (eventError) {
@@ -626,7 +680,7 @@ export async function retryBlockedTaskAction(
   try {
     await repo.addEvent(trimmedId, {
       name: "workflow.run_retried",
-      description: `Retried run: ${task.title}`,
+      description: `Retried run: ${task.id}`,
       payload: { task_id: task.id, instance_id: task.instanceId },
     });
   } catch (eventError) {
@@ -681,11 +735,11 @@ export async function deleteTaskAction(taskId: string): Promise<void> {
     await repo.addInstanceEvent(task.instanceId, {
       taskId: null,
       name: "workflow.task_deleted",
-      description: `Deleted task: ${task.title}`,
+      description: `Deleted task: ${task.id}`,
       payload: {
         task_id: task.id,
         instance_id: task.instanceId,
-        role_id: task.roleId,
+        skill_id: task.skillId,
         stage_id: task.stageId,
       },
     });
@@ -724,17 +778,18 @@ function normalizeTemplateStages(
     .filter((stage) => stage.id && stage.label);
 }
 
-function normalizeTemplateRoles(
-  roles: WorkflowTemplate["roles"],
-): WorkflowTemplate["roles"] {
-  return roles
-    .map((role) => ({
-      id: normalizeTaskField(role.id, "role.id", 80),
-      label: trimTemplateLabel(role.label),
-      owner: trimTemplateLabel(role.owner ?? ""),
-      color: role.color?.trim() || undefined,
+function normalizeTemplateSkills(
+  skills: WorkflowTemplate["skills"],
+): WorkflowTemplate["skills"] {
+  return skills
+    .map((skill) => ({
+      id: normalizeTaskField(skill.id, "skill.id", 80),
+      label: trimTemplateLabel(skill.label),
+      owners: (skill.owners ?? [])
+        .map((owner) => trimTemplateLabel(owner))
+        .filter(Boolean),
     }))
-    .filter((role) => role.id && role.label);
+    .filter((skill) => skill.id && skill.label);
 }
 
 function normalizeTemplateTaskTemplates(
@@ -744,22 +799,18 @@ function normalizeTemplateTaskTemplates(
     .map((task) => ({
       ...task,
       id: normalizeTaskField(task.id ?? "", "taskTemplate.id", 120),
-      role: normalizeTaskField(task.role, "taskTemplate.role", 80),
-      stage: normalizeTaskField(task.stage, "taskTemplate.stage", 80),
-      title: trimTemplateLabel(task.title),
-      desc: normalizeTaskField(
-        task.desc ?? "",
-        "taskTemplate.desc",
-        MAX_TASK_DESCRIPTION_LENGTH,
-      ),
-      agent: trimTemplateLabel(task.agent ?? ""),
-      skill: trimTemplateLabel(task.skill ?? ""),
-      playbook: trimTemplateLabel(task.playbook ?? ""),
+      skillId: normalizeTaskField(task.skillId, "taskTemplate.skillId", 80),
+      stageId: normalizeTaskField(task.stageId, "taskTemplate.stageId", 80),
+      playbookId: task.playbookId
+        ? normalizeTaskField(task.playbookId, "taskTemplate.playbookId", MAX_PLAYBOOK_LENGTH)
+        : null,
+      notes: normalizeTaskField(task.notes ?? "", "taskTemplate.notes", MAX_NOTES_LENGTH),
       triggers: task.triggers ?? [],
       gates: task.gates ?? [],
       checkpoint: Boolean(task.checkpoint),
+      owners: normalizeOwnerList(task.owners) ?? [],
     }))
-    .filter((task) => task.id && task.role && task.stage && task.title);
+    .filter((task) => task.id && task.skillId && task.stageId);
 }
 
 export async function updateTemplateAction(
@@ -779,7 +830,7 @@ export async function updateTemplateAction(
     label: trimTemplateLabel(template.label),
     color: normalizeTemplateColor(template.color),
     stages: normalizeTemplateStages(template.stages),
-    roles: normalizeTemplateRoles(template.roles),
+    skills: normalizeTemplateSkills(template.skills),
     taskTemplates: normalizeTemplateTaskTemplates(template.taskTemplates),
   });
 

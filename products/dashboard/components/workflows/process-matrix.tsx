@@ -1,7 +1,16 @@
 "use client";
 
-import { useCallback, useEffect, useId, useMemo, useState, useTransition } from "react";
-import { ChevronsLeftRight, Plus } from "lucide-react";
+import { useCallback, useEffect, useId, useMemo, useRef, useState, useTransition } from "react";
+import { createPortal } from "react-dom";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
+import {
+  Check,
+  ChevronsLeftRight,
+  ChevronsRightLeft,
+  Maximize2,
+  Minimize2,
+  Plus,
+} from "lucide-react";
 import {
   DndContext,
   KeyboardSensor,
@@ -33,25 +42,30 @@ import {
   deleteTaskAction,
   moveTaskAction,
   renameInstanceAction,
+  setTaskStatusAction,
   updateTaskDetailsAction,
 } from "@/app/(dashboard)/workflows/actions";
 import { useDashboardTopBar } from "@/components/dashboard-topbar-context";
 import { ConfirmModal } from "@/components/ui/confirm-modal";
 import { captureError } from "@/lib/monitoring";
 import { useToast } from "@/lib/toast";
+import { useUnsavedChangesGuard } from "@/lib/use-unsaved-changes-guard";
 import { cn } from "@/lib/utils";
 import { barClass, canStart } from "@/lib/workflows/matrix";
-import { getRoleColor } from "@/lib/workflows/role-colors";
+import { resolveSkillColor } from "@/lib/workflows/skill-colors";
+import { ItemAvatar } from "@/components/framework/item-avatar";
 import type {
   FrameworkItem,
   WorkflowInstanceDetail,
-  WorkflowRole,
+  WorkflowSkill,
   WorkflowStage,
   WorkflowTask,
+  WorkflowTaskStatus,
   WorkflowTemplate,
 } from "@/lib/workflows/types";
+import { TASK_STATUS_VAR } from "@/lib/workflows/task-status";
 
-import { AddTaskModal } from "./add-task-modal";
+import { AddPlaybookModal } from "./add-playbook-modal";
 import { AgentRunPanel } from "./agent-run-panel";
 import { HeaderActionsMenu } from "./header-actions-menu";
 import { TaskCard } from "./task-card";
@@ -75,21 +89,74 @@ export function ProcessMatrix({
   const { setConfig } = useDashboardTopBar();
   const { success: toastSuccess, error: toastError } = useToast();
   const [collapsed, setCollapsed] = useState(false);
+  const [collapsedStageIds, setCollapsedStageIds] = useState<Set<string>>(
+    () => new Set(),
+  );
+  const [collapsedSkillIds, setCollapsedSkillIds] = useState<Set<string>>(
+    () => new Set(),
+  );
+
+  const toggleStageCollapsed = useCallback((stageId: string) => {
+    setCollapsedStageIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(stageId)) next.delete(stageId);
+      else next.add(stageId);
+      return next;
+    });
+  }, []);
+
+  const toggleSkillCollapsed = useCallback((skillId: string) => {
+    setCollapsedSkillIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(skillId)) next.delete(skillId);
+      else next.add(skillId);
+      return next;
+    });
+  }, []);
+
+  // Stages and skills are snapshotted onto the instance at create time so
+  // template edits do not mutate or orphan tasks on existing instances.
+  // Fall back to the template only for legacy instances persisted before
+  // the snapshot column existed.
+  const stages: WorkflowStage[] =
+    instance.stages && instance.stages.length > 0
+      ? instance.stages
+      : template?.stages ?? [];
+  const skills: WorkflowSkill[] =
+    instance.skills && instance.skills.length > 0
+      ? instance.skills
+      : template?.skills ?? [];
+  const allCollapsed =
+    collapsed &&
+    stages.length > 0 &&
+    skills.length > 0 &&
+    stages.every((s) => collapsedStageIds.has(s.id)) &&
+    skills.every((s) => collapsedSkillIds.has(s.id));
+
+  const toggleCollapseAll = useCallback(() => {
+    if (allCollapsed) {
+      setCollapsed(false);
+      setCollapsedStageIds(new Set());
+      setCollapsedSkillIds(new Set());
+    } else {
+      setCollapsed(true);
+      setCollapsedStageIds(new Set(stages.map((s) => s.id)));
+      setCollapsedSkillIds(new Set(skills.map((s) => s.id)));
+    }
+  }, [allCollapsed, stages, skills]);
   const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null);
   const [dragTaskId, setDragTaskId] = useState<string | null>(null);
   const [addTaskFor, setAddTaskFor] = useState<{
     mode: "create" | "edit";
     taskId?: string;
-    roleId: string;
-    roleName: string;
+    skillId: string;
+    skillLabel: string;
     stageId: string;
     stageName: string;
-    initialTask?: {
-      title: string;
-      description?: string;
-      agent?: string | null;
-      skill?: string | null;
-      playbook?: string | null;
+    initial?: {
+      playbookId?: string | null;
+      notes?: string;
+      owners?: string[];
     };
   } | null>(null);
   const [confirmDeleteTask, setConfirmDeleteTask] = useState<WorkflowTask | null>(
@@ -97,27 +164,110 @@ export function ProcessMatrix({
   );
   const [agentRunOpen, setAgentRunOpen] = useState(false);
   const [localTasks, setLocalTasks] = useState<WorkflowTask[]>(instance.tasks);
+  const [lastSavedTasks, setLastSavedTasks] = useState<WorkflowTask[]>(instance.tasks);
+  const [confirmDiscardOpen, setConfirmDiscardOpen] = useState(false);
+  const [pendingNavigation, setPendingNavigation] = useState<(() => void) | null>(null);
   const [isPending, startTransition] = useTransition();
   const dndContextId = useId();
+  const router = useRouter();
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
+
+  const playbookById = useMemo(
+    () => new Map(playbookOptions.map((pb) => [pb.id, pb])),
+    [playbookOptions],
+  );
+
+  const handleStatusChange = useCallback(
+    (taskId: string, next: WorkflowTaskStatus) => {
+      const previous = localTasks.find((t) => t.id === taskId);
+      if (!previous || previous.status === next) return;
+      const optimistic: WorkflowTask = {
+        ...previous,
+        status: next,
+        updatedAt: new Date().toISOString(),
+      };
+      setLocalTasks((prev) => prev.map((t) => (t.id === taskId ? optimistic : t)));
+      setLastSavedTasks((prev) => prev.map((t) => (t.id === taskId ? optimistic : t)));
+      startTransition(async () => {
+        try {
+          const { task } = await setTaskStatusAction(taskId, next);
+          setLocalTasks((prev) => prev.map((t) => (t.id === taskId ? task : t)));
+          setLastSavedTasks((prev) => prev.map((t) => (t.id === taskId ? task : t)));
+        } catch (err) {
+          captureError(err, {
+            feature: "workflows.matrix_status_change",
+            extra: { task_id: taskId, status: next },
+          });
+          toastError("Could not update status. Please try again.");
+          setLocalTasks((prev) => prev.map((t) => (t.id === taskId ? previous : t)));
+          setLastSavedTasks((prev) => prev.map((t) => (t.id === taskId ? previous : t)));
+        }
+      });
+    },
+    [localTasks, toastError],
+  );
 
   useEffect(() => {
+    if (editMode) return;
     setLocalTasks(instance.tasks);
-  }, [instance.tasks]);
+    setLastSavedTasks(instance.tasks);
+  }, [instance.tasks, editMode]);
 
   const handleTaskUpdate = useCallback((updated: WorkflowTask) => {
     setLocalTasks((prev) => prev.map((task) => (task.id === updated.id ? updated : task)));
+    setLastSavedTasks((prev) => prev.map((task) => (task.id === updated.id ? updated : task)));
   }, []);
 
-  const stages: WorkflowStage[] = template?.stages ?? [];
-  const roles: WorkflowRole[] =
-    instance.roles && instance.roles.length > 0
-      ? instance.roles
-      : template?.roles ?? [];
+  const isDirty = useMemo(
+    () => JSON.stringify(localTasks) !== JSON.stringify(lastSavedTasks),
+    [localTasks, lastSavedTasks],
+  );
+
+  const exitEditMode = useCallback(() => {
+    if (!pathname) return;
+    const next = new URLSearchParams(searchParams.toString());
+    next.delete("edit");
+    const query = next.toString();
+    router.replace(query ? `${pathname}?${query}` : pathname, { scroll: false });
+  }, [pathname, router, searchParams]);
+
+  const handleCancelEdit = useCallback(() => {
+    if (isDirty) {
+      setConfirmDiscardOpen(true);
+      return;
+    }
+    exitEditMode();
+  }, [exitEditMode, isDirty]);
+
+  const discardAndExit = useCallback(() => {
+    setLocalTasks(lastSavedTasks);
+    setConfirmDiscardOpen(false);
+    exitEditMode();
+  }, [exitEditMode, lastSavedTasks]);
+
+  const handleBlockedNavigation = useCallback((proceed: () => void) => {
+    setPendingNavigation(() => proceed);
+  }, []);
+
+  useUnsavedChangesGuard({
+    enabled: editMode && isDirty,
+    onBlock: handleBlockedNavigation,
+  });
+
+  const confirmPendingNavigation = useCallback(() => {
+    const proceed = pendingNavigation;
+    setPendingNavigation(null);
+    if (!proceed) return;
+    setLocalTasks(lastSavedTasks);
+    setLastSavedTasks(lastSavedTasks);
+    proceed();
+  }, [lastSavedTasks, pendingNavigation]);
 
   const tasksByCell = useMemo(() => {
     const map = new Map<string, WorkflowTask>();
     for (const task of localTasks) {
-      map.set(`${task.roleId}::${task.stageId}`, task);
+      map.set(`${task.skillId}::${task.stageId}`, task);
     }
     return map;
   }, [localTasks]);
@@ -136,7 +286,108 @@ export function ProcessMatrix({
     ? (localTasks.find((task) => task.id === selectedTaskId) ?? null)
     : null;
 
-  const isEmpty = stages.length === 0 || roles.length === 0;
+  const isEmpty = stages.length === 0 || skills.length === 0;
+
+  const saveInstanceEdits = useCallback(() => {
+    startTransition(async () => {
+      try {
+        const savedById = new Map(lastSavedTasks.map((t) => [t.id, t]));
+        const draftById = new Map(localTasks.map((t) => [t.id, t]));
+
+        const toCreate: WorkflowTask[] = [];
+        const toMove: WorkflowTask[] = [];
+        const toUpdate: WorkflowTask[] = [];
+        const toDelete: WorkflowTask[] = [];
+
+        for (const task of localTasks) {
+          if (task.id.startsWith("local-")) {
+            toCreate.push(task);
+            continue;
+          }
+          const saved = savedById.get(task.id);
+          if (!saved) continue;
+          if (saved.skillId !== task.skillId || saved.stageId !== task.stageId) {
+            toMove.push(task);
+          }
+          const ownersChanged =
+            (saved.owners ?? []).length !== (task.owners ?? []).length ||
+            (saved.owners ?? []).some(
+              (value, index) => value !== (task.owners ?? [])[index],
+            );
+          if (
+            saved.notes !== task.notes ||
+            saved.playbookId !== task.playbookId ||
+            ownersChanged
+          ) {
+            toUpdate.push(task);
+          }
+        }
+        for (const saved of lastSavedTasks) {
+          if (!draftById.has(saved.id)) toDelete.push(saved);
+        }
+
+        const finalById = new Map<string, WorkflowTask>(
+          localTasks.map((t) => [t.id, t]),
+        );
+
+        for (const task of toDelete) {
+          await deleteTaskAction(task.id);
+        }
+
+        for (const task of toCreate) {
+          const result = await createTaskAction({
+            instanceId: instance.id,
+            skillId: task.skillId,
+            stageId: task.stageId,
+            playbookId: task.playbookId,
+            notes: task.notes,
+            checkpoint: task.checkpoint,
+            triggers: task.triggers,
+            gates: task.gates,
+            owners: task.owners,
+          });
+          finalById.delete(task.id);
+          finalById.set(result.task.id, result.task);
+        }
+
+        for (const task of toMove) {
+          const result = await moveTaskAction(task.id, task.skillId, task.stageId);
+          finalById.set(result.task.id, result.task);
+        }
+
+        for (const task of toUpdate) {
+          const result = await updateTaskDetailsAction({
+            taskId: task.id,
+            playbookId: task.playbookId,
+            notes: task.notes,
+            owners: task.owners,
+          });
+          finalById.set(result.task.id, result.task);
+        }
+
+        const finalTasks = Array.from(finalById.values());
+        setLocalTasks(finalTasks);
+        setLastSavedTasks(finalTasks);
+
+        toastSuccess("Workflow saved");
+        exitEditMode();
+      } catch (err) {
+        captureError(err, { feature: "workflows.process_matrix_save" });
+        toastError(
+          err instanceof Error && err.message
+            ? err.message
+            : "Could not save workflow changes.",
+        );
+      }
+    });
+  }, [
+    exitEditMode,
+    instance.id,
+    lastSavedTasks,
+    localTasks,
+    toastError,
+    toastSuccess,
+  ]);
 
   useEffect(() => {
     setConfig({
@@ -146,6 +397,12 @@ export function ProcessMatrix({
         { label: template?.label ?? "Workflow" },
         { label: instance.label },
       ],
+      editMode,
+      isDirty,
+      saveDisabled: !isDirty || isPending,
+      savePending: isPending,
+      onSave: editMode ? saveInstanceEdits : undefined,
+      onCancelEdit: editMode ? handleCancelEdit : undefined,
       actions: (
         <HeaderActionsMenu
           entityLabel={instance.label}
@@ -181,74 +438,19 @@ export function ProcessMatrix({
     });
 
     return () => setConfig(null);
-  }, [instance.id, instance.label, setConfig, template?.label, toastSuccess, toastError]);
-
-  const runMutation = useCallback(
-    async (
-      apply: (tasks: WorkflowTask[]) => WorkflowTask[],
-      commit: () => Promise<WorkflowTask | void>,
-    ) => {
-      const snapshot = localTasks;
-      const optimistic = apply(snapshot);
-      const snapshotById = new Map(snapshot.map((task) => [task.id, task]));
-      const optimisticById = new Map(optimistic.map((task) => [task.id, task]));
-      const changedTaskIds = new Set<string>();
-
-      for (const task of snapshot) {
-        if (optimisticById.get(task.id) !== task) {
-          changedTaskIds.add(task.id);
-        }
-      }
-      for (const task of optimistic) {
-        if (snapshotById.get(task.id) !== task) {
-          changedTaskIds.add(task.id);
-        }
-      }
-
-      setLocalTasks((current) => apply(current));
-
-      startTransition(async () => {
-        try {
-          const result = await commit();
-          if (result) {
-            setLocalTasks((current) =>
-              current.some((task) => task.id === result.id)
-                ? current.map((task) => (task.id === result.id ? result : task))
-                : [...current, result],
-            );
-          }
-        } catch (error) {
-          setLocalTasks((current) => {
-            const reverted: WorkflowTask[] = [];
-            const restoredIds = new Set<string>();
-
-            for (const task of current) {
-              if (!changedTaskIds.has(task.id)) {
-                reverted.push(task);
-                continue;
-              }
-
-              const snapshotTask = snapshotById.get(task.id);
-              if (snapshotTask) {
-                reverted.push(snapshotTask);
-                restoredIds.add(task.id);
-              }
-            }
-
-            for (const task of snapshot) {
-              if (changedTaskIds.has(task.id) && !restoredIds.has(task.id)) {
-                reverted.push(task);
-              }
-            }
-
-            return reverted;
-          });
-          captureError(error, { feature: "workflows.process_matrix_edit" });
-        }
-      });
-    },
-    [localTasks],
-  );
+  }, [
+    editMode,
+    handleCancelEdit,
+    instance.id,
+    instance.label,
+    isDirty,
+    isPending,
+    saveInstanceEdits,
+    setConfig,
+    template?.label,
+    toastSuccess,
+    toastError,
+  ]);
 
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
@@ -266,35 +468,51 @@ export function ProcessMatrix({
       if (!editMode) return;
       const overId = event.over?.id;
       if (typeof overId !== "string" || !overId.startsWith("cell::")) return;
-      const [, targetRoleId, targetStageId] = overId.split("::");
-      if (!targetRoleId || !targetStageId) return;
+      const [, targetSkillId, targetStageId] = overId.split("::");
+      if (!targetSkillId || !targetStageId) return;
       const dragged = localTasks.find((t) => t.id === draggedId);
       if (!dragged) return;
-      if (dragged.roleId === targetRoleId && dragged.stageId === targetStageId) return;
+      if (dragged.skillId === targetSkillId && dragged.stageId === targetStageId) return;
       const occupied = localTasks.some(
-        (t) => t.roleId === targetRoleId && t.stageId === targetStageId,
+        (t) => t.skillId === targetSkillId && t.stageId === targetStageId,
       );
       if (occupied) return;
+      // Constrain skill-row moves to the playbook's allowed skills.
+      const playbook = dragged.playbookId ? playbookById.get(dragged.playbookId) : null;
+      if (
+        dragged.skillId !== targetSkillId &&
+        playbook &&
+        !(playbook.allowedSkillIds ?? []).includes(targetSkillId)
+      ) {
+        return;
+      }
 
-      runMutation(
-        (tasks) =>
-          tasks.map((item) =>
-            item.id === draggedId
-              ? { ...item, roleId: targetRoleId, stageId: targetStageId }
-              : item,
-          ),
-        async () => {
-          const result = await moveTaskAction(draggedId, targetRoleId, targetStageId);
-          return result.task;
-        },
+      setLocalTasks((tasks) =>
+        tasks.map((item) =>
+          item.id === draggedId
+            ? { ...item, skillId: targetSkillId, stageId: targetStageId }
+            : item,
+        ),
       );
     },
-    [editMode, localTasks, runMutation],
+    [editMode, localTasks, playbookById],
   );
 
   const handleDragCancel = useCallback(() => {
     setDragTaskId(null);
   }, []);
+
+  // While dragging, the set of skill rows the dragged task's playbook is
+  // allowed to land on. `null` means "no playbook attached" (drag is
+  // unconstrained — only the occupied-cell + same-skill checks apply).
+  const dragAllowedSkillIds = useMemo<Set<string> | null>(() => {
+    if (!dragTaskId) return null;
+    const dragged = localTasks.find((t) => t.id === dragTaskId);
+    if (!dragged?.playbookId) return null;
+    const playbook = playbookById.get(dragged.playbookId);
+    if (!playbook) return null;
+    return new Set([dragged.skillId, ...(playbook.allowedSkillIds ?? [])]);
+  }, [dragTaskId, localTasks, playbookById]);
 
   return (
     <>
@@ -315,38 +533,92 @@ export function ProcessMatrix({
         <div className="matrix" role="table" aria-label="Workflow process matrix">
           <div className="matrix-head-row" role="row">
             <div className="mx-corner" role="columnheader">
-              {!collapsed && <span className="flex-1">Roles</span>}
               <button
                 type="button"
-                data-testid="matrix-roles-toggle"
-                aria-pressed={collapsed}
-                aria-label={collapsed ? "Expand role labels" : "Collapse role labels"}
-                title={collapsed ? "Expand role labels" : "Collapse role labels"}
-                onClick={() => setCollapsed((value) => !value)}
-                className="mx-corner-toggle"
-                style={collapsed ? { marginLeft: 0 } : undefined}
+                data-testid="matrix-collapse-all"
+                aria-pressed={allCollapsed}
+                aria-label={
+                  allCollapsed
+                    ? "Expand all rows and columns"
+                    : "Collapse all rows and columns"
+                }
+                title={
+                  allCollapsed
+                    ? "Expand all rows and columns"
+                    : "Collapse all rows and columns"
+                }
+                onClick={(event) => {
+                  event.currentTarget.blur();
+                  toggleCollapseAll();
+                }}
+                className="mx-corner-collapse-all"
               >
-                <ChevronsLeftRight aria-hidden size={11} />
+                {allCollapsed ? (
+                  <Maximize2 aria-hidden size={11} />
+                ) : (
+                  <Minimize2 aria-hidden size={11} />
+                )}
+              </button>
+              {!collapsed && <span className="flex-1">Skills</span>}
+              <button
+                type="button"
+                data-testid="matrix-skills-toggle"
+                aria-pressed={collapsed}
+                aria-label={collapsed ? "Expand skill labels" : "Collapse skill labels"}
+                title={collapsed ? "Expand skill labels" : "Collapse skill labels"}
+                onClick={(event) => {
+                  event.currentTarget.blur();
+                  setCollapsed((value) => !value);
+                }}
+                className="mx-corner-toggle"
+              >
+                {collapsed ? (
+                  <ChevronsLeftRight aria-hidden size={11} />
+                ) : (
+                  <ChevronsRightLeft aria-hidden size={11} />
+                )}
               </button>
             </div>
 
             {stages.map((stage) => {
               const stageTasks = tasksByStage.get(stage.id) ?? [];
+              const isStageCollapsed = collapsedStageIds.has(stage.id);
               return (
                 <div
                   key={stage.id}
                   role="columnheader"
-                  className="mx-stage-hd"
+                  className={cn(
+                    "mx-stage-hd",
+                    isStageCollapsed && "mx-stage-hd-collapsed",
+                  )}
                   data-testid={`matrix-stage-${stage.id}`}
+                  data-collapsed={isStageCollapsed ? "true" : undefined}
+                  aria-label={isStageCollapsed ? stage.label : undefined}
+                  onClick={
+                    isStageCollapsed
+                      ? () => toggleStageCollapsed(stage.id)
+                      : undefined
+                  }
                 >
-                  <div className="mx-stage-name">{stage.label}</div>
-                  <div className={cn("mx-stage-sub", stage.sub?.trim() && "mx-stage-sub-plain")}>
-                    {stage.sub?.trim() || "No description"}
-                  </div>
+                  {!isStageCollapsed && (
+                    <>
+                      <div className="mx-stage-name">{stage.label}</div>
+                      <div className={cn("mx-stage-sub", stage.sub?.trim() && "mx-stage-sub-plain")}>
+                        {stage.sub?.trim() || "No description"}
+                      </div>
+                    </>
+                  )}
+                  {isStageCollapsed ? (
+                    <FloatingHoverTooltip
+                      name={stage.label}
+                      sub={stage.sub?.trim() ?? ""}
+                      placement="above"
+                    />
+                  ) : null}
                   {stageTasks.length > 0 ? (
                     <div className="mx-stage-pips" aria-hidden>
                       {stageTasks.map((task) => {
-                        const color = getRoleColor(task.roleId, roles);
+                        const color = resolveSkillColor(task.skillId, skillOptions);
                         const opacity =
                           task.status === "not_started"
                             ? 0.2
@@ -364,6 +636,33 @@ export function ProcessMatrix({
                       })}
                     </div>
                   ) : null}
+                  <button
+                    type="button"
+                    className="mx-stage-collapse-btn"
+                    data-testid={`matrix-stage-toggle-${stage.id}`}
+                    aria-pressed={isStageCollapsed}
+                    aria-label={
+                      isStageCollapsed
+                        ? `Expand ${stage.label}`
+                        : `Collapse ${stage.label}`
+                    }
+                    title={
+                      isStageCollapsed
+                        ? `Expand ${stage.label}`
+                        : `Collapse ${stage.label}`
+                    }
+                    onClick={(event) => {
+                      event.stopPropagation();
+                      event.currentTarget.blur();
+                      toggleStageCollapsed(stage.id);
+                    }}
+                  >
+                    {isStageCollapsed ? (
+                      <ChevronsLeftRight aria-hidden size={11} />
+                    ) : (
+                      <ChevronsRightLeft aria-hidden size={11} />
+                    )}
+                  </button>
                 </div>
               );
             })}
@@ -377,97 +676,217 @@ export function ProcessMatrix({
                 className="px-4 py-6 text-center text-[12px] text-t2"
               >
                 {template
-                  ? "This workflow has no stages or roles defined yet."
+                  ? "This workflow has no stages or skills defined yet."
                   : "The template that defines this workflow is no longer available."}
               </div>
             </div>
           ) : (
-            roles.map((role) => {
-              const roleColor = getRoleColor(role.id, roles);
+            skills.map((skill) => {
+              const skillColor = resolveSkillColor(skill.id, skillOptions);
+              const frameworkSkill = skillOptions.find(
+                (item) => item.id === skill.id,
+              );
+              const isSkillCollapsed = collapsedSkillIds.has(skill.id);
+              const labelHidden = collapsed || isSkillCollapsed;
+              // Derive the row's owner stack from the cards currently in
+              // this skill row (deduped, order-preserved). Owners live on
+              // each task now, so the same playbook can carry different
+              // owners in different cells.
+              const rowOwners: string[] = [];
+              {
+                const seen = new Set<string>();
+                for (const t of localTasks) {
+                  if (t.skillId !== skill.id) continue;
+                  for (const owner of t.owners ?? []) {
+                    if (!seen.has(owner)) {
+                      seen.add(owner);
+                      rowOwners.push(owner);
+                    }
+                  }
+                }
+              }
               return (
                 <div
-                  key={role.id}
+                  key={skill.id}
                   role="row"
-                  className="mx-body-row"
-                  data-testid={`matrix-role-row-${role.id}`}
+                  className={cn(
+                    "mx-body-row",
+                    isSkillCollapsed && "mx-body-row-collapsed",
+                  )}
+                  data-testid={`matrix-skill-row-${skill.id}`}
+                  data-collapsed={isSkillCollapsed ? "true" : undefined}
                 >
-                  <div className="mx-role-cell" role="rowheader">
+                  <div
+                    className="mx-role-cell"
+                    role="rowheader"
+                    title={isSkillCollapsed ? skill.label : undefined}
+                  >
                     <span
-                      aria-hidden
-                      data-testid={`matrix-role-dot-${role.id}`}
-                      className="block h-2 w-2 shrink-0 rounded-full"
-                      style={{ background: roleColor }}
-                    />
-                    {!collapsed ? (
+                      data-testid={`matrix-skill-dot-${skill.id}`}
+                      className="mx-skill-avatar-anchor"
+                    >
+                      <ItemAvatar
+                        emoji={frameworkSkill?.icon ?? "•"}
+                        color={skillColor}
+                        label={skill.label}
+                        size={labelHidden ? "xs" : "sm"}
+                      />
+                      {labelHidden ? (
+                        <FloatingHoverTooltip
+                          name={skill.label}
+                          sub={
+                            rowOwners.length > 0
+                              ? rowOwners.join(", ")
+                              : "No owner"
+                          }
+                          placement="right"
+                        />
+                      ) : null}
+                    </span>
+                    {!labelHidden ? (
                       <div
                         className="min-w-0 flex-1"
-                        data-testid={`matrix-role-label-${role.id}`}
+                        data-testid={`matrix-skill-label-${skill.id}`}
                       >
-                        <div className="mx-role-name">{role.label}</div>
-                        <div className={cn("mx-role-owner", role.owner?.trim() && "mx-role-owner-plain")}>
-                          {role.owner?.trim() || "No description"}
+                        <div className="mx-role-name">{skill.label}</div>
+                        <div
+                          className={cn(
+                            "mx-role-owner",
+                            rowOwners.length > 0 && "mx-role-owner-plain",
+                          )}
+                        >
+                          {rowOwners.length > 0
+                            ? rowOwners.join(", ")
+                            : "No owner"}
                         </div>
                       </div>
                     ) : null}
+                    {(
+                      <button
+                        type="button"
+                        className="mx-skill-collapse-btn"
+                        data-testid={`matrix-skill-toggle-${skill.id}`}
+                        aria-pressed={isSkillCollapsed}
+                        aria-label={
+                          isSkillCollapsed
+                            ? `Expand ${skill.label}`
+                            : `Collapse ${skill.label}`
+                        }
+                        title={
+                          isSkillCollapsed
+                            ? `Expand ${skill.label}`
+                            : `Collapse ${skill.label}`
+                        }
+                        onClick={(event) => {
+                          event.stopPropagation();
+                          event.currentTarget.blur();
+                          toggleSkillCollapsed(skill.id);
+                        }}
+                      >
+                        {isSkillCollapsed ? (
+                          <ChevronsLeftRight
+                            aria-hidden
+                            size={11}
+                            style={{ transform: "rotate(90deg)" }}
+                          />
+                        ) : (
+                          <ChevronsRightLeft
+                            aria-hidden
+                            size={11}
+                            style={{ transform: "rotate(90deg)" }}
+                          />
+                        )}
+                      </button>
+                    )}
                   </div>
 
                   {stages.map((stage) => {
-                    const task = tasksByCell.get(`${role.id}::${stage.id}`);
+                    const task = tasksByCell.get(`${skill.id}::${stage.id}`);
+                    const playbook = task?.playbookId ? playbookById.get(task.playbookId) ?? null : null;
+                    const isStageCollapsed = collapsedStageIds.has(stage.id);
+                    const isMini = isStageCollapsed || isSkillCollapsed;
 
                     return (
                       <DroppableTaskCell
-                        key={`${role.id}-${stage.id}`}
-                        roleId={role.id}
+                        key={`${skill.id}-${stage.id}`}
+                        skillId={skill.id}
                         stageId={stage.id}
                         hasTask={Boolean(task)}
-                        editMode={editMode}
+                        editMode={editMode && !isMini}
                         dragActive={Boolean(dragTaskId)}
+                        dropAllowed={
+                          dragAllowedSkillIds === null ||
+                          dragAllowedSkillIds.has(skill.id)
+                        }
+                        mini={isMini}
+                        stageCollapsed={isStageCollapsed}
                       >
                         {task ? (
-                          <DraggableTaskCard
-                            taskId={task.id}
-                            disabled={!editMode}
-                            isActive={dragTaskId === task.id}
-                          >
-                            <TaskCard
+                          isMini ? (
+                            <MiniTaskCell
                               task={task}
-                              roleColor={roleColor}
-                              barState={barClass(task, canStart(task, localTasks))}
-                              editMode={editMode}
-                              onClick={() => setSelectedTaskId(task.id)}
-                              onEdit={
+                              playbook={playbook}
+                              skillColor={skillColor}
+                              onClick={
                                 editMode
-                                  ? () =>
-                                      setAddTaskFor({
-                                        mode: "edit",
-                                        taskId: task.id,
-                                        roleId: role.id,
-                                        roleName: role.label,
-                                        stageId: stage.id,
-                                        stageName: stage.label,
-                                        initialTask: {
-                                          title: task.title,
-                                          description: task.description,
-                                          agent: task.agent ?? null,
-                                          skill: task.skill ?? null,
-                                          playbook: task.playbook ?? null,
-                                        },
-                                      })
-                                  : undefined
-                              }
-                              onRemove={
-                                editMode ? () => setConfirmDeleteTask(task) : undefined
+                                  ? undefined
+                                  : () => setSelectedTaskId(task.id)
                               }
                             />
-                          </DraggableTaskCard>
-                        ) : editMode ? (
+                          ) : (
+                            <DraggableTaskCard
+                              taskId={task.id}
+                              disabled={!editMode}
+                              isActive={dragTaskId === task.id}
+                            >
+                              <TaskCard
+                                task={task}
+                                playbook={playbook}
+                                skillColor={skillColor}
+                                barState={barClass(task, canStart(task, localTasks))}
+                                editMode={editMode}
+                                onClick={
+                                  editMode
+                                    ? undefined
+                                    : () => setSelectedTaskId(task.id)
+                                }
+                                onStatusChange={
+                                  editMode
+                                    ? undefined
+                                    : (next) => handleStatusChange(task.id, next)
+                                }
+                                onEdit={
+                                  editMode
+                                    ? () =>
+                                        setAddTaskFor({
+                                          mode: "edit",
+                                          taskId: task.id,
+                                          skillId: skill.id,
+                                          skillLabel: skill.label,
+                                          stageId: stage.id,
+                                          stageName: stage.label,
+                                          initial: {
+                                            playbookId: task.playbookId ?? null,
+                                            notes: task.notes ?? "",
+                                            owners: task.owners ?? [],
+                                          },
+                                        })
+                                    : undefined
+                                }
+                                onRemove={
+                                  editMode ? () => setConfirmDeleteTask(task) : undefined
+                                }
+                              />
+                            </DraggableTaskCard>
+                          )
+                        ) : editMode && !isMini ? (
                           <div
                             className="mx-empty-cell"
                             onClick={() =>
                               setAddTaskFor({
                                 mode: "create",
-                                roleId: role.id,
-                                roleName: role.label,
+                                skillId: skill.id,
+                                skillLabel: skill.label,
                                 stageId: stage.id,
                                 stageName: stage.label,
                               })
@@ -476,8 +895,8 @@ export function ProcessMatrix({
                             <button
                               type="button"
                               className="mx-add-btn"
-                              data-testid={`matrix-add-task-${role.id}-${stage.id}`}
-                              aria-label={`Add task for ${role.label} in ${stage.label}`}
+                              data-testid={`matrix-add-task-${skill.id}-${stage.id}`}
+                              aria-label={`Add playbook for ${skill.label} in ${stage.label}`}
                             >
                               <Plus className="h-3.5 w-3.5" />
                             </button>
@@ -497,13 +916,12 @@ export function ProcessMatrix({
       <TaskDrawer
         task={selectedTask}
         instance={instance}
-        roles={roles}
+        skills={skills}
         template={template}
-        skillOptions={skillOptions}
         playbookOptions={playbookOptions}
         onClose={() => { setSelectedTaskId(null); setAgentRunOpen(false); }}
         onTaskUpdate={handleTaskUpdate}
-        onViewLiveRun={selectedTask?.playbook ? () => setAgentRunOpen(true) : undefined}
+        onViewLiveRun={selectedTask?.playbookId ? () => setAgentRunOpen(true) : undefined}
       />
 
       <AgentRunPanel
@@ -515,75 +933,91 @@ export function ProcessMatrix({
       />
 
       {addTaskFor ? (
-        <AddTaskModal
+        <AddPlaybookModal
           mode={addTaskFor.mode}
-          instanceId={instance.id}
-          roleId={addTaskFor.roleId}
-          roleName={addTaskFor.roleName}
+          skillId={addTaskFor.skillId}
+          skillLabel={addTaskFor.skillLabel}
           stageId={addTaskFor.stageId}
           stageName={addTaskFor.stageName}
-          initialTask={addTaskFor.initialTask}
-          skillOptions={skillOptions}
-          playbookOptions={playbookOptions}
+          playbooks={playbookOptions}
+          initial={addTaskFor.initial}
           onClose={() => setAddTaskFor(null)}
           onSubmit={(input) => {
+            const target = addTaskFor;
             setAddTaskFor(null);
-            if (addTaskFor.mode === "edit" && addTaskFor.taskId) {
-              runMutation(
-                (tasks) =>
-                  tasks.map((task) =>
-                    task.id === addTaskFor.taskId
-                      ? {
-                          ...task,
-                          title: input.title.trim(),
-                          description: input.description?.trim() ?? "",
-                          agent: input.agent ?? null,
-                          skill: input.skill ?? null,
-                          playbook: input.playbook ?? null,
-                        }
-                      : task,
-                  ),
-                async () => {
-                  const result = await updateTaskDetailsAction({
-                    taskId: addTaskFor.taskId!,
-                    title: input.title,
-                    description: input.description,
-                    agent: input.agent,
-                    skill: input.skill,
-                    playbook: input.playbook,
-                  });
-                  return result.task;
-                },
+            if (target.mode === "edit" && target.taskId) {
+              setLocalTasks((tasks) =>
+                tasks.map((task) =>
+                  task.id === target.taskId
+                    ? {
+                        ...task,
+                        playbookId: input.playbookId,
+                        notes: input.notes,
+                        owners: input.owners,
+                      }
+                    : task,
+                ),
               );
               return;
             }
 
-            runMutation(
-              (tasks) => tasks,
-              async () => {
-                const result = await createTaskAction(input);
-                return result.task;
-              },
-            );
+            const localId = `local-${
+              typeof crypto !== "undefined" && typeof crypto.randomUUID === "function"
+                ? crypto.randomUUID()
+                : `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
+            }`;
+            const now = new Date().toISOString();
+            const draftTask: WorkflowTask = {
+              id: localId,
+              instanceId: instance.id,
+              skillId: target.skillId,
+              stageId: target.stageId,
+              notes: input.notes,
+              status: "not_started",
+              substatus: "",
+              checkpoint: false,
+              triggers: [],
+              gates: [],
+              playbookId: input.playbookId,
+              owners: input.owners,
+              createdAt: now,
+              updatedAt: now,
+            };
+            setLocalTasks((tasks) => [...tasks, draftTask]);
           }}
         />
       ) : null}
 
       {confirmDeleteTask ? (
         <ConfirmModal
-          title={`Delete "${confirmDeleteTask.title}"?`}
-          description="This task and its configuration will be deleted from this instance."
+          title={`Delete playbook?`}
+          description="This playbook will be removed from the draft. The deletion is committed when you click Save."
           onCancel={() => setConfirmDeleteTask(null)}
           onConfirm={() => {
             const task = confirmDeleteTask;
             setConfirmDeleteTask(null);
-            runMutation(
-              (tasks) => tasks.filter((item) => item.id !== task.id),
-              async () => {
-                await deleteTaskAction(task.id);
-              },
-            );
+            setLocalTasks((tasks) => tasks.filter((item) => item.id !== task.id));
           }}
+        />
+      ) : null}
+
+      {confirmDiscardOpen ? (
+        <ConfirmModal
+          title="Discard unsaved changes?"
+          description="Your in-progress edits to this workflow will be lost."
+          confirmLabel="Discard"
+          onCancel={() => setConfirmDiscardOpen(false)}
+          onConfirm={discardAndExit}
+        />
+      ) : null}
+
+      {pendingNavigation ? (
+        <ConfirmModal
+          title="Discard unsaved changes?"
+          description="Leaving this page will discard your in-progress edits."
+          confirmLabel="Discard"
+          onCancel={() => setPendingNavigation(null)}
+          onConfirm={confirmPendingNavigation}
         />
       ) : null}
 
@@ -624,37 +1058,225 @@ function DraggableTaskCard({
 }
 
 function DroppableTaskCell({
-  roleId,
+  skillId,
   stageId,
   hasTask,
   editMode,
   dragActive,
+  dropAllowed,
+  mini = false,
+  stageCollapsed = false,
   children,
 }: {
-  roleId: string;
+  skillId: string;
   stageId: string;
   hasTask: boolean;
   editMode: boolean;
   dragActive: boolean;
+  dropAllowed: boolean;
+  mini?: boolean;
+  stageCollapsed?: boolean;
   children: React.ReactNode;
 }) {
   const { setNodeRef, isOver } = useDroppable({
-    id: `cell::${roleId}::${stageId}`,
-    disabled: !editMode || hasTask,
+    id: `cell::${skillId}::${stageId}`,
+    disabled: !editMode || hasTask || !dropAllowed,
   });
 
   return (
     <div
       ref={setNodeRef}
       role="cell"
-      data-testid={`matrix-cell-${roleId}-${stageId}`}
+      data-testid={`matrix-cell-${skillId}-${stageId}`}
+      data-mini={mini ? "true" : undefined}
+      data-stage-collapsed={stageCollapsed ? "true" : undefined}
       className={cn(
         "mx-task-cell",
+        mini && "mx-task-cell-mini",
+        stageCollapsed && "mx-task-cell-narrow",
         hasTask && "has-task",
-        editMode && dragActive && !hasTask && isOver && "drag-over-cell",
+        editMode && dragActive && !hasTask && dropAllowed && isOver && "drag-over-cell",
+        editMode && dragActive && !hasTask && !dropAllowed && "drag-disallowed-cell",
       )}
     >
       {children}
     </div>
+  );
+}
+
+function MiniTaskCell({
+  task,
+  playbook,
+  skillColor,
+  onClick,
+}: {
+  task: WorkflowTask;
+  playbook: FrameworkItem | null;
+  skillColor: string;
+  onClick?: () => void;
+}) {
+  const title = playbook?.name ?? (task.playbookId ? "Playbook removed" : "No playbook");
+  // Ring carries the skill identity color; the disc background encodes the
+  // task's status as a tint, so a row of mini cells reads as "same family,
+  // different states" at a glance.
+  const statusColor = TASK_STATUS_VAR[task.status];
+  const statusFill =
+    task.status === "not_started"
+      ? "var(--bg-2)"
+      : `color-mix(in srgb, ${statusColor} 45%, var(--bg-2))`;
+  // Halo color is only set for active/pending/blocked/complete — not_started
+  // gets no halo so an empty workflow reads as quiet rather than glowing.
+  const haloColor = task.status === "not_started" ? undefined : statusColor;
+  const opacity =
+    task.status === "not_started"
+      ? 0.55
+      : task.status === "complete"
+        ? 0.7
+        : 1;
+  const statusLabel =
+    task.status === "active"
+      ? "In progress"
+      : task.status === "pending_approval"
+        ? "Pending approval"
+        : task.status === "blocked"
+          ? "Failed"
+          : task.status === "complete"
+            ? "Complete"
+            : "Not started";
+  const statusClass =
+    task.status === "active"
+      ? "s-active"
+      : task.status === "pending_approval"
+        ? "s-pending"
+        : task.status === "blocked"
+          ? "s-blocked"
+          : task.status === "complete"
+            ? "s-complete"
+            : "s-not_started";
+  return (
+    <button
+      type="button"
+      className="mx-mini-cell-btn"
+      data-testid={`task-mini-${task.id}`}
+      data-status={task.status}
+      data-pulse={
+        task.status === "pending_approval" || task.status === "blocked"
+          ? "true"
+          : undefined
+      }
+      onClick={onClick}
+      aria-label={`Open playbook: ${title} (${statusLabel})`}
+      style={
+        {
+          opacity,
+          "--role-color": skillColor,
+          ...(haloColor ? { "--status-color": haloColor } : {}),
+        } as React.CSSProperties
+      }
+    >
+      {/* Wrap avatar + tooltip so the tooltip's anchor (its parent) is the
+       *  avatar's footprint, not the full mini-cell. The tooltip's
+       *  `placement="above"` then floats from the top of the avatar. */}
+      <span className="mx-mini-cell-anchor">
+        <ItemAvatar
+          emoji={playbook?.icon ?? null}
+          color={skillColor}
+          backgroundFill={statusFill}
+          icon={
+            task.status === "complete" ? (
+              <Check
+                aria-hidden
+                size={12}
+                strokeWidth={2.6}
+                style={{ color: statusColor }}
+              />
+            ) : undefined
+          }
+          label={title}
+          size="xs"
+        />
+        <FloatingHoverTooltip
+          name={title}
+          sub={statusLabel}
+          placement="above"
+          subStatusClass={statusClass}
+        />
+      </span>
+    </button>
+  );
+}
+
+/**
+ * Hover tooltip portaled to `document.body` so it can paint above the
+ * matrix scroll wrap (`overflow: auto`) without being clipped. Anchors to
+ * its parent element via `getBoundingClientRect`. Two placements: `above`
+ * (used by collapsed stage column headers) and `right` (used by collapsed
+ * skill row avatars).
+ */
+function FloatingHoverTooltip({
+  name,
+  sub,
+  placement,
+  subStatusClass,
+}: {
+  name: string;
+  sub: string;
+  placement: "above" | "right";
+  /** Optional status pill class (`s-active`, `s-complete`, …). When set,
+   *  the subtitle inherits the matching status text colour. */
+  subStatusClass?: string;
+}) {
+  const anchorRef = useRef<HTMLSpanElement | null>(null);
+  const [pos, setPos] = useState<{ top: number; left: number } | null>(null);
+
+  useEffect(() => {
+    const anchor = anchorRef.current?.parentElement;
+    if (!anchor) return;
+    const show = () => {
+      const rect = anchor.getBoundingClientRect();
+      if (placement === "above") {
+        setPos({ top: rect.top, left: rect.left + rect.width / 2 });
+      } else {
+        setPos({ top: rect.top + rect.height / 2, left: rect.right });
+      }
+    };
+    const hide = () => setPos(null);
+    anchor.addEventListener("mouseenter", show);
+    anchor.addEventListener("mouseleave", hide);
+    return () => {
+      anchor.removeEventListener("mouseenter", show);
+      anchor.removeEventListener("mouseleave", hide);
+    };
+  }, [placement]);
+
+  return (
+    <>
+      <span ref={anchorRef} aria-hidden style={{ display: "none" }} />
+      {pos && typeof document !== "undefined"
+        ? createPortal(
+            <span
+              role="tooltip"
+              className={cn(
+                "mx-floating-tooltip",
+                placement === "above"
+                  ? "mx-floating-tooltip-above"
+                  : "mx-floating-tooltip-right",
+              )}
+              style={{
+                top: placement === "above" ? pos.top - 6 : pos.top,
+                left: placement === "above" ? pos.left : pos.left + 8,
+              }}
+            >
+              <span className="mx-floating-tooltip-name">{name}</span>
+              {sub ? (
+                <span className={cn("mx-floating-tooltip-sub", subStatusClass)}>
+                  {sub}
+                </span>
+              ) : null}
+            </span>,
+            document.body,
+          )
+        : null}
+    </>
   );
 }

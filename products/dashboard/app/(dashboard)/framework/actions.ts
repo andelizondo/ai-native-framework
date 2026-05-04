@@ -54,7 +54,20 @@ export async function upsertFrameworkItemAction(
       MAX_DESCRIPTION_LENGTH,
     ),
     icon: item.icon?.trim() ? item.icon.trim().slice(0, 16) : null,
+    color: typeof item.color === "string" && item.color.trim() ? item.color.trim().slice(0, 32) : null,
     content: typeof item.content === "string" ? item.content : "",
+    allowedSkillIds:
+      type === "playbook" && Array.isArray(item.allowedSkillIds)
+        ? item.allowedSkillIds
+            .filter((id): id is string => typeof id === "string" && id.trim().length > 0)
+            .map((id) => id.trim().slice(0, 80))
+        : undefined,
+    allowedPlaybookIds:
+      type === "skill" && Array.isArray(item.allowedPlaybookIds)
+        ? item.allowedPlaybookIds
+            .filter((id): id is string => typeof id === "string" && id.trim().length > 0)
+            .map((id) => id.trim().slice(0, 80))
+        : undefined,
   });
 
   revalidateFrameworkPaths();

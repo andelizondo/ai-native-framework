@@ -1,6 +1,7 @@
 "use client";
 
 import {
+  useCallback,
   useDeferredValue,
   useEffect,
   useLayoutEffect,
@@ -12,6 +13,8 @@ import {
 import {
   Bold,
   Code,
+  ArrowDownAZ,
+  ArrowUpAZ,
   Heading1,
   Heading2,
   Download,
@@ -37,17 +40,29 @@ import {
   upsertFrameworkItemAction,
 } from "@/app/(dashboard)/framework/actions";
 import { useDashboardTopBar } from "@/components/dashboard-topbar-context";
+import { AllowedItemsPicker } from "@/components/framework/allowed-items-picker";
+import { ColorDotPicker } from "@/components/framework/color-dot-picker";
+import { CompactEmojiPicker } from "@/components/framework/compact-emoji-picker";
 import { FrameworkHeaderActionsMenu } from "@/components/framework/framework-header-actions-menu";
 import { FrameworkItemModal } from "@/components/framework/framework-item-modal";
+import { ItemAvatar } from "@/components/framework/item-avatar";
 import { ConfirmModal } from "@/components/ui/confirm-modal";
 import { useAnalytics } from "@/lib/analytics/events";
 import { useToast } from "@/lib/toast";
+import { useUnsavedChangesGuard } from "@/lib/use-unsaved-changes-guard";
+import { resolveItemColor } from "@/lib/workflows/skill-colors";
 import type { FrameworkItem, FrameworkItemType } from "@/lib/workflows/types";
 import { cn } from "@/lib/utils";
 
 interface FrameworkScreenProps {
   initialItems: FrameworkItem[];
   type: FrameworkItemType;
+  /** All Skills (FrameworkItem of type "skill"). Required when `type === "playbook"`
+   * so the editor can render the "Allowed skills" multi-select. */
+  availableSkills?: FrameworkItem[];
+  /** All Playbooks. Required when `type === "skill"` so the editor can
+   * render the inverse "Allowed playbooks" multi-select. */
+  availablePlaybooks?: FrameworkItem[];
 }
 
 type EditorViewMode = "markdown" | "plain-text";
@@ -70,34 +85,6 @@ type EditorViewport = {
   scrollLeft: number;
 };
 
-const SKILL_EMOJIS = [
-  { emoji: "🤖", label: "Robot", keywords: ["agent", "ai", "automation"] },
-  { emoji: "🧠", label: "Brain", keywords: ["thinking", "reasoning", "strategy"] },
-  { emoji: "✨", label: "Sparkles", keywords: ["polish", "quality", "magic"] },
-  { emoji: "🛠️", label: "Tools", keywords: ["build", "developer", "implementation"] },
-  { emoji: "🔍", label: "Search", keywords: ["audit", "review", "analysis"] },
-  { emoji: "🧭", label: "Compass", keywords: ["navigation", "direction", "framework"] },
-  { emoji: "✅", label: "Check", keywords: ["quality", "approval", "done"] },
-  { emoji: "🗂️", label: "Folders", keywords: ["organization", "library", "catalog"] },
-  { emoji: "📝", label: "Writing", keywords: ["documentation", "editor", "notes"] },
-  { emoji: "🚀", label: "Rocket", keywords: ["launch", "ship", "release"] },
-  { emoji: "🧪", label: "Experiment", keywords: ["test", "validation", "quality"] },
-  { emoji: "🎯", label: "Target", keywords: ["goal", "focus", "scope"] },
-] as const;
-
-const PLAYBOOK_EMOJIS = [
-  { emoji: "📄", label: "Document", keywords: ["procedure", "guide", "playbook"] },
-  { emoji: "📚", label: "Books", keywords: ["knowledge", "library", "reference"] },
-  { emoji: "🧪", label: "Experiment", keywords: ["test", "validation", "quality"] },
-  { emoji: "🚀", label: "Rocket", keywords: ["launch", "ship", "release"] },
-  { emoji: "🧱", label: "Brick", keywords: ["foundation", "system", "base"] },
-  { emoji: "🗺️", label: "Map", keywords: ["plan", "navigation", "route"] },
-  { emoji: "📌", label: "Pin", keywords: ["important", "reference", "anchor"] },
-  { emoji: "🔐", label: "Lock", keywords: ["security", "policy", "governance"] },
-  { emoji: "🧭", label: "Compass", keywords: ["direction", "operating model", "flow"] },
-  { emoji: "📝", label: "Writing", keywords: ["instructions", "steps", "notes"] },
-] as const;
-
 function createFrameworkItemId(type: FrameworkItemType, name: string): string {
   const prefix = type === "skill" ? "sk" : "pb";
   const slug = name
@@ -113,13 +100,20 @@ function createFrameworkItemId(type: FrameworkItemType, name: string): string {
   return `${prefix}-${slug || "item"}-${Date.now().toString(36)}`;
 }
 
-function createDraftItem(type: FrameworkItemType, name: string, description: string): FrameworkItem {
+function createDraftItem(
+  type: FrameworkItemType,
+  name: string,
+  description: string,
+  icon: string,
+  color: string,
+): FrameworkItem {
   return {
     id: createFrameworkItemId(type, name),
     type,
     name: name.trim(),
     description: description.trim(),
-    icon: type === "skill" ? "🤖" : "📄",
+    icon,
+    color,
     content: `# ${name.trim()}\n\n`,
   };
 }
@@ -130,137 +124,35 @@ function sortItems(nextItems: FrameworkItem[]) {
 
 function areFrameworkItemsEqual(left: FrameworkItem | null, right: FrameworkItem | null) {
   if (!left || !right) return false;
-  return (
-    left.name === right.name &&
-    left.description === right.description &&
-    (left.icon ?? "") === (right.icon ?? "") &&
-    left.content === right.content
-  );
-}
+  if (
+    left.name !== right.name ||
+    left.description !== right.description ||
+    (left.icon ?? "") !== (right.icon ?? "") ||
+    (left.color ?? "") !== (right.color ?? "") ||
+    left.content !== right.content
+  ) {
+    return false;
+  }
+  // Order-insensitive comparison of the allowed-items relation. The Save
+  // button must light up when the user toggles a chip on the editor header,
+  // whether they're editing a playbook (allowedSkillIds) or a skill
+  // (allowedPlaybookIds — the inverse projection of the same join).
+  const leftSkills = [...(left.allowedSkillIds ?? [])].sort();
+  const rightSkills = [...(right.allowedSkillIds ?? [])].sort();
+  if (leftSkills.length !== rightSkills.length) return false;
+  if (!leftSkills.every((id, i) => id === rightSkills[i])) return false;
 
-function CompactEmojiPicker({
-  value,
-  options,
-  onSelect,
-}: {
-  value: string;
-  options: readonly { emoji: string; label: string; keywords: readonly string[] }[];
-  onSelect: (emoji: string) => void;
-}) {
-  const rootRef = useRef<HTMLDivElement | null>(null);
-  const inputRef = useRef<HTMLInputElement | null>(null);
-  const [open, setOpen] = useState(false);
-  const [query, setQuery] = useState("");
-
-  useEffect(() => {
-    if (!open) return;
-
-    inputRef.current?.focus();
-
-    function handlePointerDown(event: MouseEvent) {
-      if (!rootRef.current?.contains(event.target as Node)) {
-        setOpen(false);
-        setQuery("");
-      }
-    }
-
-    function handleKeyDown(event: KeyboardEvent) {
-      if (event.key === "Escape") {
-        setOpen(false);
-        setQuery("");
-      }
-    }
-
-    document.addEventListener("mousedown", handlePointerDown);
-    document.addEventListener("keydown", handleKeyDown);
-    return () => {
-      document.removeEventListener("mousedown", handlePointerDown);
-      document.removeEventListener("keydown", handleKeyDown);
-    };
-  }, [open]);
-
-  const normalizedQuery = query.trim().toLowerCase();
-  const filteredOptions =
-    normalizedQuery.length === 0
-      ? options
-      : options.filter((option) =>
-          [option.emoji, option.label, ...option.keywords].some((token) =>
-            token.toLowerCase().includes(normalizedQuery),
-          ),
-        );
-
-  const typedEmoji = query.trim();
-  const hasTypedEmoji = /\p{Extended_Pictographic}/u.test(typedEmoji);
-
-  return (
-    <div ref={rootRef} className="relative shrink-0">
-      <button
-        type="button"
-        aria-label="Change icon"
-        onClick={() => setOpen((current) => !current)}
-        className="flex h-8 w-8 items-center justify-center rounded-full border border-border bg-bg text-[16px] transition hover:border-border-hi hover:bg-bg-3 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
-      >
-        {value}
-      </button>
-      {open ? (
-        <div className="absolute left-0 top-[calc(100%+10px)] z-30 w-[244px] rounded-xl border border-border-hi bg-bg-2 p-3 shadow-[var(--shadow-canvas)]">
-          <div className="relative">
-            <Search className="pointer-events-none absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-t3" />
-            <input
-              ref={inputRef}
-              value={query}
-              onChange={(event) => setQuery(event.target.value)}
-              aria-label="Search or type emoji"
-              placeholder="Search or type emoji"
-              className="w-full rounded-lg border border-border bg-bg px-9 py-2 text-[12.5px] text-t1 outline-none transition placeholder:text-t3 focus:border-primary"
-            />
-          </div>
-
-          {hasTypedEmoji ? (
-            <button
-              type="button"
-              onClick={() => {
-                onSelect(typedEmoji.slice(0, 8));
-                setOpen(false);
-                setQuery("");
-              }}
-              className="mt-2 flex w-full items-center gap-2 rounded-lg border border-border bg-bg px-3 py-2 text-left text-[12.5px] text-t1 transition hover:bg-bg-3"
-            >
-              <span className="text-[16px]">{typedEmoji}</span>
-              Use typed emoji
-            </button>
-          ) : null}
-
-          <div className="mt-2 grid max-h-[180px] grid-cols-5 gap-1 overflow-auto">
-            {filteredOptions.map((option) => (
-              <button
-                key={option.emoji}
-                type="button"
-                aria-label={`Use ${option.label}`}
-                title={option.label}
-                onClick={() => {
-                  onSelect(option.emoji);
-                  setOpen(false);
-                  setQuery("");
-                }}
-                className={cn(
-                  "flex h-9 w-9 items-center justify-center rounded-lg border border-transparent text-[18px] transition hover:border-border hover:bg-bg-3",
-                  option.emoji === value ? "border-border bg-bg-3" : "bg-transparent",
-                )}
-              >
-                {option.emoji}
-              </button>
-            ))}
-          </div>
-        </div>
-      ) : null}
-    </div>
-  );
+  const leftPlaybooks = [...(left.allowedPlaybookIds ?? [])].sort();
+  const rightPlaybooks = [...(right.allowedPlaybookIds ?? [])].sort();
+  if (leftPlaybooks.length !== rightPlaybooks.length) return false;
+  return leftPlaybooks.every((id, i) => id === rightPlaybooks[i]);
 }
 
 export function FrameworkScreen({
   initialItems,
   type,
+  availableSkills = [],
+  availablePlaybooks = [],
 }: FrameworkScreenProps) {
   const { setConfig } = useDashboardTopBar();
   const { capture } = useAnalytics();
@@ -274,7 +166,7 @@ export function FrameworkScreen({
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
   const [deletingItemId, setDeletingItemId] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
-  const [searchOpen, setSearchOpen] = useState(false);
+  const [sortDirection, setSortDirection] = useState<"asc" | "desc">("asc");
   const [pending, startTransition] = useTransition();
   const editorTextareaRef = useRef<HTMLTextAreaElement | null>(null);
   const importInputRef = useRef<HTMLInputElement | null>(null);
@@ -287,10 +179,10 @@ export function FrameworkScreen({
   const routeMetaLabel = type === "skill" ? "Framework library" : "Framework procedures";
   const routeDescription =
     type === "skill"
-      ? "A compact library of reusable agent capabilities. Select a skill to read or edit its markdown source."
-      : "A compact library of reusable execution procedures. Select a playbook to read or edit its markdown source.";
+      ? "A compact library of reusable agent capabilities."
+      : "A compact library of reusable execution procedures.";
   const createLabel = type === "skill" ? "New skill" : "New playbook";
-  const emojiOptions = type === "skill" ? SKILL_EMOJIS : PLAYBOOK_EMOJIS;
+  const defaultIcon = type === "skill" ? "🤖" : "📄";
   const typedItems = useMemo(
     () => items.filter((item) => item.type === type),
     [items, type],
@@ -307,13 +199,32 @@ export function FrameworkScreen({
         .some((value) => value.toLowerCase().includes(normalizedSearchQuery)),
     );
   }, [normalizedSearchQuery, typedItems]);
-  const visibleItems = useMemo(
-    () => [...filteredItems].sort((left, right) => left.name.localeCompare(right.name)),
-    [filteredItems],
-  );
+  const visibleItems = useMemo(() => {
+    const direction = sortDirection === "asc" ? 1 : -1;
+    return [...filteredItems].sort(
+      (left, right) => direction * left.name.localeCompare(right.name),
+    );
+  }, [filteredItems, sortDirection]);
   const isDirty =
     draftItem !== null &&
     (lastSavedItem === null || !areFrameworkItemsEqual(draftItem, lastSavedItem));
+
+  const [pendingNavigation, setPendingNavigation] = useState<(() => void) | null>(null);
+  const handleBlockedNavigation = useCallback((proceed: () => void) => {
+    setPendingNavigation(() => proceed);
+  }, []);
+  useUnsavedChangesGuard({
+    enabled: isDirty,
+    onBlock: handleBlockedNavigation,
+  });
+  const confirmPendingNavigation = useCallback(() => {
+    const proceed = pendingNavigation;
+    setPendingNavigation(null);
+    if (!proceed) return;
+    setDraftItem(lastSavedItem);
+    proceed();
+  }, [lastSavedItem, pendingNavigation]);
+
   const deleteTarget =
     typedItems.find((item) => item.id === confirmDeleteId) ??
     (draftItem?.id === confirmDeleteId ? draftItem : null);
@@ -321,12 +232,6 @@ export function FrameworkScreen({
   useEffect(() => {
     setItems(initialItems);
   }, [initialItems]);
-
-  useEffect(() => {
-    if (searchOpen) {
-      searchInputRef.current?.focus();
-    }
-  }, [searchOpen]);
 
   useLayoutEffect(() => {
     if (editorView !== "plain-text") {
@@ -582,6 +487,10 @@ export function FrameworkScreen({
           name: draftItem.name.trim(),
           description: draftItem.description.trim(),
           icon: draftItem.icon?.trim() ?? null,
+          allowedSkillIds:
+            draftItem.type === "playbook" ? draftItem.allowedSkillIds ?? [] : undefined,
+          allowedPlaybookIds:
+            draftItem.type === "skill" ? draftItem.allowedPlaybookIds ?? [] : undefined,
         });
         setItems((current) =>
           sortItems(
@@ -677,6 +586,10 @@ export function FrameworkScreen({
           {
             label: routeLabel,
             onClick: () => {
+              if (isDirty) {
+                setPendingNavigation(() => () => resetEditor());
+                return;
+              }
               resetEditor();
             },
           },
@@ -742,18 +655,29 @@ export function FrameworkScreen({
           </p>
 
           {draftItem ? (
-            <div className="mt-2 flex items-start gap-3">
+            <div className="mt-2 flex items-center gap-3">
               <CompactEmojiPicker
-                value={draftItem.icon || emojiOptions[0]!.emoji}
-                options={emojiOptions}
+                value={draftItem.icon || defaultIcon}
+                color={resolveItemColor(draftItem)}
                 onSelect={(emoji) =>
                   setDraftItem((current) => (current ? { ...current, icon: emoji } : current))
                 }
               />
               <div className="min-w-0">
-                <h1 className="truncate text-[22px] font-bold tracking-tight text-t1">
-                  {draftItem.name}
-                </h1>
+                <div className="flex items-center gap-2">
+                  <h1 className="truncate text-[22px] font-bold tracking-tight text-t1">
+                    {draftItem.name}
+                  </h1>
+                  <ColorDotPicker
+                    color={resolveItemColor(draftItem)}
+                    ariaLabel={`Change ${type} color`}
+                    onChange={(nextColor) =>
+                      setDraftItem((current) =>
+                        current ? { ...current, color: nextColor } : current,
+                      )
+                    }
+                  />
+                </div>
                 <p className="mt-1 max-w-3xl text-[13px] leading-6 text-t2">
                   {draftItem.description}
                 </p>
@@ -774,37 +698,62 @@ export function FrameworkScreen({
         {draftItem ? (
           <div className="flex h-full min-h-0 min-w-0 flex-1 flex-col">
             <div className="flex shrink-0 items-center justify-between gap-3 border-b border-border bg-bg px-6 py-3">
-              <div
-                className="inline-flex w-fit items-center rounded-lg border border-border bg-bg-2 p-1"
-                role="tablist"
-                aria-label="Editor mode"
-              >
-                {(
-                  [
-                    ["markdown", "View", Eye],
-                    ["plain-text", "Edit", Pencil],
-                  ] as const
-                ).map(([mode, label, Icon]) => (
-                  <button
-                    key={mode}
-                    type="button"
-                    role="tab"
-                    aria-selected={editorView === mode}
-                    onClick={() => setEditorView(mode)}
-                    className={cn(
-                      "flex items-center gap-1.5 rounded-md px-3 py-1.5 text-[12px] font-medium transition focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent",
-                      editorView === mode
-                        ? "bg-bg text-t1"
-                        : "text-t2 hover:bg-bg hover:text-t1",
-                    )}
-                  >
-                    <Icon className="h-3.5 w-3.5" />
-                    {label}
-                  </button>
-                ))}
+              <div className="flex min-w-0 items-center gap-2">
+                {type === "playbook" ? (
+                  <AllowedItemsPicker
+                    kind="skills"
+                    value={draftItem.allowedSkillIds ?? []}
+                    available={availableSkills}
+                    onChange={(next) =>
+                      setDraftItem((current) =>
+                        current ? { ...current, allowedSkillIds: next } : current,
+                      )
+                    }
+                  />
+                ) : (
+                  <AllowedItemsPicker
+                    kind="playbooks"
+                    value={draftItem.allowedPlaybookIds ?? []}
+                    available={availablePlaybooks}
+                    onChange={(next) =>
+                      setDraftItem((current) =>
+                        current ? { ...current, allowedPlaybookIds: next } : current,
+                      )
+                    }
+                  />
+                )}
               </div>
 
               <div className="flex items-center gap-2">
+                <div
+                  className="inline-flex h-8 w-fit items-center rounded-lg border border-border bg-bg-2 p-0.5"
+                  role="tablist"
+                  aria-label="Editor mode"
+                >
+                  {(
+                    [
+                      ["markdown", "View", Eye],
+                      ["plain-text", "Edit", Pencil],
+                    ] as const
+                  ).map(([mode, label, Icon]) => (
+                    <button
+                      key={mode}
+                      type="button"
+                      role="tab"
+                      aria-selected={editorView === mode}
+                      onClick={() => setEditorView(mode)}
+                      className={cn(
+                        "flex h-full items-center gap-1.5 rounded-md px-2.5 text-[12px] font-medium transition focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent",
+                        editorView === mode
+                          ? "bg-bg text-t1"
+                          : "text-t2 hover:bg-bg hover:text-t1",
+                      )}
+                    >
+                      <Icon className="h-3.5 w-3.5" />
+                      {label}
+                    </button>
+                  ))}
+                </div>
                 <input
                   ref={importInputRef}
                   type="file"
@@ -820,37 +769,31 @@ export function FrameworkScreen({
                   }}
                 />
 
-                <button
-                  type="button"
-                  onClick={() => importInputRef.current?.click()}
-                  className="flex items-center gap-1.5 rounded-md border border-border bg-bg px-3 py-2 text-[12px] font-medium text-t2 transition hover:bg-bg-3 hover:text-t1 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
-                >
-                  <Upload className="h-3.5 w-3.5" />
-                  Upload
-                </button>
-
-                <button
-                  type="button"
-                  onClick={downloadMarkdown}
-                  className="flex items-center gap-1.5 rounded-md border border-border bg-bg px-3 py-2 text-[12px] font-medium text-t2 transition hover:bg-bg-3 hover:text-t1 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
-                >
-                  <Download className="h-3.5 w-3.5" />
-                  Download
-                </button>
+                <div className="flex h-8 items-center overflow-hidden rounded-md border border-border bg-bg">
+                  <button
+                    type="button"
+                    onClick={() => importInputRef.current?.click()}
+                    className="flex h-full items-center gap-1.5 px-2.5 text-[12px] font-medium text-t2 transition hover:bg-bg-3 hover:text-t1 focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-accent"
+                  >
+                    <Upload className="h-3.5 w-3.5" />
+                    Upload
+                  </button>
+                  <span aria-hidden className="h-full w-px bg-border" />
+                  <button
+                    type="button"
+                    onClick={downloadMarkdown}
+                    className="flex h-full items-center gap-1.5 px-2.5 text-[12px] font-medium text-t2 transition hover:bg-bg-3 hover:text-t1 focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-accent"
+                  >
+                    <Download className="h-3.5 w-3.5" />
+                    Download
+                  </button>
+                </div>
               </div>
             </div>
 
-            <div className="min-h-0 flex-1 overflow-hidden px-6 py-6">
-              <div className="mx-auto flex h-full min-h-0 w-full max-w-[1180px] flex-col">
-                <div
-                  className={cn(
-                    "relative h-full min-h-0 overflow-hidden rounded-[22px] border transition-[border-color,box-shadow,background-color]",
-                    editorView === "markdown"
-                      ? "border-border bg-linear-to-b from-bg to-bg-2/92 shadow-[0_24px_80px_rgba(15,23,42,0.08)]"
-                      : "border-border-hi bg-linear-to-b from-bg to-bg-3/90 shadow-[0_28px_90px_rgba(15,23,42,0.12)]",
-                  )}
-                >
-                  <div className="pointer-events-none absolute inset-x-0 top-0 h-14 bg-linear-to-b from-white/6 to-transparent opacity-70" />
+            <div className="min-h-0 flex-1 overflow-hidden">
+              <div className="flex h-full min-h-0 w-full flex-col">
+                <div className="relative h-full min-h-0 overflow-hidden">
                   {editorView === "markdown" ? (
                     <div className="h-full min-h-0 overflow-auto">
                       <div
@@ -997,82 +940,65 @@ export function FrameworkScreen({
             </div>
           </div>
         ) : (
-          <div className="flex h-full min-h-0 flex-1 flex-col overflow-hidden px-6 py-6">
-            <div className="mx-auto flex h-full min-h-0 w-full max-w-[1180px] flex-col">
-              <div className="flex h-full min-h-0 flex-col overflow-hidden rounded-[22px] border border-border bg-linear-to-b from-bg to-bg-2/92 shadow-[0_24px_80px_rgba(15,23,42,0.08)]">
+          <div className="flex h-full min-h-0 flex-1 flex-col overflow-hidden">
+            <div className="flex h-full min-h-0 w-full flex-col">
+              <div className="flex h-full min-h-0 flex-col overflow-hidden">
                 <div className="min-h-0 flex-1 overflow-y-auto">
-                  <div className="sticky top-0 z-10 border-b border-border bg-linear-to-b from-bg via-bg to-bg-2/96 px-3 py-5 backdrop-blur-sm md:px-4">
-                    <div className="flex flex-wrap items-end justify-between gap-4 md:flex-nowrap">
-                      <div className="min-w-0">
-                        <p className="font-mono text-[10px] uppercase tracking-[0.13em] text-t3">
-                          {typedItems.length} {type === "skill" ? "skills" : "playbooks"}
-                        </p>
-                        <p className="mt-2 text-[15px] font-semibold tracking-[-0.01em] text-t1">
-                          {normalizedSearchQuery.length > 0
-                            ? `${filteredItems.length} matching ${
-                                filteredItems.length === 1
-                                  ? type === "skill"
-                                    ? "skill"
-                                    : "playbook"
-                                  : type === "skill"
-                                    ? "skills"
-                                    : "playbooks"
-                              }`
-                            : type === "skill"
-                              ? "Skill Library"
-                              : "Playbook Library"}
-                        </p>
-                      </div>
-
-                      <div className="flex w-full justify-start md:ml-auto md:w-auto md:justify-end">
-                        <div
-                          className={cn(
-                            "flex items-center overflow-hidden rounded-lg border border-border bg-bg-2 transition-[width,border-color,background-color,box-shadow] duration-200",
-                            searchOpen || searchQuery.length > 0
-                              ? "w-full max-w-[320px] border-border-hi bg-bg-3 shadow-[0_10px_24px_rgba(15,23,42,0.08)]"
-                              : "w-10",
-                          )}
-                        >
-                          <button
-                            type="button"
-                            aria-label={`Search ${type === "skill" ? "skills" : "playbooks"}`}
-                            onClick={() => setSearchOpen(true)}
-                            className="flex h-10 w-10 shrink-0 items-center justify-center text-t3 transition hover:text-t1 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
+                  <div className="sticky top-0 z-10 border-b border-border bg-bg px-6 py-3">
+                    <div className="flex items-center justify-between gap-3">
+                      <div className="flex justify-start">
+                        <div className="flex w-full max-w-[320px] items-center overflow-hidden rounded-md border border-border bg-bg-2 focus-within:border-border-hi focus-within:bg-bg-3 focus-within:shadow-[0_10px_24px_rgba(15,23,42,0.08)] transition-[border-color,background-color,box-shadow] duration-200">
+                          <span
+                            aria-hidden
+                            className="flex h-9 w-9 shrink-0 items-center justify-center text-t3"
                           >
                             <Search className="h-3.5 w-3.5" />
-                          </button>
+                          </span>
                           <input
                             ref={searchInputRef}
                             value={searchQuery}
                             onChange={(event) => setSearchQuery(event.target.value)}
-                            onFocus={() => setSearchOpen(true)}
-                            onBlur={() => {
-                              if (searchQuery.trim().length === 0) {
-                                setSearchOpen(false);
-                              }
-                            }}
                             placeholder={`Search ${type === "skill" ? "skills" : "playbooks"}`}
-                            className={cn(
-                              "min-w-0 bg-transparent pr-3 text-[12.5px] text-t1 outline-none placeholder:text-t3 transition-[opacity,width,padding] duration-200",
-                              searchOpen || searchQuery.length > 0
-                                ? "w-[min(274px,calc(100vw-10rem))] px-0 opacity-100"
-                                : "w-0 px-0 opacity-0",
-                            )}
+                            aria-label={`Search ${type === "skill" ? "skills" : "playbooks"}`}
+                            className="min-w-0 flex-1 bg-transparent pr-3 text-[12px] text-t1 outline-none placeholder:text-t3"
                           />
-                          {searchQuery.length > 0 ? (
-                            <button
-                              type="button"
-                              aria-label="Clear search"
-                              onClick={() => {
-                                setSearchQuery("");
-                                searchInputRef.current?.focus();
-                              }}
-                              className="mr-1.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-t3 transition hover:bg-bg hover:text-t1 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
-                            >
-                              <X className="h-3 w-3" />
-                            </button>
-                          ) : null}
+                          <button
+                            type="button"
+                            aria-label="Clear search"
+                            tabIndex={searchQuery.length > 0 ? 0 : -1}
+                            aria-hidden={searchQuery.length === 0}
+                            onClick={() => {
+                              setSearchQuery("");
+                              searchInputRef.current?.focus();
+                            }}
+                            className={cn(
+                              "mr-1.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-t3 transition hover:bg-bg hover:text-t1 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent",
+                              searchQuery.length === 0 &&
+                                "pointer-events-none invisible",
+                            )}
+                          >
+                            <X className="h-3 w-3" />
+                          </button>
                         </div>
+                      </div>
+
+                      <div className="flex justify-end">
+                        <button
+                          type="button"
+                          onClick={() =>
+                            setSortDirection((prev) => (prev === "asc" ? "desc" : "asc"))
+                          }
+                          aria-label={`Sort by name ${sortDirection === "asc" ? "Z to A" : "A to Z"}`}
+                          data-testid={`framework-sort-${type}`}
+                          className="flex items-center gap-1.5 rounded-md border border-border bg-bg px-3 py-2 text-[12px] font-medium text-t2 transition hover:bg-bg-3 hover:text-t1 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
+                        >
+                          {sortDirection === "asc" ? (
+                            <ArrowDownAZ className="h-3.5 w-3.5" />
+                          ) : (
+                            <ArrowUpAZ className="h-3.5 w-3.5" />
+                          )}
+                          Name {sortDirection === "asc" ? "A→Z" : "Z→A"}
+                        </button>
                       </div>
                     </div>
                   </div>
@@ -1089,24 +1015,19 @@ export function FrameworkScreen({
                           type="button"
                           onClick={() => beginEdit(item)}
                           data-testid={`framework-card-${item.id}`}
-                          className="group flex min-h-[92px] flex-col justify-center rounded-[16px] border border-border bg-bg-2/88 px-4 py-4 text-left transition-[background-color,border-color,transform,box-shadow] duration-150 hover:border-border-hi hover:bg-bg-3/92 hover:shadow-[0_14px_34px_rgba(15,23,42,0.08)] focus-visible:-translate-y-[1px] focus-visible:border-border-hi focus-visible:bg-bg-3/92 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
+                          className="group flex min-h-[92px] items-center gap-3 rounded-[16px] border border-border bg-bg px-4 py-4 text-left transition-[background-color,border-color,transform,box-shadow] duration-150 hover:border-border-hi hover:bg-bg hover:shadow-[0_14px_34px_rgba(15,23,42,0.08)] focus-visible:-translate-y-[1px] focus-visible:border-border-hi focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
                         >
-                          <div className="flex min-w-0 items-center gap-3">
-                            <span
-                              className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-border bg-bg text-[15px] text-t1 transition-colors group-hover:border-border-hi group-hover:bg-bg-2"
-                              aria-hidden
-                            >
-                              {item.icon || (type === "skill" ? "🤖" : "📄")}
-                            </span>
-                            <div className="min-w-0 flex-1">
-                              <h2 className="overflow-hidden whitespace-nowrap text-[16px] leading-[1.15] font-semibold tracking-[-0.02em] text-t1 text-ellipsis">
-                                {item.name}
-                              </h2>
-                            </div>
-                          </div>
-
-                          <div className="mt-2 min-w-0">
-                            <p className="overflow-hidden whitespace-nowrap text-[12.5px] leading-[1.35rem] text-t2 text-ellipsis">
+                          <ItemAvatar
+                            emoji={item.icon || (type === "skill" ? "🤖" : "📄")}
+                            color={resolveItemColor(item)}
+                            label={item.name}
+                            size="md"
+                          />
+                          <div className="min-w-0 flex-1">
+                            <h2 className="overflow-hidden whitespace-nowrap text-[16px] leading-[1.15] font-semibold tracking-[-0.02em] text-t1 text-ellipsis">
+                              {item.name}
+                            </h2>
+                            <p className="mt-1 overflow-hidden whitespace-nowrap text-[12.5px] leading-[1.35rem] text-t2 text-ellipsis">
                               {item.description}
                             </p>
                           </div>
@@ -1150,11 +1071,19 @@ export function FrameworkScreen({
           }
           description={
             itemModalState.mode === "create"
-              ? `Add the ${type === "skill" ? "skill" : "playbook"} title and description first.`
+              ? `Pick an icon, color, and title for your new ${type === "skill" ? "skill" : "playbook"}.`
               : `Update the ${type === "skill" ? "skill" : "playbook"} title and description.`
           }
           initialName={itemModalState.initialName}
           initialDescription={itemModalState.initialDescription}
+          defaultIcon={defaultIcon}
+          initialIcon={
+            itemModalState.mode === "rename" ? draftItem?.icon ?? null : null
+          }
+          initialColor={
+            itemModalState.mode === "rename" ? draftItem?.color ?? null : null
+          }
+          showAvatarPickers={itemModalState.mode === "create"}
           submitLabel={itemModalState.mode === "create" ? "Create" : "Apply"}
           pending={pending}
           onClose={() => {
@@ -1162,7 +1091,7 @@ export function FrameworkScreen({
               setItemModalState(null);
             }
           }}
-          onSubmit={({ name, description }) => {
+          onSubmit={({ name, description, icon, color }) => {
             if (itemModalState.mode === "rename") {
               setDraftItem((current) =>
                 current
@@ -1177,7 +1106,7 @@ export function FrameworkScreen({
               return;
             }
 
-            const draft = createDraftItem(type, name, description);
+            const draft = createDraftItem(type, name, description, icon, color);
             startTransition(async () => {
               try {
                 const result = await upsertFrameworkItemAction(draft);
@@ -1214,6 +1143,16 @@ export function FrameworkScreen({
           confirmPending={deletingItemId === deleteTarget.id}
           onConfirm={() => deleteItem(deleteTarget.id)}
           onCancel={() => setConfirmDeleteId(null)}
+        />
+      ) : null}
+
+      {pendingNavigation ? (
+        <ConfirmModal
+          title="Discard unsaved changes?"
+          description="Leaving this page will discard your in-progress edits."
+          confirmLabel="Discard"
+          onCancel={() => setPendingNavigation(null)}
+          onConfirm={confirmPendingNavigation}
         />
       ) : null}
     </div>

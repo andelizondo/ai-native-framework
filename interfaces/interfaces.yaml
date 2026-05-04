@@ -96,7 +96,7 @@ interfaces:
         description: >
           Create a new workflow instance from a template. Materializes
           one workflow_tasks row per entry in the template's
-          task_templates JSON, copying default roles from the template.
+          task_templates JSON, copying default skills from the template.
         inputs:
           template_id:
             type: string
@@ -106,7 +106,7 @@ interfaces:
           instance:
             type: object
       update_task:
-        description: "Patch a workflow task's mutable fields (status, substatus, agent assignment, etc.)."
+        description: "Patch a workflow task's mutable fields (status, substatus, playbook assignment, etc.)."
         inputs:
           task_id:
             type: string

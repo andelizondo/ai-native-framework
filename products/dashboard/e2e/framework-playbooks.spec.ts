@@ -47,8 +47,7 @@ test.describe("framework playbooks", () => {
     await page.getByRole("button", { name: "Create" }).click();
 
     await expect(page.getByTestId("framework-markdown-preview-playbook")).toBeVisible();
-    await page.getByLabel("Open playbook actions").click();
-    await page.getByRole("button", { name: "Rename" }).click();
+    await page.getByRole("button", { name: "Rename playbook" }).click();
     await expect(page.getByRole("dialog")).toBeVisible();
     await page.getByLabel("Title").fill(renamedPlaybook);
     await page.getByLabel("Description").fill(revisedDescription);
@@ -87,8 +86,7 @@ test.describe("framework playbooks", () => {
       await page.getByRole("button", { name: "Playbooks" }).click({ timeout: 2_000 }).catch(() => {});
       if ((await persistedCard.count()) > 0) {
         await persistedCard.first().click();
-        await page.getByLabel("Open playbook actions").click();
-        await page.getByRole("button", { name: "Delete" }).click();
+        await page.getByRole("button", { name: "Delete playbook" }).click();
         await expect(page.getByRole("dialog")).toContainText(
           "This will permanently remove this playbook. This cannot be undone.",
         );

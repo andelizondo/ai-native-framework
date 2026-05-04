@@ -1,7 +1,9 @@
 "use client";
 
-import { useEffect, useId, useRef, useState, useTransition } from "react";
+import { useCallback, useEffect, useId, useMemo, useRef, useState, useTransition } from "react";
 import { CircleAlert, GripVertical, Pencil, Plus, Trash2 } from "lucide-react";
+import { ColorDotPicker } from "@/components/framework/color-dot-picker";
+import { ItemAvatar } from "@/components/framework/item-avatar";
 import {
   DndContext,
   KeyboardSensor,
@@ -32,19 +34,21 @@ import {
   renameTemplateAction,
   updateTemplateAction,
 } from "@/app/(dashboard)/workflows/actions";
+import { captureError } from "@/lib/monitoring";
 import { useDashboardTopBar } from "@/components/dashboard-topbar-context";
 import { useToast } from "@/lib/toast";
-import { AddRoleModal } from "@/components/workflows/add-role-modal";
+import { useUnsavedChangesGuard } from "@/lib/use-unsaved-changes-guard";
+import { AddSkillModal } from "@/components/workflows/add-skill-modal";
 import { AddStageModal } from "@/components/workflows/add-stage-modal";
-import { AddTaskModal } from "@/components/workflows/add-task-modal";
+import { AddPlaybookModal } from "@/components/workflows/add-playbook-modal";
 import { HeaderActionsMenu } from "@/components/workflows/header-actions-menu";
 import { ConfirmModal } from "@/components/ui/confirm-modal";
 import { useAnalytics } from "@/lib/analytics/events";
 import { emitEvent } from "@/lib/events";
-import { ROLE_COLORS, getRoleColor } from "@/lib/workflows/role-colors";
+import { resolveSkillColor } from "@/lib/workflows/skill-colors";
 import type {
   FrameworkItem,
-  WorkflowRole,
+  WorkflowSkill,
   WorkflowStage,
   WorkflowTask,
   WorkflowTaskTemplate,
@@ -53,8 +57,6 @@ import type {
 import { cn } from "@/lib/utils";
 
 import { TaskCard } from "./task-card";
-
-const ROLE_COLUMN_WIDTH = 172;
 
 interface TemplateEditorScreenProps {
   template: WorkflowTemplate;
@@ -71,13 +73,13 @@ type ConfirmState =
       onConfirm: () => void;
     };
 
-type RoleModalState =
+type SkillModalState =
   | null
   | {
       mode: "create" | "edit";
       index: number;
-      roleId?: string;
-      initialRole?: Pick<WorkflowRole, "label" | "owner">;
+      skillId?: string;
+      initialSkill?: Pick<WorkflowSkill, "id" | "label" | "owners">;
     };
 
 type StageModalState =
@@ -101,7 +103,7 @@ function withStableTaskIds(template: WorkflowTemplate): WorkflowTemplate {
   const taskTemplates = template.taskTemplates.map((task) => {
     if (task.id) return task;
     mutated = true;
-    return { ...task, id: `task-seed-${task.role}-${task.stage}` };
+    return { ...task, id: `task-seed-${task.skillId}-${task.stageId}` };
   });
   return mutated ? { ...template, taskTemplates } : template;
 }
@@ -110,18 +112,16 @@ function templateTaskToCard(task: WorkflowTaskTemplate): WorkflowTask {
   return {
     id: task.id ?? createId("task"),
     instanceId: "template-editor",
-    roleId: task.role,
-    stageId: task.stage,
-    title: task.title,
-    description: task.desc ?? "",
+    skillId: task.skillId,
+    stageId: task.stageId,
+    notes: task.notes ?? "",
     status: "not_started",
     substatus: "",
     checkpoint: Boolean(task.checkpoint),
     triggers: task.triggers ?? [],
     gates: task.gates ?? [],
-    agent: task.agent ?? null,
-    skill: task.skill ?? null,
-    playbook: task.playbook ?? null,
+    playbookId: task.playbookId ?? null,
+    owners: task.owners ?? [],
     createdAt: "",
     updatedAt: "",
   };
@@ -131,82 +131,10 @@ function insertAt<T>(items: T[], index: number, value: T): T[] {
   return [...items.slice(0, index), value, ...items.slice(index)];
 }
 
-function ColorDot({
-  color,
-  onChange,
-  ariaLabel = "Change role color",
-}: {
-  color: string;
-  onChange: (color: string) => void;
-  ariaLabel?: string;
-}) {
-  const rootRef = useRef<HTMLDivElement | null>(null);
-  const [open, setOpen] = useState(false);
-
-  useEffect(() => {
-    if (!open) return;
-
-    function handlePointerDown(event: MouseEvent) {
-      if (!rootRef.current?.contains(event.target as Node)) {
-        setOpen(false);
-      }
-    }
-
-    function handleKeyDown(event: KeyboardEvent) {
-      if (event.key === "Escape") {
-        setOpen(false);
-      }
-    }
-
-    document.addEventListener("mousedown", handlePointerDown);
-    document.addEventListener("keydown", handleKeyDown);
-
-    return () => {
-      document.removeEventListener("mousedown", handlePointerDown);
-      document.removeEventListener("keydown", handleKeyDown);
-    };
-  }, [open]);
-
-  return (
-    <div
-      ref={rootRef}
-      data-role-color-open={open ? "true" : "false"}
-      className={cn("relative shrink-0", open && "z-30")}
-    >
-      <button
-        type="button"
-        aria-label={ariaLabel}
-        onClick={() => setOpen((current) => !current)}
-        className="flex h-5 w-5 cursor-pointer items-center justify-center rounded-full border border-border bg-bg-3 shadow-[inset_0_1px_0_rgba(255,255,255,0.03)] transition hover:border-border-hi hover:bg-bg-4 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
-      />
-      <span
-        aria-hidden
-        className="pointer-events-none absolute left-1/2 top-1/2 h-2.5 w-2.5 -translate-x-1/2 -translate-y-1/2 rounded-full transition-transform duration-150"
-        style={{ backgroundColor: color, boxShadow: `0 0 0 2px ${color}28` }}
-      />
-      {open ? (
-        <div className="absolute left-0 top-[calc(100%+8px)] z-40 grid w-[100px] grid-cols-4 gap-1 rounded-lg border border-border-hi bg-bg-3 p-2 shadow-[var(--shadow-canvas)]">
-          {ROLE_COLORS.map((swatch) => (
-            <button
-              key={swatch}
-              type="button"
-              aria-label={`Use ${swatch}`}
-              onClick={() => {
-                onChange(swatch);
-                setOpen(false);
-              }}
-              className="h-4 w-4 cursor-pointer rounded-full"
-              style={{
-                backgroundColor: swatch,
-                outline: swatch === color ? `2px solid ${swatch}` : undefined,
-                outlineOffset: 2,
-              }}
-            />
-          ))}
-        </div>
-      ) : null}
-    </div>
-  );
+function blurActiveElement() {
+  if (typeof document === "undefined") return;
+  const active = document.activeElement;
+  if (active instanceof HTMLElement) active.blur();
 }
 
 const matrixCollisionDetection: CollisionDetection = (args) => {
@@ -215,7 +143,7 @@ const matrixCollisionDetection: CollisionDetection = (args) => {
     const id = String(c.id);
     if (activeId.startsWith("task::")) return id.startsWith("cell::");
     if (activeId.startsWith("stage::")) return id.startsWith("stage::");
-    if (activeId.startsWith("role::")) return id.startsWith("role::");
+    if (activeId.startsWith("skill::")) return id.startsWith("skill::");
     return true;
   });
 
@@ -350,25 +278,28 @@ export function TemplateEditorScreen({
   const [lastSaved, setLastSaved] = useState<WorkflowTemplate>(template);
   const [draft, setDraft] = useState<WorkflowTemplate>(() => withStableTaskIds(template));
   const [confirmState, setConfirmState] = useState<ConfirmState>(null);
-  const [roleModalState, setRoleModalState] = useState<RoleModalState>(null);
+  const [skillModalState, setSkillModalState] = useState<SkillModalState>(null);
   const [stageModalState, setStageModalState] = useState<StageModalState>(null);
   const [addTaskFor, setAddTaskFor] = useState<{
     mode: "create" | "edit";
     taskId?: string;
-    roleId: string;
-    roleName: string;
+    skillId: string;
+    skillLabel: string;
     stageId: string;
     stageName: string;
-    initialTask?: {
-      title: string;
-      description?: string;
-      agent?: string | null;
-      skill?: string | null;
-      playbook?: string | null;
+    initial?: {
+      playbookId?: string | null;
+      notes?: string;
+      owners?: string[];
     };
   } | null>(null);
   const [pending, startTransition] = useTransition();
   const dndContextId = useId();
+
+  const playbookById = useMemo(
+    () => new Map(playbookOptions.map((pb) => [pb.id, pb])),
+    [playbookOptions],
+  );
 
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
@@ -377,6 +308,16 @@ export function TemplateEditorScreen({
 
   const [dragTaskId, setDragTaskId] = useState<string | null>(null);
 
+  const dragAllowedSkillIds = useMemo<Set<string> | null>(() => {
+    if (!dragTaskId?.startsWith("task::")) return null;
+    const id = dragTaskId.slice("task::".length);
+    const dragged = draft.taskTemplates.find((t) => t.id === id);
+    if (!dragged?.playbookId) return null;
+    const playbook = playbookById.get(dragged.playbookId);
+    if (!playbook) return null;
+    return new Set([dragged.skillId, ...(playbook.allowedSkillIds ?? [])]);
+  }, [dragTaskId, draft.taskTemplates, playbookById]);
+
   function handleDragStart(event: DragStartEvent) {
     const id = String(event.active.id);
     if (id.startsWith("task::")) setDragTaskId(id);
@@ -384,12 +325,16 @@ export function TemplateEditorScreen({
 
   function handleDragCancel() {
     setDragTaskId(null);
+    blurActiveElement();
   }
 
   function handleDragEnd(event: DragEndEvent) {
     const { active, over } = event;
     const activeId = String(active.id);
     setDragTaskId(null);
+    // dnd-kit leaves the activator focused, which keeps the floating drag
+    // chip visible after drop. Blurring releases the focus so it fades back.
+    blurActiveElement();
 
     if (activeId.startsWith("stage::")) {
       if (!over || active.id === over.id) return;
@@ -404,15 +349,15 @@ export function TemplateEditorScreen({
       return;
     }
 
-    if (activeId.startsWith("role::")) {
+    if (activeId.startsWith("skill::")) {
       if (!over || active.id === over.id) return;
-      const fromId = activeId.slice("role::".length);
-      const toId = String(over.id).slice("role::".length);
+      const fromId = activeId.slice("skill::".length);
+      const toId = String(over.id).slice("skill::".length);
       setDraft((current) => {
-        const from = current.roles.findIndex((r) => r.id === fromId);
-        const to = current.roles.findIndex((r) => r.id === toId);
+        const from = current.skills.findIndex((r) => r.id === fromId);
+        const to = current.skills.findIndex((r) => r.id === toId);
         if (from < 0 || to < 0) return current;
-        return { ...current, roles: arrayMove(current.roles, from, to) };
+        return { ...current, skills: arrayMove(current.skills, from, to) };
       });
       return;
     }
@@ -420,19 +365,27 @@ export function TemplateEditorScreen({
     if (activeId.startsWith("task::")) {
       const overId = over?.id;
       if (typeof overId !== "string" || !overId.startsWith("cell::")) return;
-      const [, targetRoleId, targetStageId] = overId.split("::");
-      if (!targetRoleId || !targetStageId) return;
+      const [, targetSkillId, targetStageId] = overId.split("::");
+      if (!targetSkillId || !targetStageId) return;
       const taskId = activeId.slice("task::".length);
       setDraft((current) => {
         const occupied = current.taskTemplates.some(
-          (t) => t.role === targetRoleId && t.stage === targetStageId,
+          (t) => t.skillId === targetSkillId && t.stageId === targetStageId,
         );
         if (occupied) return current;
+        const dragged = current.taskTemplates.find((t) => t.id === taskId);
+        if (!dragged) return current;
+        if (dragged.skillId !== targetSkillId && dragged.playbookId) {
+          const playbook = playbookById.get(dragged.playbookId);
+          if (playbook && !(playbook.allowedSkillIds ?? []).includes(targetSkillId)) {
+            return current;
+          }
+        }
         return {
           ...current,
           taskTemplates: current.taskTemplates.map((task) =>
             task.id === taskId
-              ? { ...task, role: targetRoleId, stage: targetStageId }
+              ? { ...task, skillId: targetSkillId, stageId: targetStageId }
               : task,
           ),
         };
@@ -441,6 +394,25 @@ export function TemplateEditorScreen({
   }
 
   const isDirty = JSON.stringify(draft) !== JSON.stringify(lastSaved);
+
+  const [pendingNavigation, setPendingNavigation] = useState<(() => void) | null>(null);
+
+  const handleBlockedNavigation = useCallback((proceed: () => void) => {
+    setPendingNavigation(() => proceed);
+  }, []);
+
+  useUnsavedChangesGuard({
+    enabled: isDirty,
+    onBlock: handleBlockedNavigation,
+  });
+
+  const confirmPendingNavigation = useCallback(() => {
+    const proceed = pendingNavigation;
+    setPendingNavigation(null);
+    if (!proceed) return;
+    setDraft(lastSaved);
+    proceed();
+  }, [lastSaved, pendingNavigation]);
 
   useEffect(() => {
     draftRef.current = draft;
@@ -451,24 +423,31 @@ export function TemplateEditorScreen({
     setLastSaved(template);
   }, [template]);
 
-  function addRole(role: Pick<WorkflowRole, "label" | "owner">, index: number) {
+  function addSkill(skill: Pick<WorkflowSkill, "id" | "label" | "owners">, index: number) {
     setDraft((current) => ({
       ...current,
-      roles: insertAt(current.roles, index, {
-        id: createId("role"),
-        label: role.label,
-        owner: role.owner,
-        color: ROLE_COLORS[index % ROLE_COLORS.length],
+      skills: insertAt(current.skills, index, {
+        id: skill.id,
+        label: skill.label,
+        owners: skill.owners,
       }),
     }));
   }
 
-  function updateRole(roleId: string, nextRole: Pick<WorkflowRole, "label" | "owner">) {
+  function updateSkill(skillId: string, next: Pick<WorkflowSkill, "id" | "label" | "owners">) {
     setDraft((current) => ({
       ...current,
-      roles: current.roles.map((role) =>
-        role.id === roleId ? { ...role, label: nextRole.label, owner: nextRole.owner } : role,
+      skills: current.skills.map((skill) =>
+        skill.id === skillId
+          ? { ...skill, id: next.id, label: next.label, owners: next.owners }
+          : skill,
       ),
+      taskTemplates:
+        next.id === skillId
+          ? current.taskTemplates
+          : current.taskTemplates.map((t) =>
+              t.skillId === skillId ? { ...t, skillId: next.id } : t,
+            ),
     }));
   }
 
@@ -498,6 +477,7 @@ export function TemplateEditorScreen({
         const result = await updateTemplateAction(draftRef.current.id, draftRef.current);
         setDraft(result.template);
         setLastSaved(result.template);
+
         emitEvent("workflow.template_edited", {
           template_id: result.template.id,
           edited_by: "founder",
@@ -607,18 +587,18 @@ export function TemplateEditorScreen({
             </div>
             <div className="mt-1 flex items-center gap-2">
               <h1 className="truncate text-[20px] font-bold tracking-tight text-t1">{draft.label}</h1>
-              <ColorDot
+              <ColorDotPicker
                 color={draft.color}
                 ariaLabel="Change workflow template color"
-                onChange={(color) =>
-                  setDraft((current) => ({ ...current, color }))
+                onChange={(nextColor) =>
+                  setDraft((current) => ({ ...current, color: nextColor }))
                 }
               />
             </div>
             <p className="mt-1 text-[13px] text-t2">
               {draft.taskTemplates.length}{" "}
-              {draft.taskTemplates.length === 1 ? "task" : "tasks"} ·{" "}
-              {draft.roles.length} {draft.roles.length === 1 ? "role" : "roles"} ·{" "}
+              {draft.taskTemplates.length === 1 ? "playbook" : "playbooks"} ·{" "}
+              {draft.skills.length} {draft.skills.length === 1 ? "skill" : "skills"} ·{" "}
               {draft.stages.length} {draft.stages.length === 1 ? "stage" : "stages"}
             </p>
         </div>
@@ -639,7 +619,7 @@ export function TemplateEditorScreen({
         <div className="matrix inline-block min-w-full">
           <div className="matrix-head-row" role="row">
             <div className="mx-corner" role="columnheader">
-              <span className="flex-1">Roles</span>
+              <span className="flex-1">Skills</span>
             </div>
 
             {draft.stages.length === 0 ? (
@@ -707,13 +687,13 @@ export function TemplateEditorScreen({
                               onClick={() =>
                                 setConfirmState({
                                   title: `Remove stage "${stage.label}"?`,
-                                  description: "All tasks in this stage will be removed.",
+                                  description: "All playbooks in this stage will be removed.",
                                   onConfirm: () => {
                                     setDraft((current) => ({
                                       ...current,
                                       stages: current.stages.filter((item) => item.id !== stage.id),
                                       taskTemplates: current.taskTemplates.filter(
-                                        (task) => task.stage !== stage.id,
+                                        (task) => task.stageId !== stage.id,
                                       ),
                                     }));
                                     setConfirmState(null);
@@ -756,35 +736,35 @@ export function TemplateEditorScreen({
               </SortableContext>
           </div>
 
-          {draft.roles.length === 0 ? (
+          {draft.skills.length === 0 ? (
             <div className="mx-body-row" role="row">
               <div className="mx-role-cell" role="rowheader">
                 <button
                   type="button"
                   className="mx-empty-state-btn"
                   onClick={() =>
-                    setRoleModalState({
+                    setSkillModalState({
                       mode: "create",
                       index: 0,
                     })
                   }
                 >
-                  Add first role
+                  Add first skill
                 </button>
               </div>
               {draft.stages.map((stage) => (
-                <div key={`empty-role-${stage.id}`} className="mx-task-cell" />
+                <div key={`empty-skill-${stage.id}`} className="mx-task-cell" />
               ))}
             </div>
           ) : null}
           <SortableContext
-              items={draft.roles.map((r) => `role::${r.id}`)}
+              items={draft.skills.map((r) => `skill::${r.id}`)}
               strategy={verticalListSortingStrategy}
             >
-              {draft.roles.map((role, roleIndex) => (
+              {draft.skills.map((skill, skillIndex) => (
                 <SortableMatrixItem
-                  key={role.id}
-                  id={`role::${role.id}`}
+                  key={skill.id}
+                  id={`skill::${skill.id}`}
                   role="row"
                   className="mx-body-row"
                 >
@@ -793,57 +773,41 @@ export function TemplateEditorScreen({
                       <div className="mx-role-cell" role="rowheader">
                         <DragHandle
                           handleProps={handleProps}
-                          ariaLabel={`Reorder role ${role.label}`}
+                          ariaLabel={`Reorder skill ${skill.label}`}
                         />
-                        <ColorDot
-                          color={role.color || getRoleColor(role.id, draft.roles)}
-                          onChange={(color) =>
-                            setDraft((current) => ({
-                              ...current,
-                              roles: current.roles.map((item) =>
-                                item.id === role.id ? { ...item, color } : item,
-                              ),
-                            }))
-                          }
-                        />
+                        {(() => {
+                          const frameworkSkill = skillOptions.find(
+                            (item) => item.id === skill.id,
+                          );
+                          return (
+                            <ItemAvatar
+                              emoji={frameworkSkill?.icon ?? "•"}
+                              color={resolveSkillColor(skill.id, skillOptions)}
+                              label={skill.label}
+                              size="sm"
+                            />
+                          );
+                        })()}
                         <div className="mx-entity-content">
                           <div className="min-w-0">
-                            <div className="mx-role-name">{role.label}</div>
-                            <div className="mx-role-owner mx-role-owner-plain">
-                              {role.owner?.trim() || "No owner"}
-                            </div>
+                            <div className="mx-role-name">{skill.label}</div>
                           </div>
                           <div className="mx-entity-actions mx-entity-actions-group">
                             <button
                               type="button"
-                              className="mx-entity-action"
-                              aria-label={`Edit role ${role.label}`}
-                              onClick={() =>
-                                setRoleModalState({
-                                  mode: "edit",
-                                  index: roleIndex,
-                                  roleId: role.id,
-                                  initialRole: { label: role.label, owner: role.owner },
-                                })
-                              }
-                            >
-                              <Pencil className="h-[11px] w-[11px]" />
-                            </button>
-                            <button
-                              type="button"
                               className="mx-entity-action mx-entity-action-danger"
-                              aria-label={`Remove role ${role.label}`}
+                              aria-label={`Remove skill ${skill.label}`}
                               onClick={() =>
                                 setConfirmState({
-                                  title: `Remove role "${role.label}"?`,
+                                  title: `Remove skill "${skill.label}"?`,
                                   description:
-                                    "All tasks assigned to this role in this template will be removed.",
+                                    "All playbooks assigned to this skill in this template will be removed.",
                                   onConfirm: () => {
                                     setDraft((current) => ({
                                       ...current,
-                                      roles: current.roles.filter((item) => item.id !== role.id),
+                                      skills: current.skills.filter((item) => item.id !== skill.id),
                                       taskTemplates: current.taskTemplates.filter(
-                                        (task) => task.role !== role.id,
+                                        (task) => task.skillId !== skill.id,
                                       ),
                                     }));
                                     setConfirmState(null);
@@ -855,26 +819,26 @@ export function TemplateEditorScreen({
                             </button>
                           </div>
                         </div>
-                        {roleIndex < draft.roles.length - 1 ? (
+                        {skillIndex < draft.skills.length - 1 ? (
                           <MatrixHeaderInsertButton
                             axis="row"
-                            ariaLabel={`Add role after ${role.label}`}
+                            ariaLabel={`Add skill after ${skill.label}`}
                             onClick={() =>
-                              setRoleModalState({
+                              setSkillModalState({
                                 mode: "create",
-                                index: roleIndex + 1,
+                                index: skillIndex + 1,
                               })
                             }
                           />
                         ) : null}
-                        {roleIndex === draft.roles.length - 1 ? (
+                        {skillIndex === draft.skills.length - 1 ? (
                           <MatrixHeaderInsertButton
                             axis="row"
-                            ariaLabel={`Add role after ${role.label}`}
+                            ariaLabel={`Add skill after ${skill.label}`}
                             onClick={() =>
-                              setRoleModalState({
+                              setSkillModalState({
                                 mode: "create",
-                                index: draft.roles.length,
+                                index: draft.skills.length,
                               })
                             }
                           />
@@ -883,17 +847,24 @@ export function TemplateEditorScreen({
 
                       {draft.stages.map((stage) => {
                 const templateTask = draft.taskTemplates.find(
-                  (task) => task.role === role.id && task.stage === stage.id,
+                  (task) => task.skillId === skill.id && task.stageId === stage.id,
                 );
                 const task = templateTask ? templateTaskToCard(templateTask) : null;
+                const playbook = templateTask?.playbookId
+                  ? playbookById.get(templateTask.playbookId) ?? null
+                  : null;
 
                 return (
                   <DroppableTemplateCell
-                    key={`${role.id}-${stage.id}`}
-                    roleId={role.id}
+                    key={`${skill.id}-${stage.id}`}
+                    skillId={skill.id}
                     stageId={stage.id}
                     hasTask={Boolean(task)}
                     dragActive={Boolean(dragTaskId)}
+                    dropAllowed={
+                      dragAllowedSkillIds === null ||
+                      dragAllowedSkillIds.has(skill.id)
+                    }
                   >
                     {task && templateTask ? (
                       <DraggableTemplateTask
@@ -902,32 +873,31 @@ export function TemplateEditorScreen({
                       >
                         <TaskCard
                           task={task}
-                          roleColor={role.color || getRoleColor(role.id, draft.roles)}
+                          playbook={playbook}
+                          skillColor={resolveSkillColor(skill.id, skillOptions)}
                           barState="bar-ready"
                           editMode
-                          showDefaultPill
+                          templateView
                           onEdit={() =>
                             setAddTaskFor({
                               mode: "edit",
                               taskId: templateTask.id,
-                              roleId: role.id,
-                              roleName: role.label,
+                              skillId: skill.id,
+                              skillLabel: skill.label,
                               stageId: stage.id,
                               stageName: stage.label,
-                              initialTask: {
-                                title: templateTask.title,
-                                description: templateTask.desc,
-                                agent: templateTask.agent ?? null,
-                                skill: templateTask.skill ?? null,
-                                playbook: templateTask.playbook ?? null,
+                              initial: {
+                                playbookId: templateTask.playbookId ?? null,
+                                notes: templateTask.notes ?? "",
+                                owners: templateTask.owners ?? [],
                               },
                             })
                           }
                           onRemove={() =>
                             setConfirmState({
-                              title: `Delete "${task.title}"?`,
+                              title: `Delete playbook?`,
                               description:
-                                "This task and its default configuration will be removed from the template.",
+                                "This playbook and its default configuration will be removed from the template.",
                               onConfirm: () => {
                                 setDraft((current) => ({
                                   ...current,
@@ -947,8 +917,8 @@ export function TemplateEditorScreen({
                         onClick={() =>
                           setAddTaskFor({
                             mode: "create",
-                            roleId: role.id,
-                            roleName: role.label,
+                            skillId: skill.id,
+                            skillLabel: skill.label,
                             stageId: stage.id,
                             stageName: stage.label,
                           })
@@ -957,8 +927,8 @@ export function TemplateEditorScreen({
                         <button
                           type="button"
                           className="mx-add-btn"
-                          data-testid={`matrix-add-task-${role.id}-${stage.id}`}
-                          aria-label={`Add task for ${role.label} in ${stage.label}`}
+                          data-testid={`matrix-add-task-${skill.id}-${stage.id}`}
+                          aria-label={`Add task for ${skill.label} in ${stage.label}`}
                         >
                           <Plus className="h-3.5 w-3.5" />
                         </button>
@@ -976,17 +946,19 @@ export function TemplateEditorScreen({
         </DndContext>
       </div>
 
-      {roleModalState ? (
-        <AddRoleModal
-          mode={roleModalState.mode}
-          initialRole={roleModalState.initialRole}
-          onClose={() => setRoleModalState(null)}
-          onSubmit={(role) => {
-            if (roleModalState.mode === "edit" && roleModalState.roleId) {
-              updateRole(roleModalState.roleId, role);
+      {skillModalState ? (
+        <AddSkillModal
+          mode={skillModalState.mode}
+          initialSkill={skillModalState.initialSkill}
+          skills={skillOptions}
+          alreadyUsedIds={draft.skills.map((s) => s.id)}
+          onClose={() => setSkillModalState(null)}
+          onSubmit={(skill) => {
+            if (skillModalState.mode === "edit" && skillModalState.skillId) {
+              updateSkill(skillModalState.skillId, skill);
               return;
             }
-            addRole(role, roleModalState.index);
+            addSkill(skill, skillModalState.index);
           }}
         />
       ) : null}
@@ -1007,23 +979,16 @@ export function TemplateEditorScreen({
       ) : null}
 
       {addTaskFor ? (
-        <AddTaskModal
+        <AddPlaybookModal
           mode={addTaskFor.mode}
-          instanceId={`template:${draft.id}`}
-          roleId={addTaskFor.roleId}
-          roleName={addTaskFor.roleName}
+          skillId={addTaskFor.skillId}
+          skillLabel={addTaskFor.skillLabel}
           stageId={addTaskFor.stageId}
           stageName={addTaskFor.stageName}
-          initialTask={addTaskFor.initialTask}
-          skillOptions={skillOptions}
-          playbookOptions={playbookOptions}
+          playbooks={playbookOptions}
+          initial={addTaskFor.initial}
           onClose={() => setAddTaskFor(null)}
           onSubmit={(input) => {
-            const safeSkill =
-              input.skill && skillOptions.some((item) => item.id === input.skill)
-                ? input.skill
-                : undefined;
-            const safeAgent = safeSkill ? input.agent ?? undefined : undefined;
             setDraft((current) => {
               if (addTaskFor.mode === "edit" && addTaskFor.taskId) {
                 return {
@@ -1032,11 +997,9 @@ export function TemplateEditorScreen({
                     item.id === addTaskFor.taskId
                       ? {
                           ...item,
-                          title: input.title.trim(),
-                          desc: input.description?.trim(),
-                          agent: safeAgent,
-                          skill: safeSkill,
-                          playbook: input.playbook ?? undefined,
+                          playbookId: input.playbookId,
+                          notes: input.notes,
+                          owners: input.owners,
                         }
                       : item,
                   ),
@@ -1049,16 +1012,13 @@ export function TemplateEditorScreen({
                   ...current.taskTemplates,
                   {
                     id: createId("task"),
-                    role: input.roleId,
-                    stage: input.stageId,
-                    title: input.title.trim(),
-                    desc: input.description?.trim(),
-                    checkpoint: Boolean(input.checkpoint),
-                    triggers: input.triggers ?? [],
-                    gates: input.gates ?? [],
-                    agent: safeAgent,
-                    skill: safeSkill,
-                    playbook: input.playbook ?? undefined,
+                    skillId: addTaskFor.skillId,
+                    stageId: addTaskFor.stageId,
+                    playbookId: input.playbookId,
+                    notes: input.notes,
+                    triggers: [],
+                    gates: [],
+                    owners: input.owners,
                   },
                 ],
               };
@@ -1074,6 +1034,16 @@ export function TemplateEditorScreen({
           description={confirmState.description}
           onCancel={() => setConfirmState(null)}
           onConfirm={confirmState.onConfirm}
+        />
+      ) : null}
+
+      {pendingNavigation ? (
+        <ConfirmModal
+          title="Discard unsaved changes?"
+          description="Leaving this page will discard your in-progress edits."
+          confirmLabel="Discard"
+          onCancel={() => setPendingNavigation(null)}
+          onConfirm={confirmPendingNavigation}
         />
       ) : null}
     </div>
@@ -1109,21 +1079,23 @@ function DraggableTemplateTask({
 }
 
 function DroppableTemplateCell({
-  roleId,
+  skillId,
   stageId,
   hasTask,
   dragActive,
+  dropAllowed,
   children,
 }: {
-  roleId: string;
+  skillId: string;
   stageId: string;
   hasTask: boolean;
   dragActive: boolean;
+  dropAllowed: boolean;
   children: React.ReactNode;
 }) {
   const { setNodeRef, isOver } = useDroppable({
-    id: `cell::${roleId}::${stageId}`,
-    disabled: hasTask,
+    id: `cell::${skillId}::${stageId}`,
+    disabled: hasTask || !dropAllowed,
   });
 
   return (
@@ -1132,7 +1104,8 @@ function DroppableTemplateCell({
       className={cn(
         "mx-task-cell",
         hasTask && "has-task",
-        dragActive && !hasTask && isOver && "drag-over-cell",
+        dragActive && !hasTask && dropAllowed && isOver && "drag-over-cell",
+        dragActive && !hasTask && !dropAllowed && "drag-disallowed-cell",
       )}
     >
       {children}

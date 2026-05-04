@@ -4,7 +4,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { ChevronRight, Pencil, Plus } from "lucide-react";
+import { ChevronRight, Plus } from "lucide-react";
 
 import { cn } from "@/lib/utils";
 import type {
@@ -14,73 +14,14 @@ import type {
 
 import { CreateInstanceModal } from "./create-instance-modal";
 
-/**
- * Sidebar workflow tree — one collapsible section per template, with the
- * template's instances listed underneath and a per-template "+ New
- * instance" trigger that opens the create-instance modal scoped to that
- * template.
- *
- * Visual contract: prototype `Sidebar.WorkflowTree` block (`Process
- * Canvas.html` lines 494-538) and the `pt-*` class definitions in the
- * same file (lines 75-103). The shape mirrored here:
- *
- *   pt-header  → arrow · name(flex-1) · count-pill · [pending-dot]
- *   pt-instances (indent 16px)
- *     pt-instance → 5px dot · name(flex-1) · progress-bar(36px)
- *     pt-new     → "+ New instance" (always last)
- *
- * Per the issue acceptance criteria the workflow name uses the template
- * color (the prototype uses `--t2`); every other token follows the
- * prototype literally so the visual matches Process Canvas. Two further
- * deliberate tweaks vs. the prototype:
- *   - the active-instance label is left at `--t2` (prototype paints it
- *     `--accent`); the indigo row background already signals selection
- *     and the colored dot reinforces the template grouping;
- *   - every instance dot stays at the template color regardless of
- *     active/pending state — this matches the collapsed-mode rendering
- *     (one template-colored dot per instance) so the visual language
- *     stays consistent across collapsed/expanded.
- *
- * Pending state: if any task on an instance is in `pending_approval`,
- * the parent template header surfaces a small amber pending dot. The
- * instance dot itself does not change color; the row's amber pip is
- * what calls the user's attention. PR 5 has no live task aggregation,
- * so `hasPending` defaults to `false` and the visual stays inactive
- * until PR 8 wires the task drawer.
- */
-
 export interface SidebarInstanceView extends WorkflowInstance {
   /** True when any task on the instance is `pending_approval`. */
   hasPending?: boolean;
-  /**
-   * Completion ratio in [0, 1]. Optional because we don't have task
-   * counts yet in PR 5; falls back to a status-derived approximation.
-   */
-  progress?: number;
 }
 
 interface Props {
   templates: WorkflowTemplate[];
   instancesByTemplate: Record<string, SidebarInstanceView[]>;
-}
-
-/**
- * Status → progress fallback used when the parent hasn't computed an
- * exact ratio. Intentionally coarse so the bar matches the prototype's
- * "feels right" look for empty instances.
- */
-function fallbackProgress(status: WorkflowInstance["status"]): number {
-  switch (status) {
-    case "complete":
-      return 1;
-    case "active":
-      return 0.4;
-    case "blocked":
-      return 0.25;
-    case "not_started":
-    default:
-      return 0;
-  }
 }
 
 function instanceHref(instanceId: string): string {
@@ -281,95 +222,68 @@ export function SidebarWorkflowTree({ templates, instancesByTemplate }: Props) {
 
           return (
             <section key={template.id} aria-label={`${template.label} workflow`}>
-              <div
-                role="button"
-                tabIndex={0}
-                onClick={() => toggle(template.id)}
-                onKeyDown={(e) => {
-                  if (e.key === "Enter" || e.key === " ") {
-                    e.preventDefault();
-                    toggle(template.id);
-                  }
-                }}
-                aria-expanded={isOpen}
-                aria-controls={`tpl-${template.id}-list`}
-                data-testid={`workflow-template-toggle-${template.id}`}
-                className="group flex cursor-pointer select-none items-center gap-1.5 rounded-md px-2 py-[5px] hover:bg-bg-3 transition-colors"
-              >
-                <span
-                  className={cn(
-                    "flex h-4 w-4 shrink-0 items-center justify-center text-t3 transition-transform duration-150",
-                    isOpen && "rotate-90",
-                  )}
+              <div className="group flex select-none items-center gap-1 rounded-md py-[3px] pl-1 pr-2 hover:bg-bg-3 transition-colors">
+                <button
+                  type="button"
+                  onClick={() => toggle(template.id)}
+                  aria-expanded={isOpen}
+                  aria-controls={`tpl-${template.id}-list`}
+                  aria-label={isOpen ? "Collapse" : "Expand"}
+                  data-testid={`workflow-template-toggle-${template.id}`}
+                  className="flex h-5 w-5 shrink-0 cursor-pointer items-center justify-center rounded text-t3 transition-colors hover:text-t1"
                 >
-                  <ChevronRight className="h-3 w-3" />
-                </span>
-                <span
-                  className="min-w-0 flex-1 truncate text-[12.5px] font-semibold"
-                  // Acceptance-criteria override: the prototype renders
-                  // the workflow name in `--t2`, but the AEL-48 issue
-                  // explicitly requires "workflow name colored with
-                  // template color" so glanceable scanning works.
+                  <span
+                    className={cn(
+                      "flex h-4 w-4 items-center justify-center transition-transform duration-150",
+                      isOpen && "rotate-90",
+                    )}
+                  >
+                    <ChevronRight className="h-3 w-3" />
+                  </span>
+                </button>
+
+                <Link
+                  href={`/workflows/templates/${template.id}/edit`}
+                  data-testid={`workflow-template-link-${template.id}`}
+                  className="min-w-0 flex-1 truncate rounded px-1 py-0.5 text-[13.5px] font-semibold focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-accent"
                   style={{ color: template.color }}
                 >
                   {template.label}
-                </span>
-
-                {/* Count pill — number by default, pen icon on hover.
-                    Mirrors prototype's `pt-count-pill`/`pt-count-edit`
-                    pair (lines 86-90). The pen click navigates to the
-                    template-editor stub (PR 11 wires the real route). */}
-                <Link
-                  href={`/workflows/templates/${template.id}/edit`}
-                  onClick={(e) => e.stopPropagation()}
-                  aria-label={`Edit ${template.label} template (${instances.length} ${
-                    instances.length === 1 ? "instance" : "instances"
-                  })`}
-                  data-testid={`workflow-template-count-${template.id}`}
-                  className="ml-1.5 flex h-[18px] min-w-[22px] shrink-0 items-center justify-center rounded-full border border-border bg-bg-4 px-1.5 font-mono text-[9px] font-semibold text-t3 transition-colors group-hover:border-accent group-hover:bg-primary-bg group-hover:text-accent"
-                >
-                  <span className="block group-hover:hidden">
-                    {instances.length}
-                  </span>
-                  <span className="hidden group-hover:block">
-                    <Pencil className="h-2.5 w-2.5" />
-                  </span>
                 </Link>
 
                 {templateHasPending && (
                   <span
                     aria-label="Pending checkpoints"
                     title="Pending checkpoints"
-                    className="ml-[3px] inline-block h-1.5 w-1.5 shrink-0 rounded-full"
+                    className="inline-block h-1.5 w-1.5 shrink-0 rounded-full"
                     style={{
                       backgroundColor: "var(--pill-pending-d)",
                       boxShadow: "0 0 4px rgba(245,158,11,0.6)",
                     }}
                   />
                 )}
+
+                <button
+                  type="button"
+                  aria-label={`New ${template.label} instance`}
+                  title={`New ${template.label} instance`}
+                  data-testid={`workflow-new-instance-${template.id}`}
+                  onClick={() => setModalTemplate(template)}
+                  className="flex h-[18px] w-[18px] shrink-0 items-center justify-center rounded-[5px] border border-border text-t3 transition-colors hover:border-accent hover:text-accent"
+                >
+                  <Plus className="h-3 w-3" />
+                </button>
               </div>
 
               {isOpen && (
                 <ul
                   id={`tpl-${template.id}-list`}
-                  className="mb-0.5 space-y-0 pl-4"
+                  className="mb-0.5 space-y-0 pl-5"
                 >
                   {instances.map((instance) => {
                     const href = instanceHref(instance.id);
                     const active = isActive(pathname, href);
-                    // Always template color so the dot reads as "this
-                    // instance belongs to <template>" regardless of
-                    // active/pending — matches the collapsed-mode dots.
                     const dotColor = template.color;
-                    const ratio = Math.max(
-                      0,
-                      Math.min(
-                        1,
-                        typeof instance.progress === "number"
-                          ? instance.progress
-                          : fallbackProgress(instance.status),
-                      ),
-                    );
 
                     return (
                       <li key={instance.id}>
@@ -378,18 +292,29 @@ export function SidebarWorkflowTree({ templates, instancesByTemplate }: Props) {
                           aria-current={active ? "page" : undefined}
                           data-testid={`workflow-instance-link-${instance.id}`}
                           className={cn(
-                            "flex items-center gap-[7px] rounded-md px-2 py-[5px] transition-colors",
+                            "relative flex items-center gap-2 rounded-md px-2 py-[5px] transition-colors",
                             active
-                              ? "bg-primary-bg"
+                              ? "bg-primary-bg text-accent"
                               : "hover:bg-bg-3",
                           )}
                         >
+                          {active && (
+                            <span
+                              aria-hidden
+                              className="absolute left-0 top-1/2 h-[60%] w-[2px] -translate-y-1/2 rounded-r bg-accent"
+                            />
+                          )}
                           <span
                             aria-hidden
-                            className="inline-block h-[5px] w-[5px] shrink-0 rounded-full"
+                            className="inline-block h-[7px] w-[7px] shrink-0 rounded-full"
                             style={{ backgroundColor: dotColor }}
                           />
-                          <span className="min-w-0 flex-1 truncate text-[12px] font-medium text-t2">
+                          <span
+                            className={cn(
+                              "min-w-0 flex-1 truncate text-[12.5px]",
+                              active ? "font-semibold text-accent" : "font-medium text-t2",
+                            )}
+                          >
                             {instance.label}
                           </span>
                           {instance.hasPending && (
@@ -397,46 +322,16 @@ export function SidebarWorkflowTree({ templates, instancesByTemplate }: Props) {
                               aria-label="Pending checkpoints"
                               title="Pending checkpoints"
                               className="inline-block h-1.5 w-1.5 shrink-0 rounded-full"
-                              // Same design token as the template-level
-                              // pending dot above, so changing the
-                              // pending hue in `globals.css` updates
-                              // both surfaces in one place.
                               style={{
                                 backgroundColor: "var(--pill-pending-d)",
                                 boxShadow: "0 0 5px var(--pill-pending-d)",
                               }}
                             />
                           )}
-                          <span
-                            aria-hidden
-                            className="block h-[2.5px] w-9 shrink-0 overflow-hidden rounded-[2px] bg-bg-4"
-                          >
-                            <span
-                              className="block h-full rounded-[2px] transition-[width] duration-300"
-                              style={{
-                                width: `${Math.round(ratio * 100)}%`,
-                                backgroundColor: template.color,
-                              }}
-                            />
-                          </span>
                         </Link>
                       </li>
                     );
                   })}
-
-                  <li>
-                    <button
-                      type="button"
-                      onClick={() => setModalTemplate(template)}
-                      data-testid={`workflow-new-instance-${template.id}`}
-                      className="flex w-full items-center gap-1.5 rounded-md px-2 py-[5px] text-left text-[11.5px] font-medium text-t3 transition-colors hover:bg-bg-3 hover:text-accent"
-                    >
-                      <span className="opacity-50">
-                        <Plus className="h-3 w-3" />
-                      </span>
-                      New instance
-                    </button>
-                  </li>
                 </ul>
               )}
             </section>

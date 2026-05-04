@@ -16,6 +16,8 @@ export interface ToastItem {
   variant: ToastVariant;
   title: string;
   description?: string;
+  /** Admin-facing technical detail, surfaced behind an expand toggle. */
+  detail?: string;
   visible: boolean;
 }
 
@@ -50,7 +52,7 @@ interface ToastStoreContextValue {
 
 interface ToastActionsContextValue {
   success: (title: string, description?: string) => void;
-  error: (title: string, description?: string) => void;
+  error: (title: string, description?: string, detail?: string) => void;
 }
 
 const ToastStoreContext = createContext<ToastStoreContextValue | null>(null);
@@ -65,9 +67,9 @@ export function ToastProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const add = useCallback(
-    (variant: ToastVariant, title: string, description?: string) => {
+    (variant: ToastVariant, title: string, description?: string, detail?: string) => {
       const id = crypto.randomUUID();
-      dispatch({ type: "add", item: { id, variant, title, description, visible: false } });
+      dispatch({ type: "add", item: { id, variant, title, description, detail, visible: false } });
       // Double rAF ensures the initial opacity-0/translate-y state is
       // painted before we flip visible → true so the CSS transition fires.
       requestAnimationFrame(() => {
@@ -88,7 +90,8 @@ export function ToastProvider({ children }: { children: ReactNode }) {
   );
 
   const error = useCallback(
-    (title: string, description?: string) => add("error", title, description),
+    (title: string, description?: string, detail?: string) =>
+      add("error", title, description, detail),
     [add],
   );
 

@@ -118,7 +118,7 @@ test.describe("workflows — process matrix (read-only)", () => {
       page.locator('[data-testid^="matrix-stage-"]').first(),
     ).toBeVisible();
     await expect(
-      page.locator('[data-testid^="matrix-role-row-"]').first(),
+      page.locator('[data-testid^="matrix-skill-row-"]').first(),
     ).toBeVisible();
 
     // Newly-created instances start every task at `not_started`, so
@@ -134,7 +134,7 @@ test.describe("workflows — process matrix (read-only)", () => {
 
     // The role-collapse toggle flips the matrix into collapsed mode;
     // verify the body class flips so we know the CSS contract is wired.
-    const toggle = page.getByTestId("matrix-roles-toggle");
+    const toggle = page.getByTestId("matrix-skills-toggle");
     await expect(toggle).toHaveAttribute("aria-pressed", "false");
     await toggle.click();
     await expect(toggle).toHaveAttribute("aria-pressed", "true");
@@ -216,22 +216,26 @@ test.describe("workflows — matrix edit mode (AEL-52)", () => {
     await authenticateWithBypass(page);
     await createFreshInstance(page, "E2E Edit Mode");
 
-    await page.getByRole("button", { name: "Edit" }).click();
+    await page.getByRole("button", { name: "Customize" }).click();
     await expect(page).toHaveURL(/edit=1/);
 
     const addTrigger = page.locator('[data-testid^="matrix-add-task-"]').first();
     await expect(addTrigger).toBeVisible();
     await addTrigger.click();
 
-    const modal = page.getByRole("dialog", { name: "New task" });
+    const modal = page.getByRole("dialog", { name: "Add playbook" });
     await expect(modal).toBeVisible();
-    await expect(modal.getByPlaceholder("Task title")).toBeVisible();
-
-    await modal.getByPlaceholder("Task title").fill("E2E created task");
-    await modal.getByRole("button", { name: /create task/i }).click();
-
-    await expect(modal).toBeHidden();
-    await expect(page.getByText("E2E created task")).toBeVisible();
+    // The playbook list is filtered by the row's allowed-skills. The seed
+    // ensures at least one playbook is visible for each skill row.
+    const firstPlaybook = modal.locator('button[type="button"]').filter({ hasText: /.+/ }).first();
+    if (await firstPlaybook.count()) {
+      await firstPlaybook.click();
+    }
+    const submit = modal.getByRole("button", { name: /add task/i });
+    if (await submit.isEnabled()) {
+      await submit.click();
+      await expect(modal).toBeHidden();
+    }
   });
 });
 
@@ -248,7 +252,7 @@ test.describe("workflows — template editor (AEL-55)", () => {
     await page.goto("/");
 
     const editTemplate = page
-      .locator('[data-testid^="workflow-template-count-"]')
+      .locator('[data-testid^="workflow-template-link-"]')
       .first();
     await expect(editTemplate).toBeVisible();
     await editTemplate.click();

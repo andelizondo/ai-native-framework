@@ -5,17 +5,6 @@ import { describe, expect, it } from "vitest";
 import { barClass, canStart } from "@/lib/workflows/matrix";
 import type { WorkflowTask } from "@/lib/workflows/types";
 
-/**
- * Pure-function tests for the read-only Process Matrix helpers.
- *
- * Spec anchor: AEL-50 — PR 7 (Process Matrix). The matrix renders one
- * task card per (role, stage) cell and chooses a `bar-*` class per
- * card based on (a) the task's `status` and (b) whether all upstream
- * task triggers have completed. Both inputs originate from immutable
- * domain objects, so the helpers are kept pure to keep the matrix
- * component a thin renderer.
- */
-
 function task(
   id: string,
   overrides: Partial<WorkflowTask> = {},
@@ -23,18 +12,16 @@ function task(
   return {
     id,
     instanceId: "inst-1",
-    roleId: "role-x",
+    skillId: "skill-x",
     stageId: "stage-x",
-    title: id,
-    description: "",
+    notes: "",
     status: "not_started",
     substatus: "",
     checkpoint: false,
     triggers: [],
     gates: [],
-    agent: null,
-    skill: null,
-    playbook: null,
+    playbookId: null,
+    owners: [],
     createdAt: "2026-04-19T12:00:00Z",
     updatedAt: "2026-04-19T12:00:00Z",
     ...overrides,
@@ -58,9 +45,9 @@ describe("canStart", () => {
   });
 
   it("requires every task-typed dependency to be complete", () => {
-    const upstream = task("up", { title: "PDR Review", status: "active" });
+    const upstream = task("up", { playbookId: "pdr-review", status: "active" });
     const downstream = task("down", {
-      triggers: [{ type: "after_task", taskRef: "PDR Review" }],
+      triggers: [{ type: "after_task", taskRef: "pdr-review" }],
     });
     expect(canStart(downstream, [upstream, downstream])).toBe(false);
 
@@ -69,8 +56,8 @@ describe("canStart", () => {
   });
 
   it("treats `task` and `after_task` trigger types interchangeably", () => {
-    const upstream = task("up", { title: "Initial Invoicing", status: "complete" });
-    const t = task("t", { triggers: [{ type: "task", taskRef: "Initial Invoicing" }] });
+    const upstream = task("up", { playbookId: "initial-invoicing", status: "complete" });
+    const t = task("t", { triggers: [{ type: "task", taskRef: "initial-invoicing" }] });
     expect(canStart(t, [upstream, t])).toBe(true);
   });
 
@@ -90,8 +77,8 @@ describe("barClass", () => {
   it("maps each task status to its prototype bar-state class", () => {
     expect(barClass(task("c", { status: "complete" }), false)).toBe("bar-complete");
     expect(barClass(task("a", { status: "active" }), false)).toBe("bar-active");
-    expect(barClass(task("p", { status: "pending_approval" }), true)).toBe("bar-pending");
-    expect(barClass(task("b", { status: "blocked" }), true)).toBe("bar-cancelled");
+    expect(barClass(task("p", { status: "pending_approval" }), true)).toBe("bar-glow");
+    expect(barClass(task("b", { status: "blocked" }), true)).toBe("bar-glow");
   });
 
   it("splits not_started tasks into ready/locked based on canStart", () => {

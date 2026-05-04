@@ -50,7 +50,7 @@ const TEMPLATE_DELIVERY = {
   color: "#6366f1",
   multiInstance: true,
   stages: [],
-  roles: [],
+  skills: [],
   taskTemplates: [],
   createdAt: "2026-04-19T12:00:00Z",
   updatedAt: "2026-04-19T12:00:00Z",
@@ -72,7 +72,8 @@ function snapshotWithData(): OverviewSnapshot {
         templateId: "delivery",
         label: "Acme Corp",
         status: "active",
-        roles: [],
+        stages: [],
+        skills: [],
         createdAt: "2026-04-19T12:00:00Z",
         updatedAt: "2026-04-19T12:00:00Z",
       },
@@ -81,7 +82,8 @@ function snapshotWithData(): OverviewSnapshot {
         templateId: "delivery",
         label: "Globex Co",
         status: "blocked",
-        roles: [],
+        stages: [],
+        skills: [],
         createdAt: "2026-04-19T12:00:00Z",
         updatedAt: "2026-04-19T12:00:00Z",
       },
@@ -90,54 +92,48 @@ function snapshotWithData(): OverviewSnapshot {
       {
         id: "k-1",
         instanceId: "i-acme",
-        roleId: "pm",
+        skillId: "pm",
         stageId: "discovery",
-        title: "Backlog ready for sprint",
-        description: "",
+        notes: "Backlog ready for sprint",
         status: "pending_approval",
         substatus: "",
         checkpoint: true,
         triggers: [],
         gates: [],
-        agent: "PM Agent",
-        skill: null,
-        playbook: null,
+        playbookId: null,
+        owners: [],
         createdAt: "2026-04-19T12:00:00Z",
         updatedAt: "2026-04-19T12:00:00Z",
       },
       {
         id: "k-2",
         instanceId: "i-acme",
-        roleId: "pm",
+        skillId: "pm",
         stageId: "discovery",
-        title: "Phase 2 timeline",
-        description: "",
+        notes: "Phase 2 timeline",
         status: "complete",
         substatus: "",
         checkpoint: false,
         triggers: [],
         gates: [],
-        agent: null,
-        skill: null,
-        playbook: null,
+        playbookId: null,
+        owners: [],
         createdAt: "2026-04-19T12:00:00Z",
         updatedAt: "2026-04-19T12:00:00Z",
       },
       {
         id: "k-3",
         instanceId: "i-globex",
-        roleId: "designer",
+        skillId: "designer",
         stageId: "design",
-        title: "Prototype review",
-        description: "",
+        notes: "Prototype review",
         status: "active",
         substatus: "",
         checkpoint: false,
         triggers: [],
         gates: [],
-        agent: null,
-        skill: null,
-        playbook: null,
+        playbookId: null,
+        owners: [],
         createdAt: "2026-04-19T12:00:00Z",
         updatedAt: "2026-04-19T12:00:00Z",
       },
@@ -175,7 +171,7 @@ describe("OverviewScreen", () => {
       /Good morning, Andres\./,
     );
     expect(
-      screen.getByText(/1 task needs your decision/i),
+      screen.getByText(/1 playbook needs your decision/i),
     ).toBeInTheDocument();
   });
 
@@ -192,10 +188,10 @@ describe("OverviewScreen", () => {
     // 2 instances active (none completed)
     expect(stats).toHaveTextContent("2");
     // 1 pending checkpoint
-    expect(stats).toHaveTextContent(/My tasks/);
-    // 33% completion (1 of 3 tasks complete)
+    expect(stats).toHaveTextContent(/My playbooks/);
+    // 33% completion (1 of 3 playbooks complete)
     expect(stats).toHaveTextContent("33%");
-    expect(stats).toHaveTextContent(/1 \/ 3 tasks/);
+    expect(stats).toHaveTextContent(/1 \/ 3 playbooks/);
   });
 
   it("renders one Process Health row per template, with chips that link into the matrix", () => {

@@ -69,17 +69,17 @@ test.describe("workflow editor — dnd-kit wire-up", () => {
     }
   });
 
-  test("template editor renders sortable role rows with drag handles", async ({ page }) => {
+  test("template editor renders sortable skill rows with drag handles", async ({ page }) => {
     await authenticateAsRealUser(page);
     await openFirstTemplateEditor(page);
 
-    const roleRows = page.locator(".mx-body-row");
-    await expect(roleRows.first()).toBeVisible();
-    const count = await roleRows.count();
+    const skillRows = page.locator(".mx-body-row");
+    await expect(skillRows.first()).toBeVisible();
+    const count = await skillRows.count();
     expect(count).toBeGreaterThan(0);
 
     for (let i = 0; i < count; i++) {
-      await expect(roleRows.nth(i).locator(".mx-role-cell .mx-drag-handle")).toHaveCount(1);
+      await expect(skillRows.nth(i).locator(".mx-role-cell .mx-drag-handle")).toHaveCount(1);
     }
   });
 

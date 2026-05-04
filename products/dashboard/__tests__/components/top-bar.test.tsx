@@ -84,7 +84,7 @@ describe("TopBar", () => {
     renderWithTopBarProvider(<TopBar />);
 
     const user = userEvent.setup();
-    await user.click(screen.getByRole("button", { name: "Edit" }));
+    await user.click(screen.getByRole("button", { name: "Customize" }));
 
     expect(replace).toHaveBeenCalledWith("/workflows/123?edit=1", { scroll: false });
   });
@@ -179,6 +179,6 @@ describe("TopBar", () => {
 
     const saveButton = screen.getByRole("button", { name: "Save" });
     expect(saveButton).toBeInTheDocument();
-    expect(saveButton.querySelector("span")).not.toBeNull();
+    expect(saveButton.querySelector("svg")).not.toBeNull();
   });
 });

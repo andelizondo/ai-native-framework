@@ -4,13 +4,20 @@ import { getServerWorkflowRepository } from "@/lib/workflows/repository.server";
 
 export default async function SkillsPage() {
   const repo = await getServerWorkflowRepository();
-  const items = await repo.getFrameworkItems("skill");
+  const [items, playbooks] = await Promise.all([
+    repo.getFrameworkItems("skill"),
+    repo.getFrameworkItems("playbook"),
+  ]);
 
   return (
     <div className="flex h-full min-h-0 flex-col">
       <ShellEvents route="/framework/skills" />
       <div className="min-h-0 flex-1">
-        <FrameworkScreen initialItems={items} type="skill" />
+        <FrameworkScreen
+          initialItems={items}
+          type="skill"
+          availablePlaybooks={playbooks}
+        />
       </div>
     </div>
   );

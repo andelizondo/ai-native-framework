@@ -19,7 +19,15 @@
 }
 .matrix {
   display: inline-block;
+  width: max-content;
   min-width: 100%;
+  border-bottom: 1px solid var(--border);
+}
+/* Right edge: draw on the last column header + last body cell so the
+ * border hugs the actual content width, not the scroll container width. */
+.matrix-head-row .mx-stage-hd:last-child,
+.mx-body-row .mx-task-cell:last-child {
+  border-right: 1px solid var(--border);
 }
 .matrix-head-row {
   display: flex;
@@ -29,9 +37,13 @@
   background: var(--matrix-head);
   backdrop-filter: blur(8px);
   border-bottom: 1px solid var(--border-hi);
+  /* Lock to the expanded-header height so the body never reflows when
+   * stage columns are collapsed (their content shrinks to just a chevron
+   * plus a stacked pip strip). */
+  min-height: 72px;
 }
 .mx-corner {
-  width: 172px;
+  width: 196px;
   flex-shrink: 0;
   padding: 10px 14px;
   position: sticky;
@@ -52,71 +64,166 @@
   transition: width 0.2s;
 }
 .matrix-wrap.roles-collapsed .mx-corner {
-  width: 44px;
+  width: 64px;
 }
+/* Skills-label collapse toggle — same hover-revealed top-right placement
+ * as the per-stage column chevron, so the affordance reads identically. */
 .mx-corner-toggle {
+  position: absolute;
+  top: 6px;
+  right: 6px;
   width: 18px;
   height: 18px;
   border-radius: 4px;
   border: 1px solid var(--border);
-  background: none;
+  background: var(--bg-2);
   color: var(--t3);
   cursor: pointer;
   display: flex;
   align-items: center;
   justify-content: center;
-  transition: all 0.14s;
-  flex-shrink: 0;
-  margin-left: auto;
   padding: 0;
+  opacity: 0;
+  z-index: 6;
+  transition:
+    opacity 0.14s,
+    background 0.14s,
+    color 0.14s,
+    border-color 0.14s;
+}
+.mx-corner:hover .mx-corner-toggle,
+.mx-corner-toggle:focus-visible,
+.matrix-wrap.roles-collapsed .mx-corner-toggle {
+  opacity: 1;
 }
 .mx-corner-toggle:hover {
   background: var(--bg-3);
   color: var(--t1);
+  border-color: var(--border-hi);
 }
 .mx-corner-toggle:focus-visible {
   outline: 2px solid var(--accent);
   outline-offset: 2px;
 }
+/* Collapse-all sits at the top-LEFT of the corner, mirroring the per-row
+ * and per-column chevrons but with the more emphatic minimize/maximize
+ * glyph so it reads as a global affordance. */
+.mx-corner-collapse-all {
+  position: absolute;
+  bottom: 6px;
+  right: 6px;
+  width: 18px;
+  height: 18px;
+  border-radius: 4px;
+  border: 1px solid var(--border);
+  background: var(--bg-2);
+  color: var(--t3);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  z-index: 6;
+  transition:
+    background 0.14s,
+    color 0.14s,
+    border-color 0.14s;
+}
+.mx-corner-collapse-all:hover {
+  background: var(--bg-3);
+  color: var(--t1);
+  border-color: var(--border-hi);
+}
+.mx-corner-collapse-all:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
 .mx-stage-hd {
-  width: 192px;
+  width: 232px;
   flex-shrink: 0;
   padding: 10px 14px;
   position: relative;
   border-right: 1px solid var(--border-2);
 }
+/*
+ * Drag handles overlay the cell border instead of sitting inside the flex
+ * row, so hovering doesn't push the row's content sideways. The chip is
+ * slim enough to fit in the existing cell padding (12px / 10px), so content
+ * never reflows on hover and the handle never overlaps the avatar/title.
+ * Row handles sit at the left edge (vertically centered); column handles at
+ * the top edge (horizontally centered, icon rotated 90°). Both fade in on
+ * hover/focus and read as small floating chips.
+ */
 .mx-drag-handle {
+  position: absolute;
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 14px;
-  height: 18px;
   padding: 0;
-  border: 0;
-  background: transparent;
+  border: 1px solid var(--border-hi);
+  background: var(--bg-2);
   color: var(--t3);
   opacity: 0;
   cursor: grab;
-  flex-shrink: 0;
   touch-action: none;
+  z-index: 6;
+  box-shadow: 0 4px 10px rgba(15, 23, 42, 0.10);
   transition:
     opacity 0.14s,
-    color 0.14s;
+    color 0.14s,
+    transform 0.14s,
+    background 0.14s,
+    border-color 0.14s;
 }
-.mx-stage-hd:hover .mx-drag-handle,
-.mx-stage-hd:focus-within .mx-drag-handle,
-.mx-role-cell:hover .mx-drag-handle,
-.mx-role-cell:focus-within .mx-drag-handle {
+/* Row handle: tall + slim so it sits inside the 12px left padding and never
+ * overlaps the row content. */
+.mx-role-cell .mx-drag-handle {
+  width: 10px;
+  height: 22px;
+  border-radius: 5px;
+  top: 50%;
+  left: 1px;
+  transform: translateY(-50%) translateX(-3px);
+}
+.mx-role-cell .mx-drag-handle > svg {
+  width: 8px;
+  height: 12px;
+}
+/* Column handle: wide + short so it sits inside the 10px top padding. Icon
+ * rotated 90° so the grip orientation matches "drag horizontally". */
+.mx-stage-hd .mx-drag-handle {
+  width: 22px;
+  height: 10px;
+  border-radius: 5px;
+  top: 1px;
+  left: 50%;
+  transform: translateX(-50%) translateY(-3px);
+}
+.mx-stage-hd .mx-drag-handle > svg {
+  width: 12px;
+  height: 8px;
+  transform: rotate(90deg);
+}
+/* Reveal the chip on hover only — `:focus-within` would keep it visible
+ * after the drag ends because dnd-kit leaves the activator focused. The
+ * handle's own `:focus-visible` still satisfies keyboard accessibility. */
+.mx-stage-hd:hover .mx-drag-handle {
   opacity: 1;
+  transform: translateX(-50%) translateY(0);
+}
+.mx-role-cell:hover .mx-drag-handle {
+  opacity: 1;
+  transform: translateY(-50%) translateX(0);
 }
 .mx-drag-handle:hover {
   color: var(--t1);
+  background: var(--bg-3);
+  border-color: var(--border-hi);
 }
 .mx-drag-handle:focus-visible {
   opacity: 1;
   outline: 2px solid var(--accent);
   outline-offset: 2px;
-  border-radius: 4px;
 }
 .mx-drag-handle:active {
   cursor: grabbing;
@@ -141,11 +248,40 @@
   background: transparent;
 }
 
-/* Drop target indicator — only while a task drag is over an empty cell. */
+/* Faint "droppable" hint on every allowed empty cell while a task drag is in
+   flight — just enough to visually distinguish landing zones from the
+   striped disallowed cells, without competing with the active over-state. */
+.matrix-wrap[data-dragging="true"]
+  .mx-task-cell:not(.has-task):not(.drag-disallowed-cell)
+  .mx-empty-cell {
+  background: color-mix(in srgb, var(--accent) 3%, transparent);
+  border-color: color-mix(in srgb, var(--accent) 18%, transparent);
+}
+
+/* Drop target indicator — full-strength when the drag is actually over an
+   allowed empty cell. Wins over the faint hint above thanks to specificity. */
 .matrix-wrap[data-dragging="true"] .mx-task-cell.drag-over-cell .mx-empty-cell {
   background: color-mix(in srgb, var(--accent) 12%, var(--bg-2));
   border-color: color-mix(in srgb, var(--accent) 55%, transparent);
   box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--accent) 18%, transparent);
+}
+
+/* Disallowed-drop indicator — cells whose skill row is not in the dragged
+   playbook's allowed list. Dimmed + diagonal stripe pattern so the user can
+   see which rows accept the drop without trying. */
+.matrix-wrap[data-dragging="true"] .mx-task-cell.drag-disallowed-cell {
+  cursor: not-allowed;
+  opacity: 0.5;
+}
+.matrix-wrap[data-dragging="true"] .mx-task-cell.drag-disallowed-cell .mx-empty-cell {
+  background: repeating-linear-gradient(
+    -45deg,
+    transparent 0,
+    transparent 6px,
+    color-mix(in srgb, var(--t3) 14%, transparent) 6px,
+    color-mix(in srgb, var(--t3) 14%, transparent) 7px
+  );
+  border-color: color-mix(in srgb, var(--t3) 25%, transparent);
 }
 .mx-stage-hd:last-child {
   border-right: none;
@@ -344,7 +480,7 @@
   border-bottom: none;
 }
 .mx-role-cell {
-  width: 172px;
+  width: 196px;
   flex-shrink: 0;
   padding: 10px 12px;
   position: sticky;
@@ -355,17 +491,15 @@
   display: flex;
   align-items: center;
   gap: 7px;
-  min-height: 106px;
+  /* Locked height keeps the row stable while task cards are dragged in/out.
+   * Card height = 116px + cell padding (7×2) + breathing → 132px. */
+  height: 132px;
   overflow: visible;
   transition: width 0.2s;
 }
 .mx-role-cell:hover,
 .mx-role-cell:focus-within {
   z-index: 14;
-}
-.mx-role-cell:has([data-role-color-open="true"]) {
-  z-index: 25;
-  overflow: visible;
 }
 .mx-entity-content {
   min-width: 0;
@@ -379,14 +513,24 @@
   align-items: center;
 }
 .matrix-wrap.roles-collapsed .mx-role-cell {
-  width: 44px;
-  padding: 10px 7px;
+  width: 64px;
+  padding: 10px 6px;
   justify-content: center;
+  gap: 4px;
 }
 .mx-role-name {
   font-size: 12.5px;
   font-weight: 600;
   color: var(--t1);
+  /* Clamp the skill name to two lines so the row height stays predictable
+   * regardless of how long the framework item's name is. */
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  line-clamp: 2;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  word-break: break-word;
 }
 .mx-role-owner {
   font-size: 10.5px;
@@ -395,6 +539,11 @@
   line-height: 1.3;
   font-style: italic;
 }
+/* The owner row hosts the OwnerPicker — its trigger button must stay
+ * clickable AND its absolutely-positioned dropdown must escape the row.
+ * Clamping is delegated to the trigger label inside the OwnerPicker
+ * itself (see the `.line-clamp-2` class on the inline trigger button)
+ * so we never set `overflow: hidden` on this container. */
 .mx-role-owner-plain {
   font-style: normal;
 }
@@ -460,11 +609,15 @@
   outline-offset: 2px;
 }
 .mx-task-cell {
-  width: 192px;
+  width: 232px;
   flex-shrink: 0;
   padding: 7px;
   border-right: 1px solid var(--border-2);
-  min-height: 106px;
+  /* Locked height matches `.mx-role-cell` so the row stays a stable
+   * rectangle while task cards drag in/out. The card itself is 116px
+   * (set in task-card.css); cell padding 7×2 = 14, plus 2px breathing →
+   * 132px. */
+  height: 132px;
   background: var(--bg);
   transition: background 0.14s;
 }
@@ -611,7 +764,7 @@
   flex-shrink: 0;
 }
 .mx-col-insert-empty {
-  width: 192px;
+  width: 232px;
   gap: 8px;
   justify-content: center;
 }
@@ -791,4 +944,280 @@
 .mx-row-insert-empty:focus-visible .mx-row-insert-label {
   outline: 2px solid var(--accent);
   outline-offset: 2px;
+}
+
+/* ── Per-stage column collapse + per-skill row collapse ──
+ *
+ * Both follow the same pattern as the existing global `.roles-collapsed`
+ * (skills-label) toggle: a small chevron button reveals on hover, and the
+ * collapsed unit shrinks to a slim band whose only content is a stack of
+ * pips (column header) or the skill avatar (row header). Cells that fall
+ * inside a collapsed column or row render as `mx-mini-cell-btn` — just the
+ * playbook avatar with its built-in tooltip. */
+
+.mx-stage-collapse-btn,
+.mx-skill-collapse-btn {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  width: 18px;
+  height: 18px;
+  border-radius: 4px;
+  border: 1px solid var(--border);
+  background: var(--bg-2);
+  color: var(--t3);
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  opacity: 0;
+  transition:
+    opacity 0.14s,
+    background 0.14s,
+    color 0.14s,
+    border-color 0.14s;
+  z-index: 6;
+}
+.mx-stage-hd:hover .mx-stage-collapse-btn,
+.mx-stage-collapse-btn:focus-visible,
+.mx-role-cell:hover .mx-skill-collapse-btn,
+.mx-skill-collapse-btn:focus-visible {
+  opacity: 1;
+}
+.mx-stage-collapse-btn:hover,
+.mx-skill-collapse-btn:hover {
+  background: var(--bg-3);
+  color: var(--t1);
+  border-color: var(--border-hi);
+}
+.mx-stage-collapse-btn:focus-visible,
+.mx-skill-collapse-btn:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.mx-stage-hd-collapsed {
+  width: 36px;
+  padding: 8px 4px 8px 4px;
+  cursor: pointer;
+}
+.mx-stage-hd-collapsed .mx-stage-pips {
+  flex-direction: column;
+  align-items: center;
+  flex-wrap: nowrap;
+  gap: 3px;
+  margin-top: 22px;
+}
+.mx-stage-hd-collapsed .mx-pip {
+  width: 14px;
+  height: 2.5px;
+}
+.mx-stage-hd-collapsed .mx-stage-collapse-btn {
+  opacity: 1;
+  top: 6px;
+  right: 50%;
+  transform: translateX(50%);
+}
+/* Popover that shows the stage name + sub when hovering a collapsed
+ * column header. Mirrors the ItemAvatar tooltip pattern (rounded card,
+ * border-hi, bg-2) so the design language stays consistent. */
+/* Portal-rendered floating tooltip — sits at fixed coordinates derived
+ * from the anchor element's bounding rect so it can paint outside the
+ * matrix scroll wrap (`overflow: auto`) without being clipped. Two
+ * placements share the card style; only the translate origin differs. */
+.mx-floating-tooltip {
+  pointer-events: none;
+  position: fixed;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+  white-space: nowrap;
+  padding: 6px 10px;
+  border-radius: 6px;
+  border: 1px solid var(--border-hi);
+  background: var(--bg-2);
+  box-shadow: var(--shadow-canvas);
+  z-index: 100;
+}
+.mx-floating-tooltip-above {
+  transform: translate(-50%, -100%);
+}
+.mx-floating-tooltip-right {
+  transform: translate(0, -50%);
+}
+.mx-floating-tooltip-name {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--t1);
+  line-height: 1.2;
+}
+.mx-floating-tooltip-sub {
+  font-size: 10.5px;
+  color: var(--t3);
+  line-height: 1.2;
+}
+.mx-floating-tooltip-sub.s-complete {
+  color: var(--pill-complete-t);
+}
+.mx-floating-tooltip-sub.s-active {
+  color: var(--pill-active-t);
+}
+.mx-floating-tooltip-sub.s-pending {
+  color: var(--pill-pending-t);
+}
+.mx-floating-tooltip-sub.s-blocked {
+  color: var(--pill-blocked-t);
+}
+.mx-floating-tooltip-sub.s-not_started {
+  color: var(--pill-ns-t);
+}
+.mx-skill-avatar-anchor {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+/* Always-visible chevron when collapsed (the header itself is the click
+ * target — but the chevron is the visual cue). */
+
+.mx-body-row-collapsed .mx-task-cell,
+.mx-body-row-collapsed .mx-role-cell {
+  height: 36px;
+}
+.mx-body-row-collapsed .mx-role-cell {
+  padding-top: 6px;
+  padding-bottom: 6px;
+  padding-right: 6px;
+}
+.mx-body-row-collapsed .mx-role-name,
+.mx-body-row-collapsed .mx-role-owner {
+  display: none;
+}
+
+/* When the Skill column is collapsed (either globally via `.roles-collapsed`
+ * or per-row via `.mx-body-row-collapsed`), the row chevron switches from
+ * hover-revealed top-right chip to a static inline button sitting to the
+ * right of the avatar. This keeps the toggle reachable — otherwise a
+ * collapsed row inside a roles-collapsed matrix would hide its only
+ * affordance to expand back. */
+.matrix-wrap.roles-collapsed .mx-skill-collapse-btn,
+.mx-body-row-collapsed .mx-skill-collapse-btn {
+  position: static;
+  opacity: 1;
+  margin-left: auto;
+}
+
+/* Mini cell — used when the cell sits in a collapsed row OR collapsed
+ * column. The cell width comes from the column header rule above when the
+ * stage is collapsed; the height is inherited so a column-only collapse
+ * inside an expanded (140px) row keeps the cell tall and the avatar
+ * floats vertically centered. */
+.mx-task-cell-mini {
+  padding: 4px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+/* Column-collapsed body cells: shrink to match the 36px header width.
+ * `.mx-task-cell-narrow` is stamped from React on every body cell whose
+ * stage column is collapsed. Cells in non-collapsed columns keep their
+ * normal 192px width even when the row is row-collapsed (mini display
+ * doesn't imply narrow column). */
+.mx-task-cell-narrow {
+  width: 36px;
+  padding: 4px 2px;
+}
+
+.mx-mini-cell-btn {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: transparent;
+  border: 0;
+  padding: 0;
+  cursor: pointer;
+  position: relative;
+}
+/* Status halo. Sits behind the 22px ItemAvatar and glows in the task's
+ * status color; absent for `not_started` (no `--status-color` set). The
+ * `data-pulse` flag on `pending_approval` swaps in a slow pulsing variant
+ * so a checkpoint that needs attention reads even at the mini scale. */
+.mx-mini-cell-btn::before {
+  content: "";
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 22px;
+  height: 22px;
+  border-radius: 9999px;
+  transform: translate(-50%, -50%);
+  pointer-events: none;
+  box-shadow: 0 0 8px 1px var(--status-color, transparent);
+  opacity: 0.75;
+}
+.mx-mini-cell-btn[data-pulse="true"]::before {
+  animation: ainative-mini-pulse 2s ease-in-out infinite;
+}
+@keyframes ainative-mini-pulse {
+  0%,
+  100% {
+    box-shadow: 0 0 6px 0 var(--status-color);
+    opacity: 0.5;
+  }
+  50% {
+    box-shadow: 0 0 14px 2px var(--status-color);
+    opacity: 1;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .mx-mini-cell-btn[data-pulse="true"]::before {
+    animation: none;
+  }
+}
+/* Avatar-sized anchor inside the mini cell. Sized exactly to the xs
+ * avatar (22px) so the FloatingHoverTooltip — which anchors to its
+ * parent element — floats above the avatar rather than the full cell. */
+.mx-mini-cell-anchor {
+  position: relative;
+  display: inline-flex;
+  width: 22px;
+  height: 22px;
+}
+/* "In progress" wave on the mini avatar — mirrors the active task card's
+ * shimmer (`ainative-card-wave`, defined in task-card.css). The alpha is
+ * higher than the card variant because the avatar is small and sits on a
+ * tinted disc, so the sweep needs more contrast to read. */
+.mx-mini-cell-btn[data-status="active"] .mx-mini-cell-anchor::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: 9999px;
+  /* See task-card.css `bar-active::after` — tint via `--t1` so the sweep
+   * adapts between light and dark themes instead of vanishing. */
+  background: linear-gradient(
+    100deg,
+    transparent 38%,
+    color-mix(in srgb, var(--t1) 22%, transparent) 50%,
+    transparent 62%
+  );
+  background-size: 250% 100%;
+  background-repeat: no-repeat;
+  background-position: 200% 0;
+  animation: ainative-card-wave 4s ease-in-out infinite;
+  pointer-events: none;
+}
+@media (prefers-reduced-motion: reduce) {
+  .mx-mini-cell-btn[data-status="active"] .mx-mini-cell-anchor::after {
+    animation: none;
+  }
+}
+.mx-mini-cell-btn:hover {
+  background: var(--bg-2);
+}
+.mx-mini-cell-btn:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: -2px;
 }

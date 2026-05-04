@@ -193,3 +193,33 @@ export function pickPendingCheckpoints(snapshot: OverviewSnapshot): PendingCheck
     })
     .filter((entry): entry is PendingCheckpoint => entry !== null);
 }
+
+/**
+ * Active task projected for the "Tasks in progress" card on the Overview.
+ * Carries the parent instance + template so the card can render the
+ * "PROCESS · INSTANCE" label and color without a second lookup, mirroring
+ * the `PendingCheckpoint` shape used by `MyTasksCard`.
+ */
+export interface ActiveTask {
+  task: WorkflowTask;
+  instance: WorkflowInstance;
+  template: WorkflowTemplate | null;
+}
+
+export function pickActiveTasks(snapshot: OverviewSnapshot): ActiveTask[] {
+  const instanceById = new Map(snapshot.instances.map((i) => [i.id, i]));
+  const templateById = new Map(snapshot.templates.map((t) => [t.id, t]));
+
+  return snapshot.tasks
+    .filter((t) => t.status === "active")
+    .map((task) => {
+      const instance = instanceById.get(task.instanceId);
+      if (!instance) return null;
+      return {
+        task,
+        instance,
+        template: templateById.get(instance.templateId) ?? null,
+      };
+    })
+    .filter((entry): entry is ActiveTask => entry !== null);
+}

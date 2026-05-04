@@ -1,7 +1,6 @@
 // Shared workflow domain types. These mirror the SQL schema in
-// `products/dashboard/supabase/migrations/20260419120000_workflow_persistence.sql`
-// and the `workflow_repository` interface defined in
-// `interfaces/interfaces.yaml`.
+// `products/dashboard/supabase/migrations/` and the `workflow_repository`
+// interface defined in `interfaces/interfaces.yaml`.
 
 export type WorkflowInstanceStatus =
   | "not_started"
@@ -18,12 +17,6 @@ export type WorkflowTaskStatus =
 
 /**
  * Legal terminal states for `WorkflowRepository.transitionPendingCheckpoint`.
- * The atomic checkpoint resolution path only ever flips a
- * `pending_approval` row to one of these two statuses — `complete`
- * for approve, `blocked` for reject — so the parameter type is
- * narrowed to keep callers from accidentally requesting (e.g.)
- * `active` or `not_started`, which would silently corrupt the
- * approval audit trail.
  */
 export type WorkflowCheckpointTransitionStatus =
   | Extract<WorkflowTaskStatus, "complete">
@@ -37,11 +30,18 @@ export interface WorkflowStage {
   sub?: string;
 }
 
-export interface WorkflowRole {
+/**
+ * Matrix row. `id` is a `framework_items.id` of type 'skill'; `label` is
+ * snapshotted from the framework item at the time the row was added so the
+ * matrix renders even if the underlying skill is later renamed/deleted.
+ */
+export interface WorkflowSkill {
   id: string;
   label: string;
-  owner?: string;
-  color?: string;
+  /** One or more owner labels (people or AI agents). Required to be at
+   *  least one in the editor; older rows that stored a single `owner`
+   *  string get migrated to a one-element array on read in the repo. */
+  owners: string[];
 }
 
 export interface WorkflowTrigger {
@@ -59,25 +59,26 @@ export interface WorkflowGate {
 
 export interface WorkflowTaskTemplate {
   id?: string;
-  role: string;
-  stage: string;
-  title: string;
-  desc?: string;
-  agent?: string;
-  skill?: string;
-  playbook?: string;
+  skillId: string;
+  stageId: string;
+  playbookId: string | null;
+  notes?: string;
   checkpoint?: boolean;
   triggers?: WorkflowTrigger[];
   gates?: WorkflowGate[];
+  owners?: string[];
 }
 
 export interface WorkflowTemplate {
   id: string;
   label: string;
+  /** Identity color for the template itself (surfaced in the editor header
+   *  and template list chrome). Distinct from the per-row colors which
+   *  derive from each linked Skill (`FrameworkItem.color`). */
   color: string;
   multiInstance: boolean;
   stages: WorkflowStage[];
-  roles: WorkflowRole[];
+  skills: WorkflowSkill[];
   taskTemplates: WorkflowTaskTemplate[];
   createdAt: string;
   updatedAt: string;
@@ -86,34 +87,33 @@ export interface WorkflowTemplate {
 export interface WorkflowTask {
   id: string;
   instanceId: string;
-  roleId: string;
+  skillId: string;
   stageId: string;
-  title: string;
-  description: string;
+  notes: string;
   status: WorkflowTaskStatus;
   substatus: string;
   checkpoint: boolean;
   triggers: WorkflowTrigger[];
   gates: WorkflowGate[];
-  agent: string | null;
-  skill: string | null;
-  playbook: string | null;
+  playbookId: string | null;
+  /** Owner labels (people or AI agents) assigned to this specific card.
+   *  Per-task so two cards pointing at the same playbook can carry different
+   *  owners (e.g. different sales people across instances). */
+  owners: string[];
   createdAt: string;
   updatedAt: string;
 }
 
 export interface WorkflowTaskCreateInput {
   instanceId: string;
-  roleId: string;
+  skillId: string;
   stageId: string;
-  title: string;
-  description?: string;
+  playbookId: string | null;
+  notes?: string;
   checkpoint?: boolean;
   triggers?: WorkflowTrigger[];
   gates?: WorkflowGate[];
-  agent?: string | null;
-  skill?: string | null;
-  playbook?: string | null;
+  owners?: string[];
 }
 
 export interface WorkflowEvent {
@@ -131,7 +131,10 @@ export interface WorkflowInstance {
   templateId: string;
   label: string;
   status: WorkflowInstanceStatus;
-  roles: WorkflowRole[];
+  /** Snapshot of the template's stages at create time. Decoupled from the
+   *  template so edits to the template do not mutate existing instances. */
+  stages: WorkflowStage[];
+  skills: WorkflowSkill[];
   createdAt: string;
   updatedAt: string;
 }
@@ -147,31 +150,46 @@ export interface FrameworkItem {
   name: string;
   description: string;
   icon: string | null;
+  /** Hex color (e.g. "#6366f1") chosen by the founder. Drives the colored
+   *  ring around the emoji avatar everywhere this item is rendered, plus the
+   *  matrix row + task accent. Falls back to a stable id-derived hash when
+   *  null (`resolveItemColor` in `lib/workflows/skill-colors.ts`). */
+  color?: string | null;
   content: string;
+  /**
+   * Only populated for `type === "playbook"`. The list of skill ids
+   * (matching `framework_items.id` of type 'skill') that are allowed
+   * to use this playbook in the matrix.
+   */
+  allowedSkillIds?: string[];
+  /**
+   * Only populated for `type === "skill"`. The inverse projection of the
+   * same `framework_item_allowed_skills` join: which playbooks this skill
+   * is allowed to run.
+   */
+  allowedPlaybookIds?: string[];
   createdAt?: string;
   updatedAt?: string;
 }
 
 export interface WorkflowTaskPatch {
-  roleId?: string;
+  skillId?: string;
   stageId?: string;
-  title?: string;
-  description?: string;
+  notes?: string;
   status?: WorkflowTaskStatus;
   substatus?: string;
   checkpoint?: boolean;
   triggers?: WorkflowTrigger[];
   gates?: WorkflowGate[];
-  agent?: string | null;
-  skill?: string | null;
-  playbook?: string | null;
+  playbookId?: string | null;
+  owners?: string[];
 }
 
 export interface WorkflowTemplatePatch {
   label?: string;
   color?: string;
   stages?: WorkflowStage[];
-  roles?: WorkflowRole[];
+  skills?: WorkflowSkill[];
   taskTemplates?: WorkflowTaskTemplate[];
 }
 
@@ -183,66 +201,20 @@ export interface WorkflowEventInput {
 
 export interface WorkflowRepository {
   getTemplates(): Promise<WorkflowTemplate[]>;
-  /**
-   * Fetch a single template by id. Returns `null` when the template
-   * has been removed; the matrix route renders a graceful banner in
-   * that case rather than 404'ing the whole instance.
-   */
   getTemplate(id: string): Promise<WorkflowTemplate | null>;
   getInstance(id: string): Promise<WorkflowInstanceDetail | null>;
-  /**
-   * Single-task lookup. Returns `null` when the row is missing or RLS
-   * hides it. Read-only utility for surfaces that need a single row
-   * without going through `getInstance()`'s heavier joins.
-   *
-   * Note: do **not** use this to validate preconditions before a
-   * write — the read-then-write window is racy. Use
-   * `transitionPendingCheckpoint` (or a similar conditional-update
-   * primitive) for state transitions that depend on the current row
-   * value.
-   */
   getTask(taskId: string): Promise<WorkflowTask | null>;
-  /**
-   * Atomic transition of a checkpoint task that is currently awaiting
-   * approval. Issues a single conditional UPDATE against
-   * `workflow_tasks` with `id = taskId AND checkpoint = TRUE AND
-   * status = 'pending_approval'`, so the row only flips when the
-   * preconditions are still true at write time. Returns the updated
-   * task on success, or `null` when no row matched (task missing /
-   * not a checkpoint / not in `pending_approval` / RLS-hidden) — the
-   * caller decides how to surface that.
-   *
-   * `nextStatus` MUST be one of the legal terminal states for an
-   * approval flow (`complete` for approve, `blocked` for reject). The
-   * mapping from action intent to status lives in the action layer,
-   * not here, so this primitive stays composable.
-   */
   transitionPendingCheckpoint(
     taskId: string,
     nextStatus: WorkflowCheckpointTransitionStatus,
   ): Promise<WorkflowTask | null>;
-  /**
-   * Atomic conditional update for ordinary task writes that depend on
-   * the current task status. Returns the updated row when the status
-   * predicate still matched at write time, or `null` when the row is
-   * missing / hidden / no longer in `expectedStatus`.
-   */
   updateTaskIfStatus(
     taskId: string,
     expectedStatus: WorkflowTaskStatus,
     patch: WorkflowTaskPatch,
   ): Promise<WorkflowTask | null>;
   listInstances(templateId?: string): Promise<WorkflowInstance[]>;
-  /**
-   * All tasks across every instance the caller can read (RLS still
-   * applies). Used by the Overview screen to compute completion stats
-   * without N+1 round-trips through `getInstance()`.
-   */
   listAllTasks(): Promise<WorkflowTask[]>;
-  /**
-   * Most recent workflow events across every instance the caller can
-   * read. Ordered by `created_at` DESC; capped at `limit`.
-   */
   listRecentEvents(limit: number): Promise<WorkflowEvent[]>;
   createInstance(templateId: string, label: string): Promise<WorkflowInstanceDetail>;
   updateInstance(

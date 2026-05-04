@@ -15,6 +15,15 @@ vi.mock("@/app/(dashboard)/workflows/actions", () => ({
   updateTemplateAction: vi.fn(),
 }));
 
+vi.mock("@/app/(dashboard)/framework/actions", () => ({
+  upsertFrameworkItemAction: vi.fn(),
+  deleteFrameworkItemAction: vi.fn(),
+}));
+
+vi.mock("@/lib/monitoring", () => ({
+  captureError: vi.fn(),
+}));
+
 vi.mock("@/components/dashboard-topbar-context", () => ({
   useDashboardTopBar: () => ({
     setConfig: vi.fn(),
@@ -40,9 +49,9 @@ const TEMPLATE: WorkflowTemplate = {
     { id: "pre-sales", label: "Pre-Sales", sub: "Customer" },
     { id: "validation", label: "Validation", sub: "PDR" },
   ],
-  roles: [
-    { id: "sales", label: "Sales", owner: "Hans / Dave", color: "#7dd3fc" },
-    { id: "product", label: "Product", owner: "Andres", color: "#f9a8d4" },
+  skills: [
+    { id: "sales-ops", label: "Sales Ops", owners: ["Hans / Dave"] },
+    { id: "pm", label: "PM", owners: ["Andres"] },
   ],
   taskTemplates: [],
   createdAt: "2026-04-19T12:00:00Z",
@@ -54,6 +63,7 @@ describe("TemplateEditorScreen", () => {
     renderWithToast(
       <TemplateEditorScreen
         template={TEMPLATE}
+        instanceCount={0}
         skillOptions={[]}
         playbookOptions={[]}
       />,
@@ -61,8 +71,8 @@ describe("TemplateEditorScreen", () => {
 
     expect(screen.getByLabelText("Add stage after Pre-Sales")).toBeInTheDocument();
     expect(screen.getByLabelText("Add stage after Validation")).toBeInTheDocument();
-    expect(screen.getByLabelText("Add role after Sales")).toBeInTheDocument();
-    expect(screen.getByLabelText("Add role after Product")).toBeInTheDocument();
+    expect(screen.getByLabelText("Add skill after Sales Ops")).toBeInTheDocument();
+    expect(screen.getByLabelText("Add skill after PM")).toBeInTheDocument();
     expect(screen.getByLabelText("Template editing information")).toHaveAttribute(
       "aria-describedby",
       "template-editor-help",
@@ -73,13 +83,14 @@ describe("TemplateEditorScreen", () => {
   it("renders empty-state affordances when stages or roles are missing", () => {
     renderWithToast(
       <TemplateEditorScreen
-        template={{ ...TEMPLATE, stages: [], roles: [] }}
+        template={{ ...TEMPLATE, stages: [], skills: [] }}
+        instanceCount={0}
         skillOptions={[]}
         playbookOptions={[]}
       />,
     );
 
     expect(screen.getByText("Add first stage")).toBeInTheDocument();
-    expect(screen.getByText("Add first role")).toBeInTheDocument();
+    expect(screen.getByText("Add first skill")).toBeInTheDocument();
   });
 });
