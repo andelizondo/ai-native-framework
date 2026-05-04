@@ -11,11 +11,9 @@ import {
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 
-import { ItemAvatar } from "@/components/framework/item-avatar";
 import { OwnerAvatarStack } from "@/components/framework/owner-avatar-stack";
 import { cn } from "@/lib/utils";
 import type { TaskBarState } from "@/lib/workflows/matrix";
-import { resolveItemColor } from "@/lib/workflows/skill-colors";
 import {
   TASK_STATUS_LABEL,
   TASK_STATUS_ORDER,
@@ -68,8 +66,6 @@ export function TaskCard({
   const statusLabel = TASK_STATUS_LABEL[task.status];
 
   const title = playbook?.name ?? (task.playbookId ? "Playbook removed" : "No playbook");
-  const playbookColor = playbook ? resolveItemColor(playbook) : skillColor;
-  const playbookEmoji = playbook?.icon ?? null;
   const owners = task.owners ?? [];
   const showActions = editMode && (Boolean(onEdit) || Boolean(onRemove));
 
@@ -102,14 +98,6 @@ export function TaskCard({
       aria-label={onClick ? `Open playbook: ${title}` : undefined}
     >
       <div className="tc-top">
-        <span className="tc-avatar-wrap" data-testid={`task-card-avatar-${task.id}`}>
-          <ItemAvatar
-            emoji={playbookEmoji}
-            color={playbookColor}
-            label={title}
-            size="sm"
-          />
-        </span>
         <div className="tc-title">{title}</div>
       </div>
       <div className="tc-status-row">
@@ -118,7 +106,6 @@ export function TaskCard({
             className="s-pill s-default"
             data-testid={`task-status-${task.id}`}
           >
-            <span className="s-dot" aria-hidden />
             <span className="s-text">Default</span>
           </div>
         ) : onStatusChange ? (
@@ -129,7 +116,6 @@ export function TaskCard({
           />
         ) : (
           <div className={cn("s-pill", statusClass)} data-testid={`task-status-${task.id}`}>
-            <div className="s-dot" aria-hidden />
             <div className="s-text">{statusLabel}</div>
           </div>
         )}
@@ -318,7 +304,6 @@ function StatusBadgePopover({
         }}
         title="Change status"
       >
-        <span className="s-dot" aria-hidden />
         <span className="s-text">{statusLabel}</span>
       </button>
       {open ? (

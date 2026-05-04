@@ -46,7 +46,6 @@
   box-shadow: 2px 0 8px var(--role-color);
 }
 .task-card.bar-pending::before {
-  background: #f59e0b;
   opacity: 1;
   box-shadow: 2px 0 12px rgba(245, 158, 11, 0.6);
   animation: ainative-bar-pulse 2s ease-in-out infinite;
@@ -99,20 +98,6 @@
   align-items: center;
   gap: 8px;
 }
-.tc-avatar-wrap {
-  position: relative;
-  display: inline-flex;
-  flex-shrink: 0;
-  line-height: 0;
-}
-.tc-cp-badge-overlay {
-  position: absolute;
-  bottom: -2px;
-  right: -2px;
-  width: 12px;
-  height: 12px;
-  box-shadow: 0 0 0 2px var(--bg-2);
-}
 .tc-title {
   font-size: 11.5px;
   font-weight: 600;
@@ -127,6 +112,9 @@
   word-break: break-word;
   flex: 1;
   min-width: 0;
+  /* Reserve two lines of vertical space so single-line titles don't pull
+   * the status pill upward — keeps the pill on a stable baseline. */
+  min-height: calc(1.3em * 2);
 }
 .tc-status-row {
   display: flex;
@@ -137,10 +125,14 @@
    * default chip line up on a shared 22px baseline; without this the
    * row's intrinsic height fluctuates when no badges are present. */
   min-height: 22px;
-  /* Extra breathing room between the title block and the status row;
-   * the card's flex `gap: 4px` is intentionally tight for the lower
-   * stack but reads cramped right under the title. */
-  margin-top: 4px;
+  margin-top: 2px;
+}
+/* Optical-alignment nudge: the status pill's 9999px radius pushes its
+ * visible content inward from the pill's actual left edge. Pull the pill
+ * left so its label sits closer to the card's left padding line. */
+.tc-status-row > .s-pill,
+.tc-status-row > .tc-status-wrap {
+  margin-left: -4px;
 }
 /* Template-mode "Default" pill — neutral grey treatment so it reads as
  * a placeholder where a runtime status will eventually live. */
@@ -149,14 +141,8 @@
   color: var(--t2);
   border: 1px solid var(--border);
 }
-.s-default .s-dot {
-  background: var(--t3);
-}
 .s-default .s-text {
   color: var(--t3);
-  font-weight: 500;
-  text-transform: uppercase;
-  letter-spacing: 0.07em;
 }
 
 /* Info-badge stack on the right side of the status row. Note (blue),
@@ -306,6 +292,11 @@
   margin-right: -10px;
   padding-left: 14px;
   padding-right: 10px;
+  /* Reserve the action group's footprint (22px button + 2px border + 8px
+   * padding-top + 1px border-top = 33px with border-box) so the row stays
+   * the same height in view and edit mode and the avatars don't jump
+   * when the edit/delete buttons mount. */
+  min-height: 33px;
 }
 .tc-actions {
   display: inline-flex;
@@ -346,27 +337,6 @@
 }
 .s-not_started .s-pill {
   background: var(--pill-ns-bg);
-}
-.s-dot {
-  width: 5.5px;
-  height: 5.5px;
-  border-radius: 50%;
-  flex-shrink: 0;
-}
-.s-complete .s-dot {
-  background: var(--pill-complete-d);
-}
-.s-active .s-dot {
-  background: var(--pill-active-d);
-}
-.s-pending .s-dot {
-  background: var(--pill-pending-d);
-}
-.s-blocked .s-dot {
-  background: var(--pill-blocked-d);
-}
-.s-not_started .s-dot {
-  background: var(--pill-ns-d);
 }
 .s-text {
   font-size: 9.5px;
@@ -421,9 +391,22 @@
   background: inherit;
   cursor: pointer;
   font: inherit;
+  transition:
+    box-shadow 120ms ease,
+    transform 120ms ease,
+    filter 120ms ease;
 }
 .tc-status-trigger:hover {
-  filter: brightness(1.05);
+  /* Subtle "lift + ring" so only the clickable variant of the pill reads
+   * as interactive; the static edit/template pills stay flat and that
+   * flatness is itself the "not clickable" signal. The ring uses the
+   * neutral high-contrast border so it adapts to light/dark and doesn't
+   * fight the saturated pill backgrounds. */
+  filter: brightness(1.03);
+  transform: translateY(-0.5px);
+  box-shadow:
+    0 0 0 1.5px var(--border-hi),
+    0 1px 2px rgba(0, 0, 0, 0.06);
 }
 .tc-status-trigger:focus-visible {
   outline: 2px solid var(--accent);
