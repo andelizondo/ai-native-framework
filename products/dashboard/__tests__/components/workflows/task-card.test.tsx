@@ -70,8 +70,8 @@ describe("TaskCard", () => {
   it.each<[WorkflowTask["status"], TaskBarState, string]>([
     ["complete", "bar-complete", "Complete"],
     ["active", "bar-active", "In progress"],
-    ["pending_approval", "bar-pending", "Pending approval"],
-    ["blocked", "bar-cancelled", "Failed"],
+    ["pending_approval", "bar-glow", "Pending approval"],
+    ["blocked", "bar-glow", "Failed"],
     ["not_started", "bar-ready", "Not started"],
     ["not_started", "bar-locked", "Not started"],
   ])(
@@ -129,7 +129,7 @@ describe("TaskCard", () => {
         task={task({ id: "cp-overlay", checkpoint: true })}
         playbook={PLAYBOOK}
         skillColor="#6366f1"
-        barState="bar-pending"
+        barState="bar-glow"
       />,
     );
 
@@ -147,7 +147,7 @@ describe("TaskCard", () => {
         task={task({ id: "blocked-task", status: "blocked" })}
         playbook={PLAYBOOK}
         skillColor="#6366f1"
-        barState="bar-cancelled"
+        barState="bar-glow"
       />,
     );
     const badge = screen.getByTestId("task-error-blocked-task");
@@ -161,7 +161,7 @@ describe("TaskCard", () => {
         task={task({ id: "cp-on", checkpoint: true })}
         playbook={PLAYBOOK}
         skillColor="#6366f1"
-        barState="bar-pending"
+        barState="bar-glow"
       />,
     );
     expect(screen.getByTestId("task-checkpoint-cp-on")).toBeInTheDocument();
@@ -171,7 +171,7 @@ describe("TaskCard", () => {
         task={task({ id: "cp-on", checkpoint: false })}
         playbook={PLAYBOOK}
         skillColor="#6366f1"
-        barState="bar-pending"
+        barState="bar-glow"
       />,
     );
     expect(screen.queryByTestId("task-checkpoint-cp-on")).not.toBeInTheDocument();

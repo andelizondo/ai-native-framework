@@ -20,18 +20,19 @@ import type { WorkflowTask } from "./types";
 const TASK_TRIGGER_TYPES = new Set(["task", "after_task"]);
 
 /**
- * Bar state strings rendered by `.task-card.bar-*` (see `globals.css`;
- * `bar-cancelled` is DB `blocked` / UI "failed").
- * Exporting the type keeps the component / test surface honest:
- * any new state must round-trip through this union.
+ * Bar state strings rendered by `.task-card.bar-*` (see `globals.css`).
+ * `bar-glow` is the shared "demands attention" treatment used for both
+ * `pending_approval` and `blocked` (UI "Failed"); the glow color is then
+ * resolved from the task's status class (`s-pending`, `s-blocked`).
+ * Exporting the type keeps the component / test surface honest: any new
+ * state must round-trip through this union.
  */
 export type TaskBarState =
   | "bar-locked"
   | "bar-ready"
   | "bar-active"
-  | "bar-pending"
-  | "bar-complete"
-  | "bar-cancelled";
+  | "bar-glow"
+  | "bar-complete";
 
 /**
  * Returns true when `task` has no remaining upstream task dependencies.
@@ -83,9 +84,8 @@ export function barClass(
     case "active":
       return "bar-active";
     case "pending_approval":
-      return "bar-pending";
     case "blocked":
-      return "bar-cancelled";
+      return "bar-glow";
     case "not_started":
     default:
       return isReady ? "bar-ready" : "bar-locked";

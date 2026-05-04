@@ -1151,7 +1151,11 @@ function MiniTaskCell({
       className="mx-mini-cell-btn"
       data-testid={`task-mini-${task.id}`}
       data-status={task.status}
-      data-pulse={task.status === "pending_approval" ? "true" : undefined}
+      data-pulse={
+        task.status === "pending_approval" || task.status === "blocked"
+          ? "true"
+          : undefined
+      }
       onClick={onClick}
       aria-label={`Open playbook: ${title} (${statusLabel})`}
       style={

@@ -39,26 +39,76 @@
   opacity: 0.1;
 }
 .task-card.bar-ready::before {
-  opacity: 0.35;
+  opacity: 0.5;
 }
 .task-card.bar-active::before {
   opacity: 1;
   box-shadow: 2px 0 8px var(--role-color);
 }
-.task-card.bar-pending::before {
+/* Subtle shimmering sweep on active cards — mirrors the wave used on the
+ * Task Drawer's active playbook card so "in progress" reads as a moving,
+ * live state in both views. The gradient is a near-transparent white so
+ * it brightens the surface without overpowering the bar accent. */
+.task-card.bar-active::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background: linear-gradient(
+    100deg,
+    transparent 38%,
+    rgba(255, 255, 255, 0.05) 50%,
+    transparent 62%
+  );
+  background-size: 250% 100%;
+  background-repeat: no-repeat;
+  background-position: 200% 0;
+  animation: ainative-card-wave 4s ease-in-out infinite;
+  pointer-events: none;
+}
+@keyframes ainative-card-wave {
+  0% {
+    background-position: 200% 0;
+  }
+  /* Sweep itself takes ~70% of the cycle (≈2.8s) — slightly slower than
+   * before — and the remaining ~30% is a quiet idle so the wave reads
+   * as occasional rather than constant. */
+  70% {
+    background-position: -100% 0;
+  }
+  100% {
+    background-position: -100% 0;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .task-card.bar-active::after {
+    animation: none;
+  }
+}
+/* Generic "demands attention" treatment: full-opacity bar with a pulsing
+ * glow whose color is taken from the task's status class via the
+ * `--bar-glow-color` var. Used for `pending_approval` (amber, awaiting
+ * approval) and `blocked`/failed (red, needs intervention). */
+.task-card.bar-glow {
+  --bar-glow-color: var(--role-color, var(--border));
+}
+.task-card.s-pending.bar-glow {
+  --bar-glow-color: var(--pill-pending-d);
+}
+.task-card.s-blocked.bar-glow {
+  --bar-glow-color: var(--pill-blocked-d);
+}
+.task-card.bar-glow::before {
   opacity: 1;
-  box-shadow: 2px 0 12px rgba(245, 158, 11, 0.6);
+  box-shadow:
+    4px 0 22px 2px color-mix(in srgb, var(--bar-glow-color) 75%, transparent);
   animation: ainative-bar-pulse 2s ease-in-out infinite;
 }
 .task-card.bar-complete::before {
-  opacity: 0.35;
-}
-/* DB `blocked` / UI "failed" — keep role accent, not error red */
-.task-card.bar-cancelled::before {
-  opacity: 0.4;
+  opacity: 0.8;
 }
 .task-card.task-card-default::before {
-  opacity: 0.14;
+  opacity: 0.21;
   box-shadow: none;
 }
 .task-card.task-card-default {
@@ -70,19 +120,49 @@
 @keyframes ainative-bar-pulse {
   0%,
   100% {
-    box-shadow: 2px 0 6px rgba(245, 158, 11, 0.3);
+    box-shadow:
+      3px 0 14px 1px color-mix(in srgb, var(--bar-glow-color) 55%, transparent);
   }
   50% {
-    box-shadow: 2px 0 16px rgba(245, 158, 11, 0.8);
+    box-shadow:
+      6px 0 28px 3px color-mix(in srgb, var(--bar-glow-color) 95%, transparent);
   }
 }
 @media (prefers-reduced-motion: reduce) {
-  .task-card.bar-pending::before {
+  .task-card.bar-glow::before {
     animation: none;
   }
 }
 .task-card.bar-complete {
-  opacity: 0.75;
+  opacity: 0.8;
+}
+/* Faint status-tinted wash on every card except `not_started` — keeps a row
+ * of cards readable as a sequence of states (blue→amber→green→…) without
+ * needing to read the pill. The mix ratio is small enough to stay quiet
+ * under the title and pill, and the variable resolves per status class. */
+.task-card.s-active,
+.task-card.s-pending,
+.task-card.s-blocked,
+.task-card.s-complete {
+  background: color-mix(in srgb, var(--card-wash, transparent) 5%, var(--bg-2));
+}
+.task-card.s-active:hover,
+.task-card.s-pending:hover,
+.task-card.s-blocked:hover,
+.task-card.s-complete:hover {
+  background: color-mix(in srgb, var(--card-wash, transparent) 8%, var(--bg-3));
+}
+.task-card.s-active {
+  --card-wash: var(--pill-active-d);
+}
+.task-card.s-pending {
+  --card-wash: var(--pill-pending-d);
+}
+.task-card.s-blocked {
+  --card-wash: var(--pill-blocked-d);
+}
+.task-card.s-complete {
+  --card-wash: var(--pill-complete-d);
 }
 .task-card.bar-complete .tc-title {
   text-decoration: line-through;
