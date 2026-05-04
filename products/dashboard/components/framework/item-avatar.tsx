@@ -1,6 +1,6 @@
 "use client";
 
-import type { CSSProperties } from "react";
+import type { CSSProperties, ReactNode } from "react";
 
 import { cn } from "@/lib/utils";
 
@@ -61,6 +61,10 @@ interface ItemAvatarProps {
    *  by the mini task cell to encode task status separately from the
    *  ring's identity color. */
   backgroundFill?: string;
+  /** Optional ReactNode rendered instead of the emoji/initials. Used by
+   *  the mini task cell to overlay a status icon (e.g. a check mark for
+   *  completed tasks). The node is responsible for its own sizing. */
+  icon?: ReactNode;
   className?: string;
 }
 
@@ -81,6 +85,7 @@ export function ItemAvatar({
   stackTotal,
   stackedSeparator = false,
   backgroundFill,
+  icon,
   className,
 }: ItemAvatarProps) {
   const px = SIZE_PX[size];
@@ -114,7 +119,11 @@ export function ItemAvatar({
         : undefined,
   };
 
-  const inner = usingInitials ? (
+  const inner = icon ? (
+    <span aria-hidden className="inline-flex items-center justify-center">
+      {icon}
+    </span>
+  ) : usingInitials ? (
     <span aria-hidden className="font-mono font-semibold uppercase tracking-tight">
       {(initials ?? "").slice(0, 2)}
     </span>

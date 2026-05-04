@@ -4,6 +4,7 @@ import { useCallback, useEffect, useId, useMemo, useRef, useState, useTransition
 import { createPortal } from "react-dom";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import {
+  Check,
   ChevronsLeftRight,
   ChevronsRightLeft,
   Maximize2,
@@ -1174,6 +1175,16 @@ function MiniTaskCell({
           emoji={playbook?.icon ?? null}
           color={skillColor}
           backgroundFill={statusFill}
+          icon={
+            task.status === "complete" ? (
+              <Check
+                aria-hidden
+                size={12}
+                strokeWidth={2.6}
+                style={{ color: statusColor }}
+              />
+            ) : undefined
+          }
           label={title}
           size="xs"
         />
