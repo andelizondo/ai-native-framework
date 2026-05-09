@@ -12,8 +12,8 @@ import type { WorkflowTask } from "./types";
 /**
  * Bar state strings rendered by `.task-card.bar-*` (see `globals.css`).
  * `bar-glow` is the shared "demands attention" treatment used for both
- * `pending_approval` and `blocked` (UI "Failed"); the glow color is then
- * resolved from the task's status class (`s-pending`, `s-blocked`).
+ * `paused` (e.g. checkpoint) and `failed`; the glow color is then resolved
+ * from the task's status class (`s-paused`, `s-failed`).
  */
 export type TaskBarState =
   | "bar-locked"
@@ -60,11 +60,14 @@ export function barClass(
   switch (task.status) {
     case "complete":
       return "bar-complete";
-    case "active":
+    case "in_progress":
+    case "running":
       return "bar-active";
-    case "pending_approval":
-    case "blocked":
+    case "paused":
+    case "failed":
       return "bar-glow";
+    case "waiting":
+      return "bar-locked";
     case "not_started":
     default:
       return isReady ? "bar-ready" : "bar-locked";

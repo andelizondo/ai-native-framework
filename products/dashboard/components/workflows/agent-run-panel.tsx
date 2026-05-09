@@ -238,7 +238,7 @@ const SEED_NOT_STARTED: AgentRun = {
 function pickSeedRun(task: WorkflowTask): AgentRun {
   if (task.status === "not_started") return SEED_NOT_STARTED;
   if (task.status === "complete")    return SEED_COMPLETE;
-  if (task.status === "blocked")     return SEED_FAILED;
+  if (task.status === "failed")      return SEED_FAILED;
   if (task.checkpoint)               return SEED_CHECKPOINT;
   return SEED_RUNNING;
 }
@@ -262,14 +262,15 @@ function initialExpanded(task: WorkflowTask, steps: AgentRunStep[]): Set<string>
     case "not_started":
       // All collapsed — preview mode
       return new Set();
-    case "active":
-    case "pending_approval":
+    case "in_progress":
+    case "running":
+    case "paused":
       // Only the current active/waiting step
       return new Set(steps.filter((s) => s.status === "active" || s.status === "waiting").map((s) => s.id));
     case "complete":
       // All done steps expanded
       return new Set(steps.map((s) => s.id));
-    case "blocked":
+    case "failed":
       // Done + failed steps expanded
       return new Set(steps.filter((s) => s.status === "done" || s.status === "failed").map((s) => s.id));
     default:
@@ -296,8 +297,9 @@ function runMetaLabel(
   switch (task.status) {
     case "not_started":  return `${totalSteps} steps · not started`;
     case "complete":     return `Completed · ${totalSteps}/${totalSteps} steps`;
-    case "blocked":      return `Failed · ${doneCount}/${totalSteps} steps`;
-    case "active":       return `Running ${elapsed} · ${doneCount}/${totalSteps} steps`;
+    case "failed":       return `Failed · ${doneCount}/${totalSteps} steps`;
+    case "in_progress":
+    case "running":      return `Running ${elapsed} · ${doneCount}/${totalSteps} steps`;
     default:             return `${doneCount}/${totalSteps} steps`;
   }
 }
@@ -398,7 +400,8 @@ export function AgentRunPanel({
   // `isApproved` means approveDrawerCheckpointAction has already flipped
   // `task.status` to "active" while preserving `task.checkpoint`, so this
   // combination represents a checkpointed task that has been approved to continue.
-  const isApproved = task.status === "active" && task.checkpoint;
+  const isApproved =
+    (task.status === "in_progress" || task.status === "running") && task.checkpoint;
 
   return (
     <div
@@ -447,7 +450,7 @@ export function AgentRunPanel({
             className={cn(
               "arp-progress-fill",
               task.status === "complete" && "arp-progress-fill--complete",
-              task.status === "blocked"  && "arp-progress-fill--failed",
+              task.status === "failed"   && "arp-progress-fill--failed",
             )}
             style={{ width: `${progressPct}%` }}
           />

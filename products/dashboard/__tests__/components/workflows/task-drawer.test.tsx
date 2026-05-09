@@ -100,12 +100,15 @@ function makeTask(overrides: Partial<WorkflowTask> = {}): WorkflowTask {
     skillId: "sales-ops",
     stageId: "pre-sales",
     notes: "Scope review",
-    status: "pending_approval",
+    status: "paused",
     substatus: "",
     checkpoint: true,
     inputs: [],
     playbookId: null,
     owners: [],
+    pausedReason: "checkpoint",
+    pausedBy: null,
+    pausedAt: "2026-04-19T12:00:00Z",
     createdAt: "2026-04-19T12:00:00Z",
     updatedAt: "2026-04-19T12:00:00Z",
     ...overrides,
@@ -213,7 +216,7 @@ describe("TaskDrawer", () => {
 
   describe("Details tab — primary action card", () => {
     it("shows Approve + Reject buttons for pending_approval task", () => {
-      renderDrawer({ status: "pending_approval", checkpoint: true });
+      renderDrawer({ status: "paused", checkpoint: true, pausedReason: "checkpoint" });
       expect(screen.getByTestId("td-approve-btn")).toBeInTheDocument();
       expect(screen.getByTestId("td-reject-btn")).toBeInTheDocument();
     });
@@ -226,7 +229,7 @@ describe("TaskDrawer", () => {
     });
 
     it("shows active playbook row with stop control for running task", () => {
-      renderDrawer({ status: "active", checkpoint: false, playbookId:"demo-pb" });
+      renderDrawer({ status: "in_progress", checkpoint: false, playbookId:"demo-pb" });
       const playbookCard = screen.getByTestId("td-playbook-card");
       expect(playbookCard).not.toHaveAttribute("role", "button");
       expect(screen.getByTestId("td-pb-stop-run-btn")).toBeInTheDocument();
@@ -241,14 +244,14 @@ describe("TaskDrawer", () => {
   describe("Cancel run", () => {
     it("calls cancelRunningTaskAction and onTaskUpdate when stop is clicked", async () => {
       const updatedTask = makeTask({
-        status: "blocked",
+        status: "failed",
         checkpoint: false,
         playbookId:"demo-pb",
       });
       mockCancelRun.mockResolvedValue({ task: updatedTask });
       const onTaskUpdate = vi.fn();
       const { task } = renderDrawer(
-        { status: "active", checkpoint: false, playbookId:"demo-pb" },
+        { status: "in_progress", checkpoint: false, playbookId:"demo-pb" },
         [],
         vi.fn(),
         onTaskUpdate,
@@ -270,14 +273,14 @@ describe("TaskDrawer", () => {
   describe("Retry run", () => {
     it("calls retryBlockedTaskAction and onTaskUpdate when retry is clicked", async () => {
       const updatedTask = makeTask({
-        status: "active",
+        status: "in_progress",
         checkpoint: false,
         playbookId:"demo-pb",
       });
       mockRetryBlocked.mockResolvedValue({ task: updatedTask });
       const onTaskUpdate = vi.fn();
       const { task } = renderDrawer(
-        { status: "blocked", checkpoint: false, playbookId:"demo-pb" },
+        { status: "failed", checkpoint: false, playbookId:"demo-pb" },
         [],
         vi.fn(),
         onTaskUpdate,
@@ -306,9 +309,9 @@ describe("TaskDrawer", () => {
     it("invokes onViewLiveRun for every eligible playbook-card status and skips not_started without a handler", async () => {
       const user = userEvent.setup();
       const runnableStatuses: WorkflowTask["status"][] = [
-        "active",
-        "blocked",
-        "pending_approval",
+        "in_progress",
+        "failed",
+        "paused",
         "complete",
       ];
 
@@ -336,10 +339,10 @@ describe("TaskDrawer", () => {
 
   describe("Approve flow", () => {
     it("calls approveDrawerCheckpointAction and onTaskUpdate on success", async () => {
-      const updatedTask = makeTask({ status: "active" });
+      const updatedTask = makeTask({ status: "in_progress" });
       mockApprove.mockResolvedValue({ task: updatedTask });
       const onTaskUpdate = vi.fn();
-      const { task } = renderDrawer({ status: "pending_approval" }, [], vi.fn(), onTaskUpdate);
+      const { task } = renderDrawer({ status: "paused" }, [], vi.fn(), onTaskUpdate);
 
       const approveBtn = screen.getByTestId("td-approve-btn");
       await act(async () => {
@@ -356,7 +359,7 @@ describe("TaskDrawer", () => {
 
     it("captures error if approve action throws", async () => {
       mockApprove.mockRejectedValue(new Error("Server error"));
-      renderDrawer({ status: "pending_approval" });
+      renderDrawer({ status: "paused" });
 
       await act(async () => {
         fireEvent.click(screen.getByTestId("td-approve-btn"));
@@ -369,7 +372,7 @@ describe("TaskDrawer", () => {
   describe("Reject flow", () => {
     it("calls rejectDrawerCheckpointAction on reject", async () => {
       mockReject.mockResolvedValue(undefined);
-      const { task } = renderDrawer({ status: "pending_approval" });
+      const { task } = renderDrawer({ status: "paused" });
 
       await act(async () => {
         fireEvent.click(screen.getByTestId("td-reject-btn"));
