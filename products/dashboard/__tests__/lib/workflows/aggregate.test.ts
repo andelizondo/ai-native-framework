@@ -69,6 +69,11 @@ function task(
   status: WorkflowTask["status"] = "not_started",
   overrides: Partial<WorkflowTask> = {},
 ): WorkflowTask {
+  // PR 2 / AEL-60: pickPendingCheckpoints now requires checkpoint=true AND
+  // pausedReason='checkpoint' (paused for any other reason isn't a pending
+  // approval). The helper applies that default for paused tasks so existing
+  // fixtures keep flagging as pending checkpoints.
+  const isPausedCheckpoint = status === "paused";
   return {
     id,
     instanceId,
@@ -77,10 +82,13 @@ function task(
     notes: "",
     status,
     substatus: "",
-    checkpoint: false,
+    checkpoint: isPausedCheckpoint,
     inputs: [],
     playbookId: null,
     owners: [],
+    pausedReason: isPausedCheckpoint ? "checkpoint" : null,
+    pausedBy: null,
+    pausedAt: isPausedCheckpoint ? "2026-04-19T12:00:00Z" : null,
     createdAt: "2026-04-19T12:00:00Z",
     updatedAt: "2026-04-19T12:00:00Z",
     ...overrides,
@@ -150,8 +158,8 @@ describe("computeOverviewStats", () => {
       ],
       tasks: [
         task("k-1", "i-1", "complete"),
-        task("k-2", "i-1", "active"),
-        task("k-3", "i-2", "pending_approval"),
+        task("k-2", "i-1", "in_progress"),
+        task("k-3", "i-2", "paused"),
         task("k-4", "i-2", "not_started"),
         task("k-5", "i-3", "complete"),
       ],
@@ -179,7 +187,7 @@ describe("computeTemplateHealth", () => {
       instances: [instance("i-a", "delivery"), instance("i-b", "product")],
       tasks: [
         task("k-1", "i-a", "complete"),
-        task("k-2", "i-a", "active"),
+        task("k-2", "i-a", "in_progress"),
         task("k-3", "i-a", "complete"),
         task("k-4", "i-b", "not_started"),
       ],
@@ -214,8 +222,8 @@ describe("pickPendingCheckpoints", () => {
       templates: [t1],
       instances: [i1],
       tasks: [
-        task("k-1", "i-1", "pending_approval"),
-        task("k-2", "i-1", "active"),
+        task("k-1", "i-1", "paused"),
+        task("k-2", "i-1", "in_progress"),
       ],
       events: [],
     };
@@ -231,7 +239,7 @@ describe("pickPendingCheckpoints", () => {
     const snapshot: OverviewSnapshot = {
       templates: [],
       instances: [],
-      tasks: [task("k-orphan", "ghost", "pending_approval")],
+      tasks: [task("k-orphan", "ghost", "paused")],
       events: [],
     };
     expect(pickPendingCheckpoints(snapshot)).toEqual([]);
@@ -246,10 +254,10 @@ describe("pickActiveTasks", () => {
       templates: [t1],
       instances: [i1],
       tasks: [
-        task("k-1", "i-1", "active", { playbookId: "Discovery call v3" }),
-        task("k-2", "i-1", "pending_approval"),
+        task("k-1", "i-1", "in_progress", { playbookId: "Discovery call v3" }),
+        task("k-2", "i-1", "paused"),
         task("k-3", "i-1", "complete"),
-        task("k-4", "i-1", "active", { playbookId: null }),
+        task("k-4", "i-1", "in_progress", { playbookId: null }),
       ],
       events: [],
     };
@@ -265,7 +273,7 @@ describe("pickActiveTasks", () => {
     const snapshot: OverviewSnapshot = {
       templates: [],
       instances: [],
-      tasks: [task("k-orphan", "ghost", "active")],
+      tasks: [task("k-orphan", "ghost", "in_progress")],
       events: [],
     };
     expect(pickActiveTasks(snapshot)).toEqual([]);
@@ -276,7 +284,7 @@ describe("pickActiveTasks", () => {
     const snapshot: OverviewSnapshot = {
       templates: [],
       instances: [i1],
-      tasks: [task("k-1", "i-1", "active")],
+      tasks: [task("k-1", "i-1", "in_progress")],
       events: [],
     };
     const active = pickActiveTasks(snapshot);

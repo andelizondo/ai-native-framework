@@ -16,7 +16,7 @@ function task(overrides: Partial<WorkflowTask> = {}): WorkflowTask {
     skillId: "sales-ops",
     stageId: "pre-sales",
     notes: "",
-    status: "active",
+    status: "in_progress",
     substatus: "",
     checkpoint: false,
     inputs: [],
@@ -68,9 +68,11 @@ describe("TaskCard", () => {
 
   it.each<[WorkflowTask["status"], TaskBarState, string]>([
     ["complete", "bar-complete", "Complete"],
-    ["active", "bar-active", "In progress"],
-    ["pending_approval", "bar-glow", "Pending approval"],
-    ["blocked", "bar-glow", "Failed"],
+    ["in_progress", "bar-active", "In progress"],
+    ["running", "bar-active", "Running"],
+    ["paused", "bar-glow", "Paused"],
+    ["failed", "bar-glow", "Failed"],
+    ["waiting", "bar-locked", "Waiting"],
     ["not_started", "bar-ready", "Not started"],
     ["not_started", "bar-locked", "Not started"],
   ])(
@@ -145,7 +147,7 @@ describe("TaskCard", () => {
   it("renders an error info-badge when the task is blocked", () => {
     render(
       <TaskCard
-        task={task({ id: "blocked-task", status: "blocked" })}
+        task={task({ id: "blocked-task", status: "failed" })}
         playbook={PLAYBOOK}
         skillColor="#6366f1"
         barState="bar-glow"

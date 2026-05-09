@@ -71,12 +71,15 @@ function makeTask(overrides: Partial<WorkflowTask> = {}): WorkflowTask {
     skillId: "skill-1",
     stageId: "stage-1",
     notes: "",
-    status: "pending_approval",
+    status: "paused",
     substatus: "",
     checkpoint: true,
     inputs: [],
     playbookId: null,
     owners: [],
+    pausedReason: "checkpoint",
+    pausedBy: null,
+    pausedAt: "2026-04-19T12:00:00Z",
     createdAt: "2026-04-19T12:00:00Z",
     updatedAt: "2026-04-19T12:00:00Z",
     ...overrides,
@@ -114,10 +117,10 @@ function setupRepo(transitioned: WorkflowTask | null): RepoMocks {
     addEvent: vi.fn().mockResolvedValue(event),
   };
 
-  const repo: Partial<WorkflowRepository> = {
+  const repo = {
     transitionPendingCheckpoint: mocks.transitionPendingCheckpoint,
     addEvent: mocks.addEvent,
-  };
+  } as unknown as Partial<WorkflowRepository>;
 
   mockGetRepo.mockResolvedValue(repo);
   return mocks;
@@ -163,12 +166,12 @@ describe("resolveCheckpointAction precondition gate", () => {
     await expect(
       resolveCheckpointAction("task-1", "approved"),
     ).rejects.toThrow(
-      /missing, not a checkpoint, or no longer pending_approval/,
+      /missing, not a checkpoint, or not paused on a checkpoint/,
     );
 
     expect(repo.transitionPendingCheckpoint).toHaveBeenCalledWith(
       "task-1",
-      "complete",
+      "in_progress",
     );
     expect(repo.addEvent).not.toHaveBeenCalled();
     expect(mockRevalidatePath).not.toHaveBeenCalled();
@@ -181,7 +184,7 @@ describe("resolveCheckpointAction precondition gate", () => {
 
     expect(repo.transitionPendingCheckpoint).toHaveBeenCalledWith(
       "task-1",
-      "complete",
+      "in_progress",
     );
   });
 
@@ -192,24 +195,24 @@ describe("resolveCheckpointAction precondition gate", () => {
 
     expect(repo.transitionPendingCheckpoint).toHaveBeenCalledWith(
       "task-1",
-      "complete",
+      "in_progress",
     );
     expect(repo.addEvent).toHaveBeenCalledTimes(1);
     expect(repo.addEvent.mock.calls[0]?.[1].name).toBe(
       "workflow.checkpoint_approved",
     );
     expect(mockRevalidatePath).toHaveBeenCalledWith("/", "layout");
-    expect(result.task.status).toBe("complete");
+    expect(result.task.status).toBe("in_progress");
   });
 
-  it("maps `rejected` resolution to status=blocked + checkpoint_rejected event", async () => {
+  it("maps `rejected` resolution to status=failed + checkpoint_rejected event", async () => {
     const repo = setupRepo(makeTask());
 
     await resolveCheckpointAction("task-1", "rejected");
 
     expect(repo.transitionPendingCheckpoint).toHaveBeenCalledWith(
       "task-1",
-      "blocked",
+      "failed",
     );
     expect(repo.addEvent.mock.calls[0]?.[1].name).toBe(
       "workflow.checkpoint_rejected",
@@ -225,7 +228,7 @@ describe("resolveCheckpointAction precondition gate", () => {
     expect(repo.transitionPendingCheckpoint).toHaveBeenCalledTimes(1);
     expect(mockCaptureError).toHaveBeenCalledTimes(1);
     expect(mockRevalidatePath).toHaveBeenCalledWith("/", "layout");
-    expect(result.task.status).toBe("complete");
+    expect(result.task.status).toBe("in_progress");
   });
 });
 
@@ -416,9 +419,16 @@ describe("workflow matrix edit actions", () => {
     ).rejects.toThrow("updateTemplateAction: template color is required");
   });
 
-  it("startTaskAction uses the atomic status transition and records an event", async () => {
-    const started = makeTask({ id: "task-start", status: "active", checkpoint: false });
-    const updateTaskIfStatus = vi.fn().mockResolvedValue(started);
+  it("startTaskAction validates inputs received then flips to in_progress", async () => {
+    const started = makeTask({ id: "task-start", status: "in_progress", checkpoint: false });
+    const drawer = {
+      task: makeTask({ id: "task-start", status: "not_started", checkpoint: false }),
+      inputs: [],
+      outputs: [],
+      playbookOutputs: [],
+    };
+    const getDrawerData = vi.fn().mockResolvedValue(drawer);
+    const updateTask = vi.fn().mockResolvedValue(started);
     const addEvent = vi.fn().mockResolvedValue({
       id: "event-5",
       instanceId: started.instanceId,
@@ -430,39 +440,37 @@ describe("workflow matrix edit actions", () => {
     });
 
     mockGetRepo.mockResolvedValue({
-      updateTaskIfStatus,
+      getDrawerData,
+      updateTask,
       addEvent,
-      getTask: vi.fn(),
     } satisfies Partial<WorkflowRepository>);
 
     const result = await startTaskAction("task-start");
 
-    expect(updateTaskIfStatus).toHaveBeenCalledWith("task-start", "not_started", {
-      status: "active",
-    });
+    expect(getDrawerData).toHaveBeenCalledWith("task-start");
+    expect(updateTask).toHaveBeenCalledWith("task-start", { status: "in_progress" });
     expect(addEvent.mock.calls[0]?.[1].name).toBe("workflow.task_started");
     expect(mockRevalidatePath).toHaveBeenCalledWith("/", "layout");
-    expect(result.task.status).toBe("active");
+    expect(result.task.status).toBe("in_progress");
   });
 
-  it("cancelRunningTaskAction rejects with the same error when the task is no longer active", async () => {
+  it("cancelRunningTaskAction rejects when the task is no longer in_progress/running", async () => {
     const current = makeTask({ id: "task-cancel", status: "complete", checkpoint: false });
-    const updateTaskIfStatus = vi.fn().mockResolvedValue(null);
     const getTask = vi.fn().mockResolvedValue(current);
+    const updateTask = vi.fn();
 
     mockGetRepo.mockResolvedValue({
-      updateTaskIfStatus,
       getTask,
+      updateTask,
       addEvent: vi.fn(),
     } satisfies Partial<WorkflowRepository>);
 
     await expect(cancelRunningTaskAction("task-cancel")).rejects.toThrow(
-      /task is not active/,
+      /not in_progress or running/,
     );
 
-    expect(updateTaskIfStatus).toHaveBeenCalledWith("task-cancel", "active", {
-      status: "blocked",
-    });
+    expect(getTask).toHaveBeenCalledWith("task-cancel");
+    expect(updateTask).not.toHaveBeenCalled();
   });
 
   it("retryBlockedTaskAction rejects with task not found when the row no longer exists", async () => {
@@ -479,8 +487,8 @@ describe("workflow matrix edit actions", () => {
       /task not found/,
     );
 
-    expect(updateTaskIfStatus).toHaveBeenCalledWith("task-retry", "blocked", {
-      status: "active",
+    expect(updateTaskIfStatus).toHaveBeenCalledWith("task-retry", "failed", {
+      status: "in_progress",
     });
   });
 });

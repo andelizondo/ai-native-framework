@@ -30,9 +30,9 @@ export interface OverviewSnapshot {
 export interface OverviewStats {
   /** Number of instances whose status is anything other than `complete`. */
   activeInstances: number;
-  /** Tasks awaiting a human decision (status === "pending_approval"). */
+  /** Tasks awaiting a human decision (status === "paused"). */
   pendingTasks: number;
-  /** Tasks currently active (status === "active"). */
+  /** Tasks currently in progress or running (status === "in_progress" | "running"). */
   activeTasks: number;
   /** Tasks that have reached the `complete` state. */
   completedTasks: number;
@@ -87,8 +87,10 @@ export function percentComplete(complete: number, total: number): number {
 export function computeOverviewStats(snapshot: OverviewSnapshot): OverviewStats {
   const tasks = snapshot.tasks;
   const completedTasks = tasks.filter((t) => t.status === "complete").length;
-  const activeTasks = tasks.filter((t) => t.status === "active").length;
-  const pendingTasks = tasks.filter((t) => t.status === "pending_approval").length;
+  const activeTasks = tasks.filter(
+    (t) => t.status === "in_progress" || t.status === "running",
+  ).length;
+  const pendingTasks = tasks.filter((t) => t.status === "paused").length;
   const activeInstances = snapshot.instances.filter(
     (i) => i.status !== "complete",
   ).length;
@@ -181,7 +183,9 @@ export function pickPendingCheckpoints(snapshot: OverviewSnapshot): PendingCheck
   const templateById = new Map(snapshot.templates.map((t) => [t.id, t]));
 
   return snapshot.tasks
-    .filter((t) => t.status === "pending_approval")
+    .filter(
+      (t) => t.status === "paused" && t.checkpoint && t.pausedReason === "checkpoint",
+    )
     .map((task) => {
       const instance = instanceById.get(task.instanceId);
       if (!instance) return null;
@@ -211,7 +215,7 @@ export function pickActiveTasks(snapshot: OverviewSnapshot): ActiveTask[] {
   const templateById = new Map(snapshot.templates.map((t) => [t.id, t]));
 
   return snapshot.tasks
-    .filter((t) => t.status === "active")
+    .filter((t) => t.status === "in_progress" || t.status === "running")
     .map((task) => {
       const instance = instanceById.get(task.instanceId);
       if (!instance) return null;

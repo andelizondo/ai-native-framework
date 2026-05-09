@@ -9,6 +9,10 @@ import {
   type PendingCheckpoint,
 } from "@/lib/workflows/aggregate";
 import type {
+  DrawerData,
+  OutputArtifact,
+  TaskInputState,
+  TaskOutput,
   WorkflowInput,
   WorkflowInstance,
   WorkflowTask,
@@ -19,10 +23,12 @@ import type {
 
 const TASK_STATUS_VALUES: readonly WorkflowTaskStatus[] = [
   "not_started",
-  "active",
-  "pending_approval",
-  "blocked",
+  "waiting",
+  "paused",
+  "in_progress",
+  "running",
   "complete",
+  "failed",
 ];
 
 function isWorkflowTaskStatus(value: unknown): value is WorkflowTaskStatus {
@@ -164,11 +170,11 @@ export async function resolveCheckpointAction(
   // predicates into the UPDATE closes that window — when no row is
   // returned, nothing was written, and we refuse without calling
   // `addEvent` so the database state and event feed stay truthful.
-  const nextStatus = resolution === "approved" ? "complete" : "blocked";
+  const nextStatus = resolution === "approved" ? "in_progress" : "failed";
   const task = await repo.transitionPendingCheckpoint(trimmedTaskId, nextStatus);
   if (!task) {
     throw new Error(
-      "resolveCheckpointAction: task is missing, not a checkpoint, or no longer pending_approval",
+      "resolveCheckpointAction: task is missing, not a checkpoint, or not paused on a checkpoint",
     );
   }
 
@@ -239,13 +245,17 @@ export async function approveDrawerCheckpointAction(
   if (!current) {
     throw new Error("approveDrawerCheckpointAction: task not found");
   }
-  if (!current.checkpoint || current.status !== "pending_approval") {
+  if (
+    !current.checkpoint ||
+    current.status !== "paused" ||
+    current.pausedReason !== "checkpoint"
+  ) {
     throw new Error(
-      "approveDrawerCheckpointAction: task is not a pending checkpoint",
+      "approveDrawerCheckpointAction: task is not a paused checkpoint",
     );
   }
 
-  const task = await repo.updateTask(trimmedId, { status: "active" });
+  const task = await repo.resumeTask(trimmedId);
 
   try {
     await repo.addEvent(trimmedId, {
@@ -286,9 +296,13 @@ export async function rejectDrawerCheckpointAction(
   if (!task) {
     throw new Error("rejectDrawerCheckpointAction: task not found");
   }
-  if (!task.checkpoint || task.status !== "pending_approval") {
+  if (
+    !task.checkpoint ||
+    task.status !== "paused" ||
+    task.pausedReason !== "checkpoint"
+  ) {
     throw new Error(
-      "rejectDrawerCheckpointAction: task is not a pending checkpoint",
+      "rejectDrawerCheckpointAction: task is not a paused checkpoint",
     );
   }
 
@@ -585,14 +599,34 @@ export async function startTaskAction(
   if (!trimmedId) throw new Error("startTaskAction: taskId is required");
 
   const repo = await getServerWorkflowRepository();
-  const task = await repo.updateTaskIfStatus(trimmedId, "not_started", {
-    status: "active",
-  });
-  if (!task) {
-    const current = await repo.getTask(trimmedId);
-    if (!current) throw new Error("startTaskAction: task not found");
-    throw new Error("startTaskAction: task is not in not_started state");
+
+  // New precondition (PR 2 / AEL-60): "all inputs received and not paused".
+  // We read drawer data so the gate sees per-instance task_inputs state, not
+  // just the persisted column — a task may be persisted as not_started while
+  // its linked inputs are already satisfied (pre-receipt path) or vice-versa.
+  const drawer = await repo.getDrawerData(trimmedId);
+  if (!drawer) throw new Error("startTaskAction: task not found");
+  if (drawer.task.status === "paused") {
+    throw new Error("startTaskAction: task is paused");
   }
+  if (drawer.task.status === "complete" || drawer.task.status === "failed") {
+    throw new Error("startTaskAction: task already terminal");
+  }
+  const linkedDefIds = new Set(
+    drawer.task.inputs.filter((i) => i.linkMode === "linked").map((i) => i.id),
+  );
+  if (linkedDefIds.size > 0) {
+    const receivedById = new Map(
+      drawer.inputs.map((i) => [i.inputId, i.received]),
+    );
+    const allReceived = Array.from(linkedDefIds).every(
+      (id) => receivedById.get(id) === true,
+    );
+    if (!allReceived) {
+      throw new Error("startTaskAction: not all linked inputs received");
+    }
+  }
+  const task = await repo.updateTask(trimmedId, { status: "in_progress" });
 
   try {
     await repo.addEvent(trimmedId, {
@@ -613,8 +647,9 @@ export async function startTaskAction(
 }
 
 /**
- * Stop an in-flight task run: persists `status: "blocked"` (failed in UI)
- * and records `workflow.run_cancelled`. Only `active` tasks accept this path.
+ * Stop an in-flight task run: persists `status: "failed"` and records
+ * `workflow.run_cancelled`. Accepts both `in_progress` and `running` tasks
+ * (the transient sub-state distinction is meaningless for cancellation).
  */
 export async function cancelRunningTaskAction(
   taskId: string,
@@ -625,16 +660,14 @@ export async function cancelRunningTaskAction(
   }
 
   const repo = await getServerWorkflowRepository();
-  const task = await repo.updateTaskIfStatus(trimmedId, "active", {
-    status: "blocked",
-  });
-  if (!task) {
-    const current = await repo.getTask(trimmedId);
-    if (!current) {
-      throw new Error("cancelRunningTaskAction: task not found");
-    }
-    throw new Error("cancelRunningTaskAction: task is not active");
+  const current = await repo.getTask(trimmedId);
+  if (!current) {
+    throw new Error("cancelRunningTaskAction: task not found");
   }
+  if (current.status !== "in_progress" && current.status !== "running") {
+    throw new Error("cancelRunningTaskAction: task is not in_progress or running");
+  }
+  const task = await repo.updateTask(trimmedId, { status: "failed" });
 
   try {
     await repo.addEvent(trimmedId, {
@@ -655,7 +688,7 @@ export async function cancelRunningTaskAction(
 }
 
 /**
- * Resume a failed playbook run: `blocked` → `active`.
+ * Resume a failed playbook run: `failed` → `in_progress`.
  * Used when the user chooses Retry from the Task Drawer playbook control.
  */
 export async function retryBlockedTaskAction(
@@ -667,15 +700,15 @@ export async function retryBlockedTaskAction(
   }
 
   const repo = await getServerWorkflowRepository();
-  const task = await repo.updateTaskIfStatus(trimmedId, "blocked", {
-    status: "active",
+  const task = await repo.updateTaskIfStatus(trimmedId, "failed", {
+    status: "in_progress",
   });
   if (!task) {
     const current = await repo.getTask(trimmedId);
     if (!current) {
       throw new Error("retryBlockedTaskAction: task not found");
     }
-    throw new Error("retryBlockedTaskAction: task is not blocked");
+    throw new Error("retryBlockedTaskAction: task is not failed");
   }
 
   try {
@@ -893,4 +926,198 @@ export async function deleteTemplateAction(templateId: string): Promise<void> {
   await repo.deleteTemplate(trimmedTemplateId);
 
   revalidatePath("/", "layout");
+}
+
+// ---------------------------------------------------------------------------
+// PR 2 / AEL-60 — drawer IO actions. The redesigned drawer (PR 3) calls
+// these to flip per-task input/output state. Each one persists, then emits
+// a domain event so the audit trail and analytics pick up the change.
+// ---------------------------------------------------------------------------
+
+export async function getDrawerDataAction(
+  taskId: string,
+): Promise<DrawerData | null> {
+  const trimmedId = normalizeTaskField(taskId, "taskId", 80);
+  if (!trimmedId) throw new Error("getDrawerDataAction: taskId is required");
+  const repo = await getServerWorkflowRepository();
+  return repo.getDrawerData(trimmedId);
+}
+
+async function emitTaskEvent(
+  feature: string,
+  name: string,
+  description: string,
+  task: WorkflowTask,
+  payload: Record<string, unknown> = {},
+): Promise<void> {
+  const repo = await getServerWorkflowRepository();
+  try {
+    await repo.addEvent(task.id, {
+      name,
+      description,
+      payload: { task_id: task.id, instance_id: task.instanceId, ...payload },
+    });
+  } catch (eventError) {
+    captureError(eventError, {
+      feature,
+      action: "addEvent",
+      extra: { task_id: task.id, instance_id: task.instanceId },
+    });
+  }
+}
+
+export async function markInputReceivedAction(
+  taskId: string,
+  inputId: string,
+): Promise<{ input: TaskInputState }> {
+  const trimmedId = normalizeTaskField(taskId, "taskId", 80);
+  const trimmedInputId = normalizeTaskField(inputId, "inputId", 120);
+  if (!trimmedId || !trimmedInputId) {
+    throw new Error("markInputReceivedAction: taskId and inputId are required");
+  }
+
+  const repo = await getServerWorkflowRepository();
+  const input = await repo.markInputReceived(trimmedId, trimmedInputId);
+  const task = await repo.getTask(trimmedId);
+  if (task) {
+    await emitTaskEvent(
+      "workflows.mark_input_received",
+      "workflow.input_received",
+      `Input received: ${trimmedInputId}`,
+      task,
+      { input_id: trimmedInputId, mode: "manual" },
+    );
+  }
+
+  revalidatePath("/", "layout");
+  return { input };
+}
+
+export async function bypassInputAction(
+  taskId: string,
+  inputId: string,
+): Promise<{ input: TaskInputState }> {
+  const trimmedId = normalizeTaskField(taskId, "taskId", 80);
+  const trimmedInputId = normalizeTaskField(inputId, "inputId", 120);
+  if (!trimmedId || !trimmedInputId) {
+    throw new Error("bypassInputAction: taskId and inputId are required");
+  }
+
+  const repo = await getServerWorkflowRepository();
+  const input = await repo.bypassInput(trimmedId, trimmedInputId);
+  const task = await repo.getTask(trimmedId);
+  if (task) {
+    await emitTaskEvent(
+      "workflows.bypass_input",
+      "workflow.input_bypassed",
+      `Input bypassed: ${trimmedInputId}`,
+      task,
+      { input_id: trimmedInputId, mode: "bypass" },
+    );
+  }
+
+  revalidatePath("/", "layout");
+  return { input };
+}
+
+export async function produceOutputAction(
+  taskId: string,
+  outputId: string,
+  artifact?: OutputArtifact,
+): Promise<{ output: TaskOutput }> {
+  const trimmedId = normalizeTaskField(taskId, "taskId", 80);
+  const trimmedOutputId = normalizeTaskField(outputId, "outputId", 80);
+  if (!trimmedId || !trimmedOutputId) {
+    throw new Error("produceOutputAction: taskId and outputId are required");
+  }
+
+  const repo = await getServerWorkflowRepository();
+  const output = await repo.produceOutput(trimmedId, trimmedOutputId, artifact);
+  const task = await repo.getTask(trimmedId);
+  if (task) {
+    await emitTaskEvent(
+      "workflows.produce_output",
+      "workflow.output_produced",
+      `Output produced: ${trimmedOutputId}`,
+      task,
+      {
+        output_id: trimmedOutputId,
+        artifact_url: artifact?.artifactUrl ?? null,
+      },
+    );
+  }
+
+  revalidatePath("/", "layout");
+  return { output };
+}
+
+const MAX_PAUSE_REASON_LENGTH = 80;
+
+export async function pauseTaskAction(
+  taskId: string,
+  reason: string,
+): Promise<{ task: WorkflowTask }> {
+  const trimmedId = normalizeTaskField(taskId, "taskId", 80);
+  const trimmedReason = normalizeTaskField(reason, "reason", MAX_PAUSE_REASON_LENGTH);
+  if (!trimmedId || !trimmedReason) {
+    throw new Error("pauseTaskAction: taskId and reason are required");
+  }
+
+  const repo = await getServerWorkflowRepository();
+  const task = await repo.pauseTask(trimmedId, trimmedReason);
+  await emitTaskEvent(
+    "workflows.pause_task",
+    "workflow.task_paused",
+    `Paused: ${trimmedReason}`,
+    task,
+    { reason: trimmedReason },
+  );
+
+  revalidatePath("/", "layout");
+  return { task };
+}
+
+export async function resumeTaskAction(
+  taskId: string,
+): Promise<{ task: WorkflowTask }> {
+  const trimmedId = normalizeTaskField(taskId, "taskId", 80);
+  if (!trimmedId) throw new Error("resumeTaskAction: taskId is required");
+
+  const repo = await getServerWorkflowRepository();
+  const task = await repo.resumeTask(trimmedId);
+  await emitTaskEvent(
+    "workflows.resume_task",
+    "workflow.task_resumed",
+    `Resumed: ${task.id}`,
+    task,
+  );
+
+  revalidatePath("/", "layout");
+  return { task };
+}
+
+/**
+ * Stub: PR 3 wires the drawer's "refine playbook" affordance. There is no
+ * agent runtime in PR 2 yet, so this action only emits a domain event the
+ * drawer can render in the activity feed.
+ */
+export async function refinePlaybookAction(
+  taskId: string,
+): Promise<{ task: WorkflowTask }> {
+  const trimmedId = normalizeTaskField(taskId, "taskId", 80);
+  if (!trimmedId) throw new Error("refinePlaybookAction: taskId is required");
+
+  const repo = await getServerWorkflowRepository();
+  const task = await repo.getTask(trimmedId);
+  if (!task) throw new Error("refinePlaybookAction: task not found");
+
+  await emitTaskEvent(
+    "workflows.refine_playbook",
+    "workflow.playbook_refine_requested",
+    `Refine requested: ${task.id}`,
+    task,
+  );
+
+  revalidatePath("/", "layout");
+  return { task };
 }

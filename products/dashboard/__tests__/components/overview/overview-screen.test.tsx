@@ -95,12 +95,15 @@ function snapshotWithData(): OverviewSnapshot {
         skillId: "pm",
         stageId: "discovery",
         notes: "Backlog ready for sprint",
-        status: "pending_approval",
+        status: "paused",
         substatus: "",
         checkpoint: true,
         inputs: [],
         playbookId: null,
         owners: [],
+        pausedReason: "checkpoint",
+        pausedBy: null,
+        pausedAt: "2026-04-19T12:00:00Z",
         createdAt: "2026-04-19T12:00:00Z",
         updatedAt: "2026-04-19T12:00:00Z",
       },
@@ -125,7 +128,7 @@ function snapshotWithData(): OverviewSnapshot {
         skillId: "designer",
         stageId: "design",
         notes: "Prototype review",
-        status: "active",
+        status: "in_progress",
         substatus: "",
         checkpoint: false,
         inputs: [],
@@ -262,7 +265,7 @@ describe("OverviewScreen", () => {
   it("falls back to 'All clear ✓' when no checkpoints are pending", () => {
     const snapshot = snapshotWithData();
     snapshot.tasks = snapshot.tasks.map((t) =>
-      t.status === "pending_approval" ? { ...t, status: "complete" } : t,
+      t.status === "paused" ? { ...t, status: "complete" as const } : t,
     );
 
     render(

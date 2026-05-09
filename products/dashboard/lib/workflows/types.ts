@@ -8,19 +8,32 @@ export type WorkflowInstanceStatus =
   | "blocked"
   | "complete";
 
+/**
+ * The 7-state design enum (PR 2 / AEL-60). `running` is the transient
+ * sub-state of `in_progress` while an agent is actively executing. Render
+ * code reads the persisted column; `deriveStatus()` is the single source
+ * of truth for transitions on every server action that mutates task state.
+ */
 export type WorkflowTaskStatus =
   | "not_started"
-  | "active"
-  | "pending_approval"
-  | "blocked"
-  | "complete";
+  | "waiting"
+  | "paused"
+  | "in_progress"
+  | "running"
+  | "complete"
+  | "failed";
+
+/** Alias used by drawer/UI code that wants the explicit "status" name. */
+export type TaskStatus = WorkflowTaskStatus;
 
 /**
  * Legal terminal states for `WorkflowRepository.transitionPendingCheckpoint`.
+ * Drawer-checkpoint approve resumes (status flips to `in_progress`); reject
+ * surfaces as `failed` so the matrix glow lights up.
  */
 export type WorkflowCheckpointTransitionStatus =
-  | Extract<WorkflowTaskStatus, "complete">
-  | Extract<WorkflowTaskStatus, "blocked">;
+  | Extract<WorkflowTaskStatus, "in_progress">
+  | Extract<WorkflowTaskStatus, "failed">;
 
 export type FrameworkItemType = "skill" | "playbook";
 
@@ -106,8 +119,74 @@ export interface WorkflowTask {
    *  Per-task so two cards pointing at the same playbook can carry different
    *  owners (e.g. different sales people across instances). */
   owners: string[];
+  /** Why the task is paused (e.g. `'checkpoint'`, `'awaiting_input'`).
+   *  Drives the drawer pause banner; null when status !== 'paused'. */
+  pausedReason?: string | null;
+  pausedBy?: string | null;
+  pausedAt?: string | null;
   createdAt: string;
   updatedAt: string;
+}
+
+// ---------------------------------------------------------------------------
+// Outputs and per-task IO state (PR 2 / AEL-60). `PlaybookOutput` is the
+// definition-level record stored on a Playbook; `TaskOutput` and
+// `TaskInputState` are per-task-instance state that the drawer consumes.
+// ---------------------------------------------------------------------------
+
+export type PlaybookOutputKind = "file" | "media" | "link" | "manual" | "api";
+
+export interface PlaybookOutput {
+  id: string;
+  playbookId: string;
+  name: string;
+  description?: string | null;
+  kind: PlaybookOutputKind | null;
+  apiCheck?: Record<string, unknown> | null;
+  position: number;
+  createdAt: string;
+}
+
+export type TaskOutputStatus = "pending" | "produced" | "failed" | "skipped";
+
+export interface TaskOutput {
+  id: string;
+  taskId: string;
+  outputId: string;
+  status: TaskOutputStatus;
+  artifactUrl?: string | null;
+  artifactMeta?: Record<string, unknown> | null;
+  producedBy?: string | null;
+  producedAt?: string | null;
+  createdAt: string;
+}
+
+export interface TaskInputState {
+  id: string;
+  taskId: string;
+  inputId: string;
+  received: boolean;
+  receivedAt?: string | null;
+  receivedFrom?: string | null;
+}
+
+/**
+ * Bundle returned by `WorkflowRepository.getDrawerData` so the drawer can
+ * render with one round-trip: the task itself, its per-instance input/output
+ * state, and the underlying playbook's output definitions.
+ */
+export interface DrawerData {
+  task: WorkflowTask;
+  inputs: TaskInputState[];
+  outputs: TaskOutput[];
+  playbookOutputs: PlaybookOutput[];
+}
+
+/** Optional artifact payload accepted by `produceOutputAction`. */
+export interface OutputArtifact {
+  artifactUrl?: string | null;
+  artifactMeta?: Record<string, unknown> | null;
+  producedBy?: string | null;
 }
 
 export interface WorkflowTaskCreateInput {
@@ -187,6 +266,9 @@ export interface WorkflowTaskPatch {
   inputs?: WorkflowInput[];
   playbookId?: string | null;
   owners?: string[];
+  pausedReason?: string | null;
+  pausedBy?: string | null;
+  pausedAt?: string | null;
 }
 
 export interface WorkflowTemplatePatch {
@@ -240,6 +322,27 @@ export interface WorkflowRepository {
     instanceId: string,
     event: WorkflowEventInput & { taskId?: string | null },
   ): Promise<WorkflowEvent>;
+  /** Drawer-shaped read: task + per-instance input/output state +
+   *  the underlying playbook's output definitions, in one round-trip. */
+  getDrawerData(taskId: string): Promise<DrawerData | null>;
+  /** Mark a manual input as received. Idempotent (received=true stays true). */
+  markInputReceived(taskId: string, inputId: string): Promise<TaskInputState>;
+  /** Bypass an input. Sets received=true with received_from=null so the
+   *  audit trail can distinguish "produced upstream" from "skipped". */
+  bypassInput(taskId: string, inputId: string): Promise<TaskInputState>;
+  /** Produce a task output. Flips status='produced' (which fires the
+   *  on_task_output_produced trigger). Inserts the row if missing. */
+  produceOutput(
+    taskId: string,
+    outputId: string,
+    artifact?: OutputArtifact,
+  ): Promise<TaskOutput>;
+  pauseTask(
+    taskId: string,
+    reason: string,
+    pausedBy?: string | null,
+  ): Promise<WorkflowTask>;
+  resumeTask(taskId: string): Promise<WorkflowTask>;
   getFrameworkItems(type?: FrameworkItemType): Promise<FrameworkItem[]>;
   upsertFrameworkItem(item: FrameworkItem): Promise<FrameworkItem>;
   deleteFrameworkItem(itemId: string): Promise<void>;

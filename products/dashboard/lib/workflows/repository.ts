@@ -1,8 +1,15 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 
 import type {
+  DrawerData,
   FrameworkItem,
   FrameworkItemType,
+  OutputArtifact,
+  PlaybookOutput,
+  PlaybookOutputKind,
+  TaskInputState,
+  TaskOutput,
+  TaskOutputStatus,
   WorkflowEvent,
   WorkflowEventInput,
   WorkflowInput,
@@ -52,12 +59,46 @@ interface WorkflowTaskRow {
   status: WorkflowTask["status"];
   substatus: string;
   checkpoint: boolean;
-  triggers: unknown;
-  gates: unknown;
+  inputs: unknown;
   playbook_id: string | null;
   owners: unknown;
+  paused_reason: string | null;
+  paused_by: string | null;
+  paused_at: string | null;
   created_at: string;
   updated_at: string;
+}
+
+interface PlaybookOutputRow {
+  id: string;
+  playbook_id: string;
+  name: string;
+  description: string | null;
+  kind: PlaybookOutputKind | null;
+  api_check: unknown;
+  position: number;
+  created_at: string;
+}
+
+interface TaskOutputRow {
+  id: string;
+  task_id: string;
+  output_id: string;
+  status: TaskOutputStatus;
+  artifact_url: string | null;
+  artifact_meta: unknown;
+  produced_by: string | null;
+  produced_at: string | null;
+  created_at: string;
+}
+
+interface TaskInputRow {
+  id: string;
+  task_id: string;
+  input_id: string;
+  received: boolean;
+  received_at: string | null;
+  received_from: string | null;
 }
 
 interface WorkflowEventRow {
@@ -123,63 +164,90 @@ function migrateSkills(raw: unknown): WorkflowSkill[] {
   return toJsonArray<unknown>(raw).map(migrateSkill);
 }
 
-const DATA_FLOW_TRIGGER_TYPES = new Set(["task", "after_task"]);
+const VALID_LINK_MODES = new Set(["linked", "manual", "bypass"]);
 
 /**
- * Read shim. Until PR 2 (AEL-60) renames the JSONB column, the legacy
- * `triggers` array still arrives from the database. We drop trigger items
- * whose `type` is not a data-flow type (`manual`, `event`, `schedule`,
- * `webhook`) and map the survivors into the new `WorkflowInput` shape.
+ * Read the `inputs` JSONB column directly (PR 2 / AEL-60). Defensively
+ * tolerates rows authored before the column rename: if a row still carries
+ * the old trigger shape (`type: 'task' | 'after_task'`), map it forward
+ * into a `linked` input on read. New rows are always written in the
+ * canonical `WorkflowInput` shape via `inputsToJsonb`.
  */
 function normalizeInputs(raw: unknown): WorkflowInput[] {
   return toJsonArray<Record<string, unknown>>(raw)
-    .filter(
-      (item) =>
-        item != null &&
-        typeof item.type === "string" &&
-        DATA_FLOW_TRIGGER_TYPES.has(item.type),
-    )
-    .map((item) => {
-      const ref =
-        typeof item.taskRef === "string" && item.taskRef.trim()
-          ? item.taskRef.trim()
-          : typeof item.taskId === "string" && item.taskId.trim()
-            ? item.taskId.trim()
-            : undefined;
-      const id =
-        typeof item.id === "string" && item.id.trim()
-          ? item.id.trim()
-          : `linked:${ref ?? "unknown"}`;
+    .map((item): WorkflowInput | null => {
+      if (item == null) return null;
+
+      // Legacy trigger shape — best-effort forward map. New rows never hit
+      // this branch because writes go through inputsToJsonb.
+      if (typeof item.type === "string" && !item.linkMode) {
+        if (item.type !== "task" && item.type !== "after_task") return null;
+        const ref =
+          typeof item.taskRef === "string" && item.taskRef.trim()
+            ? item.taskRef.trim()
+            : typeof item.taskId === "string" && item.taskId.trim()
+              ? item.taskId.trim()
+              : undefined;
+        const id =
+          typeof item.id === "string" && item.id.trim()
+            ? item.id.trim()
+            : `linked:${ref ?? "unknown"}`;
+        const name =
+          typeof item.label === "string" && item.label.trim()
+            ? item.label.trim()
+            : ref ?? "Linked input";
+        return {
+          id,
+          name,
+          linkMode: "linked" as const,
+          upstreamTaskRef: ref,
+          upstreamOutputId: null,
+        } satisfies WorkflowInput;
+      }
+
+      const linkMode =
+        typeof item.linkMode === "string" && VALID_LINK_MODES.has(item.linkMode)
+          ? (item.linkMode as WorkflowInput["linkMode"])
+          : "linked";
+      const id = typeof item.id === "string" && item.id.trim() ? item.id.trim() : null;
+      if (!id) return null;
       const name =
-        typeof item.label === "string" && item.label.trim()
-          ? item.label.trim()
-          : ref ?? "Linked input";
+        typeof item.name === "string" && item.name.trim()
+          ? item.name.trim()
+          : id;
+      const upstreamTaskRef =
+        typeof item.upstreamTaskRef === "string" && item.upstreamTaskRef.trim()
+          ? item.upstreamTaskRef.trim()
+          : undefined;
+      const upstreamOutputId =
+        typeof item.upstreamOutputId === "string" && item.upstreamOutputId.trim()
+          ? item.upstreamOutputId.trim()
+          : null;
+      const description =
+        typeof item.description === "string" && item.description.trim()
+          ? item.description.trim()
+          : undefined;
       return {
         id,
         name,
-        linkMode: "linked" as const,
-        upstreamTaskRef: ref,
-        upstreamOutputId: null,
-      };
-    });
+        description,
+        linkMode,
+        upstreamTaskRef,
+        upstreamOutputId,
+      } satisfies WorkflowInput;
+    })
+    .filter((value): value is WorkflowInput => value !== null);
 }
 
-/**
- * Write shim. PR 2 will rewrite this once the column is renamed; for now,
- * we serialize `WorkflowInput[]` back into the legacy JSONB shape on the
- * `triggers` column. Only `linked` inputs round-trip through the legacy
- * column — `manual` / `bypass` inputs have no representation in the old
- * schema, so they are dropped on write until PR 2 lands.
- */
-function inputsToLegacyTriggers(inputs: WorkflowInput[]): unknown[] {
-  return inputs
-    .filter((input) => input.linkMode === "linked")
-    .map((input) => ({
-      type: "task" as const,
-      label: input.name,
-      taskRef: input.upstreamTaskRef,
-      id: input.id,
-    }));
+function inputsToJsonb(inputs: WorkflowInput[]): unknown[] {
+  return inputs.map((input) => ({
+    id: input.id,
+    name: input.name,
+    description: input.description ?? null,
+    linkMode: input.linkMode,
+    upstreamTaskRef: input.upstreamTaskRef ?? null,
+    upstreamOutputId: input.upstreamOutputId ?? null,
+  }));
 }
 
 function mapTemplate(row: WorkflowTemplateRow): WorkflowTemplate {
@@ -229,13 +297,54 @@ function mapTask(row: WorkflowTaskRow): WorkflowTask {
     status: row.status,
     substatus: row.substatus,
     checkpoint: row.checkpoint,
-    inputs: normalizeInputs(row.triggers),
+    inputs: normalizeInputs(row.inputs),
     playbookId: row.playbook_id,
     owners: toJsonArray<unknown>(row.owners)
       .filter((value): value is string => typeof value === "string" && value.trim().length > 0)
       .map((value) => value.trim()),
+    pausedReason: row.paused_reason,
+    pausedBy: row.paused_by,
+    pausedAt: row.paused_at,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
+  };
+}
+
+function mapPlaybookOutput(row: PlaybookOutputRow): PlaybookOutput {
+  return {
+    id: row.id,
+    playbookId: row.playbook_id,
+    name: row.name,
+    description: row.description,
+    kind: row.kind,
+    apiCheck: (row.api_check as Record<string, unknown> | null) ?? null,
+    position: row.position,
+    createdAt: row.created_at,
+  };
+}
+
+function mapTaskOutput(row: TaskOutputRow): TaskOutput {
+  return {
+    id: row.id,
+    taskId: row.task_id,
+    outputId: row.output_id,
+    status: row.status,
+    artifactUrl: row.artifact_url,
+    artifactMeta: (row.artifact_meta as Record<string, unknown> | null) ?? null,
+    producedBy: row.produced_by,
+    producedAt: row.produced_at,
+    createdAt: row.created_at,
+  };
+}
+
+function mapTaskInput(row: TaskInputRow): TaskInputState {
+  return {
+    id: row.id,
+    taskId: row.task_id,
+    inputId: row.input_id,
+    received: row.received,
+    receivedAt: row.received_at,
+    receivedFrom: row.received_from,
   };
 }
 
@@ -283,11 +392,12 @@ function patchToRow(patch: WorkflowTaskPatch): Record<string, unknown> {
   if (patch.status !== undefined) row.status = patch.status;
   if (patch.substatus !== undefined) row.substatus = patch.substatus;
   if (patch.checkpoint !== undefined) row.checkpoint = patch.checkpoint;
-  if (patch.inputs !== undefined) {
-    row.triggers = inputsToLegacyTriggers(patch.inputs);
-  }
+  if (patch.inputs !== undefined) row.inputs = inputsToJsonb(patch.inputs);
   if (patch.playbookId !== undefined) row.playbook_id = patch.playbookId;
   if (patch.owners !== undefined) row.owners = patch.owners;
+  if (patch.pausedReason !== undefined) row.paused_reason = patch.pausedReason;
+  if (patch.pausedBy !== undefined) row.paused_by = patch.pausedBy;
+  if (patch.pausedAt !== undefined) row.paused_at = patch.pausedAt;
   return row;
 }
 
@@ -415,12 +525,21 @@ export function createWorkflowRepository(
       taskId: string,
       nextStatus: WorkflowCheckpointTransitionStatus,
     ): Promise<WorkflowTask | null> {
+      // Approve resumes the task (clears the pause); reject leaves it
+      // failed for the matrix glow to surface. Both clear paused_* so the
+      // banner does not linger after the human decision.
       const { data, error } = await client
         .from("workflow_tasks")
-        .update({ status: nextStatus })
+        .update({
+          status: nextStatus,
+          paused_reason: null,
+          paused_by: null,
+          paused_at: null,
+        })
         .eq("id", taskId)
         .eq("checkpoint", true)
-        .eq("status", "pending_approval")
+        .eq("status", "paused")
+        .eq("paused_reason", "checkpoint")
         .select("*")
         .maybeSingle();
 
@@ -529,8 +648,7 @@ export function createWorkflowRepository(
             status: "not_started" as const,
             substatus: "",
             checkpoint: tpl.checkpoint ?? false,
-            triggers: inputsToLegacyTriggers(tpl.inputs ?? []),
-            gates: [],
+            inputs: inputsToJsonb(tpl.inputs ?? []),
             playbook_id: tpl.playbookId ?? null,
             owners: tpl.owners ?? [],
           }),
@@ -585,8 +703,7 @@ export function createWorkflowRepository(
           status: "not_started",
           substatus: "",
           checkpoint: input.checkpoint ?? false,
-          triggers: inputsToLegacyTriggers(input.inputs ?? []),
-          gates: [],
+          inputs: inputsToJsonb(input.inputs ?? []),
           playbook_id: input.playbookId ?? null,
           owners: input.owners ?? [],
         })
@@ -785,6 +902,170 @@ export function createWorkflowRepository(
         .single();
 
       return mapEvent(unwrap("addInstanceEvent", data, error) as WorkflowEventRow);
+    },
+
+    async getDrawerData(taskId: string): Promise<DrawerData | null> {
+      const { data: taskRow, error: taskErr } = await client
+        .from("workflow_tasks")
+        .select("*")
+        .eq("id", taskId)
+        .maybeSingle();
+
+      if (taskErr) {
+        throw new WorkflowRepositoryError("getDrawerData task failed", taskErr);
+      }
+      if (!taskRow) return null;
+      const task = mapTask(taskRow as WorkflowTaskRow);
+
+      const [inputsRes, outputsRes] = await Promise.all([
+        client
+          .from("task_inputs")
+          .select("*")
+          .eq("task_id", taskId)
+          .order("input_id", { ascending: true }),
+        client
+          .from("task_outputs")
+          .select("*")
+          .eq("task_id", taskId)
+          .order("created_at", { ascending: true }),
+      ]);
+
+      if (inputsRes.error) {
+        throw new WorkflowRepositoryError("getDrawerData inputs failed", inputsRes.error);
+      }
+      if (outputsRes.error) {
+        throw new WorkflowRepositoryError("getDrawerData outputs failed", outputsRes.error);
+      }
+
+      let playbookOutputs: PlaybookOutput[] = [];
+      if (task.playbookId) {
+        const { data: poRows, error: poErr } = await client
+          .from("playbook_outputs")
+          .select("*")
+          .eq("playbook_id", task.playbookId)
+          .order("position", { ascending: true });
+        if (poErr) {
+          throw new WorkflowRepositoryError("getDrawerData playbook_outputs failed", poErr);
+        }
+        playbookOutputs = (poRows ?? []).map((row) =>
+          mapPlaybookOutput(row as PlaybookOutputRow),
+        );
+      }
+
+      return {
+        task,
+        inputs: (inputsRes.data ?? []).map((row) => mapTaskInput(row as TaskInputRow)),
+        outputs: (outputsRes.data ?? []).map((row) => mapTaskOutput(row as TaskOutputRow)),
+        playbookOutputs,
+      };
+    },
+
+    async markInputReceived(taskId: string, inputId: string): Promise<TaskInputState> {
+      const { data, error } = await client
+        .from("task_inputs")
+        .upsert(
+          {
+            task_id: taskId,
+            input_id: inputId,
+            received: true,
+            received_at: new Date().toISOString(),
+            received_from: null,
+          },
+          { onConflict: "task_id,input_id" },
+        )
+        .select("*")
+        .single();
+
+      return mapTaskInput(unwrap("markInputReceived", data, error) as TaskInputRow);
+    },
+
+    async bypassInput(taskId: string, inputId: string): Promise<TaskInputState> {
+      // Same shape as markInputReceived but kept as a separate method so the
+      // audit trail (events) can distinguish manual receipt from a skip.
+      const { data, error } = await client
+        .from("task_inputs")
+        .upsert(
+          {
+            task_id: taskId,
+            input_id: inputId,
+            received: true,
+            received_at: new Date().toISOString(),
+            received_from: null,
+          },
+          { onConflict: "task_id,input_id" },
+        )
+        .select("*")
+        .single();
+
+      return mapTaskInput(unwrap("bypassInput", data, error) as TaskInputRow);
+    },
+
+    async produceOutput(
+      taskId: string,
+      outputId: string,
+      artifact?: OutputArtifact,
+    ): Promise<TaskOutput> {
+      const { data, error } = await client
+        .from("task_outputs")
+        .upsert(
+          {
+            task_id: taskId,
+            output_id: outputId,
+            status: "produced",
+            artifact_url: artifact?.artifactUrl ?? null,
+            artifact_meta: artifact?.artifactMeta ?? null,
+            produced_by: artifact?.producedBy ?? null,
+            produced_at: new Date().toISOString(),
+          },
+          { onConflict: "task_id,output_id" },
+        )
+        .select("*")
+        .single();
+
+      return mapTaskOutput(unwrap("produceOutput", data, error) as TaskOutputRow);
+    },
+
+    async pauseTask(
+      taskId: string,
+      reason: string,
+      pausedBy?: string | null,
+    ): Promise<WorkflowTask> {
+      const trimmedReason = reason.trim();
+      if (!trimmedReason) {
+        throw new WorkflowRepositoryError("pauseTask: reason is required");
+      }
+      const { data, error } = await client
+        .from("workflow_tasks")
+        .update({
+          status: "paused",
+          paused_reason: trimmedReason,
+          paused_by: pausedBy ?? null,
+          paused_at: new Date().toISOString(),
+        })
+        .eq("id", taskId)
+        .select("*")
+        .single();
+
+      return mapTask(unwrap("pauseTask", data, error) as WorkflowTaskRow);
+    },
+
+    async resumeTask(taskId: string): Promise<WorkflowTask> {
+      // Resume sends the task back to in_progress and clears the pause
+      // metadata. Callers (server actions) re-run deriveStatus afterwards
+      // to pick up any inputs/outputs that changed during the pause.
+      const { data, error } = await client
+        .from("workflow_tasks")
+        .update({
+          status: "in_progress",
+          paused_reason: null,
+          paused_by: null,
+          paused_at: null,
+        })
+        .eq("id", taskId)
+        .select("*")
+        .single();
+
+      return mapTask(unwrap("resumeTask", data, error) as WorkflowTaskRow);
     },
 
     async getFrameworkItems(type?: FrameworkItemType): Promise<FrameworkItem[]> {
