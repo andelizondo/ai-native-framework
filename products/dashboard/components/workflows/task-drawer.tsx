@@ -9,12 +9,11 @@ import { cn } from "@/lib/utils";
 import type {
   FrameworkItem,
   WorkflowEvent,
-  WorkflowGate,
+  WorkflowInput,
   WorkflowInstanceDetail,
   WorkflowSkill,
   WorkflowTask,
   WorkflowTemplate,
-  WorkflowTrigger,
 } from "@/lib/workflows/types";
 import {
   approveDrawerCheckpointAction,
@@ -22,7 +21,7 @@ import {
   rejectDrawerCheckpointAction,
   retryBlockedTaskAction,
   startTaskAction,
-  updateTaskTriggerGatesAction,
+  updateTaskInputsAction,
 } from "@/app/(dashboard)/workflows/actions";
 
 // Emoji icons keyed by skill name — mirrors SKILL_ICONS in pc-components.jsx.
@@ -42,110 +41,35 @@ const SKILL_ICONS: Record<string, string> = {
   "spec.review": "📋",
 };
 
-// ── TriggerGateEditor ─────────────────────────────────────────────────────────
+// ── InputsEditor (stub) ───────────────────────────────────────────────────────
+// Read-only stub for PR 1 (AEL-59). The full inputs editing UI (add / remove,
+// link-mode picker, upstream-output selector) lands with the new drawer in
+// PR 3 (AEL-61). This stub keeps the existing drawer rendering until then.
 
-const TRIGGER_TYPES = ["manual", "event", "task_complete", "schedule", "webhook"];
-const GATE_TYPES = ["approval", "condition", "external", "timer"];
-
-interface TriggerGateEditorProps {
-  items: WorkflowTrigger[] | WorkflowGate[];
-  kind: "trigger" | "gate";
-  disabled?: boolean;
-  onChange: (items: WorkflowTrigger[] | WorkflowGate[]) => void;
+interface InputsEditorProps {
+  items: WorkflowInput[];
+  // onChange is wired through but unused by the stub; PR 3 will drive it.
+  onChange: (items: WorkflowInput[]) => void;
 }
 
-function TriggerGateEditor({ items, kind, disabled, onChange }: TriggerGateEditorProps) {
-  const [isAdding, setIsAdding] = useState(false);
-  const types = kind === "trigger" ? TRIGGER_TYPES : GATE_TYPES;
-  const [pendingType, setPendingType] = useState(types[0]!);
-  const [pendingLabel, setPendingLabel] = useState("");
-
-  function handleAdd() {
-    if (!pendingLabel.trim()) return;
-    onChange([...items, { type: pendingType, label: pendingLabel.trim() }]);
-    setPendingLabel("");
-    setPendingType(types[0]!);
-    setIsAdding(false);
-  }
-
-  function handleRemove(index: number) {
-    onChange(items.filter((_, i) => i !== index));
-  }
-
+function InputsEditor({ items }: InputsEditorProps) {
   return (
-    <div className="td-sec" data-testid={`tg-editor-${kind}`}>
-      <div className="td-sec-lbl">{kind === "trigger" ? "Triggers" : "Gates"}</div>
+    <div className="td-sec" data-testid="inputs-editor">
+      <div className="td-sec-lbl">Inputs</div>
       <div className="tg-list">
-        {items.map((item, i) => (
-          <div key={i} className="tg-item" data-testid={`tg-item-${kind}-${i}`}>
-            <span className="tg-item-type">{item.type}</span>
-            <span className="tg-item-label">{item.label ?? item.type}</span>
-            <button
-              type="button"
-              className="tg-item-remove"
-              aria-label={`Remove ${kind}`}
-              disabled={disabled}
-              onClick={() => handleRemove(i)}
-            >
-              ×
-            </button>
+        {items.length === 0 ? (
+          <div className="td-empty" data-testid="inputs-editor-empty">
+            No inputs yet.
           </div>
-        ))}
+        ) : (
+          items.map((item) => (
+            <div key={item.id} className="tg-item" data-testid={`inputs-item-${item.id}`}>
+              <span className="tg-item-type">{item.linkMode}</span>
+              <span className="tg-item-label">{item.name}</span>
+            </div>
+          ))
+        )}
       </div>
-
-      {isAdding ? (
-        <div className="tg-inline-form" data-testid={`tg-inline-form-${kind}`}>
-          <div className="tg-inline-row">
-            <select
-              className="tg-select"
-              value={pendingType}
-              onChange={(e) => setPendingType(e.target.value)}
-            >
-              {types.map((t) => (
-                <option key={t} value={t}>{t}</option>
-              ))}
-            </select>
-            <input
-              className="tg-input"
-              placeholder="Label"
-              value={pendingLabel}
-              autoFocus
-              onChange={(e) => setPendingLabel(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === "Enter") handleAdd();
-                if (e.key === "Escape") setIsAdding(false);
-              }}
-            />
-          </div>
-          <div className="tg-form-btns">
-            <button
-              type="button"
-              className="tg-form-cancel"
-              onClick={() => { setIsAdding(false); setPendingLabel(""); }}
-            >
-              Cancel
-            </button>
-            <button
-              type="button"
-              className="tg-form-save"
-              disabled={!pendingLabel.trim()}
-              onClick={handleAdd}
-            >
-              Add
-            </button>
-          </div>
-        </div>
-      ) : (
-        <button
-          type="button"
-          className="tg-add-btn"
-          disabled={disabled}
-          onClick={() => setIsAdding(true)}
-          data-testid={`tg-add-${kind}`}
-        >
-          + Add {kind}
-        </button>
-      )}
     </div>
   );
 }
@@ -170,8 +94,7 @@ interface DetailsTabProps {
   onRetryRun: () => void;
   onApprove: () => void;
   onReject: () => void;
-  onTriggersChange: (triggers: WorkflowTrigger[]) => void;
-  onGatesChange: (gates: WorkflowGate[]) => void;
+  onInputsChange: (inputs: WorkflowInput[]) => void;
   /** Opens the AgentRun panel — active, complete, blocked, pending_approval, and not-started (hint path: "○ Not started · view steps"). */
   onViewLiveRun?: () => void;
 }
@@ -186,8 +109,7 @@ function DetailsTab({
   onRetryRun,
   onApprove,
   onReject,
-  onTriggersChange,
-  onGatesChange,
+  onInputsChange,
   onViewLiveRun,
 }: DetailsTabProps) {
   const isPendingApproval = task.status === "pending_approval";
@@ -394,21 +316,8 @@ function DetailsTab({
         </div>
       )}
 
-      {/* Triggers */}
-      <TriggerGateEditor
-        items={task.triggers}
-        kind="trigger"
-        disabled={isPending}
-        onChange={(items) => onTriggersChange(items as WorkflowTrigger[])}
-      />
-
-      {/* Gates */}
-      <TriggerGateEditor
-        items={task.gates}
-        kind="gate"
-        disabled={isPending}
-        onChange={(items) => onGatesChange(items as WorkflowGate[])}
-      />
+      {/* Inputs (stub — full editor lands in PR 3 / AEL-61) */}
+      <InputsEditor items={task.inputs} onChange={onInputsChange} />
     </>
   );
 }
@@ -447,22 +356,9 @@ function EventsTab({ events }: { events: WorkflowEvent[] }) {
   );
 }
 
-// ── Dependencies tab ──────────────────────────────────────────────────────────
-
-function DependenciesTab() {
-  return (
-    <div className="td-sec" style={{ marginTop: 4 }}>
-      <div className="td-sec-lbl">Flow</div>
-      <div className="td-empty" data-testid="td-dependencies-placeholder">
-        DepTree coming in PR 14
-      </div>
-    </div>
-  );
-}
-
 // ── Main TaskDrawer ───────────────────────────────────────────────────────────
 
-type DrawerTab = "details" | "deps" | "events";
+type DrawerTab = "details" | "events";
 
 export interface TaskDrawerProps {
   /** null → closed (drawer stays in DOM for CSS slide-out animation). */
@@ -599,26 +495,14 @@ export function TaskDrawer({
     });
   }
 
-  function handleTriggersChange(triggers: WorkflowTrigger[]) {
+  function handleInputsChange(inputs: WorkflowInput[]) {
     if (!task) return;
     startTransition(async () => {
       try {
-        const { task: updated } = await updateTaskTriggerGatesAction(task.id, triggers, task.gates);
+        const { task: updated } = await updateTaskInputsAction(task.id, inputs);
         onTaskUpdate(updated);
       } catch (err) {
-        captureError(err, { feature: "workflows.trigger_gate_update", extra: { task_id: task.id } });
-      }
-    });
-  }
-
-  function handleGatesChange(gates: WorkflowGate[]) {
-    if (!task) return;
-    startTransition(async () => {
-      try {
-        const { task: updated } = await updateTaskTriggerGatesAction(task.id, task.triggers, gates);
-        onTaskUpdate(updated);
-      } catch (err) {
-        captureError(err, { feature: "workflows.trigger_gate_update", extra: { task_id: task.id } });
+        captureError(err, { feature: "workflows.inputs_update", extra: { task_id: task.id } });
       }
     });
   }
@@ -688,20 +572,18 @@ export function TaskDrawer({
           </div>
 
           <div className="td-tabs" role="tablist" aria-label="Playbook sections">
-            {(["details", "deps", "events"] as const).map((tab) => (
+            {(["details", "events"] as const).map((tab) => (
               <button
                 key={tab}
                 role="tab"
                 aria-selected={activeTab === tab}
                 className={cn("td-tab", activeTab === tab && "td-tab-active")}
                 onClick={() => setActiveTab(tab)}
-                data-testid={`td-tab-${tab === "deps" ? "dependencies" : tab}`}
+                data-testid={`td-tab-${tab}`}
               >
                 {tab === "details"
                   ? "Details"
-                  : tab === "deps"
-                    ? "Dependencies"
-                    : `Events${taskEvents.length > 0 ? ` (${taskEvents.length})` : ""}`}
+                  : `Events${taskEvents.length > 0 ? ` (${taskEvents.length})` : ""}`}
               </button>
             ))}
           </div>
@@ -720,13 +602,11 @@ export function TaskDrawer({
               onRetryRun={handleRetryRun}
               onApprove={handleApprove}
               onReject={handleReject}
-              onTriggersChange={handleTriggersChange}
-              onGatesChange={handleGatesChange}
+              onInputsChange={handleInputsChange}
               onViewLiveRun={onViewLiveRun}
             />
           )}
           {activeTab === "events" && <EventsTab events={taskEvents} />}
-          {activeTab === "deps" && <DependenciesTab />}
         </div>
       </div>
     </>

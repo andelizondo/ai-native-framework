@@ -7,10 +7,9 @@
  *   - Approve → calls approveDrawerCheckpointAction + onTaskUpdate
  *   - Reject  → calls rejectDrawerCheckpointAction
  *   - Events tab shows task-scoped events; empty state when none
- *   - Dependencies tab shows placeholder
  *   - Overlay click calls onClose
  *   - Escape key calls onClose
- *   - TriggerGateEditor: add/remove triggers and gates
+ *   - InputsEditor stub renders task.inputs read-only (PR 1 / AEL-59)
  */
 
 import {
@@ -41,7 +40,7 @@ const {
   mockStart,
   mockCancelRun,
   mockRetryBlocked,
-  mockUpdateTG,
+  mockUpdateInputs,
   mockEmitEvent,
   mockCaptureError,
 } = vi.hoisted(() => ({
@@ -50,7 +49,7 @@ const {
   mockStart: vi.fn(),
   mockCancelRun: vi.fn(),
   mockRetryBlocked: vi.fn(),
-  mockUpdateTG: vi.fn(),
+  mockUpdateInputs: vi.fn(),
   mockEmitEvent: vi.fn(),
   mockCaptureError: vi.fn(),
 }));
@@ -61,7 +60,7 @@ vi.mock("@/app/(dashboard)/workflows/actions", () => ({
   startTaskAction: mockStart,
   cancelRunningTaskAction: mockCancelRun,
   retryBlockedTaskAction: mockRetryBlocked,
-  updateTaskTriggerGatesAction: mockUpdateTG,
+  updateTaskInputsAction: mockUpdateInputs,
 }));
 
 vi.mock("@/lib/events", () => ({
@@ -104,8 +103,7 @@ function makeTask(overrides: Partial<WorkflowTask> = {}): WorkflowTask {
     status: "pending_approval",
     substatus: "",
     checkpoint: true,
-    triggers: [],
-    gates: [],
+    inputs: [],
     playbookId: null,
     owners: [],
     createdAt: "2026-04-19T12:00:00Z",
@@ -179,7 +177,7 @@ describe("TaskDrawer", () => {
     mockStart.mockReset();
     mockCancelRun.mockReset();
     mockRetryBlocked.mockReset();
-    mockUpdateTG.mockReset();
+    mockUpdateInputs.mockReset();
     mockEmitEvent.mockReset();
     mockCaptureError.mockReset();
   });
@@ -200,10 +198,10 @@ describe("TaskDrawer", () => {
     // Title (no playbook attached → "Playbook" fallback)
     expect(within(drawer).getByText("Playbook")).toBeInTheDocument();
 
-    // Tabs
+    // Tabs (Dependencies removed in PR 1 / AEL-59)
     expect(screen.getByTestId("td-tab-details")).toBeInTheDocument();
     expect(screen.getByTestId("td-tab-events")).toBeInTheDocument();
-    expect(screen.getByTestId("td-tab-dependencies")).toBeInTheDocument();
+    expect(screen.queryByTestId("td-tab-dependencies")).not.toBeInTheDocument();
   });
 
   it("emits dashboard.task_drawer_opened on mount", () => {
@@ -408,19 +406,6 @@ describe("TaskDrawer", () => {
     });
   });
 
-  describe("Dependencies tab", () => {
-    it("shows placeholder", async () => {
-      const user = userEvent.setup();
-      renderDrawer();
-
-      await user.click(screen.getByTestId("td-tab-dependencies"));
-
-      expect(screen.getByTestId("td-dependencies-placeholder")).toHaveTextContent(
-        /DepTree coming in PR 14/i,
-      );
-    });
-  });
-
   describe("Close behaviour", () => {
     it("calls onClose when overlay is clicked", () => {
       const onClose = vi.fn();
@@ -444,59 +429,28 @@ describe("TaskDrawer", () => {
     });
   });
 
-  describe("TriggerGateEditor — triggers", () => {
-    it("adds a trigger and calls updateTaskTriggerGatesAction", async () => {
-      const user = userEvent.setup();
-      const updatedTask = makeTask({
-        triggers: [{ type: "manual", label: "New trigger" }],
-      });
-      mockUpdateTG.mockResolvedValue({ task: updatedTask });
-      const onTaskUpdate = vi.fn();
-      renderDrawer({ triggers: [] }, [], vi.fn(), onTaskUpdate);
-
-      // Open inline form
-      await user.click(screen.getByTestId("tg-add-trigger"));
-
-      // Fill label
-      const input = screen.getByPlaceholderText("Label");
-      await user.type(input, "New trigger");
-
-      // Submit
-      await act(async () => {
-        await user.click(screen.getByRole("button", { name: /^Add$/ }));
-      });
-
-      expect(mockUpdateTG).toHaveBeenCalledWith(
-        "task-1",
-        [{ type: expect.any(String), label: "New trigger" }],
-        [],
-      );
-      expect(onTaskUpdate).toHaveBeenCalledWith(updatedTask);
+  describe("InputsEditor (stub)", () => {
+    it("renders an empty state when the task has no inputs", () => {
+      renderDrawer({ inputs: [] });
+      expect(screen.getByTestId("inputs-editor")).toBeInTheDocument();
+      expect(screen.getByTestId("inputs-editor-empty")).toBeInTheDocument();
     });
 
-    it("removes a trigger by index", async () => {
-      const user = userEvent.setup();
-      const updatedTask = makeTask({ triggers: [] });
-      mockUpdateTG.mockResolvedValue({ task: updatedTask });
-
-      renderDrawer(
-        { triggers: [{ type: "manual", label: "Old trigger" }] },
-        [],
-        vi.fn(),
-        vi.fn(),
-      );
-
-      expect(screen.getByTestId("tg-item-trigger-0")).toBeInTheDocument();
-
-      await act(async () => {
-        await user.click(
-          within(screen.getByTestId("tg-item-trigger-0")).getByRole("button", {
-            name: /Remove trigger/i,
-          }),
-        );
+    it("renders each input read-only with its name and link mode", () => {
+      renderDrawer({
+        inputs: [
+          {
+            id: "in-1",
+            name: "After PD",
+            linkMode: "linked",
+            upstreamTaskRef: "presales-qualification",
+            upstreamOutputId: null,
+          },
+        ],
       });
-
-      expect(mockUpdateTG).toHaveBeenCalledWith("task-1", [], []);
+      const item = screen.getByTestId("inputs-item-in-1");
+      expect(item).toHaveTextContent("linked");
+      expect(item).toHaveTextContent("After PD");
     });
   });
 });
