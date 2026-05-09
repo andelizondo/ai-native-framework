@@ -5,6 +5,7 @@ import type {
   FrameworkItemType,
   WorkflowEvent,
   WorkflowEventInput,
+  WorkflowInput,
   WorkflowInstance,
   WorkflowInstanceDetail,
   WorkflowCheckpointTransitionStatus,
@@ -122,6 +123,65 @@ function migrateSkills(raw: unknown): WorkflowSkill[] {
   return toJsonArray<unknown>(raw).map(migrateSkill);
 }
 
+const DATA_FLOW_TRIGGER_TYPES = new Set(["task", "after_task"]);
+
+/**
+ * Read shim. Until PR 2 (AEL-60) renames the JSONB column, the legacy
+ * `triggers` array still arrives from the database. We drop trigger items
+ * whose `type` is not a data-flow type (`manual`, `event`, `schedule`,
+ * `webhook`) and map the survivors into the new `WorkflowInput` shape.
+ */
+function normalizeInputs(raw: unknown): WorkflowInput[] {
+  return toJsonArray<Record<string, unknown>>(raw)
+    .filter(
+      (item) =>
+        item != null &&
+        typeof item.type === "string" &&
+        DATA_FLOW_TRIGGER_TYPES.has(item.type),
+    )
+    .map((item) => {
+      const ref =
+        typeof item.taskRef === "string" && item.taskRef.trim()
+          ? item.taskRef.trim()
+          : typeof item.taskId === "string" && item.taskId.trim()
+            ? item.taskId.trim()
+            : undefined;
+      const id =
+        typeof item.id === "string" && item.id.trim()
+          ? item.id.trim()
+          : `linked:${ref ?? "unknown"}`;
+      const name =
+        typeof item.label === "string" && item.label.trim()
+          ? item.label.trim()
+          : ref ?? "Linked input";
+      return {
+        id,
+        name,
+        linkMode: "linked" as const,
+        upstreamTaskRef: ref,
+        upstreamOutputId: null,
+      };
+    });
+}
+
+/**
+ * Write shim. PR 2 will rewrite this once the column is renamed; for now,
+ * we serialize `WorkflowInput[]` back into the legacy JSONB shape on the
+ * `triggers` column. Only `linked` inputs round-trip through the legacy
+ * column — `manual` / `bypass` inputs have no representation in the old
+ * schema, so they are dropped on write until PR 2 lands.
+ */
+function inputsToLegacyTriggers(inputs: WorkflowInput[]): unknown[] {
+  return inputs
+    .filter((input) => input.linkMode === "linked")
+    .map((input) => ({
+      type: "task" as const,
+      label: input.name,
+      taskRef: input.upstreamTaskRef,
+      id: input.id,
+    }));
+}
+
 function mapTemplate(row: WorkflowTemplateRow): WorkflowTemplate {
   const taskTemplates = toJsonArray<WorkflowTaskTemplate>(row.task_templates).map(
     (task, index) => ({
@@ -169,8 +229,7 @@ function mapTask(row: WorkflowTaskRow): WorkflowTask {
     status: row.status,
     substatus: row.substatus,
     checkpoint: row.checkpoint,
-    triggers: toJsonArray(row.triggers),
-    gates: toJsonArray(row.gates),
+    inputs: normalizeInputs(row.triggers),
     playbookId: row.playbook_id,
     owners: toJsonArray<unknown>(row.owners)
       .filter((value): value is string => typeof value === "string" && value.trim().length > 0)
@@ -224,8 +283,9 @@ function patchToRow(patch: WorkflowTaskPatch): Record<string, unknown> {
   if (patch.status !== undefined) row.status = patch.status;
   if (patch.substatus !== undefined) row.substatus = patch.substatus;
   if (patch.checkpoint !== undefined) row.checkpoint = patch.checkpoint;
-  if (patch.triggers !== undefined) row.triggers = patch.triggers;
-  if (patch.gates !== undefined) row.gates = patch.gates;
+  if (patch.inputs !== undefined) {
+    row.triggers = inputsToLegacyTriggers(patch.inputs);
+  }
   if (patch.playbookId !== undefined) row.playbook_id = patch.playbookId;
   if (patch.owners !== undefined) row.owners = patch.owners;
   return row;
@@ -469,8 +529,8 @@ export function createWorkflowRepository(
             status: "not_started" as const,
             substatus: "",
             checkpoint: tpl.checkpoint ?? false,
-            triggers: tpl.triggers ?? [],
-            gates: tpl.gates ?? [],
+            triggers: inputsToLegacyTriggers(tpl.inputs ?? []),
+            gates: [],
             playbook_id: tpl.playbookId ?? null,
             owners: tpl.owners ?? [],
           }),
@@ -525,8 +585,8 @@ export function createWorkflowRepository(
           status: "not_started",
           substatus: "",
           checkpoint: input.checkpoint ?? false,
-          triggers: input.triggers ?? [],
-          gates: input.gates ?? [],
+          triggers: inputsToLegacyTriggers(input.inputs ?? []),
+          gates: [],
           playbook_id: input.playbookId ?? null,
           owners: input.owners ?? [],
         })

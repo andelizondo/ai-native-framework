@@ -3,29 +3,17 @@ import type { WorkflowTask } from "./types";
 /**
  * Pure helpers for the read-only Process Matrix.
  *
- * Source: `canStart` and `barClass` in
- * `/tmp/design-canvas/ai-native-dashboard/project/pc-components.jsx`
- * (lines 301-308 and 408-413). The prototype's `canStart` filtered by
- * `t.type==='task'` even though the prototype data uses
- * `type: 'after_task'` (see `Process Canvas v2/data.js` lines 110-188).
- * We treat both spellings as the canonical "this task waits on another
- * task in the same instance" trigger so the seed data and the
- * prototype's UX semantics line up.
- *
- * `taskRef` (preferred) carries the upstream task **title**; `taskId`
- * is supported as a defensive fallback because the prototype's data
- * sometimes uses ids instead of titles. Triggers without a usable
- * reference are ignored — they cannot block readiness without a target.
+ * A task's readiness is now governed by its `inputs`: only `linked` inputs
+ * gate the bar (manual / bypass inputs do not). A linked input resolves
+ * by pointing at an upstream task (`upstreamTaskRef`) whose status is
+ * `complete`. PR 2 (AEL-60) layers in upstream output resolution.
  */
-const TASK_TRIGGER_TYPES = new Set(["task", "after_task"]);
 
 /**
  * Bar state strings rendered by `.task-card.bar-*` (see `globals.css`).
  * `bar-glow` is the shared "demands attention" treatment used for both
  * `pending_approval` and `blocked` (UI "Failed"); the glow color is then
  * resolved from the task's status class (`s-pending`, `s-blocked`).
- * Exporting the type keeps the component / test surface honest: any new
- * state must round-trip through this union.
  */
 export type TaskBarState =
   | "bar-locked"
@@ -35,15 +23,12 @@ export type TaskBarState =
   | "bar-complete";
 
 /**
- * Returns true when `task` has no remaining upstream task dependencies.
+ * Returns true when `task` has no remaining unresolved linked inputs.
  *
- * - Tasks already past `not_started` are always considered "started";
- *   the readiness check only matters for the locked / ready transition
- *   the prototype renders as a bar opacity bump.
- * - Tasks with no task-typed triggers can always start (they're either
- *   manual, event-driven, or independent — none of those gate the bar).
- * - Tasks with task triggers can start only when *every* referenced
- *   upstream task in the same instance is `complete`.
+ * - Tasks already past `not_started` are always considered "started".
+ * - A task with no linked inputs (or no inputs at all) can always start.
+ * - A task with linked inputs can start only when every upstream task it
+ *   references has status `complete`.
  */
 export function canStart(
   task: WorkflowTask,
@@ -51,13 +36,11 @@ export function canStart(
 ): boolean {
   if (task.status !== "not_started") return true;
 
-  const upstream = (task.triggers ?? []).filter((t) =>
-    TASK_TRIGGER_TYPES.has(t.type),
-  );
-  if (upstream.length === 0) return true;
+  const linked = (task.inputs ?? []).filter((input) => input.linkMode === "linked");
+  if (linked.length === 0) return true;
 
-  return upstream.every((trigger) => {
-    const ref = trigger.taskRef ?? trigger.taskId;
+  return linked.every((input) => {
+    const ref = input.upstreamTaskRef;
     if (!ref) return true;
     const dep = allTasks.find(
       (candidate) => candidate.id === ref || candidate.playbookId === ref,
@@ -67,12 +50,8 @@ export function canStart(
 }
 
 /**
- * Map a task to its `task-card` bar-state class.
- *
- * Mirrors the prototype's precedence (status wins; `canStart` only
- * decides the locked/ready split for `not_started`). Kept as a pure
- * function so the component stays a thin renderer and the unit tests
- * can pin down each branch.
+ * Map a task to its `task-card` bar-state class. Status wins; `canStart`
+ * only decides the locked/ready split for `not_started`.
  */
 export function barClass(
   task: WorkflowTask,
