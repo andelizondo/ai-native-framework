@@ -9,13 +9,12 @@ import {
   type PendingCheckpoint,
 } from "@/lib/workflows/aggregate";
 import type {
-  WorkflowGate,
+  WorkflowInput,
   WorkflowInstance,
   WorkflowTask,
   WorkflowTaskCreateInput,
   WorkflowTaskStatus,
   WorkflowTemplate,
-  WorkflowTrigger,
 } from "@/lib/workflows/types";
 
 const TASK_STATUS_VALUES: readonly WorkflowTaskStatus[] = [
@@ -311,32 +310,34 @@ export async function rejectDrawerCheckpointAction(
 }
 
 /**
- * Persist trigger and gate lists for a task.
- * Called by TriggerGateEditor after each inline add/remove.
+ * Persist the inputs list for a task. Called by the drawer's inputs
+ * editor after each inline add/remove.
  */
-export async function updateTaskTriggerGatesAction(
+export async function updateTaskInputsAction(
   taskId: string,
-  triggers: WorkflowTrigger[],
-  gates: WorkflowGate[],
+  inputs: WorkflowInput[],
 ): Promise<{ task: WorkflowTask }> {
   if (typeof taskId !== "string" || !taskId.trim()) {
-    throw new Error("updateTaskTriggerGatesAction: taskId is required");
+    throw new Error("updateTaskInputsAction: taskId is required");
+  }
+  if (!Array.isArray(inputs)) {
+    throw new Error("updateTaskInputsAction: inputs must be an array");
   }
 
   const repo = await getServerWorkflowRepository();
   const trimmedId = taskId.trim();
 
-  const task = await repo.updateTask(trimmedId, { triggers, gates });
+  const task = await repo.updateTask(trimmedId, { inputs });
 
   try {
     await repo.addEvent(trimmedId, {
       name: "workflow.task_updated",
-      description: `Updated triggers/gates for: ${task.id}`,
+      description: `Updated inputs for: ${task.id}`,
       payload: { task_id: task.id, instance_id: task.instanceId },
     });
   } catch (eventError) {
     captureError(eventError, {
-      feature: "workflows.trigger_gate_update",
+      feature: "workflows.inputs_update",
       action: "addEvent",
       extra: { task_id: task.id, instance_id: task.instanceId },
     });
@@ -805,8 +806,7 @@ function normalizeTemplateTaskTemplates(
         ? normalizeTaskField(task.playbookId, "taskTemplate.playbookId", MAX_PLAYBOOK_LENGTH)
         : null,
       notes: normalizeTaskField(task.notes ?? "", "taskTemplate.notes", MAX_NOTES_LENGTH),
-      triggers: task.triggers ?? [],
-      gates: task.gates ?? [],
+      inputs: task.inputs ?? [],
       checkpoint: Boolean(task.checkpoint),
       owners: normalizeOwnerList(task.owners) ?? [],
     }))

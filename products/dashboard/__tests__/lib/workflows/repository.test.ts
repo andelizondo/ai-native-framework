@@ -223,8 +223,7 @@ describe("workflow repository", () => {
               stageId: "pre-sales",
               playbookId: "presales-qualification",
               notes: "",
-              triggers: [{ type: "manual", label: "Manual start" }],
-              gates: [{ type: "playbook_done", label: "Done" }],
+              inputs: [],
             },
             {
               skillId: "pm",
@@ -232,10 +231,15 @@ describe("workflow repository", () => {
               playbookId: "pdr-review",
               notes: "",
               checkpoint: true,
-              triggers: [
-                { type: "after_task", taskRef: "presales-qualification", label: "After PD" },
+              inputs: [
+                {
+                  id: "in-1",
+                  name: "After PD",
+                  linkMode: "linked",
+                  upstreamTaskRef: "presales-qualification",
+                  upstreamOutputId: null,
+                },
               ],
-              gates: [{ type: "checkpoint", label: "Approve" }],
             },
           ],
           created_at: "2026-04-19T12:00:00Z",
@@ -334,7 +338,16 @@ describe("workflow repository", () => {
         checkpoint: false,
         playbookId: "presales-qualification",
       });
-      expect(first.triggers).toEqual([{ type: "manual", label: "Manual start" }]);
+      expect(first.inputs).toEqual([]);
+      expect(second.inputs).toEqual([
+        {
+          id: "in-1",
+          name: "After PD",
+          linkMode: "linked",
+          upstreamTaskRef: "presales-qualification",
+          upstreamOutputId: null,
+        },
+      ]);
       expect(second.checkpoint).toBe(true);
       expect(second.playbookId).toBe("pdr-review");
 
@@ -492,6 +505,49 @@ describe("workflow repository", () => {
       const fetched = await repo.getTask("does-not-exist");
 
       expect(fetched).toBeNull();
+    });
+
+    it("filters legacy non-data-flow trigger types out of `inputs` on read", async () => {
+      // Legacy row authored before AEL-59: the JSONB `triggers` column
+      // carried `manual` / `event` / `schedule` / `webhook` items. The
+      // read shim drops them; only `task` / `after_task` survive as
+      // `linked` inputs.
+      store.workflow_tasks.push({
+        id: "legacy-task",
+        instance_id: "inst-x",
+        skill_id: "pm",
+        stage_id: "validation",
+        notes: "",
+        status: "not_started",
+        substatus: "",
+        checkpoint: false,
+        triggers: [
+          { type: "manual", label: "Manual start" },
+          { type: "event", eventName: "external.signal" },
+          { type: "schedule", label: "Cron" },
+          { type: "webhook", label: "Hook" },
+          { type: "after_task", taskRef: "presales-qualification", label: "After PD" },
+        ],
+        gates: [{ type: "approval", label: "Approve" }],
+        playbook_id: "pdr-review",
+        owners: [],
+        created_at: "2026-04-19T12:00:00Z",
+        updated_at: "2026-04-19T12:00:00Z",
+      });
+
+      const repo = createWorkflowRepository(makeFakeClient(store));
+      const fetched = await repo.getTask("legacy-task");
+
+      expect(fetched).not.toBeNull();
+      expect(fetched!.inputs).toEqual([
+        {
+          id: "linked:presales-qualification",
+          name: "After PD",
+          linkMode: "linked",
+          upstreamTaskRef: "presales-qualification",
+          upstreamOutputId: null,
+        },
+      ]);
     });
   });
 

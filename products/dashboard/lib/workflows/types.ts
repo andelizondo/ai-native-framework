@@ -44,17 +44,25 @@ export interface WorkflowSkill {
   owners: string[];
 }
 
-export interface WorkflowTrigger {
-  type: string;
-  label?: string;
-  taskRef?: string;
-  taskId?: string;
-  eventName?: string;
-}
+export type InputLinkMode = "linked" | "manual" | "bypass";
 
-export interface WorkflowGate {
-  type: string;
-  label?: string;
+/**
+ * A task's data-flow dependency. Replaces the previous `WorkflowTrigger` /
+ * `WorkflowGate` split: only the data-flow trigger types (`task`,
+ * `after_task`) survived the redesign — they become `linked` inputs. The
+ * remaining trigger/gate vocabulary was removed.
+ *
+ * `upstreamOutputId` is wired up by PR 2 (AEL-60) once `playbook_outputs`
+ * exists; until then it is always `null` for `linked` inputs and unused
+ * for `manual` / `bypass`.
+ */
+export interface WorkflowInput {
+  id: string;
+  name: string;
+  description?: string;
+  linkMode: InputLinkMode;
+  upstreamTaskRef?: string;
+  upstreamOutputId?: string | null;
 }
 
 export interface WorkflowTaskTemplate {
@@ -64,8 +72,7 @@ export interface WorkflowTaskTemplate {
   playbookId: string | null;
   notes?: string;
   checkpoint?: boolean;
-  triggers?: WorkflowTrigger[];
-  gates?: WorkflowGate[];
+  inputs?: WorkflowInput[];
   owners?: string[];
 }
 
@@ -93,8 +100,7 @@ export interface WorkflowTask {
   status: WorkflowTaskStatus;
   substatus: string;
   checkpoint: boolean;
-  triggers: WorkflowTrigger[];
-  gates: WorkflowGate[];
+  inputs: WorkflowInput[];
   playbookId: string | null;
   /** Owner labels (people or AI agents) assigned to this specific card.
    *  Per-task so two cards pointing at the same playbook can carry different
@@ -111,8 +117,7 @@ export interface WorkflowTaskCreateInput {
   playbookId: string | null;
   notes?: string;
   checkpoint?: boolean;
-  triggers?: WorkflowTrigger[];
-  gates?: WorkflowGate[];
+  inputs?: WorkflowInput[];
   owners?: string[];
 }
 
@@ -179,8 +184,7 @@ export interface WorkflowTaskPatch {
   status?: WorkflowTaskStatus;
   substatus?: string;
   checkpoint?: boolean;
-  triggers?: WorkflowTrigger[];
-  gates?: WorkflowGate[];
+  inputs?: WorkflowInput[];
   playbookId?: string | null;
   owners?: string[];
 }

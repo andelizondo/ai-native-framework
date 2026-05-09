@@ -566,37 +566,6 @@ export function AgentRunPanel({
           );
         })}
 
-        {/* Gates — rendered as a goal step at the end of the timeline */}
-        {task.gates.length > 0 && (
-          <div
-            className={cn(
-              "arp-step arp-step--gate",
-              task.status === "complete" && "arp-step--gate-done",
-            )}
-            data-testid="arp-gate-step"
-          >
-            <div className="arp-step-row">
-              <span
-                className={cn(
-                  "arp-step-icon",
-                  task.status === "complete" ? "arp-step-icon--done" : "arp-step-icon--pending",
-                )}
-                aria-hidden
-              >
-                {task.status === "complete" ? "✓" : "◇"}
-              </span>
-              <span className={cn(
-                "arp-step-label",
-                task.status !== "complete" && "arp-step-label--pending",
-              )}>
-                {task.gates.map((g) => g.label ?? g.type).join(" · ")}
-              </span>
-              {task.gates[0]?.type && (
-                <span className="arp-gate-type-badge">{task.gates[0].type}</span>
-              )}
-            </div>
-          </div>
-        )}
       </div>
 
       {/* Chat footer */}

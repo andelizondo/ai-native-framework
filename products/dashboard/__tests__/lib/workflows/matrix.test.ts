@@ -3,7 +3,7 @@
 import { describe, expect, it } from "vitest";
 
 import { barClass, canStart } from "@/lib/workflows/matrix";
-import type { WorkflowTask } from "@/lib/workflows/types";
+import type { WorkflowInput, WorkflowTask } from "@/lib/workflows/types";
 
 function task(
   id: string,
@@ -18,8 +18,7 @@ function task(
     status: "not_started",
     substatus: "",
     checkpoint: false,
-    triggers: [],
-    gates: [],
+    inputs: [],
     playbookId: null,
     owners: [],
     createdAt: "2026-04-19T12:00:00Z",
@@ -28,47 +27,60 @@ function task(
   };
 }
 
+function linked(ref: string | undefined, name = "linked"): WorkflowInput {
+  return {
+    id: `linked:${ref ?? name}`,
+    name,
+    linkMode: "linked",
+    upstreamTaskRef: ref,
+    upstreamOutputId: null,
+  };
+}
+
 describe("canStart", () => {
-  it("returns true for tasks already past not_started regardless of triggers", () => {
-    const a = task("a", { status: "active", triggers: [{ type: "task", taskRef: "missing" }] });
+  it("returns true for tasks already past not_started regardless of inputs", () => {
+    const a = task("a", { status: "active", inputs: [linked("missing")] });
     expect(canStart(a, [a])).toBe(true);
   });
 
-  it("returns true when there are no task-typed triggers", () => {
+  it("returns true when there are no linked inputs", () => {
     const t = task("t", {
-      triggers: [
-        { type: "manual", label: "Manual start" },
-        { type: "event", eventName: "external.signal" },
+      inputs: [
+        { id: "m-1", name: "Manual", linkMode: "manual" },
+        { id: "b-1", name: "Bypass", linkMode: "bypass" },
       ],
     });
     expect(canStart(t, [t])).toBe(true);
   });
 
-  it("requires every task-typed dependency to be complete", () => {
+  it("requires every linked input's upstream task to be complete", () => {
     const upstream = task("up", { playbookId: "pdr-review", status: "active" });
-    const downstream = task("down", {
-      triggers: [{ type: "after_task", taskRef: "pdr-review" }],
-    });
+    const downstream = task("down", { inputs: [linked("pdr-review")] });
     expect(canStart(downstream, [upstream, downstream])).toBe(false);
 
     const completed = { ...upstream, status: "complete" as const };
     expect(canStart(downstream, [completed, downstream])).toBe(true);
   });
 
-  it("treats `task` and `after_task` trigger types interchangeably", () => {
-    const upstream = task("up", { playbookId: "initial-invoicing", status: "complete" });
-    const t = task("t", { triggers: [{ type: "task", taskRef: "initial-invoicing" }] });
+  it("manual inputs never block even when listed alongside linked ones", () => {
+    const upstream = task("up", { playbookId: "p", status: "complete" });
+    const t = task("t", {
+      inputs: [
+        linked("p"),
+        { id: "m", name: "Marketing approval", linkMode: "manual" },
+      ],
+    });
     expect(canStart(t, [upstream, t])).toBe(true);
   });
 
-  it("falls back to taskId when taskRef is missing", () => {
+  it("falls back to matching by task id when ref is the upstream's id", () => {
     const upstream = task("up-id", { status: "complete" });
-    const t = task("t", { triggers: [{ type: "after_task", taskId: "up-id" }] });
+    const t = task("t", { inputs: [linked("up-id")] });
     expect(canStart(t, [upstream, t])).toBe(true);
   });
 
-  it("ignores triggers that reference unknown tasks rather than crashing", () => {
-    const t = task("t", { triggers: [{ type: "after_task", taskRef: "ghost" }] });
+  it("ignores linked inputs that reference unknown tasks rather than crashing", () => {
+    const t = task("t", { inputs: [linked("ghost")] });
     expect(canStart(t, [t])).toBe(false);
   });
 });

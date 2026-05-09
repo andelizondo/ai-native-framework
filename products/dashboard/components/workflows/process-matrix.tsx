@@ -342,8 +342,7 @@ export function ProcessMatrix({
             playbookId: task.playbookId,
             notes: task.notes,
             checkpoint: task.checkpoint,
-            triggers: task.triggers,
-            gates: task.gates,
+            inputs: task.inputs,
             owners: task.owners,
           });
           finalById.delete(task.id);
@@ -976,8 +975,7 @@ export function ProcessMatrix({
               status: "not_started",
               substatus: "",
               checkpoint: false,
-              triggers: [],
-              gates: [],
+              inputs: [],
               playbookId: input.playbookId,
               owners: input.owners,
               createdAt: now,
