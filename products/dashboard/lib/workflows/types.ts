@@ -147,6 +147,18 @@ export interface PlaybookOutput {
   createdAt: string;
 }
 
+/**
+ * One entry per playbook attached to a template, returned by
+ * `WorkflowRepository.listOutputsForTemplate`. `outputs` is sorted by
+ * `position` ascending and may be empty when the playbook has no
+ * declared outputs yet (the picker renders a "Declare an output" CTA).
+ */
+export interface TemplateOutputGroup {
+  playbookId: string;
+  playbookName: string;
+  outputs: PlaybookOutput[];
+}
+
 export type TaskOutputStatus = "pending" | "produced" | "failed" | "skipped";
 
 export interface TaskOutput {
@@ -361,6 +373,17 @@ export interface WorkflowRepository {
   ): Promise<TaskOutput>;
   /** List declared outputs for a Playbook, sorted by `position` ascending. */
   listPlaybookOutputs(playbookId: string): Promise<PlaybookOutput[]>;
+  /**
+   * Outputs grouped per playbook for every playbook attached to the given
+   * template (via `taskTemplates[].playbookId`). Drives the input-wiring
+   * picker in the template editor: founders can only wire a downstream
+   * `linked` input to outputs from playbooks already on the same template.
+   * Includes attached playbooks with zero declared outputs so the picker
+   * can render an empty-state CTA. Outputs are sorted by `position` asc.
+   */
+  listOutputsForTemplate(
+    templateId: string,
+  ): Promise<TemplateOutputGroup[]>;
   /** Insert a new playbook output. If `position` is omitted, the row is
    *  appended after the highest existing position for the same playbook.
    *  Throws `WorkflowRepositoryError` with `code: 'unique_name'` when the
