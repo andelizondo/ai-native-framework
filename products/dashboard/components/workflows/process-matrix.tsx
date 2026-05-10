@@ -70,10 +70,9 @@ import {
 } from "@/lib/workflows/task-status";
 
 import { AddPlaybookModal } from "./add-playbook-modal";
-import { AgentRunPanel } from "./agent-run-panel";
 import { HeaderActionsMenu } from "./header-actions-menu";
+import { PlaybookDrawer } from "./playbook-drawer";
 import { TaskCard } from "./task-card";
-import { TaskDrawer } from "./task-drawer";
 
 interface Props {
   instance: WorkflowInstanceDetail;
@@ -166,7 +165,6 @@ export function ProcessMatrix({
   const [confirmDeleteTask, setConfirmDeleteTask] = useState<WorkflowTask | null>(
     null,
   );
-  const [agentRunOpen, setAgentRunOpen] = useState(false);
   const [localTasks, setLocalTasks] = useState<WorkflowTask[]>(instance.tasks);
   const [lastSavedTasks, setLastSavedTasks] = useState<WorkflowTask[]>(instance.tasks);
   const [confirmDiscardOpen, setConfirmDiscardOpen] = useState(false);
@@ -916,22 +914,13 @@ export function ProcessMatrix({
       </div>
       </DndContext>
 
-      <TaskDrawer
+      <PlaybookDrawer
         task={selectedTask}
         instance={instance}
         skills={skills}
         template={template}
         playbookOptions={playbookOptions}
-        onClose={() => { setSelectedTaskId(null); setAgentRunOpen(false); }}
-        onTaskUpdate={handleTaskUpdate}
-        onViewLiveRun={selectedTask?.playbookId ? () => setAgentRunOpen(true) : undefined}
-      />
-
-      <AgentRunPanel
-        task={agentRunOpen ? selectedTask : null}
-        instance={instance}
-        open={agentRunOpen}
-        onClose={() => setAgentRunOpen(false)}
+        onClose={() => setSelectedTaskId(null)}
         onTaskUpdate={handleTaskUpdate}
       />
 
