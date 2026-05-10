@@ -139,7 +139,7 @@ export function TaskCard({
               testId={`task-checkpoint-${task.id}`}
             />
           ) : null}
-          {!templateView && task.status === "blocked" ? (
+          {!templateView && task.status === "failed" ? (
             <InfoBadge
               tone="error"
               icon={CircleAlert}

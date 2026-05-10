@@ -409,13 +409,13 @@ describe("workflow repository", () => {
       const targetTaskId = instance.tasks[0].id;
 
       const updated = await repo.updateTask(targetTaskId, {
-        status: "active",
+        status: "in_progress",
         substatus: "Agent began work",
         notes: "Started",
       });
 
       expect(updated.id).toBe(targetTaskId);
-      expect(updated.status).toBe("active");
+      expect(updated.status).toBe("in_progress");
       expect(updated.substatus).toBe("Agent began work");
       expect(updated.notes).toBe("Started");
 
@@ -507,11 +507,12 @@ describe("workflow repository", () => {
       expect(fetched).toBeNull();
     });
 
-    it("filters legacy non-data-flow trigger types out of `inputs` on read", async () => {
-      // Legacy row authored before AEL-59: the JSONB `triggers` column
-      // carried `manual` / `event` / `schedule` / `webhook` items. The
-      // read shim drops them; only `task` / `after_task` survive as
-      // `linked` inputs.
+    it("forward-maps legacy trigger-shaped JSONB to linked inputs on read", async () => {
+      // PR 2 / AEL-60 renamed the column to `inputs` and PR 1's runtime
+      // wrote canonical WorkflowInput JSONB. Defensively, rows authored
+      // before PR 1 may still carry the legacy trigger shape — the
+      // normalizeInputs shim maps them forward. Only `task` / `after_task`
+      // map to a `linked` input; everything else is dropped.
       store.workflow_tasks.push({
         id: "legacy-task",
         instance_id: "inst-x",
@@ -521,16 +522,18 @@ describe("workflow repository", () => {
         status: "not_started",
         substatus: "",
         checkpoint: false,
-        triggers: [
+        inputs: [
           { type: "manual", label: "Manual start" },
           { type: "event", eventName: "external.signal" },
           { type: "schedule", label: "Cron" },
           { type: "webhook", label: "Hook" },
           { type: "after_task", taskRef: "presales-qualification", label: "After PD" },
         ],
-        gates: [{ type: "approval", label: "Approve" }],
         playbook_id: "pdr-review",
         owners: [],
+        paused_reason: null,
+        paused_by: null,
+        paused_at: null,
         created_at: "2026-04-19T12:00:00Z",
         updated_at: "2026-04-19T12:00:00Z",
       });
@@ -552,28 +555,28 @@ describe("workflow repository", () => {
   });
 
   describe("transitionPendingCheckpoint", () => {
-    it("flips a pending_approval checkpoint task to the requested status atomically", async () => {
+    it("resumes a paused checkpoint task to the requested status atomically", async () => {
       const repo = createWorkflowRepository(makeFakeClient(store));
       const instance = await repo.createInstance("client-delivery", "Acme Corp");
       const checkpoint = instance.tasks.find((t) => t.checkpoint)!;
 
-      // Templates materialize tasks in `not_started`; promote to
-      // pending_approval so the conditional UPDATE's predicates match.
-      await repo.updateTask(checkpoint.id, { status: "pending_approval" });
+      // PR 2 routes checkpoint approval through pause/resume semantics —
+      // the predicate now requires status='paused' AND paused_reason='checkpoint'.
+      await repo.pauseTask(checkpoint.id, "checkpoint");
 
       const transitioned = await repo.transitionPendingCheckpoint(
         checkpoint.id,
-        "complete",
+        "in_progress",
       );
 
       expect(transitioned).not.toBeNull();
       expect(transitioned!.id).toBe(checkpoint.id);
-      expect(transitioned!.status).toBe("complete");
+      expect(transitioned!.status).toBe("in_progress");
       expect(transitioned!.checkpoint).toBe(true);
 
-      // Persisted: a re-read sees the new status.
       const refetched = await repo.getTask(checkpoint.id);
-      expect(refetched!.status).toBe("complete");
+      expect(refetched!.status).toBe("in_progress");
+      expect(refetched!.pausedReason).toBeNull();
     });
 
     it("returns null when the task is not a checkpoint (UPDATE matches no row, no write)", async () => {
@@ -581,30 +584,27 @@ describe("workflow repository", () => {
       const instance = await repo.createInstance("client-delivery", "Acme Corp");
       const nonCheckpoint = instance.tasks.find((t) => !t.checkpoint)!;
 
-      // Even after promoting status, the `checkpoint = TRUE` predicate
-      // must fail and the UPDATE must not write — the row stays
-      // untouched so subsequent flows see truthful state.
-      await repo.updateTask(nonCheckpoint.id, { status: "pending_approval" });
+      await repo.pauseTask(nonCheckpoint.id, "checkpoint");
 
       const transitioned = await repo.transitionPendingCheckpoint(
         nonCheckpoint.id,
-        "complete",
+        "in_progress",
       );
 
       expect(transitioned).toBeNull();
       const refetched = await repo.getTask(nonCheckpoint.id);
-      expect(refetched!.status).toBe("pending_approval");
+      expect(refetched!.status).toBe("paused");
     });
 
-    it("returns null when the task is not in pending_approval (UPDATE matches no row, no write)", async () => {
+    it("returns null when the task is not paused on a checkpoint reason", async () => {
       const repo = createWorkflowRepository(makeFakeClient(store));
       const instance = await repo.createInstance("client-delivery", "Acme Corp");
       const checkpoint = instance.tasks.find((t) => t.checkpoint)!;
 
-      // Checkpoint exists but is still `not_started` from materialization.
+      // Checkpoint exists but is still `not_started` — predicate fails.
       const transitioned = await repo.transitionPendingCheckpoint(
         checkpoint.id,
-        "complete",
+        "in_progress",
       );
 
       expect(transitioned).toBeNull();
@@ -617,7 +617,7 @@ describe("workflow repository", () => {
 
       const transitioned = await repo.transitionPendingCheckpoint(
         "does-not-exist",
-        "complete",
+        "in_progress",
       );
 
       expect(transitioned).toBeNull();
@@ -647,12 +647,12 @@ describe("workflow repository", () => {
       const target = instance.tasks[0]!;
 
       const transitioned = await repo.updateTaskIfStatus(target.id, "not_started", {
-        status: "active",
+        status: "in_progress",
       });
 
       expect(transitioned).not.toBeNull();
-      expect(transitioned!.status).toBe("active");
-      expect((await repo.getTask(target.id))!.status).toBe("active");
+      expect(transitioned!.status).toBe("in_progress");
+      expect((await repo.getTask(target.id))!.status).toBe("in_progress");
     });
 
     it("returns null when updateTaskIfStatus sees a stale current status", async () => {
@@ -660,8 +660,8 @@ describe("workflow repository", () => {
       const instance = await repo.createInstance("client-delivery", "Acme Corp");
       const target = instance.tasks[0]!;
 
-      const transitioned = await repo.updateTaskIfStatus(target.id, "active", {
-        status: "blocked",
+      const transitioned = await repo.updateTaskIfStatus(target.id, "in_progress", {
+        status: "failed",
       });
 
       expect(transitioned).toBeNull();

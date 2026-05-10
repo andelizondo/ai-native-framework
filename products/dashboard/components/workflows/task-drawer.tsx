@@ -77,11 +77,13 @@ function InputsEditor({ items }: InputsEditorProps) {
 // ── Details tab ───────────────────────────────────────────────────────────────
 
 const STATUS_LABELS: Record<WorkflowTask["status"], string> = {
-  complete: "Complete",
-  active: "In progress",
-  pending_approval: "Pending approval",
-  blocked: "Failed",
   not_started: "Not started",
+  waiting: "Waiting",
+  paused: "Paused",
+  in_progress: "In progress",
+  running: "Running",
+  complete: "Complete",
+  failed: "Failed",
 };
 
 interface DetailsTabProps {
@@ -112,8 +114,9 @@ function DetailsTab({
   onInputsChange,
   onViewLiveRun,
 }: DetailsTabProps) {
-  const isPendingApproval = task.status === "pending_approval";
-  const isActive = task.status === "active";
+  const isPendingApproval =
+    task.status === "paused" && task.pausedReason === "checkpoint";
+  const isActive = task.status === "in_progress" || task.status === "running";
   const isNotStarted = task.status === "not_started";
   const playbookCardClickable = !!onViewLiveRun;
   const skillRow = skills.find((s) => s.id === task.skillId);
@@ -244,7 +247,7 @@ function DetailsTab({
                       ? "● Running · view steps"
                       : task.status === "complete"
                         ? "✓ Completed · view run"
-                        : task.status === "blocked"
+                        : task.status === "failed"
                           ? "✗ Failed · view run"
                           : "View run →"}
                 </div>
@@ -290,7 +293,7 @@ function DetailsTab({
                   <Check size={10} aria-hidden />
                 </div>
               )}
-              {task.status === "blocked" && (
+              {task.status === "failed" && (
                 <div className="td-pb-failed-wrap" aria-label="Failed">
                   <div className="td-pb-failed-icon">
                     <CircleAlert size={16} strokeWidth={2.25} aria-hidden />

@@ -63,7 +63,11 @@ import type {
   WorkflowTaskStatus,
   WorkflowTemplate,
 } from "@/lib/workflows/types";
-import { TASK_STATUS_VAR } from "@/lib/workflows/task-status";
+import {
+  TASK_STATUS_LABEL,
+  TASK_STATUS_PILL_CLASS,
+  TASK_STATUS_VAR,
+} from "@/lib/workflows/task-status";
 
 import { AddPlaybookModal } from "./add-playbook-modal";
 import { AgentRunPanel } from "./agent-run-panel";
@@ -1131,26 +1135,8 @@ function MiniTaskCell({
       : task.status === "complete"
         ? 0.7
         : 1;
-  const statusLabel =
-    task.status === "active"
-      ? "In progress"
-      : task.status === "pending_approval"
-        ? "Pending approval"
-        : task.status === "blocked"
-          ? "Failed"
-          : task.status === "complete"
-            ? "Complete"
-            : "Not started";
-  const statusClass =
-    task.status === "active"
-      ? "s-active"
-      : task.status === "pending_approval"
-        ? "s-pending"
-        : task.status === "blocked"
-          ? "s-blocked"
-          : task.status === "complete"
-            ? "s-complete"
-            : "s-not_started";
+  const statusLabel = TASK_STATUS_LABEL[task.status];
+  const statusClass = TASK_STATUS_PILL_CLASS[task.status];
   return (
     <button
       type="button"
@@ -1158,7 +1144,7 @@ function MiniTaskCell({
       data-testid={`task-mini-${task.id}`}
       data-status={task.status}
       data-pulse={
-        task.status === "pending_approval" || task.status === "blocked"
+        task.status === "paused" || task.status === "failed"
           ? "true"
           : undefined
       }
