@@ -47,8 +47,9 @@ export function InputOutputPicker({
           className="inline-flex items-center gap-1 rounded-md border border-border bg-bg-3 px-2 py-1 text-[11px] text-t2"
           data-testid="input-wiring-chip"
         >
+          <span className="text-t3">Output:</span>
           <span className="font-medium text-t1">{wiredGroup.playbookName}</span>
-          <span className="text-t3">·</span>
+          <span className="text-t3">/</span>
           <span>{wiredOutput.name}</span>
           <button
             type="button"

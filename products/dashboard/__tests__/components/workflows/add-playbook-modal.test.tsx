@@ -106,9 +106,9 @@ describe("AddPlaybookModal — inputs editor", () => {
     // Step 2: pick the output.
     await user.selectOptions(within(row).getByLabelText("Output"), "po-1");
 
-    // Wired chip appears with × clear.
+    // Wired chip appears with the "Output:" prefix and × clear.
     expect(within(row).getByTestId("input-wiring-chip")).toHaveTextContent(
-      /Presales.*report/,
+      /Output:.*Presales.*report/,
     );
 
     await user.click(screen.getByRole("button", { name: /Save playbook/i }));

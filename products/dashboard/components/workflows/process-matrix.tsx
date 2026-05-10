@@ -56,6 +56,7 @@ import { resolveSkillColor } from "@/lib/workflows/skill-colors";
 import { ItemAvatar } from "@/components/framework/item-avatar";
 import type {
   FrameworkItem,
+  TaskIOSummary,
   WorkflowInstanceDetail,
   WorkflowSkill,
   WorkflowStage,
@@ -73,6 +74,7 @@ import { AddPlaybookModal } from "./add-playbook-modal";
 import { HeaderActionsMenu } from "./header-actions-menu";
 import { PlaybookDrawer } from "./playbook-drawer";
 import { TaskCard } from "./task-card";
+import { WiringOverlay } from "./wiring-overlay";
 
 interface Props {
   instance: WorkflowInstanceDetail;
@@ -149,6 +151,8 @@ export function ProcessMatrix({
   }, [allCollapsed, stages, skills]);
   const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null);
   const [dragTaskId, setDragTaskId] = useState<string | null>(null);
+  const [hoveredTaskId, setHoveredTaskId] = useState<string | null>(null);
+  const matrixWrapRef = useRef<HTMLDivElement | null>(null);
   const [addTaskFor, setAddTaskFor] = useState<{
     mode: "create" | "edit";
     taskId?: string;
@@ -536,7 +540,13 @@ export function ProcessMatrix({
         data-dragging={dragTaskId ? "true" : undefined}
         className={cn("matrix-wrap", collapsed && "roles-collapsed")}
       >
-        <div className="matrix" role="table" aria-label="Workflow process matrix">
+        <div
+          ref={matrixWrapRef}
+          className="matrix"
+          role="table"
+          aria-label="Workflow process matrix"
+          style={{ position: "relative" }}
+        >
           <div className="matrix-head-row" role="row">
             <div className="mx-corner" role="columnheader">
               <button
@@ -829,21 +839,49 @@ export function ProcessMatrix({
                       >
                         {task ? (
                           isMini ? (
-                            <MiniTaskCell
-                              task={task}
-                              playbook={playbook}
-                              skillColor={skillColor}
-                              onClick={
+                            <div
+                              data-task-id={task.id}
+                              onMouseEnter={
+                                editMode ? undefined : () => setHoveredTaskId(task.id)
+                              }
+                              onMouseLeave={
                                 editMode
                                   ? undefined
-                                  : () => setSelectedTaskId(task.id)
+                                  : () =>
+                                      setHoveredTaskId((current) =>
+                                        current === task.id ? null : current,
+                                      )
                               }
-                            />
+                            >
+                              <MiniTaskCell
+                                task={task}
+                                playbook={playbook}
+                                skillColor={skillColor}
+                                ioState={ioByTaskId.get(task.id)}
+                                onClick={
+                                  editMode
+                                    ? undefined
+                                    : () => setSelectedTaskId(task.id)
+                                }
+                              />
+                            </div>
                           ) : (
                             <DraggableTaskCard
                               taskId={task.id}
                               disabled={!editMode}
                               isActive={dragTaskId === task.id}
+                              dataTaskId={task.id}
+                              onHoverStart={
+                                editMode ? undefined : () => setHoveredTaskId(task.id)
+                              }
+                              onHoverEnd={
+                                editMode
+                                  ? undefined
+                                  : () =>
+                                      setHoveredTaskId((current) =>
+                                        current === task.id ? null : current,
+                                      )
+                              }
                             >
                               <TaskCard
                                 task={task}
@@ -916,6 +954,13 @@ export function ProcessMatrix({
               );
             })
           )}
+          {!editMode ? (
+            <WiringOverlay
+              containerRef={matrixWrapRef}
+              tasks={localTasks}
+              hoveredTaskId={hoveredTaskId}
+            />
+          ) : null}
         </div>
       </div>
       </DndContext>
@@ -1027,11 +1072,17 @@ function DraggableTaskCard({
   taskId,
   disabled,
   isActive,
+  dataTaskId,
+  onHoverStart,
+  onHoverEnd,
   children,
 }: {
   taskId: string;
   disabled: boolean;
   isActive: boolean;
+  dataTaskId?: string;
+  onHoverStart?: () => void;
+  onHoverEnd?: () => void;
   children: React.ReactNode;
 }) {
   const { attributes, listeners, setNodeRef, transform } = useDraggable({
@@ -1048,7 +1099,15 @@ function DraggableTaskCard({
   };
 
   return (
-    <div ref={setNodeRef} style={style} {...attributes} {...listeners}>
+    <div
+      ref={setNodeRef}
+      style={style}
+      data-task-id={dataTaskId}
+      onMouseEnter={onHoverStart}
+      onMouseLeave={onHoverEnd}
+      {...attributes}
+      {...listeners}
+    >
       {children}
     </div>
   );
@@ -1105,11 +1164,13 @@ function MiniTaskCell({
   task,
   playbook,
   skillColor,
+  ioState,
   onClick,
 }: {
   task: WorkflowTask;
   playbook: FrameworkItem | null;
   skillColor: string;
+  ioState?: TaskIOSummary;
   onClick?: () => void;
 }) {
   const title = playbook?.name ?? (task.playbookId ? "Playbook removed" : "No playbook");
@@ -1132,6 +1193,7 @@ function MiniTaskCell({
         : 1;
   const statusLabel = TASK_STATUS_LABEL[task.status];
   const statusClass = TASK_STATUS_PILL_CLASS[task.status];
+  const aggregateIo = aggregateIoStatus(ioState);
   return (
     <button
       type="button"
@@ -1174,6 +1236,14 @@ function MiniTaskCell({
           label={title}
           size="xs"
         />
+        {aggregateIo ? (
+          <span
+            className="mx-mini-cell-io-dot"
+            data-testid={`task-mini-io-${task.id}`}
+            data-io-status={aggregateIo}
+            aria-label={`Outputs ${aggregateIo}`}
+          />
+        ) : null}
         <FloatingHoverTooltip
           name={title}
           sub={statusLabel}
@@ -1183,6 +1253,26 @@ function MiniTaskCell({
       </span>
     </button>
   );
+}
+
+/**
+ * Single-dot summary of a task's declared output progress, for spaces too
+ * small to render the full pip rail (the matrix mini cell). Returns:
+ *   - "ok"      — every declared output has been produced
+ *   - "err"     — at least one output failed
+ *   - "pending" — at least one output remains pending (none failed yet)
+ *   - null      — the task has no declared outputs (don't render a dot)
+ */
+function aggregateIoStatus(
+  io: TaskIOSummary | undefined,
+): "ok" | "err" | "pending" | null {
+  if (!io || io.outputs.length === 0) return null;
+  let allProduced = true;
+  for (const output of io.outputs) {
+    if (output.status === "failed") return "err";
+    if (output.status !== "produced") allProduced = false;
+  }
+  return allProduced ? "ok" : "pending";
 }
 
 /**

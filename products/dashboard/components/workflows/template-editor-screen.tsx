@@ -1017,9 +1017,11 @@ export function TemplateEditorScreen({
             .map((t) => {
               const skill = draft.skills.find((s) => s.id === t.skillId);
               const stage = draft.stages.find((s) => s.id === t.stageId);
-              const pb = t.playbookId ? playbookById.get(t.playbookId) : null;
+              // Use skill (not playbook) so the playbook name shows on
+              // exactly one slot — the wired-output chip — keeping the
+              // upstream-task select visually distinct.
               const label = [
-                pb?.name ?? skill?.label ?? t.skillId,
+                skill?.label ?? t.skillId,
                 stage?.label ?? t.stageId,
               ]
                 .filter(Boolean)

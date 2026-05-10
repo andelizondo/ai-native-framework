@@ -229,16 +229,13 @@
   background: transparent;
   transition: background 0.15s, border-color 0.15s;
 }
-/* Reuse the existing pill-* tokens as the canonical "ok" / "err" semantic
- * colors — the spec called for `--ok` / `--err` but those don't exist in
- * the token set and these are the matching emerald / red anchors. */
 .tc-pip[data-status="produced"] {
-  background: var(--pill-complete-d);
-  border-color: var(--pill-complete-d);
+  background: var(--ok);
+  border-color: var(--ok);
 }
 .tc-pip[data-status="failed"] {
   background: transparent;
-  border-color: var(--pill-blocked-d);
+  border-color: var(--err);
 }
 .tc-pip[data-status="skipped"] {
   background: transparent;

@@ -77,6 +77,13 @@
   --pill-ns-bg: rgba(255, 255, 255, 0.03);
   --pill-ns-t: #334155;
   --pill-ns-d: #1e293b;
+
+  /* Semantic OK / error tokens. Aliased to the pill states because the
+   * design system reuses the same accent for both — splitting them here
+   * lets components reach for `--ok` / `--err` by intent rather than by
+   * the pill's component name. */
+  --ok: var(--pill-complete-d);
+  --err: var(--pill-blocked-d);
 }
 
 [data-theme="light"] {
@@ -122,6 +129,9 @@
   --pill-ns-bg: #f8fafc;
   --pill-ns-t: #94a3b8;
   --pill-ns-d: #e2e8f0;
+
+  --ok: var(--pill-complete-d);
+  --err: var(--pill-blocked-d);
 }
 
 /* stylelint-disable-next-line scss/at-rule-no-unknown -- Tailwind v4 @theme */
@@ -164,6 +174,10 @@
   --color-pill-ns-bg: var(--pill-ns-bg);
   --color-pill-ns-t: var(--pill-ns-t);
   --color-pill-ns-d: var(--pill-ns-d);
+
+  /* Semantic state */
+  --color-ok: var(--ok);
+  --color-err: var(--err);
 
   /* Effects */
   --shadow-canvas: var(--shadow);
