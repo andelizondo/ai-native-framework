@@ -731,4 +731,136 @@ describe("workflow repository", () => {
       expect(store.framework_items[0]?.id).toBe("pb-presales");
     });
   });
+
+  // The in-memory fake doesn't enforce the (playbook_id, name) UNIQUE
+  // constraint. We cover the friendly-error path for unique-name conflicts
+  // in the playbook-outputs-editor component test instead.
+  describe("playbook outputs", () => {
+    beforeEach(() => {
+      store.playbook_outputs = [
+        {
+          id: "po-1",
+          playbook_id: "pb-presales",
+          name: "report",
+          description: "Initial report",
+          kind: "file",
+          api_check: null,
+          position: 0,
+          created_at: "2026-04-19T12:00:00Z",
+        },
+        {
+          id: "po-2",
+          playbook_id: "pb-presales",
+          name: "deck",
+          description: null,
+          kind: "media",
+          api_check: null,
+          position: 1,
+          created_at: "2026-04-19T12:00:00Z",
+        },
+      ];
+      store.task_outputs = [
+        {
+          id: "to-1",
+          task_id: "task-a",
+          output_id: "po-1",
+          status: "produced",
+          artifact_url: null,
+          artifact_meta: null,
+          produced_by: null,
+          produced_at: null,
+          created_at: "2026-04-19T12:00:00Z",
+        },
+        {
+          id: "to-2",
+          task_id: "task-b",
+          output_id: "po-1",
+          status: "pending",
+          artifact_url: null,
+          artifact_meta: null,
+          produced_by: null,
+          produced_at: null,
+          created_at: "2026-04-19T12:00:00Z",
+        },
+      ];
+    });
+
+    it("listPlaybookOutputs returns rows for the playbook ordered by position", async () => {
+      const repo = createWorkflowRepository(makeFakeClient(store));
+      const outputs = await repo.listPlaybookOutputs("pb-presales");
+      expect(outputs.map((o) => o.name)).toEqual(["report", "deck"]);
+      expect(outputs[0].position).toBe(0);
+      expect(outputs[1].position).toBe(1);
+    });
+
+    it("createPlaybookOutput auto-positions to (max + 1) when omitted", async () => {
+      const repo = createWorkflowRepository(makeFakeClient(store));
+      const created = await repo.createPlaybookOutput({
+        playbookId: "pb-presales",
+        name: "summary",
+        kind: "manual",
+      });
+      expect(created.position).toBe(2);
+      expect(created.kind).toBe("manual");
+      expect(created.description).toBeNull();
+      expect(store.playbook_outputs).toHaveLength(3);
+    });
+
+    it("createPlaybookOutput on a playbook with no outputs starts at position 0", async () => {
+      store.playbook_outputs = [];
+      const repo = createWorkflowRepository(makeFakeClient(store));
+      const created = await repo.createPlaybookOutput({
+        playbookId: "pb-presales",
+        name: "first",
+        kind: "file",
+      });
+      expect(created.position).toBe(0);
+    });
+
+    it("updatePlaybookOutput patches only provided fields", async () => {
+      const repo = createWorkflowRepository(makeFakeClient(store));
+      const updated = await repo.updatePlaybookOutput("po-1", {
+        name: "report-v2",
+        kind: "link",
+      });
+      expect(updated.name).toBe("report-v2");
+      expect(updated.kind).toBe("link");
+      expect(updated.description).toBe("Initial report");
+    });
+
+    it("updatePlaybookOutput rejects empty patches", async () => {
+      const repo = createWorkflowRepository(makeFakeClient(store));
+      await expect(repo.updatePlaybookOutput("po-1", {})).rejects.toThrow(/empty patch/);
+    });
+
+    it("deletePlaybookOutput removes the row", async () => {
+      const repo = createWorkflowRepository(makeFakeClient(store));
+      await repo.deletePlaybookOutput("po-2");
+      expect(store.playbook_outputs.map((r) => r.id)).toEqual(["po-1"]);
+    });
+
+    it("reorderPlaybookOutputs writes positions in declaration order", async () => {
+      const repo = createWorkflowRepository(makeFakeClient(store));
+      await repo.reorderPlaybookOutputs("pb-presales", ["po-2", "po-1"]);
+      const reread = await repo.listPlaybookOutputs("pb-presales");
+      expect(reread.map((o) => o.id)).toEqual(["po-2", "po-1"]);
+      expect(reread[0].position).toBe(0);
+      expect(reread[1].position).toBe(1);
+    });
+
+    it("reorderPlaybookOutputs tolerates ids that no longer exist", async () => {
+      const repo = createWorkflowRepository(makeFakeClient(store));
+      await repo.reorderPlaybookOutputs("pb-presales", ["po-2", "po-deleted", "po-1"]);
+      const reread = await repo.listPlaybookOutputs("pb-presales");
+      expect(reread.map((o) => o.id)).toEqual(["po-2", "po-1"]);
+      // No phantom row was inserted.
+      expect(store.playbook_outputs).toHaveLength(2);
+    });
+
+    it("countTaskOutputsForPlaybookOutput returns the matching count", async () => {
+      const repo = createWorkflowRepository(makeFakeClient(store));
+      expect(await repo.countTaskOutputsForPlaybookOutput("po-1")).toBe(2);
+      expect(await repo.countTaskOutputsForPlaybookOutput("po-2")).toBe(0);
+    });
+  });
 });

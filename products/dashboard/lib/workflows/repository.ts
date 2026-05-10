@@ -414,13 +414,30 @@ function templatePatchToRow(
   return row;
 }
 
+export type WorkflowRepositoryErrorCode = "unique_name";
+
 export class WorkflowRepositoryError extends Error {
   readonly cause?: unknown;
-  constructor(message: string, cause?: unknown) {
+  readonly code?: WorkflowRepositoryErrorCode;
+  constructor(
+    message: string,
+    cause?: unknown,
+    options?: { code?: WorkflowRepositoryErrorCode },
+  ) {
     super(message);
     this.name = "WorkflowRepositoryError";
     this.cause = cause;
+    this.code = options?.code;
   }
+}
+
+function isUniqueViolation(error: unknown): boolean {
+  return (
+    typeof error === "object" &&
+    error !== null &&
+    "code" in error &&
+    (error as { code?: unknown }).code === "23505"
+  );
 }
 
 /**
@@ -1112,6 +1129,168 @@ export function createWorkflowRepository(
         .single();
 
       return mapTaskOutput(unwrap("produceOutput", data, error) as TaskOutputRow);
+    },
+
+    async listPlaybookOutputs(playbookId: string): Promise<PlaybookOutput[]> {
+      const { data, error } = await client
+        .from("playbook_outputs")
+        .select("*")
+        .eq("playbook_id", playbookId)
+        .order("position", { ascending: true });
+      if (error) {
+        throw new WorkflowRepositoryError("listPlaybookOutputs failed", error);
+      }
+      return (data ?? []).map((row) => mapPlaybookOutput(row as PlaybookOutputRow));
+    },
+
+    async createPlaybookOutput(input: {
+      playbookId: string;
+      name: string;
+      description?: string | null;
+      kind: PlaybookOutputKind;
+      apiCheck?: Record<string, unknown> | null;
+      position?: number;
+    }): Promise<PlaybookOutput> {
+      let position = input.position;
+      if (position === undefined) {
+        const { data: existing, error: posErr } = await client
+          .from("playbook_outputs")
+          .select("position")
+          .eq("playbook_id", input.playbookId)
+          .order("position", { ascending: false })
+          .limit(1);
+        if (posErr) {
+          throw new WorkflowRepositoryError(
+            "createPlaybookOutput position lookup failed",
+            posErr,
+          );
+        }
+        const maxRow = (existing ?? [])[0] as { position?: number } | undefined;
+        position = (maxRow?.position ?? -1) + 1;
+      }
+
+      const { data, error } = await client
+        .from("playbook_outputs")
+        .insert({
+          playbook_id: input.playbookId,
+          name: input.name,
+          description: input.description ?? null,
+          kind: input.kind,
+          api_check: input.apiCheck ?? null,
+          position,
+        })
+        .select("*")
+        .single();
+
+      if (error) {
+        if (isUniqueViolation(error)) {
+          throw new WorkflowRepositoryError(
+            "createPlaybookOutput name already exists",
+            error,
+            { code: "unique_name" },
+          );
+        }
+        throw new WorkflowRepositoryError("createPlaybookOutput failed", error);
+      }
+      return mapPlaybookOutput(unwrap("createPlaybookOutput", data, null) as PlaybookOutputRow);
+    },
+
+    async updatePlaybookOutput(
+      id: string,
+      patch: Partial<{
+        name: string;
+        description: string | null;
+        kind: PlaybookOutputKind | null;
+        apiCheck: Record<string, unknown> | null;
+        position: number;
+      }>,
+    ): Promise<PlaybookOutput> {
+      const dbPatch: Record<string, unknown> = {};
+      if (patch.name !== undefined) dbPatch.name = patch.name;
+      if (patch.description !== undefined) dbPatch.description = patch.description;
+      if (patch.kind !== undefined) dbPatch.kind = patch.kind;
+      if (patch.apiCheck !== undefined) dbPatch.api_check = patch.apiCheck;
+      if (patch.position !== undefined) dbPatch.position = patch.position;
+
+      if (Object.keys(dbPatch).length === 0) {
+        throw new WorkflowRepositoryError("updatePlaybookOutput: empty patch");
+      }
+
+      const { data, error } = await client
+        .from("playbook_outputs")
+        .update(dbPatch)
+        .eq("id", id)
+        .select("*")
+        .single();
+
+      if (error) {
+        if (isUniqueViolation(error)) {
+          throw new WorkflowRepositoryError(
+            "updatePlaybookOutput name already exists",
+            error,
+            { code: "unique_name" },
+          );
+        }
+        throw new WorkflowRepositoryError("updatePlaybookOutput failed", error);
+      }
+      return mapPlaybookOutput(unwrap("updatePlaybookOutput", data, null) as PlaybookOutputRow);
+    },
+
+    async deletePlaybookOutput(id: string): Promise<void> {
+      const { error } = await client.from("playbook_outputs").delete().eq("id", id);
+      if (error) {
+        throw new WorkflowRepositoryError("deletePlaybookOutput failed", error);
+      }
+    },
+
+    async reorderPlaybookOutputs(
+      playbookId: string,
+      orderedIds: string[],
+    ): Promise<void> {
+      if (orderedIds.length === 0) return;
+
+      // Resolve which ids still exist for this playbook so we don't recreate
+      // rows that were deleted between the editor's fetch and this call.
+      const { data: existing, error: fetchErr } = await client
+        .from("playbook_outputs")
+        .select("id")
+        .eq("playbook_id", playbookId)
+        .in("id", orderedIds);
+      if (fetchErr) {
+        throw new WorkflowRepositoryError("reorderPlaybookOutputs fetch failed", fetchErr);
+      }
+      const valid = new Set((existing ?? []).map((row: { id: string }) => row.id));
+      const updates = orderedIds
+        .filter((id) => valid.has(id))
+        .map((id, index) => ({ id, position: index }));
+      if (updates.length === 0) return;
+
+      // Apply in a single round-trip: per-row UPDATEs would be N round-trips,
+      // so we use upsert(onConflict: id) which writes all positions at once.
+      const { error } = await client
+        .from("playbook_outputs")
+        .upsert(updates, { onConflict: "id" });
+      if (error) {
+        throw new WorkflowRepositoryError("reorderPlaybookOutputs failed", error);
+      }
+    },
+
+    async countTaskOutputsForPlaybookOutput(outputId: string): Promise<number> {
+      // We fetch ids rather than using `count: "exact", head: true` because
+      // the editor only calls this once per delete-confirm and the row count
+      // is bounded by the number of tasks pointing at the playbook (typically
+      // single digits). Keeps the supabase fake in tests simple.
+      const { data, error } = await client
+        .from("task_outputs")
+        .select("id")
+        .eq("output_id", outputId);
+      if (error) {
+        throw new WorkflowRepositoryError(
+          "countTaskOutputsForPlaybookOutput failed",
+          error,
+        );
+      }
+      return (data ?? []).length;
     },
 
     async pauseTask(
