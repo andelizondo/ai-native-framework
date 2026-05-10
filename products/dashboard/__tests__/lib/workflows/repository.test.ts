@@ -475,6 +475,52 @@ describe("workflow repository", () => {
       });
     });
 
+    it("round-trips inputs[].upstreamOutputId through update + createInstance", async () => {
+      const repo = createWorkflowRepository(makeFakeClient(store));
+
+      await repo.updateTemplate("client-delivery", {
+        taskTemplates: [
+          {
+            id: "tt-a",
+            skillId: "sales-ops",
+            stageId: "pre-sales",
+            playbookId: "presales-qualification",
+            notes: "",
+            inputs: [],
+          },
+          {
+            id: "tt-b",
+            skillId: "pm",
+            stageId: "validation",
+            playbookId: "pdr-review",
+            notes: "",
+            checkpoint: true,
+            inputs: [
+              {
+                id: "in-1",
+                name: "After PD",
+                linkMode: "linked",
+                upstreamTaskRef: "tt-a",
+                upstreamOutputId: "po-1",
+              },
+            ],
+          },
+        ],
+      });
+
+      const instance = await repo.createInstance("client-delivery", "Acme");
+      const downstream = instance.tasks.find((t) => t.skillId === "pm");
+      expect(downstream?.inputs).toEqual([
+        {
+          id: "in-1",
+          name: "After PD",
+          linkMode: "linked",
+          upstreamTaskRef: "tt-a",
+          upstreamOutputId: "po-1",
+        },
+      ]);
+    });
+
     it("throws when updateTemplate receives an empty patch", async () => {
       const repo = createWorkflowRepository(makeFakeClient(store));
 
@@ -783,6 +829,85 @@ describe("workflow repository", () => {
           created_at: "2026-04-19T12:00:00Z",
         },
       ];
+    });
+
+    describe("listOutputsForTemplate", () => {
+      it("returns outputs grouped per attached playbook, sorted by playbook name", async () => {
+        store.workflow_templates.push({
+          id: "tpl-wired",
+          label: "Wired Template",
+          color: "#fff",
+          multi_instance: false,
+          stages: [],
+          skills: [],
+          task_templates: [
+            {
+              id: "t1",
+              skillId: "sk-pm",
+              stageId: "s1",
+              playbookId: "pb-presales",
+              notes: "",
+              inputs: [],
+            },
+            {
+              id: "t2",
+              skillId: "sk-pm",
+              stageId: "s2",
+              playbookId: "pb-empty",
+              notes: "",
+              inputs: [],
+            },
+          ],
+          created_at: "2026-04-19T12:00:00Z",
+          updated_at: "2026-04-19T12:00:00Z",
+        });
+        store.framework_items.push({
+          id: "pb-empty",
+          type: "playbook",
+          name: "ada-onboard",
+          description: "",
+          icon: null,
+          color: null,
+          content: "",
+          created_at: "2026-04-19T12:00:00Z",
+          updated_at: "2026-04-19T12:00:00Z",
+        });
+
+        const repo = createWorkflowRepository(makeFakeClient(store));
+        const groups = await repo.listOutputsForTemplate("tpl-wired");
+
+        expect(groups.map((g) => g.playbookName)).toEqual([
+          "ada-onboard",
+          "presales-qualification",
+        ]);
+        const presales = groups.find((g) => g.playbookId === "pb-presales");
+        expect(presales?.outputs.map((o) => o.name)).toEqual(["report", "deck"]);
+        const empty = groups.find((g) => g.playbookId === "pb-empty");
+        expect(empty?.outputs).toEqual([]);
+      });
+
+      it("returns an empty list when the template has no playbooks attached", async () => {
+        store.workflow_templates.push({
+          id: "tpl-bare",
+          label: "Bare",
+          color: "#fff",
+          multi_instance: false,
+          stages: [],
+          skills: [],
+          task_templates: [{ id: "t1", skillId: "sk-pm", stageId: "s1", playbookId: null, notes: "", inputs: [] }],
+          created_at: "2026-04-19T12:00:00Z",
+          updated_at: "2026-04-19T12:00:00Z",
+        });
+        const repo = createWorkflowRepository(makeFakeClient(store));
+        const groups = await repo.listOutputsForTemplate("tpl-bare");
+        expect(groups).toEqual([]);
+      });
+
+      it("returns an empty list when the template id is unknown", async () => {
+        const repo = createWorkflowRepository(makeFakeClient(store));
+        const groups = await repo.listOutputsForTemplate("nope");
+        expect(groups).toEqual([]);
+      });
     });
 
     it("listPlaybookOutputs returns rows for the playbook ordered by position", async () => {

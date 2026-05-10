@@ -26,6 +26,7 @@ import type {
   WorkflowTaskTemplate,
   WorkflowTemplatePatch,
   WorkflowTemplate,
+  TemplateOutputGroup,
 } from "./types";
 
 interface WorkflowTemplateRow {
@@ -414,7 +415,7 @@ function templatePatchToRow(
   return row;
 }
 
-export type WorkflowRepositoryErrorCode = "unique_name";
+export type WorkflowRepositoryErrorCode = "unique_name" | "stale_output_ref";
 
 export class WorkflowRepositoryError extends Error {
   readonly cause?: unknown;
@@ -1129,6 +1130,90 @@ export function createWorkflowRepository(
         .single();
 
       return mapTaskOutput(unwrap("produceOutput", data, error) as TaskOutputRow);
+    },
+
+    async listOutputsForTemplate(
+      templateId: string,
+    ): Promise<TemplateOutputGroup[]> {
+      const { data: templateRow, error: templateErr } = await client
+        .from("workflow_templates")
+        .select("task_templates")
+        .eq("id", templateId)
+        .maybeSingle();
+      if (templateErr) {
+        throw new WorkflowRepositoryError(
+          "listOutputsForTemplate template lookup failed",
+          templateErr,
+        );
+      }
+      if (!templateRow) return [];
+
+      const taskTemplates = toJsonArray<{ playbookId?: unknown }>(
+        (templateRow as { task_templates: unknown }).task_templates,
+      );
+      const playbookIds = Array.from(
+        new Set(
+          taskTemplates
+            .map((task) =>
+              typeof task.playbookId === "string" && task.playbookId.trim()
+                ? task.playbookId.trim()
+                : null,
+            )
+            .filter((value): value is string => value !== null),
+        ),
+      );
+      if (playbookIds.length === 0) return [];
+
+      const [{ data: itemRows, error: itemErr }, { data: outputRows, error: outputErr }] =
+        await Promise.all([
+          client
+            .from("framework_items")
+            .select("id,name")
+            .in("id", playbookIds)
+            .eq("type", "playbook"),
+          client
+            .from("playbook_outputs")
+            .select("*")
+            .in("playbook_id", playbookIds)
+            .order("position", { ascending: true }),
+        ]);
+      if (itemErr) {
+        throw new WorkflowRepositoryError(
+          "listOutputsForTemplate framework_items lookup failed",
+          itemErr,
+        );
+      }
+      if (outputErr) {
+        throw new WorkflowRepositoryError(
+          "listOutputsForTemplate playbook_outputs lookup failed",
+          outputErr,
+        );
+      }
+
+      const nameById = new Map<string, string>();
+      for (const row of (itemRows ?? []) as { id: string; name: string }[]) {
+        nameById.set(row.id, row.name);
+      }
+      const outputsByPlaybook = new Map<string, PlaybookOutput[]>();
+      for (const row of (outputRows ?? []) as PlaybookOutputRow[]) {
+        const mapped = mapPlaybookOutput(row);
+        const list = outputsByPlaybook.get(row.playbook_id) ?? [];
+        list.push(mapped);
+        outputsByPlaybook.set(row.playbook_id, list);
+      }
+
+      return playbookIds
+        .filter((id) => nameById.has(id))
+        .map((id) => ({
+          playbookId: id,
+          playbookName: nameById.get(id) as string,
+          outputs: outputsByPlaybook.get(id) ?? [],
+        }))
+        .sort((a, b) =>
+          a.playbookName.localeCompare(b.playbookName, undefined, {
+            sensitivity: "base",
+          }),
+        );
     },
 
     async listPlaybookOutputs(playbookId: string): Promise<PlaybookOutput[]> {

@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 
 import { captureError } from "@/lib/monitoring";
 import { getServerWorkflowRepository } from "@/lib/workflows/repository.server";
+import { WorkflowRepositoryError } from "@/lib/workflows/repository";
 import {
   pickPendingCheckpoints,
   type PendingCheckpoint,
@@ -13,11 +14,13 @@ import type {
   OutputArtifact,
   TaskInputState,
   TaskOutput,
+  TemplateOutputGroup,
   WorkflowInput,
   WorkflowInstance,
   WorkflowTask,
   WorkflowTaskCreateInput,
   WorkflowTaskStatus,
+  WorkflowTaskTemplate,
   WorkflowTemplate,
 } from "@/lib/workflows/types";
 
@@ -826,12 +829,52 @@ function normalizeTemplateSkills(
     .filter((skill) => skill.id && skill.label);
 }
 
+const MAX_INPUT_NAME_LENGTH = 80;
+const MAX_INPUT_DESCRIPTION_LENGTH = 240;
+const MAX_INPUT_REF_LENGTH = 120;
+
+function normalizeTemplateInputs(inputs: unknown): WorkflowInput[] {
+  if (!Array.isArray(inputs)) return [];
+  const seenIds = new Set<string>();
+  const normalized: WorkflowInput[] = [];
+  for (const raw of inputs as WorkflowInput[]) {
+    if (!raw || typeof raw !== "object") continue;
+    const id = normalizeTaskField(raw.id ?? "", "input.id", MAX_INPUT_REF_LENGTH);
+    if (!id || seenIds.has(id)) continue;
+    seenIds.add(id);
+    const linkMode =
+      raw.linkMode === "manual" || raw.linkMode === "bypass" ? raw.linkMode : "linked";
+    const name =
+      normalizeTaskField(raw.name ?? "", "input.name", MAX_INPUT_NAME_LENGTH) || id;
+    const description =
+      typeof raw.description === "string" && raw.description.trim()
+        ? raw.description.trim().slice(0, MAX_INPUT_DESCRIPTION_LENGTH)
+        : undefined;
+    const upstreamTaskRef =
+      typeof raw.upstreamTaskRef === "string" && raw.upstreamTaskRef.trim()
+        ? raw.upstreamTaskRef.trim().slice(0, MAX_INPUT_REF_LENGTH)
+        : undefined;
+    const upstreamOutputId =
+      typeof raw.upstreamOutputId === "string" && raw.upstreamOutputId.trim()
+        ? raw.upstreamOutputId.trim().slice(0, MAX_INPUT_REF_LENGTH)
+        : null;
+    normalized.push({
+      id,
+      name,
+      description,
+      linkMode,
+      upstreamTaskRef,
+      upstreamOutputId,
+    });
+  }
+  return normalized;
+}
+
 function normalizeTemplateTaskTemplates(
   taskTemplates: WorkflowTemplate["taskTemplates"],
-): WorkflowTemplate["taskTemplates"] {
+): WorkflowTaskTemplate[] {
   return taskTemplates
-    .map((task) => ({
-      ...task,
+    .map<WorkflowTaskTemplate>((task) => ({
       id: normalizeTaskField(task.id ?? "", "taskTemplate.id", 120),
       skillId: normalizeTaskField(task.skillId, "taskTemplate.skillId", 80),
       stageId: normalizeTaskField(task.stageId, "taskTemplate.stageId", 80),
@@ -839,11 +882,57 @@ function normalizeTemplateTaskTemplates(
         ? normalizeTaskField(task.playbookId, "taskTemplate.playbookId", MAX_PLAYBOOK_LENGTH)
         : null,
       notes: normalizeTaskField(task.notes ?? "", "taskTemplate.notes", MAX_NOTES_LENGTH),
-      inputs: task.inputs ?? [],
+      inputs: normalizeTemplateInputs(task.inputs),
       checkpoint: Boolean(task.checkpoint),
       owners: normalizeOwnerList(task.owners) ?? [],
     }))
     .filter((task) => task.id && task.skillId && task.stageId);
+}
+
+/**
+ * Cross-check `upstreamOutputId`s on the normalized task templates against
+ * the playbooks attached to the same template. Throws a friendly error if
+ * any wired output id no longer belongs to one of the template's playbooks
+ * (the picker showed it once but the underlying output was deleted or
+ * moved). The client refetches `listOutputsForTemplateAction` and retries.
+ */
+async function assertWiredOutputsBelongToTemplate(
+  taskTemplates: WorkflowTaskTemplate[],
+): Promise<void> {
+  const wiredIds = Array.from(
+    new Set(
+      taskTemplates.flatMap((task) =>
+        (task.inputs ?? [])
+          .map((input) => input.upstreamOutputId)
+          .filter((id): id is string => typeof id === "string" && id.trim().length > 0),
+      ),
+    ),
+  );
+  if (wiredIds.length === 0) return;
+
+  const allowedPlaybookIds = new Set(
+    taskTemplates
+      .map((task) => task.playbookId)
+      .filter((id): id is string => typeof id === "string" && id.trim().length > 0),
+  );
+
+  const repo = await getServerWorkflowRepository();
+  const groups = new Map<string, string>();
+  for (const id of allowedPlaybookIds) {
+    const outputs = await repo.listPlaybookOutputs(id);
+    for (const output of outputs) groups.set(output.id, id);
+  }
+
+  for (const id of wiredIds) {
+    const owner = groups.get(id);
+    if (!owner || !allowedPlaybookIds.has(owner)) {
+      throw new WorkflowRepositoryError(
+        "That wired output is no longer available on this template — please re-pick.",
+        null,
+        { code: "stale_output_ref" },
+      );
+    }
+  }
 }
 
 export async function updateTemplateAction(
@@ -858,19 +947,40 @@ export async function updateTemplateAction(
     throw new Error("updateTemplateAction: template label is required");
   }
 
+  const normalizedTaskTemplates = normalizeTemplateTaskTemplates(template.taskTemplates);
+  await assertWiredOutputsBelongToTemplate(normalizedTaskTemplates);
+
   const repo = await getServerWorkflowRepository();
   const updatedTemplate = await repo.updateTemplate(trimmedTemplateId, {
     label: trimTemplateLabel(template.label),
     color: normalizeTemplateColor(template.color),
     stages: normalizeTemplateStages(template.stages),
     skills: normalizeTemplateSkills(template.skills),
-    taskTemplates: normalizeTemplateTaskTemplates(template.taskTemplates),
+    taskTemplates: normalizedTaskTemplates,
   });
 
   revalidatePath("/", "layout");
   revalidatePath(`/workflows/templates/${trimmedTemplateId}/edit`);
 
   return { template: updatedTemplate };
+}
+
+/**
+ * Outputs grouped per playbook attached to the given template — drives the
+ * input-wiring picker in the template editor. The picker scope is limited
+ * to the template's own playbooks so wiring stays visually local; a
+ * downstream task can only reference outputs from another task already on
+ * the same template (per AEL-64 spec).
+ */
+export async function listOutputsForTemplateAction(
+  templateId: string,
+): Promise<TemplateOutputGroup[]> {
+  const trimmedTemplateId = normalizeTaskField(templateId, "templateId", 120);
+  if (!trimmedTemplateId) {
+    throw new Error("listOutputsForTemplateAction: templateId is required");
+  }
+  const repo = await getServerWorkflowRepository();
+  return repo.listOutputsForTemplate(trimmedTemplateId);
 }
 
 export async function renameTemplateAction(
