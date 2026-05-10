@@ -75,6 +75,7 @@ export function AddPlaybookModal({
     initial?.inputs ? initial.inputs.map((i) => ({ ...i })) : [],
   );
   const [query, setQuery] = useState("");
+  const [pendingFocusIndex, setPendingFocusIndex] = useState<number | null>(null);
 
   const allowed = useMemo(
     () =>
@@ -244,16 +245,19 @@ export function AddPlaybookModal({
                 <button
                   type="button"
                   onClick={() => {
-                    setInputs((current) => [
-                      ...current,
-                      {
-                        id: createInputId(),
-                        name: "",
-                        linkMode: "linked",
-                        upstreamTaskRef: undefined,
-                        upstreamOutputId: null,
-                      },
-                    ]);
+                    setInputs((current) => {
+                      setPendingFocusIndex(current.length);
+                      return [
+                        ...current,
+                        {
+                          id: createInputId(),
+                          name: "",
+                          linkMode: "linked",
+                          upstreamTaskRef: undefined,
+                          upstreamOutputId: null,
+                        },
+                      ];
+                    });
                     void onRefetchOutputs?.();
                   }}
                   className="inline-flex items-center gap-1 rounded-md border border-border bg-bg-3 px-2 py-1 text-[11px] text-t2 transition hover:bg-bg-4 hover:text-t1"
@@ -279,6 +283,12 @@ export function AddPlaybookModal({
                         <div className="flex-1 space-y-1.5">
                           <div className="flex items-center gap-1.5">
                             <input
+                              ref={(el) => {
+                                if (el && pendingFocusIndex === index) {
+                                  el.focus();
+                                  setPendingFocusIndex(null);
+                                }
+                              }}
                               value={input.name}
                               onChange={(event) => {
                                 const value = event.target.value;

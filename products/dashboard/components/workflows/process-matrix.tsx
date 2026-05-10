@@ -56,6 +56,7 @@ import { resolveSkillColor } from "@/lib/workflows/skill-colors";
 import { ItemAvatar } from "@/components/framework/item-avatar";
 import type {
   FrameworkItem,
+  TaskIOSummary,
   WorkflowInstanceDetail,
   WorkflowSkill,
   WorkflowStage,
@@ -856,6 +857,7 @@ export function ProcessMatrix({
                                 task={task}
                                 playbook={playbook}
                                 skillColor={skillColor}
+                                ioState={ioByTaskId.get(task.id)}
                                 onClick={
                                   editMode
                                     ? undefined
@@ -1162,11 +1164,13 @@ function MiniTaskCell({
   task,
   playbook,
   skillColor,
+  ioState,
   onClick,
 }: {
   task: WorkflowTask;
   playbook: FrameworkItem | null;
   skillColor: string;
+  ioState?: TaskIOSummary;
   onClick?: () => void;
 }) {
   const title = playbook?.name ?? (task.playbookId ? "Playbook removed" : "No playbook");
@@ -1189,6 +1193,7 @@ function MiniTaskCell({
         : 1;
   const statusLabel = TASK_STATUS_LABEL[task.status];
   const statusClass = TASK_STATUS_PILL_CLASS[task.status];
+  const aggregateIo = aggregateIoStatus(ioState);
   return (
     <button
       type="button"
@@ -1231,6 +1236,14 @@ function MiniTaskCell({
           label={title}
           size="xs"
         />
+        {aggregateIo ? (
+          <span
+            className="mx-mini-cell-io-dot"
+            data-testid={`task-mini-io-${task.id}`}
+            data-io-status={aggregateIo}
+            aria-label={`Outputs ${aggregateIo}`}
+          />
+        ) : null}
         <FloatingHoverTooltip
           name={title}
           sub={statusLabel}
@@ -1240,6 +1253,26 @@ function MiniTaskCell({
       </span>
     </button>
   );
+}
+
+/**
+ * Single-dot summary of a task's declared output progress, for spaces too
+ * small to render the full pip rail (the matrix mini cell). Returns:
+ *   - "ok"      — every declared output has been produced
+ *   - "err"     — at least one output failed
+ *   - "pending" — at least one output remains pending (none failed yet)
+ *   - null      — the task has no declared outputs (don't render a dot)
+ */
+function aggregateIoStatus(
+  io: TaskIOSummary | undefined,
+): "ok" | "err" | "pending" | null {
+  if (!io || io.outputs.length === 0) return null;
+  let allProduced = true;
+  for (const output of io.outputs) {
+    if (output.status === "failed") return "err";
+    if (output.status !== "produced") allProduced = false;
+  }
+  return allProduced ? "ok" : "pending";
 }
 
 /**
