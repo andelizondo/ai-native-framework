@@ -46,6 +46,7 @@ import { CompactEmojiPicker } from "@/components/framework/compact-emoji-picker"
 import { FrameworkHeaderActionsMenu } from "@/components/framework/framework-header-actions-menu";
 import { FrameworkItemModal } from "@/components/framework/framework-item-modal";
 import { ItemAvatar } from "@/components/framework/item-avatar";
+import { PlaybookOutputsEditor } from "@/components/framework/playbook-outputs-editor";
 import { ConfirmModal } from "@/components/ui/confirm-modal";
 import { useAnalytics } from "@/lib/analytics/events";
 import { useToast } from "@/lib/toast";
@@ -863,6 +864,9 @@ export function FrameworkScreen({
                           {draftItem.content || "_No content yet._"}
                         </ReactMarkdown>
                         </div>
+                        {type === "playbook" ? (
+                          <PlaybookOutputsEditor playbookId={draftItem.id} />
+                        ) : null}
                       </div>
                     </div>
                   ) : (

@@ -359,6 +359,41 @@ export interface WorkflowRepository {
     outputId: string,
     artifact?: OutputArtifact,
   ): Promise<TaskOutput>;
+  /** List declared outputs for a Playbook, sorted by `position` ascending. */
+  listPlaybookOutputs(playbookId: string): Promise<PlaybookOutput[]>;
+  /** Insert a new playbook output. If `position` is omitted, the row is
+   *  appended after the highest existing position for the same playbook.
+   *  Throws `WorkflowRepositoryError` with `code: 'unique_name'` when the
+   *  (playbook_id, name) pair conflicts. */
+  createPlaybookOutput(input: {
+    playbookId: string;
+    name: string;
+    description?: string | null;
+    kind: PlaybookOutputKind;
+    apiCheck?: Record<string, unknown> | null;
+    position?: number;
+  }): Promise<PlaybookOutput>;
+  /** Patch a playbook output. Same `unique_name` translation as create. */
+  updatePlaybookOutput(
+    id: string,
+    patch: Partial<{
+      name: string;
+      description: string | null;
+      kind: PlaybookOutputKind | null;
+      apiCheck: Record<string, unknown> | null;
+      position: number;
+    }>,
+  ): Promise<PlaybookOutput>;
+  deletePlaybookOutput(id: string): Promise<void>;
+  /** Persist `position` for the given ids in declaration order. Tolerates
+   *  ids that no longer exist (e.g. deleted between fetch and reorder). */
+  reorderPlaybookOutputs(
+    playbookId: string,
+    orderedIds: string[],
+  ): Promise<void>;
+  /** Count `task_outputs` rows referencing this output (used to surface
+   *  cascade-delete impact in the confirm modal). */
+  countTaskOutputsForPlaybookOutput(outputId: string): Promise<number>;
   pauseTask(
     taskId: string,
     reason: string,
