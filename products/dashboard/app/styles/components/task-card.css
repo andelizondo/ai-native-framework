@@ -209,6 +209,48 @@
    * the status pill upward — keeps the pill on a stable baseline. */
   min-height: calc(1.3em * 2);
 }
+/* Output pip rail (PR 4 / AEL-62). Sits between the title and the status
+ * row. One pip per declared `playbook_outputs` row, sorted by position. The
+ * rail itself only mounts when the parent passes `ioState` with at least one
+ * output, so the template editor (which has no IO) keeps its prior layout. */
+.tc-pip-rail {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  height: 6px;
+  margin-top: 2px;
+}
+.tc-pip {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  box-sizing: border-box;
+  border: 1px solid var(--border-2);
+  background: transparent;
+  transition: background 0.15s, border-color 0.15s;
+}
+/* Reuse the existing pill-* tokens as the canonical "ok" / "err" semantic
+ * colors — the spec called for `--ok` / `--err` but those don't exist in
+ * the token set and these are the matching emerald / red anchors. */
+.tc-pip[data-status="produced"] {
+  background: var(--pill-complete-d);
+  border-color: var(--pill-complete-d);
+}
+.tc-pip[data-status="failed"] {
+  background: transparent;
+  border-color: var(--pill-blocked-d);
+}
+.tc-pip[data-status="skipped"] {
+  background: transparent;
+  border-style: dashed;
+}
+.tc-unmet-input-glyph {
+  color: var(--t3);
+  display: inline-flex;
+  align-items: center;
+  flex-shrink: 0;
+}
+
 .tc-status-row {
   display: flex;
   align-items: center;

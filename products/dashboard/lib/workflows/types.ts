@@ -226,6 +226,28 @@ export interface WorkflowInstance {
 export interface WorkflowInstanceDetail extends WorkflowInstance {
   tasks: WorkflowTask[];
   events: WorkflowEvent[];
+  /** Per-task IO summary — outputs progress + unmet linked-input flag —
+   *  batched into the instance fetch so the matrix can render pips/glyphs
+   *  on every card without an additional round-trip per card. One entry per
+   *  task in `tasks`; tasks with no declared outputs and no linked inputs
+   *  still appear with empty `outputs` and `hasUnmetLinkedInput: false`. */
+  taskIO: TaskIOSummary[];
+}
+
+/**
+ * Compact IO state used by `TaskCard` to render the output pip rail and the
+ * unmet linked-input glyph. Source data lives in `task_outputs` /
+ * `task_inputs` / `playbook_outputs`; this is the batched view.
+ */
+export interface TaskIOSummary {
+  taskId: string;
+  /** One entry per declared `playbook_outputs` row, sorted by `position`
+   *  ascending. `status` reflects the matching `task_outputs.status` if a
+   *  row exists, otherwise defaults to `"pending"`. */
+  outputs: { id: string; position: number; status: TaskOutputStatus }[];
+  /** True iff at least one `linked` input on the task has no `task_inputs`
+   *  row with `received=true`. */
+  hasUnmetLinkedInput: boolean;
 }
 
 export interface FrameworkItem {

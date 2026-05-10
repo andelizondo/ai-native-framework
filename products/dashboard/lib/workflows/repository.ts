@@ -7,6 +7,7 @@ import type {
   OutputArtifact,
   PlaybookOutput,
   PlaybookOutputKind,
+  TaskIOSummary,
   TaskInputState,
   TaskOutput,
   TaskOutputStatus,
@@ -422,6 +423,89 @@ export class WorkflowRepositoryError extends Error {
   }
 }
 
+/**
+ * Batch-load per-task IO state for an instance: outputs progress (one row per
+ * `playbook_outputs` declaration, joined with the matching `task_outputs`
+ * status if present) and a boolean flag for any unsatisfied `linked` input.
+ *
+ * Three queries scoped to the instance's task ids — small fixed cost regardless
+ * of task count, so the matrix avoids per-card fetches.
+ */
+async function loadInstanceTaskIO(
+  client: SupabaseClient,
+  tasks: WorkflowTask[],
+): Promise<TaskIOSummary[]> {
+  if (tasks.length === 0) return [];
+  const taskIds = tasks.map((t) => t.id);
+  const playbookIds = Array.from(
+    new Set(tasks.map((t) => t.playbookId).filter((id): id is string => Boolean(id))),
+  );
+
+  const [pbOutputsRes, taskOutputsRes, taskInputsRes] = await Promise.all([
+    playbookIds.length > 0
+      ? client
+          .from("playbook_outputs")
+          .select("*")
+          .in("playbook_id", playbookIds)
+          .order("position", { ascending: true })
+      : Promise.resolve({ data: [], error: null } as const),
+    client.from("task_outputs").select("*").in("task_id", taskIds),
+    client.from("task_inputs").select("*").in("task_id", taskIds),
+  ]);
+
+  if (pbOutputsRes.error) {
+    throw new WorkflowRepositoryError("loadInstanceTaskIO playbook_outputs failed", pbOutputsRes.error);
+  }
+  if (taskOutputsRes.error) {
+    throw new WorkflowRepositoryError("loadInstanceTaskIO task_outputs failed", taskOutputsRes.error);
+  }
+  if (taskInputsRes.error) {
+    throw new WorkflowRepositoryError("loadInstanceTaskIO task_inputs failed", taskInputsRes.error);
+  }
+
+  const pbOutputsByPlaybook = new Map<string, PlaybookOutputRow[]>();
+  for (const row of (pbOutputsRes.data ?? []) as PlaybookOutputRow[]) {
+    const list = pbOutputsByPlaybook.get(row.playbook_id) ?? [];
+    list.push(row);
+    pbOutputsByPlaybook.set(row.playbook_id, list);
+  }
+
+  const taskOutputByTaskAndOutput = new Map<string, TaskOutputRow>();
+  for (const row of (taskOutputsRes.data ?? []) as TaskOutputRow[]) {
+    taskOutputByTaskAndOutput.set(`${row.task_id}::${row.output_id}`, row);
+  }
+
+  const receivedInputsByTask = new Map<string, Set<string>>();
+  for (const row of (taskInputsRes.data ?? []) as TaskInputRow[]) {
+    if (!row.received) continue;
+    const set = receivedInputsByTask.get(row.task_id) ?? new Set<string>();
+    set.add(row.input_id);
+    receivedInputsByTask.set(row.task_id, set);
+  }
+
+  return tasks.map((task) => {
+    const pbOutputs = task.playbookId
+      ? (pbOutputsByPlaybook.get(task.playbookId) ?? [])
+      : [];
+    const outputs = pbOutputs
+      .slice()
+      .sort((a, b) => a.position - b.position)
+      .map((po) => {
+        const tor = taskOutputByTaskAndOutput.get(`${task.id}::${po.id}`);
+        return {
+          id: po.id,
+          position: po.position,
+          status: (tor?.status ?? "pending") as TaskOutputStatus,
+        };
+      });
+    const received = receivedInputsByTask.get(task.id) ?? new Set<string>();
+    const hasUnmetLinkedInput = task.inputs.some(
+      (input) => input.linkMode === "linked" && !received.has(input.id),
+    );
+    return { taskId: task.id, outputs, hasUnmetLinkedInput };
+  });
+}
+
 function unwrap<T>(label: string, data: T | null, error: unknown): T {
   if (error) {
     throw new WorkflowRepositoryError(`${label} failed`, error);
@@ -498,10 +582,14 @@ export function createWorkflowRepository(
         throw new WorkflowRepositoryError("getInstance events failed", eventsErr);
       }
 
+      const tasks = (taskRows ?? []).map((row) => mapTask(row as WorkflowTaskRow));
+      const taskIO = await loadInstanceTaskIO(client, tasks);
+
       return {
         ...mapInstance(instanceRow as WorkflowInstanceRow),
-        tasks: (taskRows ?? []).map((row) => mapTask(row as WorkflowTaskRow)),
+        tasks,
         events: (eventRows ?? []).map((row) => mapEvent(row as WorkflowEventRow)),
+        taskIO,
       };
     },
 
@@ -668,7 +756,8 @@ export function createWorkflowRepository(
         tasks = (insertedTasks ?? []).map((row) => mapTask(row as WorkflowTaskRow));
       }
 
-      return { ...instance, tasks, events: [] };
+      const taskIO = await loadInstanceTaskIO(client, tasks);
+      return { ...instance, tasks, events: [], taskIO };
     },
 
     async updateInstance(

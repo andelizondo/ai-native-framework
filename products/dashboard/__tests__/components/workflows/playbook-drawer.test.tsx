@@ -130,6 +130,7 @@ function makeInstance(): WorkflowInstanceDetail {
     skills: SKILLS,
     tasks: [],
     events: [],
+    taskIO: [],
     createdAt: "2026-05-10T00:00:00Z",
     updatedAt: "2026-05-10T00:00:00Z",
   };
