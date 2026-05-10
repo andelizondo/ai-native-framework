@@ -73,6 +73,7 @@ import { AddPlaybookModal } from "./add-playbook-modal";
 import { HeaderActionsMenu } from "./header-actions-menu";
 import { PlaybookDrawer } from "./playbook-drawer";
 import { TaskCard } from "./task-card";
+import { WiringOverlay } from "./wiring-overlay";
 
 interface Props {
   instance: WorkflowInstanceDetail;
@@ -149,6 +150,8 @@ export function ProcessMatrix({
   }, [allCollapsed, stages, skills]);
   const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null);
   const [dragTaskId, setDragTaskId] = useState<string | null>(null);
+  const [hoveredTaskId, setHoveredTaskId] = useState<string | null>(null);
+  const matrixWrapRef = useRef<HTMLDivElement | null>(null);
   const [addTaskFor, setAddTaskFor] = useState<{
     mode: "create" | "edit";
     taskId?: string;
@@ -536,7 +539,13 @@ export function ProcessMatrix({
         data-dragging={dragTaskId ? "true" : undefined}
         className={cn("matrix-wrap", collapsed && "roles-collapsed")}
       >
-        <div className="matrix" role="table" aria-label="Workflow process matrix">
+        <div
+          ref={matrixWrapRef}
+          className="matrix"
+          role="table"
+          aria-label="Workflow process matrix"
+          style={{ position: "relative" }}
+        >
           <div className="matrix-head-row" role="row">
             <div className="mx-corner" role="columnheader">
               <button
@@ -829,21 +838,48 @@ export function ProcessMatrix({
                       >
                         {task ? (
                           isMini ? (
-                            <MiniTaskCell
-                              task={task}
-                              playbook={playbook}
-                              skillColor={skillColor}
-                              onClick={
+                            <div
+                              data-task-id={task.id}
+                              onMouseEnter={
+                                editMode ? undefined : () => setHoveredTaskId(task.id)
+                              }
+                              onMouseLeave={
                                 editMode
                                   ? undefined
-                                  : () => setSelectedTaskId(task.id)
+                                  : () =>
+                                      setHoveredTaskId((current) =>
+                                        current === task.id ? null : current,
+                                      )
                               }
-                            />
+                            >
+                              <MiniTaskCell
+                                task={task}
+                                playbook={playbook}
+                                skillColor={skillColor}
+                                onClick={
+                                  editMode
+                                    ? undefined
+                                    : () => setSelectedTaskId(task.id)
+                                }
+                              />
+                            </div>
                           ) : (
                             <DraggableTaskCard
                               taskId={task.id}
                               disabled={!editMode}
                               isActive={dragTaskId === task.id}
+                              dataTaskId={task.id}
+                              onHoverStart={
+                                editMode ? undefined : () => setHoveredTaskId(task.id)
+                              }
+                              onHoverEnd={
+                                editMode
+                                  ? undefined
+                                  : () =>
+                                      setHoveredTaskId((current) =>
+                                        current === task.id ? null : current,
+                                      )
+                              }
                             >
                               <TaskCard
                                 task={task}
@@ -916,6 +952,13 @@ export function ProcessMatrix({
               );
             })
           )}
+          {!editMode ? (
+            <WiringOverlay
+              containerRef={matrixWrapRef}
+              tasks={localTasks}
+              hoveredTaskId={hoveredTaskId}
+            />
+          ) : null}
         </div>
       </div>
       </DndContext>
@@ -1027,11 +1070,17 @@ function DraggableTaskCard({
   taskId,
   disabled,
   isActive,
+  dataTaskId,
+  onHoverStart,
+  onHoverEnd,
   children,
 }: {
   taskId: string;
   disabled: boolean;
   isActive: boolean;
+  dataTaskId?: string;
+  onHoverStart?: () => void;
+  onHoverEnd?: () => void;
   children: React.ReactNode;
 }) {
   const { attributes, listeners, setNodeRef, transform } = useDraggable({
@@ -1048,7 +1097,15 @@ function DraggableTaskCard({
   };
 
   return (
-    <div ref={setNodeRef} style={style} {...attributes} {...listeners}>
+    <div
+      ref={setNodeRef}
+      style={style}
+      data-task-id={dataTaskId}
+      onMouseEnter={onHoverStart}
+      onMouseLeave={onHoverEnd}
+      {...attributes}
+      {...listeners}
+    >
       {children}
     </div>
   );
