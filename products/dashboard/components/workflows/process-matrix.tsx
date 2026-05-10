@@ -180,6 +180,11 @@ export function ProcessMatrix({
     [playbookOptions],
   );
 
+  const ioByTaskId = useMemo(
+    () => new Map((instance.taskIO ?? []).map((io) => [io.taskId, io])),
+    [instance.taskIO],
+  );
+
   const handleStatusChange = useCallback(
     (taskId: string, next: WorkflowTaskStatus) => {
       const previous = localTasks.find((t) => t.id === taskId);
@@ -846,6 +851,7 @@ export function ProcessMatrix({
                                 skillColor={skillColor}
                                 barState={barClass(task, canStart(task, localTasks))}
                                 editMode={editMode}
+                                ioState={ioByTaskId.get(task.id)}
                                 onClick={
                                   editMode
                                     ? undefined

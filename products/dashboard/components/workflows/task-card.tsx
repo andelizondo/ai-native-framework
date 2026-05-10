@@ -5,6 +5,7 @@ import {
   AlertTriangle,
   Check,
   CircleAlert,
+  CornerUpRight,
   Pencil,
   StickyNote,
   Trash2,
@@ -23,6 +24,7 @@ import {
 } from "@/lib/workflows/task-status";
 import type {
   FrameworkItem,
+  TaskIOSummary,
   WorkflowTask,
   WorkflowTaskStatus,
 } from "@/lib/workflows/types";
@@ -49,6 +51,10 @@ export interface TaskCardProps {
   /** Called when the user picks a new status from the badge popover.
    *  Omit to render the status badge as a static pill (no popover). */
   onStatusChange?: (next: WorkflowTaskStatus) => void;
+  /** Per-task IO state used to render the output pip rail and the
+   *  unmet-linked-input glyph. Omit (e.g. on the template editor) to
+   *  suppress both affordances. */
+  ioState?: TaskIOSummary;
 }
 
 export function TaskCard({
@@ -62,6 +68,7 @@ export function TaskCard({
   onRemove,
   templateView = false,
   onStatusChange,
+  ioState,
 }: TaskCardProps) {
   const statusClass = TASK_STATUS_PILL_CLASS[task.status];
   const statusLabel = TASK_STATUS_LABEL[task.status];
@@ -100,7 +107,37 @@ export function TaskCard({
     >
       <div className="tc-top">
         <div className="tc-title">{title}</div>
+        {ioState?.hasUnmetLinkedInput ? (
+          <span
+            className="tc-unmet-input-glyph"
+            role="img"
+            aria-label="Waiting on upstream output"
+            title="Waiting on upstream output"
+            data-testid={`task-unmet-input-${task.id}`}
+          >
+            <CornerUpRight aria-hidden size={11} strokeWidth={2.1} />
+          </span>
+        ) : null}
       </div>
+      {ioState && ioState.outputs.length > 0 ? (
+        <div
+          className="tc-pip-rail"
+          role="list"
+          aria-label="Outputs progress"
+          data-testid={`task-pip-rail-${task.id}`}
+        >
+          {ioState.outputs.map((output) => (
+            <span
+              key={output.id}
+              role="listitem"
+              className="tc-pip"
+              data-status={output.status}
+              data-testid={`task-pip-${task.id}-${output.id}`}
+              aria-label={`Output ${output.position + 1}: ${output.status}`}
+            />
+          ))}
+        </div>
+      ) : null}
       <div className="tc-status-row">
         {templateView ? (
           <div

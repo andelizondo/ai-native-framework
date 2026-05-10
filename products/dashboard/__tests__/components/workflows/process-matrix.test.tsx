@@ -119,6 +119,7 @@ function instance(tasks: WorkflowTask[]): WorkflowInstanceDetail {
     updatedAt: "2026-04-19T12:00:00Z",
     tasks,
     events: [],
+    taskIO: tasks.map((t) => ({ taskId: t.id, outputs: [], hasUnmetLinkedInput: false })),
   };
 }
 
@@ -195,6 +196,29 @@ describe("ProcessMatrix", () => {
 
     const validation = screen.getByTestId("matrix-stage-validation");
     expect(within(validation).getAllByTestId(/^matrix-pip-/)).toHaveLength(1);
+  });
+
+  it("forwards instance.taskIO to TaskCard so output pips render on the matrix", () => {
+    const inst = instance([
+      task({ id: "io-1", skillId: "sales-ops", stageId: "pre-sales", status: "in_progress" }),
+    ]);
+    inst.taskIO = [
+      {
+        taskId: "io-1",
+        outputs: [
+          { id: "out-a", position: 0, status: "produced" },
+          { id: "out-b", position: 1, status: "pending" },
+        ],
+        hasUnmetLinkedInput: true,
+      },
+    ];
+
+    renderWithTopBarProvider(<ProcessMatrix instance={inst} template={TEMPLATE} />);
+
+    expect(screen.getByTestId("task-pip-rail-io-1")).toBeInTheDocument();
+    expect(screen.getByTestId("task-pip-io-1-out-a").dataset.status).toBe("produced");
+    expect(screen.getByTestId("task-pip-io-1-out-b").dataset.status).toBe("pending");
+    expect(screen.getByTestId("task-unmet-input-io-1")).toBeInTheDocument();
   });
 
   it("toggles the role-collapsed class and hides labels when the toggle is pressed", async () => {
