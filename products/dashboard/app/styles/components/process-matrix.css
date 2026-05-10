@@ -1061,13 +1061,15 @@
 .mx-floating-tooltip-sub.s-complete {
   color: var(--pill-complete-t);
 }
-.mx-floating-tooltip-sub.s-active {
+.mx-floating-tooltip-sub.s-in_progress,
+.mx-floating-tooltip-sub.s-running {
   color: var(--pill-active-t);
 }
-.mx-floating-tooltip-sub.s-pending {
+.mx-floating-tooltip-sub.s-waiting {
   color: var(--pill-pending-t);
 }
-.mx-floating-tooltip-sub.s-blocked {
+.mx-floating-tooltip-sub.s-paused,
+.mx-floating-tooltip-sub.s-failed {
   color: var(--pill-blocked-t);
 }
 .mx-floating-tooltip-sub.s-not_started {
