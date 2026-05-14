@@ -9,6 +9,7 @@ import {
   refinePlaybookAction,
   resumeTaskAction,
   retryBlockedTaskAction,
+  setTaskStatusAction,
   startTaskAction,
 } from "@/app/(dashboard)/workflows/actions";
 import { captureError } from "@/lib/monitoring";
@@ -19,6 +20,7 @@ import type {
   WorkflowInstanceDetail,
   WorkflowSkill,
   WorkflowTask,
+  WorkflowTaskStatus,
   WorkflowTemplate,
 } from "@/lib/workflows/types";
 
@@ -176,6 +178,11 @@ export function PlaybookDrawer({
     const id = task.id;
     runAction("playbook-drawer.retry", () => retryBlockedTaskAction(id));
   }
+  function handleStatusChange(next: WorkflowTaskStatus) {
+    if (!task) return;
+    const id = task.id;
+    runAction("playbook-drawer.status_change", () => setTaskStatusAction(id, next));
+  }
   function handleMarkReceived(inputId: string) {
     if (!task) return;
     startTransition(async () => {
@@ -265,6 +272,7 @@ export function PlaybookDrawer({
           skills={skills}
           playbookOptions={playbookOptions}
           onClose={onClose}
+          onStatusChange={handleStatusChange}
         />
         <ActionBar
           status={task.status}

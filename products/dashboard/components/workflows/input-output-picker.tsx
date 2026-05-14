@@ -14,7 +14,12 @@ interface InputOutputPickerProps {
   available: TemplateOutputGroup[];
   /** True when the input has an upstreamTaskRef set but no output id. */
   hasUpstreamTaskWithoutOutput?: boolean;
-  onChange: (next: string | null) => void;
+  /**
+   * Called when the user picks or clears an output. The `playbookId` is
+   * supplied so callers can stamp `upstreamTaskRef` alongside
+   * `upstreamOutputId` without having to re-resolve it themselves.
+   */
+  onChange: (next: { outputId: string; playbookId: string } | null) => void;
 }
 
 /**
@@ -90,7 +95,11 @@ export function InputOutputPicker({
           <select
             value=""
             onChange={(event) => {
-              if (event.target.value) onChange(event.target.value);
+              if (event.target.value)
+                onChange({
+                  outputId: event.target.value,
+                  playbookId: activeGroup.playbookId,
+                });
             }}
             aria-label="Output"
             className={cn(

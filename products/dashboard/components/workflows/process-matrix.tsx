@@ -53,10 +53,17 @@ import { useUnsavedChangesGuard } from "@/lib/use-unsaved-changes-guard";
 import { cn } from "@/lib/utils";
 import { barClass, canStart } from "@/lib/workflows/matrix";
 import { resolveSkillColor } from "@/lib/workflows/skill-colors";
+import {
+  activeSkillIds,
+  activeStageIds,
+  seedCollapsedSkills,
+  seedCollapsedStages,
+} from "@/lib/workflows/active-flow";
 import { ItemAvatar } from "@/components/framework/item-avatar";
 import type {
   FrameworkItem,
   TaskIOSummary,
+  TemplateOutputGroup,
   WorkflowInstanceDetail,
   WorkflowSkill,
   WorkflowStage,
@@ -82,6 +89,7 @@ interface Props {
   editMode?: boolean;
   skillOptions?: FrameworkItem[];
   playbookOptions?: FrameworkItem[];
+  outputGroups?: TemplateOutputGroup[];
 }
 
 export function ProcessMatrix({
@@ -90,15 +98,34 @@ export function ProcessMatrix({
   editMode = false,
   skillOptions = [],
   playbookOptions = [],
+  outputGroups = [],
 }: Props) {
   const { setConfig } = useDashboardTopBar();
   const { success: toastSuccess, error: toastError } = useToast();
+  // Stages/skills derivation has to happen here (before the collapse state)
+  // so the lazy useState initializers can seed from the active flow.
+  const seedStages: WorkflowStage[] =
+    instance.stages && instance.stages.length > 0
+      ? instance.stages
+      : template?.stages ?? [];
+  const seedSkills: WorkflowSkill[] =
+    instance.skills && instance.skills.length > 0
+      ? instance.skills
+      : template?.skills ?? [];
   const [collapsed, setCollapsed] = useState(false);
+  // Edit mode opens the matrix fully expanded so the user can author every
+  // cell; the focus-on-active seed applies only to read-only viewing.
   const [collapsedStageIds, setCollapsedStageIds] = useState<Set<string>>(
-    () => new Set(),
+    () =>
+      editMode
+        ? new Set()
+        : seedCollapsedStages(instance.tasks, instance.taskIO, seedStages),
   );
   const [collapsedSkillIds, setCollapsedSkillIds] = useState<Set<string>>(
-    () => new Set(),
+    () =>
+      editMode
+        ? new Set()
+        : seedCollapsedSkills(instance.tasks, instance.taskIO, seedSkills),
   );
 
   const toggleStageCollapsed = useCallback((stageId: string) => {
@@ -122,15 +149,10 @@ export function ProcessMatrix({
   // Stages and skills are snapshotted onto the instance at create time so
   // template edits do not mutate or orphan tasks on existing instances.
   // Fall back to the template only for legacy instances persisted before
-  // the snapshot column existed.
-  const stages: WorkflowStage[] =
-    instance.stages && instance.stages.length > 0
-      ? instance.stages
-      : template?.stages ?? [];
-  const skills: WorkflowSkill[] =
-    instance.skills && instance.skills.length > 0
-      ? instance.skills
-      : template?.skills ?? [];
+  // the snapshot column existed. Reuse the values computed for the lazy
+  // collapse-state seeds above — same source, same derivation.
+  const stages: WorkflowStage[] = seedStages;
+  const skills: WorkflowSkill[] = seedSkills;
   const allCollapsed =
     collapsed &&
     stages.length > 0 &&
@@ -224,6 +246,54 @@ export function ProcessMatrix({
     setLocalTasks(instance.tasks);
     setLastSavedTasks(instance.tasks);
   }, [instance.tasks, editMode]);
+
+  // Auto-expand stages/skills as work flows. When a task's status flips or
+  // an upstream output unblocks a downstream input, the formerly-dormant
+  // region becomes "active" and we want it visible without the user needing
+  // to refresh. We track the previously-active sets and only act on what's
+  // newly added — manual collapses on already-active regions are preserved.
+  const prevActiveRef = useRef<{ stages: Set<string>; skills: Set<string> }>({
+    stages: activeStageIds(instance.tasks, instance.taskIO),
+    skills: activeSkillIds(instance.tasks, instance.taskIO),
+  });
+  useEffect(() => {
+    if (editMode) return;
+    const stages = activeStageIds(localTasks, instance.taskIO);
+    const skills = activeSkillIds(localTasks, instance.taskIO);
+    const newStages: string[] = [];
+    for (const id of stages) {
+      if (!prevActiveRef.current.stages.has(id)) newStages.push(id);
+    }
+    const newSkills: string[] = [];
+    for (const id of skills) {
+      if (!prevActiveRef.current.skills.has(id)) newSkills.push(id);
+    }
+    if (newStages.length > 0) {
+      setCollapsedStageIds((prev) => {
+        let next: Set<string> | null = null;
+        for (const id of newStages) {
+          if (prev.has(id)) {
+            if (!next) next = new Set(prev);
+            next.delete(id);
+          }
+        }
+        return next ?? prev;
+      });
+    }
+    if (newSkills.length > 0) {
+      setCollapsedSkillIds((prev) => {
+        let next: Set<string> | null = null;
+        for (const id of newSkills) {
+          if (prev.has(id)) {
+            if (!next) next = new Set(prev);
+            next.delete(id);
+          }
+        }
+        return next ?? prev;
+      });
+    }
+    prevActiveRef.current = { stages, skills };
+  }, [localTasks, instance.taskIO, editMode]);
 
   const handleTaskUpdate = useCallback((updated: WorkflowTask) => {
     setLocalTasks((prev) => prev.map((task) => (task.id === updated.id ? updated : task)));
@@ -959,6 +1029,8 @@ export function ProcessMatrix({
               containerRef={matrixWrapRef}
               tasks={localTasks}
               hoveredTaskId={hoveredTaskId}
+              outputGroups={outputGroups}
+              taskIO={instance.taskIO}
             />
           ) : null}
         </div>

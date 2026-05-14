@@ -1,8 +1,10 @@
 "use client";
 
+import type { ButtonHTMLAttributes } from "react";
 import { MoreVertical, X } from "lucide-react";
 
 import { OwnerAvatarStack } from "@/components/framework/owner-avatar-stack";
+import { StatusBadgePopover } from "@/components/workflows/task-card";
 import { cn } from "@/lib/utils";
 import {
   TASK_STATUS_LABEL,
@@ -34,6 +36,7 @@ export interface DrawerHeaderProps {
   skills: WorkflowSkill[];
   playbookOptions: FrameworkItem[];
   onClose: () => void;
+  onStatusChange?: (next: WorkflowTaskStatus) => void;
 }
 
 export function DrawerHeader({
@@ -42,6 +45,7 @@ export function DrawerHeader({
   skills,
   playbookOptions,
   onClose,
+  onStatusChange,
 }: DrawerHeaderProps) {
   const skill = skills.find((s) => s.id === task.skillId);
   const playbook = task.playbookId
@@ -105,14 +109,41 @@ export function DrawerHeader({
         </div>
       </div>
       <div className="pb-drawer-context__footer">
-        <span
-          className={cn("pb-drawer-status-pill", TASK_STATUS_PILL_CLASS[task.status])}
-          data-status={task.status}
-          data-testid="pb-drawer-status-pill"
-        >
-          <span className="pb-drawer-status-pill__dot" aria-hidden />
-          {TASK_STATUS_LABEL[task.status]}
-        </span>
+        {onStatusChange ? (
+          <StatusBadgePopover
+            status={task.status}
+            taskId={`pb-drawer-${task.id}`}
+            onChange={onStatusChange}
+            triggerClassName={cn(
+              "pb-drawer-status-pill",
+              TASK_STATUS_PILL_CLASS[task.status],
+            )}
+            triggerContent={
+              <>
+                <span className="pb-drawer-status-pill__dot" aria-hidden />
+                {TASK_STATUS_LABEL[task.status]}
+              </>
+            }
+            triggerProps={
+              {
+                "data-testid": "pb-drawer-status-pill",
+                "data-status": task.status,
+              } as ButtonHTMLAttributes<HTMLButtonElement>
+            }
+          />
+        ) : (
+          <span
+            className={cn(
+              "pb-drawer-status-pill",
+              TASK_STATUS_PILL_CLASS[task.status],
+            )}
+            data-status={task.status}
+            data-testid="pb-drawer-status-pill"
+          >
+            <span className="pb-drawer-status-pill__dot" aria-hidden />
+            {TASK_STATUS_LABEL[task.status]}
+          </span>
+        )}
         <div className="pb-drawer-context__owners" data-testid="pb-drawer-owners">
           <span className="pb-drawer-context__owners-lbl">Owners</span>
           <OwnerAvatarStack labels={task.owners} size="xs" testIdSuffix="pb-drawer" />

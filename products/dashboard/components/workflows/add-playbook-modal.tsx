@@ -31,7 +31,7 @@ interface AddPlaybookModalProps {
     inputs?: readonly WorkflowInput[];
   };
   /** Other tasks in the same template — populates the upstream-task select. */
-  upstreamTaskOptions?: { id: string; label: string }[];
+  upstreamTaskOptions?: { id: string; label: string; playbookId?: string | null }[];
   /** Outputs grouped per attached playbook — populates the wiring picker. */
   outputGroups?: TemplateOutputGroup[];
   /** Called by the picker when it wants the parent to refetch (e.g. a
@@ -334,11 +334,28 @@ export function AddPlaybookModal({
                             }
                             onChange={(next) => {
                               setInputs((current) =>
-                                current.map((i, j) =>
-                                  j === index
-                                    ? { ...i, upstreamOutputId: next }
-                                    : i,
-                                ),
+                                current.map((i, j) => {
+                                  if (j !== index) return i;
+                                  if (next === null) {
+                                    return { ...i, upstreamOutputId: null };
+                                  }
+                                  // Auto-stamp `upstreamTaskRef` from the
+                                  // chosen output's playbook, so downstream
+                                  // consumers (wiring overlay, instance
+                                  // remap) don't have to re-resolve it.
+                                  // Preserve any prior explicit task ref —
+                                  // the upstream-task select above takes
+                                  // precedence when the user has picked it.
+                                  const derivedRef = upstreamTaskOptions.find(
+                                    (opt) => opt.playbookId === next.playbookId,
+                                  )?.id;
+                                  return {
+                                    ...i,
+                                    upstreamOutputId: next.outputId,
+                                    upstreamTaskRef:
+                                      i.upstreamTaskRef ?? derivedRef,
+                                  };
+                                }),
                               );
                             }}
                           />
