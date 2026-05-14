@@ -52,6 +52,9 @@ export default async function WorkflowInstancePage({
   }
 
   const template = await repo.getTemplate(instance.templateId);
+  // Outputs are loaded so the wiring overlay can resolve `upstreamTaskRef`
+  // for inputs that were saved with only `upstreamOutputId`.
+  const outputGroups = await repo.listOutputsForTemplate(instance.templateId);
 
   return (
     <>
@@ -71,6 +74,7 @@ export default async function WorkflowInstancePage({
           editMode={editMode}
           skillOptions={skills}
           playbookOptions={playbooks}
+          outputGroups={outputGroups}
         />
       </div>
     </>

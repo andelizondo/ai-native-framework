@@ -1026,7 +1026,11 @@ export function TemplateEditorScreen({
               ]
                 .filter(Boolean)
                 .join(" · ");
-              return { id: t.id as string, label };
+              return {
+                id: t.id as string,
+                label,
+                playbookId: t.playbookId ?? null,
+              };
             })}
           outputGroups={outputGroups}
           onRefetchOutputs={refetchOutputGroups}

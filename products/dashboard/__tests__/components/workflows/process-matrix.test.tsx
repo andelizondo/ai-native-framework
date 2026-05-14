@@ -155,7 +155,7 @@ describe("ProcessMatrix", () => {
         skillId: "pm",
         stageId: "validation",
         playbookId: "pdr-review",
-        status: "complete",
+        status: "in_progress",
       }),
     ]);
 

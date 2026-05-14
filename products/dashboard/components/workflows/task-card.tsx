@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import {
   AlertTriangle,
   Check,
@@ -311,15 +312,25 @@ function InfoBadge({
   );
 }
 
+/**
+ * Closes the popover when the user clicks outside any of the given refs
+ * (trigger wrapper + portaled popover panel). Accepting a list of refs is
+ * what makes portaled popovers work — a single ref would dismiss on every
+ * click in the panel since the panel lives outside the React tree.
+ */
 function useDismissPopover(
-  rootRef: React.RefObject<HTMLDivElement | null>,
+  refs: React.RefObject<HTMLElement | null>[],
   open: boolean,
   setOpen: (next: boolean) => void,
 ) {
   useEffect(() => {
     if (!open) return;
     function handlePointerDown(event: MouseEvent) {
-      if (!rootRef.current?.contains(event.target as Node)) setOpen(false);
+      const target = event.target as Node;
+      for (const ref of refs) {
+        if (ref.current?.contains(target)) return;
+      }
+      setOpen(false);
     }
     function handleKey(event: KeyboardEvent) {
       if (event.key === "Escape") setOpen(false);
@@ -330,31 +341,127 @@ function useDismissPopover(
       document.removeEventListener("mousedown", handlePointerDown);
       document.removeEventListener("keydown", handleKey);
     };
-  }, [open, rootRef, setOpen]);
+  }, [open, refs, setOpen]);
 }
 
-function StatusBadgePopover({
+export function StatusBadgePopover({
   status,
   onChange,
   taskId,
+  triggerClassName,
+  triggerContent,
+  triggerProps,
 }: {
   status: WorkflowTaskStatus;
   onChange: (next: WorkflowTaskStatus) => void;
   taskId: string;
+  /** Override the trigger button's class list. Defaults to the matrix
+   * card's pill styling; the drawer passes its own `pb-drawer-status-pill`
+   * class so the popover blends with the drawer header.
+   */
+  triggerClassName?: string;
+  /** Optional override for the trigger's children. Defaults to the
+   * status label text.
+   */
+  triggerContent?: React.ReactNode;
+  /** Extra attributes for the trigger button — e.g. a custom `data-testid`
+   * or `data-status` for callers that need to assert against them. The
+   * default `task-status-${taskId}` testid is preserved if not overridden.
+   */
+  triggerProps?: React.ButtonHTMLAttributes<HTMLButtonElement>;
 }) {
   const rootRef = useRef<HTMLDivElement | null>(null);
+  const triggerRef = useRef<HTMLButtonElement | null>(null);
+  const popoverRef = useRef<HTMLDivElement | null>(null);
   const [open, setOpen] = useState(false);
-  useDismissPopover(rootRef, open, setOpen);
+  const [position, setPosition] = useState<{ left: number; top: number } | null>(null);
+  useDismissPopover(useMemo(() => [rootRef, popoverRef], []), open, setOpen);
 
   const statusClass = TASK_STATUS_PILL_CLASS[status];
   const statusLabel = TASK_STATUS_LABEL[status];
 
+  // Position the portaled popover above the trigger using viewport coords.
+  // The trigger's position is captured once on open and on scroll/resize so
+  // the popover follows when the matrix scrolls underneath it.
+  useLayoutEffect(() => {
+    if (!open) {
+      setPosition(null);
+      return undefined;
+    }
+    function measure() {
+      const trigger = triggerRef.current;
+      const popover = popoverRef.current;
+      if (!trigger) return;
+      const rect = trigger.getBoundingClientRect();
+      const popoverHeight = popover?.getBoundingClientRect().height ?? 220;
+      setPosition({
+        left: rect.left,
+        top: rect.top - popoverHeight - 6,
+      });
+    }
+    measure();
+    window.addEventListener("scroll", measure, true);
+    window.addEventListener("resize", measure);
+    return () => {
+      window.removeEventListener("scroll", measure, true);
+      window.removeEventListener("resize", measure);
+    };
+  }, [open]);
+
+  const popoverNode =
+    open && typeof document !== "undefined" ? (
+      <div
+        ref={popoverRef}
+        className="tc-popover tc-popover-status"
+        role="listbox"
+        aria-label="Set status"
+        onClick={(event) => event.stopPropagation()}
+        style={
+          position
+            ? {
+                position: "fixed",
+                left: position.left,
+                top: position.top,
+                bottom: "auto",
+              }
+            : { position: "fixed", visibility: "hidden" }
+        }
+      >
+        {TASK_STATUS_ORDER.map((option) => {
+          const selected = option === status;
+          return (
+            <button
+              key={option}
+              type="button"
+              role="option"
+              aria-selected={selected}
+              className={cn("tc-popover-item", selected && "is-selected")}
+              onClick={(event) => {
+                event.stopPropagation();
+                setOpen(false);
+                if (!selected) onChange(option);
+              }}
+            >
+              <span
+                className="tc-popover-dot"
+                aria-hidden
+                style={{ background: TASK_STATUS_VAR[option] }}
+              />
+              <span className="tc-popover-text">{TASK_STATUS_LABEL[option]}</span>
+            </button>
+          );
+        })}
+      </div>
+    ) : null;
+
   return (
     <div ref={rootRef} className="tc-status-wrap">
       <button
+        ref={triggerRef}
         type="button"
-        className={cn("s-pill tc-status-trigger", statusClass)}
         data-testid={`task-status-${taskId}`}
+        {...triggerProps}
+        className={triggerClassName ?? cn("s-pill tc-status-trigger", statusClass)}
         aria-haspopup="listbox"
         aria-expanded={open}
         onClick={(event) => {
@@ -363,41 +470,9 @@ function StatusBadgePopover({
         }}
         title="Change status"
       >
-        <span className="s-text">{statusLabel}</span>
+        {triggerContent ?? <span className="s-text">{statusLabel}</span>}
       </button>
-      {open ? (
-        <div
-          className="tc-popover tc-popover-status"
-          role="listbox"
-          aria-label="Set status"
-          onClick={(event) => event.stopPropagation()}
-        >
-          {TASK_STATUS_ORDER.map((option) => {
-            const selected = option === status;
-            return (
-              <button
-                key={option}
-                type="button"
-                role="option"
-                aria-selected={selected}
-                className={cn("tc-popover-item", selected && "is-selected")}
-                onClick={(event) => {
-                  event.stopPropagation();
-                  setOpen(false);
-                  if (!selected) onChange(option);
-                }}
-              >
-                <span
-                  className="tc-popover-dot"
-                  aria-hidden
-                  style={{ background: TASK_STATUS_VAR[option] }}
-                />
-                <span className="tc-popover-text">{TASK_STATUS_LABEL[option]}</span>
-              </button>
-            );
-          })}
-        </div>
-      ) : null}
+      {popoverNode ? createPortal(popoverNode, document.body) : null}
     </div>
   );
 }
