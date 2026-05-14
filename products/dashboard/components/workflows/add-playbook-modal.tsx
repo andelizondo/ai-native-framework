@@ -2,13 +2,16 @@
 
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import { Plus, Search, SearchX, X } from "lucide-react";
+import { ChevronDown, Plus, Search, SearchX, Trash2 } from "lucide-react";
 
 import { cn } from "@/lib/utils";
 import { ItemAvatar } from "@/components/framework/item-avatar";
 import { OwnerPicker } from "@/components/framework/owner-picker";
 import { resolveItemColor } from "@/lib/workflows/skill-colors";
-import { InputOutputPicker } from "@/components/workflows/input-output-picker";
+import {
+  PlaybookOutputPicker,
+  type PlaybookOutputPickerValue,
+} from "@/components/workflows/playbook-output-picker";
 import type {
   FrameworkItem,
   TemplateOutputGroup,
@@ -75,7 +78,8 @@ export function AddPlaybookModal({
     initial?.inputs ? initial.inputs.map((i) => ({ ...i })) : [],
   );
   const [query, setQuery] = useState("");
-  const [pendingFocusIndex, setPendingFocusIndex] = useState<number | null>(null);
+  /** Id of the input row whose picker should auto-open (just added). */
+  const [pendingOpenInputId, setPendingOpenInputId] = useState<string | null>(null);
 
   const allowed = useMemo(
     () =>
@@ -115,7 +119,10 @@ export function AddPlaybookModal({
         onSubmit={(event) => {
           event.preventDefault();
           if (!canSubmit) return;
-          onSubmit({ playbookId: selectedId, notes, owners, inputs });
+          // Drop incomplete (unwired) input rows on submit — they would
+          // otherwise persist as a name-less linked input pointing nowhere.
+          const wiredInputs = inputs.filter((i) => Boolean(i.upstreamOutputId));
+          onSubmit({ playbookId: selectedId, notes, owners, inputs: wiredInputs });
         }}
         className="w-full max-w-[520px] rounded-[14px] border border-border-hi bg-bg-2 p-7 shadow-[var(--shadow-canvas)]"
         role="dialog"
@@ -213,17 +220,6 @@ export function AddPlaybookModal({
             </div>
 
             <label className="mb-1.5 block text-[11px] font-medium text-t2">
-              Notes <span className="font-normal text-t3">(optional)</span>
-            </label>
-            <textarea
-              value={notes}
-              onChange={(event) => setNotes(event.target.value)}
-              rows={2}
-              placeholder="Per-instance context for this playbook"
-              className="mb-4 block w-full resize-none rounded-lg border border-border bg-bg-3 px-3 py-2.5 text-[13px] leading-6 text-t1 placeholder:text-t3 focus:border-primary focus:outline-none"
-            />
-
-            <label className="mb-1.5 block text-[11px] font-medium text-t2">
               Owners <span className="font-normal text-t3">(optional)</span>
             </label>
             <div className="mb-5">
@@ -245,19 +241,18 @@ export function AddPlaybookModal({
                 <button
                   type="button"
                   onClick={() => {
-                    setInputs((current) => {
-                      setPendingFocusIndex(current.length);
-                      return [
-                        ...current,
-                        {
-                          id: createInputId(),
-                          name: "",
-                          linkMode: "linked",
-                          upstreamTaskRef: undefined,
-                          upstreamOutputId: null,
-                        },
-                      ];
-                    });
+                    const id = createInputId();
+                    setInputs((current) => [
+                      ...current,
+                      {
+                        id,
+                        name: "",
+                        linkMode: "linked",
+                        upstreamTaskRef: undefined,
+                        upstreamOutputId: null,
+                      },
+                    ]);
+                    setPendingOpenInputId(id);
                     void onRefetchOutputs?.();
                   }}
                   className="inline-flex items-center gap-1 rounded-md border border-border bg-bg-3 px-2 py-1 text-[11px] text-t2 transition hover:bg-bg-4 hover:text-t1"
@@ -268,116 +263,121 @@ export function AddPlaybookModal({
               </div>
               {inputs.length === 0 ? (
                 <div className="rounded-lg border border-dashed border-border bg-bg-3 px-3 py-3 text-[11.5px] text-t3">
-                  No inputs declared. Add one to wire this task to an upstream
+                  No inputs declared. Add one to wire this task to a playbook
                   output.
                 </div>
               ) : (
                 <ul className="space-y-2">
-                  {inputs.map((input, index) => (
-                    <li
-                      key={input.id}
-                      className="rounded-lg border border-border bg-bg-3 p-2.5"
-                      data-testid={`input-row-${index}`}
-                    >
-                      <div className="flex items-start gap-2">
-                        <div className="flex-1 space-y-1.5">
-                          <div className="flex items-center gap-1.5">
-                            <input
-                              ref={(el) => {
-                                if (el && pendingFocusIndex === index) {
-                                  el.focus();
-                                  setPendingFocusIndex(null);
-                                }
-                              }}
-                              value={input.name}
-                              onChange={(event) => {
-                                const value = event.target.value;
-                                setInputs((current) =>
-                                  current.map((i, j) =>
-                                    j === index ? { ...i, name: value } : i,
-                                  ),
-                                );
-                              }}
-                              placeholder="Input name"
-                              aria-label="Input name"
-                              className="h-7 flex-1 rounded-md border border-border bg-bg-2 px-2 text-[12px] text-t1 placeholder:text-t3 focus:border-primary focus:outline-none"
-                            />
-                            <select
-                              value={input.upstreamTaskRef ?? ""}
-                              onChange={(event) => {
-                                const value = event.target.value || undefined;
-                                setInputs((current) =>
-                                  current.map((i, j) =>
-                                    j === index
-                                      ? { ...i, upstreamTaskRef: value }
-                                      : i,
-                                  ),
-                                );
-                              }}
-                              aria-label="Upstream task"
-                              className="h-7 rounded-md border border-border bg-bg-2 px-2 text-[11.5px] text-t2 focus:border-primary focus:outline-none"
-                            >
-                              <option value="">Upstream task…</option>
-                              {upstreamTaskOptions.map((opt) => (
-                                <option key={opt.id} value={opt.id}>
-                                  {opt.label}
-                                </option>
-                              ))}
-                            </select>
-                          </div>
-                          <InputOutputPicker
-                            upstreamOutputId={input.upstreamOutputId ?? null}
-                            available={outputGroups}
-                            hasUpstreamTaskWithoutOutput={
-                              Boolean(input.upstreamTaskRef) &&
-                              !input.upstreamOutputId
+                  {inputs.map((input, index) => {
+                    const wiredGroup = input.upstreamOutputId
+                      ? outputGroups.find((g) =>
+                          g.outputs.some((o) => o.id === input.upstreamOutputId),
+                        )
+                      : null;
+                    const wiredOutput = wiredGroup?.outputs.find(
+                      (o) => o.id === input.upstreamOutputId,
+                    );
+                    return (
+                      <li
+                        key={input.id}
+                        className="rounded-lg border border-border bg-bg-3 p-2"
+                        data-testid={`input-row-${index}`}
+                      >
+                        <div className="flex items-center justify-between gap-2">
+                          <PlaybookOutputPicker
+                            value={
+                              wiredGroup && wiredOutput
+                                ? {
+                                    outputId: wiredOutput.id,
+                                    playbookId: wiredGroup.playbookId,
+                                  }
+                                : null
                             }
-                            onChange={(next) => {
+                            available={outputGroups}
+                            playbooks={playbooks}
+                            defaultOpen={pendingOpenInputId === input.id}
+                            testId={`input-row-${index}-picker`}
+                            onChange={(next: PlaybookOutputPickerValue | null) => {
+                              setPendingOpenInputId(null);
                               setInputs((current) =>
                                 current.map((i, j) => {
                                   if (j !== index) return i;
                                   if (next === null) {
-                                    return { ...i, upstreamOutputId: null };
+                                    return {
+                                      ...i,
+                                      name: "",
+                                      upstreamOutputId: null,
+                                      upstreamTaskRef: undefined,
+                                    };
                                   }
-                                  // Auto-stamp `upstreamTaskRef` from the
-                                  // chosen output's playbook, so downstream
-                                  // consumers (wiring overlay, instance
-                                  // remap) don't have to re-resolve it.
-                                  // Preserve any prior explicit task ref —
-                                  // the upstream-task select above takes
-                                  // precedence when the user has picked it.
+                                  const group = outputGroups.find(
+                                    (g) => g.playbookId === next.playbookId,
+                                  );
+                                  const output = group?.outputs.find(
+                                    (o) => o.id === next.outputId,
+                                  );
+                                  const derivedName = group && output
+                                    ? `${group.playbookName} / ${output.name}`
+                                    : "";
+                                  // Auto-stamp upstreamTaskRef from the chosen
+                                  // output's playbook — wiring overlay /
+                                  // instance remap consume it directly.
                                   const derivedRef = upstreamTaskOptions.find(
                                     (opt) => opt.playbookId === next.playbookId,
                                   )?.id;
                                   return {
                                     ...i,
+                                    name: derivedName,
                                     upstreamOutputId: next.outputId,
-                                    upstreamTaskRef:
-                                      i.upstreamTaskRef ?? derivedRef,
+                                    upstreamTaskRef: derivedRef,
                                   };
                                 }),
                               );
                             }}
                           />
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setPendingOpenInputId((current) =>
+                                current === input.id ? null : current,
+                              );
+                              setInputs((current) =>
+                                current.filter((_, j) => j !== index),
+                              );
+                            }}
+                            aria-label="Remove input"
+                            data-testid={`input-row-${index}-delete`}
+                            className="inline-flex h-7 items-center gap-1 rounded-md px-2 text-[11px] font-medium text-t2 transition hover:bg-bg-4 hover:text-t1 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
+                          >
+                            <Trash2 className="h-3.5 w-3.5" />
+                          </button>
                         </div>
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setInputs((current) =>
-                              current.filter((_, j) => j !== index),
-                            );
-                          }}
-                          aria-label="Remove input"
-                          className="rounded-md p-1 text-t3 transition hover:bg-bg-4 hover:text-t1"
-                        >
-                          <X className="h-3.5 w-3.5" />
-                        </button>
-                      </div>
-                    </li>
-                  ))}
+                      </li>
+                    );
+                  })}
                 </ul>
               )}
             </div>
+
+            <details
+              className="mb-5 group rounded-lg border border-border bg-bg-3"
+              open={notes.trim().length > 0}
+            >
+              <summary className="flex cursor-pointer list-none items-center gap-1.5 px-3 py-2 text-[11px] font-medium text-t2 [&::-webkit-details-marker]:hidden">
+                <ChevronDown
+                  aria-hidden
+                  className="h-3 w-3 text-t3 transition group-open:rotate-180"
+                />
+                Notes <span className="font-normal text-t3">(optional)</span>
+              </summary>
+              <textarea
+                value={notes}
+                onChange={(event) => setNotes(event.target.value)}
+                rows={2}
+                placeholder="Per-instance context for this playbook"
+                className="block w-full resize-none rounded-b-lg border-0 border-t border-border bg-bg-3 px-3 py-2.5 text-[13px] leading-6 text-t1 placeholder:text-t3 focus:outline-none"
+              />
+            </details>
           </>
         )}
 

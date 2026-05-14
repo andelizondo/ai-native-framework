@@ -2,7 +2,7 @@
 
 import type { ReactNode } from "react";
 import { useState } from "react";
-import { Pencil, Trash2 } from "lucide-react";
+import { TextCursor, Trash2 } from "lucide-react";
 import { useRouter } from "next/navigation";
 
 import { ConfirmModal } from "@/components/ui/confirm-modal";
@@ -43,7 +43,7 @@ export function HeaderActionsMenu({
           onClick={() => setRenameOpen(true)}
           align="end"
         >
-          <Pencil className="h-3.5 w-3.5" strokeWidth={2.2} />
+          <TextCursor className="h-3.5 w-3.5" strokeWidth={2.2} />
         </IconButtonTooltip>
         <span aria-hidden className="h-4 w-px bg-border" />
         <IconButtonTooltip

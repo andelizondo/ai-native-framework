@@ -167,6 +167,7 @@ export function FrameworkScreen({
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
   const [deletingItemId, setDeletingItemId] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
+  const [filterIds, setFilterIds] = useState<string[]>([]);
   const [sortDirection, setSortDirection] = useState<"asc" | "desc">("asc");
   const [pending, startTransition] = useTransition();
   const editorTextareaRef = useRef<HTMLTextAreaElement | null>(null);
@@ -190,16 +191,27 @@ export function FrameworkScreen({
   );
   const normalizedSearchQuery = deferredSearchQuery.trim().toLowerCase();
   const filteredItems = useMemo(() => {
-    if (normalizedSearchQuery.length === 0) {
-      return typedItems;
+    let next = typedItems;
+
+    if (normalizedSearchQuery.length > 0) {
+      next = next.filter((item) =>
+        [item.name, item.description, item.content, item.id]
+          .filter(Boolean)
+          .some((value) => value.toLowerCase().includes(normalizedSearchQuery)),
+      );
     }
 
-    return typedItems.filter((item) =>
-      [item.name, item.description, item.content, item.id]
-        .filter(Boolean)
-        .some((value) => value.toLowerCase().includes(normalizedSearchQuery)),
-    );
-  }, [normalizedSearchQuery, typedItems]);
+    if (filterIds.length > 0) {
+      const filterSet = new Set(filterIds);
+      next = next.filter((item) => {
+        const related =
+          type === "playbook" ? item.allowedSkillIds : item.allowedPlaybookIds;
+        return related?.some((id) => filterSet.has(id)) ?? false;
+      });
+    }
+
+    return next;
+  }, [filterIds, normalizedSearchQuery, type, typedItems]);
   const visibleItems = useMemo(() => {
     const direction = sortDirection === "asc" ? 1 : -1;
     return [...filteredItems].sort(
@@ -600,8 +612,7 @@ export function FrameworkScreen({
         saveDisabled:
           pending ||
           !isDirty ||
-          !draftItem.name.trim() ||
-          !draftItem.description.trim(),
+          !draftItem.name.trim(),
         savePending: pending,
         actions: (
           <FrameworkHeaderActionsMenu
@@ -986,7 +997,16 @@ export function FrameworkScreen({
                         </div>
                       </div>
 
-                      <div className="flex justify-end">
+                      <div className="flex items-center gap-2 justify-end">
+                        <AllowedItemsPicker
+                          kind={type === "playbook" ? "skills" : "playbooks"}
+                          mode="filter"
+                          value={filterIds}
+                          available={
+                            type === "playbook" ? availableSkills : availablePlaybooks
+                          }
+                          onChange={setFilterIds}
+                        />
                         <button
                           type="button"
                           onClick={() =>
@@ -1048,12 +1068,14 @@ export function FrameworkScreen({
                         <p className="mt-4 text-[15px] font-semibold tracking-[-0.01em] text-t1">
                           {typedItems.length === 0
                             ? `No ${type === "skill" ? "skills" : "playbooks"} yet`
-                            : `No ${type === "skill" ? "skills" : "playbooks"} match that search`}
+                            : `No ${type === "skill" ? "skills" : "playbooks"} match`}
                         </p>
                         <p className="mt-2 text-[12.5px] leading-6 text-t2">
                           {typedItems.length === 0
                             ? `Create the first ${type === "skill" ? "skill" : "playbook"} to start building this library.`
-                            : `Try a different title or keyword to keep scanning the library.`}
+                            : filterIds.length > 0
+                              ? `Try a different keyword or clear the ${type === "skill" ? "playbook" : "skill"} filter.`
+                              : `Try a different title or keyword to keep scanning the library.`}
                         </p>
                       </div>
                     </div>

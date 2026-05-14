@@ -8,7 +8,7 @@ import {
   useState,
 } from "react";
 import Link from "next/link";
-import { Check, Plus, Search } from "lucide-react";
+import { Check, Filter, Plus, Search } from "lucide-react";
 
 import { ItemAvatar } from "@/components/framework/item-avatar";
 import { cn } from "@/lib/utils";
@@ -16,10 +16,13 @@ import { resolveItemColor } from "@/lib/workflows/skill-colors";
 import type { FrameworkItem } from "@/lib/workflows/types";
 
 type PickerKind = "skills" | "playbooks";
+type PickerMode = "assign" | "filter";
 
 interface AllowedItemsPickerProps {
   /** The picker's flavor — drives copy and the empty-state link target. */
   kind: PickerKind;
+  /** "assign" (default) edits a join relation; "filter" narrows a list view. */
+  mode?: PickerMode;
   /** Item ids currently allowed (subset of `available` ids). */
   value: readonly string[];
   /** All `framework_items` of the matching type. */
@@ -28,47 +31,75 @@ interface AllowedItemsPickerProps {
 }
 
 const COPY: Record<
-  PickerKind,
-  {
-    heading: string;
-    blurb: string;
-    addLabel: string;
-    editLabel: string;
-    searchPlaceholder: string;
-    emptyTitle: string;
-    emptyHref: string;
-    emptyCta: string;
-  }
+  PickerMode,
+  Record<
+    PickerKind,
+    {
+      heading: string;
+      blurb: string;
+      addLabel: string;
+      editLabel: string;
+      searchPlaceholder: string;
+      emptyTitle: string;
+      emptyHref: string;
+      emptyCta: string;
+    }
+  >
 > = {
-  skills: {
-    heading: "Allowed skills",
-    blurb: "Pick which skills can run this playbook.",
-    addLabel: "Add allowed skills",
-    editLabel: "Edit allowed skills",
-    searchPlaceholder: "Search skills",
-    emptyTitle: "No skills defined yet",
-    emptyHref: "/framework/skills",
-    emptyCta: "Create one in the Skills page →",
+  assign: {
+    skills: {
+      heading: "Allowed skills",
+      blurb: "Pick which skills can run this playbook.",
+      addLabel: "Add allowed skills",
+      editLabel: "Edit allowed skills",
+      searchPlaceholder: "Search skills",
+      emptyTitle: "No skills defined yet",
+      emptyHref: "/framework/skills",
+      emptyCta: "Create one in the Skills page →",
+    },
+    playbooks: {
+      heading: "Allowed playbooks",
+      blurb: "Pick which playbooks this skill can run.",
+      addLabel: "Add allowed playbooks",
+      editLabel: "Edit allowed playbooks",
+      searchPlaceholder: "Search playbooks",
+      emptyTitle: "No playbooks defined yet",
+      emptyHref: "/framework/playbooks",
+      emptyCta: "Create one in the Playbooks page →",
+    },
   },
-  playbooks: {
-    heading: "Allowed playbooks",
-    blurb: "Pick which playbooks this skill can run.",
-    addLabel: "Add allowed playbooks",
-    editLabel: "Edit allowed playbooks",
-    searchPlaceholder: "Search playbooks",
-    emptyTitle: "No playbooks defined yet",
-    emptyHref: "/framework/playbooks",
-    emptyCta: "Create one in the Playbooks page →",
+  filter: {
+    skills: {
+      heading: "Filter by skill",
+      blurb: "Show only playbooks linked to these skills.",
+      addLabel: "Filter by skills",
+      editLabel: "Edit skill filter",
+      searchPlaceholder: "Search skills",
+      emptyTitle: "No skills defined yet",
+      emptyHref: "/framework/skills",
+      emptyCta: "Create one in the Skills page →",
+    },
+    playbooks: {
+      heading: "Filter by playbook",
+      blurb: "Show only skills linked to these playbooks.",
+      addLabel: "Filter by playbooks",
+      editLabel: "Edit playbook filter",
+      searchPlaceholder: "Search playbooks",
+      emptyTitle: "No playbooks defined yet",
+      emptyHref: "/framework/playbooks",
+      emptyCta: "Create one in the Playbooks page →",
+    },
   },
 };
 
 export function AllowedItemsPicker({
   kind,
+  mode = "assign",
   value,
   available,
   onChange,
 }: AllowedItemsPickerProps) {
-  const copy = COPY[kind];
+  const copy = COPY[mode][kind];
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
   const rootRef = useRef<HTMLDivElement | null>(null);
@@ -110,7 +141,11 @@ export function AllowedItemsPicker({
   // stays seamless after Enter on the trigger.
   useEffect(() => {
     if (open) {
-      searchRef.current?.focus();
+      // preventScroll: the trigger lives on the right edge of the toolbar
+      // in "filter" mode; without this the browser horizontally scrolls the
+      // sticky toolbar to keep the focused search input on screen, which
+      // visibly shifts the entire content area.
+      searchRef.current?.focus({ preventScroll: true });
     } else {
       setQuery("");
     }
@@ -124,7 +159,8 @@ export function AllowedItemsPicker({
   }
 
   const triggerLabel = allowed.length === 0 ? copy.addLabel : copy.editLabel;
-  const testIdSuffix = kind === "skills" ? "skills" : "playbooks";
+  const testIdSuffix = `${mode === "filter" ? "filter-" : ""}${kind === "skills" ? "skills" : "playbooks"}`;
+  const TriggerIcon = mode === "filter" ? Filter : Plus;
 
   return (
     <div ref={rootRef} className={cn("relative inline-flex items-center")}>
@@ -143,12 +179,15 @@ export function AllowedItemsPicker({
               : "border-border-hi hover:bg-bg-3 hover:text-t1",
           )}
         >
-          <Plus aria-hidden className="h-4 w-4" strokeWidth={2.25} />
+          <TriggerIcon aria-hidden className="h-4 w-4" strokeWidth={2.25} />
         </button>
         {!open ? (
           <span
             role="tooltip"
-            className="pointer-events-none absolute left-0 top-[calc(100%+6px)] z-[60] whitespace-nowrap rounded-md border border-border-hi bg-bg-2 px-2 py-1 text-[11px] font-medium text-t1 opacity-0 shadow-[var(--shadow-canvas)] transition-opacity duration-100 group-hover/trigger:opacity-100"
+            className={cn(
+              "pointer-events-none absolute top-[calc(100%+6px)] z-[60] whitespace-nowrap rounded-md border border-border-hi bg-bg-2 px-2 py-1 text-[11px] font-medium text-t1 opacity-0 shadow-[var(--shadow-canvas)] transition-opacity duration-100 group-hover/trigger:opacity-100",
+              mode === "filter" ? "right-0" : "left-0",
+            )}
           >
             {triggerLabel}
           </span>
@@ -177,7 +216,10 @@ export function AllowedItemsPicker({
         <div
           role="dialog"
           aria-labelledby={headingId}
-          className="absolute left-0 top-[calc(100%+8px)] z-40 w-[280px] overflow-hidden rounded-[12px] border border-border-hi bg-bg-2 shadow-[var(--shadow-canvas)]"
+          className={cn(
+            "absolute top-[calc(100%+8px)] z-40 w-[280px] overflow-hidden rounded-[12px] border border-border-hi bg-bg-2 shadow-[var(--shadow-canvas)]",
+            mode === "filter" ? "right-0" : "left-0",
+          )}
           data-testid={`allowed-${testIdSuffix}-dropdown`}
         >
           <div className="border-b border-border px-3 py-2.5">

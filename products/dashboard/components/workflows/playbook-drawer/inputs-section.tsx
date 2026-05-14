@@ -1,33 +1,49 @@
 "use client";
 
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { Check, ChevronRight, Plus } from "lucide-react";
 
 import { cn } from "@/lib/utils";
-import type { TaskInputState, WorkflowInput } from "@/lib/workflows/types";
+import type {
+  TaskInputState,
+  TemplateOutputGroup,
+  WorkflowInput,
+} from "@/lib/workflows/types";
 
 import { IORow, type IORowChip, type IORowState } from "./io-row";
 
 export interface InputsSectionProps {
   inputDefs: WorkflowInput[];
   inputStates: TaskInputState[];
+  /** Cross-playbook output catalog for the template — used to derive a
+   *  readable "{playbookName} / {outputName}" label for linked inputs. */
+  outputGroups?: TemplateOutputGroup[];
   dimmed: boolean;
   busy: boolean;
   onMarkReceived: (inputId: string) => void;
   onAddInput?: () => void;
 }
 
+interface OutputLookup {
+  byOutputId: Map<string, { playbookName: string; outputName: string }>;
+}
+
 function chipFor(input: WorkflowInput): { chip: IORowChip; chipLabel: string } {
-  if (input.linkMode === "linked") {
-    return {
-      chip: "linked",
-      chipLabel: input.upstreamTaskRef ? `linked: ${input.upstreamTaskRef}` : "linked",
-    };
-  }
-  if (input.linkMode === "bypass") {
-    return { chip: "bypass", chipLabel: "bypass" };
-  }
+  if (input.linkMode === "linked") return { chip: "linked", chipLabel: "linked" };
+  if (input.linkMode === "bypass") return { chip: "bypass", chipLabel: "bypass" };
   return { chip: "manual", chipLabel: "manual" };
+}
+
+/** Display name. For linked inputs with a known upstream output, render
+ *  `"{playbookName} / {outputName}"` (mirrors the popup picker chip). Falls
+ *  back to the stored `input.name`, or "Input" if that's the raw UUID slug. */
+function displayNameFor(input: WorkflowInput, lookup: OutputLookup): string {
+  if (input.linkMode === "linked" && input.upstreamOutputId) {
+    const match = lookup.byOutputId.get(input.upstreamOutputId);
+    if (match) return `${match.playbookName} / ${match.outputName}`;
+  }
+  if (input.name && !input.name.startsWith("inp-")) return input.name;
+  return "Input";
 }
 
 function stateFor(input: WorkflowInput, taskState: TaskInputState | undefined): IORowState {
@@ -39,12 +55,28 @@ function stateFor(input: WorkflowInput, taskState: TaskInputState | undefined): 
 export function InputsSection({
   inputDefs,
   inputStates,
+  outputGroups = [],
   dimmed,
   busy,
   onMarkReceived,
   onAddInput,
 }: InputsSectionProps) {
   const stateById = new Map(inputStates.map((s) => [s.inputId, s]));
+  const lookup = useMemo<OutputLookup>(() => {
+    const byOutputId = new Map<
+      string,
+      { playbookName: string; outputName: string }
+    >();
+    for (const group of outputGroups) {
+      for (const output of group.outputs) {
+        byOutputId.set(output.id, {
+          playbookName: group.playbookName,
+          outputName: output.name,
+        });
+      }
+    }
+    return { byOutputId };
+  }, [outputGroups]);
   const linkedDefs = inputDefs.filter((i) => i.linkMode === "linked");
   const totalLinked = linkedDefs.length;
   const receivedLinked = linkedDefs.filter(
@@ -123,19 +155,15 @@ export function InputsSection({
                 const taskState = stateById.get(input.id);
                 const state = stateFor(input, taskState);
                 const { chip, chipLabel } = chipFor(input);
+                const displayName = displayNameFor(input, lookup);
                 return (
                   <IORow
                     key={input.id}
                     kind="input"
-                    name={input.name}
+                    name={displayName}
                     chip={chip}
                     chipLabel={chipLabel}
                     state={state}
-                    sourceLabel={
-                      state === "pending" && input.upstreamTaskRef
-                        ? input.upstreamTaskRef
-                        : undefined
-                    }
                     dimmed={dimmed}
                     onAction={
                       state === "pending" && !busy

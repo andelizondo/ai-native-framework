@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useId, useMemo, useRef, useState, useTransition } from "react";
-import { CircleAlert, GripVertical, Pencil, Plus, Trash2 } from "lucide-react";
+import { CircleAlert, GripVertical, Plus, TextCursor, Trash2 } from "lucide-react";
 import { ColorDotPicker } from "@/components/framework/color-dot-picker";
 import { ItemAvatar } from "@/components/framework/item-avatar";
 import {
@@ -702,7 +702,7 @@ export function TemplateEditorScreen({
                                 })
                               }
                             >
-                              <Pencil className="h-[11px] w-[11px]" />
+                              <TextCursor className="h-[11px] w-[11px]" />
                             </button>
                             <button
                               type="button"

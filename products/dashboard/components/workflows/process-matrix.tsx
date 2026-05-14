@@ -1043,6 +1043,7 @@ export function ProcessMatrix({
         skills={skills}
         template={template}
         playbookOptions={playbookOptions}
+        outputGroups={outputGroups}
         onClose={() => setSelectedTaskId(null)}
         onTaskUpdate={handleTaskUpdate}
       />

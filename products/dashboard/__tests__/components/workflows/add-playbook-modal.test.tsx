@@ -49,16 +49,10 @@ const OUTPUT_GROUPS: TemplateOutputGroup[] = [
       },
     ],
   },
-  {
-    playbookId: "pb-empty",
-    playbookName: "Empty",
-    outputs: [],
-  },
 ];
 
 const UPSTREAM_TASKS = [
-  { id: "task-a", label: "Presales · Pre-Sales" },
-  { id: "task-b", label: "Empty · Validation" },
+  { id: "task-a", label: "Presales · Pre-Sales", playbookId: "pb-presales" },
 ];
 
 function renderModal(overrides: Partial<Parameters<typeof AddPlaybookModal>[0]> = {}) {
@@ -89,90 +83,91 @@ describe("AddPlaybookModal — inputs editor", () => {
     expect(screen.getByText(/No inputs declared/i)).toBeInTheDocument();
   });
 
-  it("adds an input row, picks a playbook, then an output, and submits the wiring", async () => {
+  it("adds an input row, picks a playbook output via the styled picker, and submits the wiring with a derived name", async () => {
     const user = userEvent.setup();
     const { onSubmit } = renderModal();
 
     await user.click(screen.getByTestId("add-input-row"));
 
+    // The newly-added row opens its picker dropdown automatically.
+    const dropdown = await screen.findByTestId(
+      "input-row-0-picker-dropdown",
+    );
+    await user.click(within(dropdown).getByTestId("input-row-0-picker-item-po-1"));
+
+    // Trigger now shows the wired playbook · output combo.
     const row = screen.getByTestId("input-row-0");
-    await user.type(within(row).getByLabelText("Input name"), "After PD");
-
-    // Step 1: pick the playbook.
-    await user.selectOptions(
-      within(row).getByLabelText("From playbook"),
-      "pb-presales",
-    );
-    // Step 2: pick the output.
-    await user.selectOptions(within(row).getByLabelText("Output"), "po-1");
-
-    // Wired chip appears with the "Output:" prefix and × clear.
-    expect(within(row).getByTestId("input-wiring-chip")).toHaveTextContent(
-      /Output:.*Presales.*report/,
-    );
+    const trigger = within(row).getByTestId("input-row-0-picker-trigger");
+    expect(trigger).toHaveTextContent(/Presales/);
+    expect(trigger).toHaveTextContent(/report/);
 
     await user.click(screen.getByRole("button", { name: /Save playbook/i }));
 
     expect(onSubmit).toHaveBeenCalledTimes(1);
-    const submitted = onSubmit.mock.calls[0][0] as {
-      inputs: WorkflowInput[];
-    };
+    const submitted = onSubmit.mock.calls[0][0] as { inputs: WorkflowInput[] };
     expect(submitted.inputs).toHaveLength(1);
     expect(submitted.inputs[0]).toMatchObject({
-      name: "After PD",
+      name: "Presales / report",
       linkMode: "linked",
       upstreamOutputId: "po-1",
+      upstreamTaskRef: "task-a",
     });
   });
 
-  it("clearing the wiring resets upstreamOutputId to null while preserving the row", async () => {
+  it("clearing the wiring drops the row from the submitted inputs", async () => {
     const user = userEvent.setup();
     const wired: WorkflowInput[] = [
       {
         id: "in-1",
-        name: "After PD",
+        name: "Presales / report",
         linkMode: "linked",
         upstreamTaskRef: "task-a",
         upstreamOutputId: "po-1",
       },
     ];
-    const { onSubmit } = renderModal({ initial: { playbookId: "pb-presales", inputs: wired } });
+    const { onSubmit } = renderModal({
+      initial: { playbookId: "pb-presales", inputs: wired },
+    });
 
     const row = screen.getByTestId("input-row-0");
-    expect(within(row).getByTestId("input-wiring-chip")).toBeInTheDocument();
+    expect(
+      within(row).getByTestId("input-row-0-picker-trigger"),
+    ).toHaveTextContent(/Presales/);
 
-    await user.click(within(row).getByLabelText("Clear wiring"));
+    await user.click(within(row).getByTestId("input-row-0-picker-clear"));
 
-    // Chip is gone; the From-playbook select reappears.
-    expect(within(row).queryByTestId("input-wiring-chip")).toBeNull();
-    expect(within(row).getByLabelText("From playbook")).toBeInTheDocument();
+    // Cleared row reverts to the "Pick playbook output…" trigger.
+    expect(within(row).getByTestId("input-row-0-picker-trigger")).toHaveTextContent(
+      /Pick playbook output/,
+    );
+
+    await user.click(screen.getByRole("button", { name: /Save playbook/i }));
+
+    // Submit filters out unwired rows entirely.
+    const submitted = onSubmit.mock.calls[0][0] as { inputs: WorkflowInput[] };
+    expect(submitted.inputs).toHaveLength(0);
+  });
+
+  it("removes an input row via the delete button", async () => {
+    const user = userEvent.setup();
+    const wired: WorkflowInput[] = [
+      {
+        id: "in-1",
+        name: "Presales / report",
+        linkMode: "linked",
+        upstreamTaskRef: "task-a",
+        upstreamOutputId: "po-1",
+      },
+    ];
+    const { onSubmit } = renderModal({
+      initial: { playbookId: "pb-presales", inputs: wired },
+    });
+
+    await user.click(screen.getByTestId("input-row-0-delete"));
+    expect(screen.queryByTestId("input-row-0")).toBeNull();
 
     await user.click(screen.getByRole("button", { name: /Save playbook/i }));
     const submitted = onSubmit.mock.calls[0][0] as { inputs: WorkflowInput[] };
-    expect(submitted.inputs[0].upstreamOutputId).toBeNull();
-    expect(submitted.inputs[0].upstreamTaskRef).toBe("task-a");
-  });
-
-  it("renders the (no output wired) hint when only an upstream task is selected", () => {
-    const partial: WorkflowInput[] = [
-      {
-        id: "in-1",
-        name: "After PD",
-        linkMode: "linked",
-        upstreamTaskRef: "task-a",
-        upstreamOutputId: null,
-      },
-    ];
-    renderModal({ initial: { playbookId: "pb-presales", inputs: partial } });
-    expect(screen.getByText("(no output wired)")).toBeInTheDocument();
-  });
-
-  it("renders the Declare-an-output CTA when the chosen playbook has zero outputs", async () => {
-    const user = userEvent.setup();
-    renderModal();
-    await user.click(screen.getByTestId("add-input-row"));
-    const row = screen.getByTestId("input-row-0");
-    await user.selectOptions(within(row).getByLabelText("From playbook"), "pb-empty");
-    expect(within(row).getByText(/Declare an output on this playbook/i)).toBeInTheDocument();
+    expect(submitted.inputs).toHaveLength(0);
   });
 });

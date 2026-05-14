@@ -1,6 +1,6 @@
 "use client";
 
-import { Pencil, Trash2 } from "lucide-react";
+import { TextCursor, Trash2 } from "lucide-react";
 
 import { IconButtonTooltip } from "@/components/ui/icon-button-tooltip";
 
@@ -23,7 +23,7 @@ export function FrameworkHeaderActionsMenu({
         onClick={onRename}
         align="end"
       >
-        <Pencil className="h-3.5 w-3.5" strokeWidth={2.2} />
+        <TextCursor className="h-3.5 w-3.5" strokeWidth={2.2} />
       </IconButtonTooltip>
       <span aria-hidden className="h-4 w-px bg-border" />
       <IconButtonTooltip

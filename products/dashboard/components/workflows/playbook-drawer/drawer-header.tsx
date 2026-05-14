@@ -4,7 +4,10 @@ import type { ButtonHTMLAttributes } from "react";
 import { MoreVertical, X } from "lucide-react";
 
 import { OwnerAvatarStack } from "@/components/framework/owner-avatar-stack";
-import { StatusBadgePopover } from "@/components/workflows/task-card";
+import {
+  EmptyOwnerAvatar,
+  StatusBadgePopover,
+} from "@/components/workflows/task-card";
 import { cn } from "@/lib/utils";
 import {
   TASK_STATUS_LABEL,
@@ -146,7 +149,11 @@ export function DrawerHeader({
         )}
         <div className="pb-drawer-context__owners" data-testid="pb-drawer-owners">
           <span className="pb-drawer-context__owners-lbl">Owners</span>
-          <OwnerAvatarStack labels={task.owners} size="xs" testIdSuffix="pb-drawer" />
+          {task.owners.length > 0 ? (
+            <OwnerAvatarStack labels={task.owners} size="xs" testIdSuffix="pb-drawer" />
+          ) : (
+            <EmptyOwnerAvatar taskId={`pb-drawer-${task.id}`} />
+          )}
         </div>
       </div>
     </header>

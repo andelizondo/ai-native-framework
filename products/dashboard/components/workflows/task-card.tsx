@@ -249,7 +249,7 @@ export function TaskCard({
   );
 }
 
-function EmptyOwnerAvatar({ taskId }: { taskId: string }) {
+export function EmptyOwnerAvatar({ taskId }: { taskId: string }) {
   return (
     <span
       className="group/empty-owner tc-empty-owner"

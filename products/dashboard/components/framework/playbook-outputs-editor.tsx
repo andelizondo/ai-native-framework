@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useId, useMemo, useState, useTransition } from "react";
-import { ChevronDown, GripVertical, Plus, Trash2 } from "lucide-react";
+import { ChevronDown, GripVertical, Plus, TextCursor, Trash2, X } from "lucide-react";
 import {
   DndContext,
   KeyboardSensor,
@@ -173,6 +173,28 @@ export function PlaybookOutputsEditor({
 
   const sortableIds = useMemo(() => rows.map((r) => r.id), [rows]);
 
+  // Row ids that are currently in inline-edit mode. Pending rows are always
+  // treated as editing; saved rows default to view mode and opt in here.
+  const [editingIds, setEditingIds] = useState<Set<string>>(new Set());
+
+  const startEditing = useCallback((id: string) => {
+    setEditingIds((current) => {
+      if (current.has(id)) return current;
+      const next = new Set(current);
+      next.add(id);
+      return next;
+    });
+  }, []);
+
+  const stopEditing = useCallback((id: string) => {
+    setEditingIds((current) => {
+      if (!current.has(id)) return current;
+      const next = new Set(current);
+      next.delete(id);
+      return next;
+    });
+  }, []);
+
   const setRow = useCallback(
     (id: string, patch: Partial<DraftRow>) => {
       setRows((current) =>
@@ -259,6 +281,7 @@ export function PlaybookOutputsEditor({
           setRows((current) =>
             current.map((r) => (r.id === id ? fromServer(created) : r)),
           );
+          stopEditing(id);
           toastSuccess("Output added");
         } else {
           const updated = await updatePlaybookOutputAction(row.saved!.id, {
@@ -270,6 +293,7 @@ export function PlaybookOutputsEditor({
           setRows((current) =>
             current.map((r) => (r.id === id ? fromServer(updated) : r)),
           );
+          stopEditing(id);
           toastSuccess("Output saved");
         }
       } catch (err) {
@@ -284,7 +308,7 @@ export function PlaybookOutputsEditor({
         markSaving(id, false);
       }
     },
-    [rows, playbookId, setRowError, markSaving, toastSuccess, toastError],
+    [rows, playbookId, setRowError, markSaving, stopEditing, toastSuccess, toastError],
   );
 
   const openDeleteConfirm = useCallback(
@@ -393,7 +417,29 @@ export function PlaybookOutputsEditor({
       </header>
 
       {!loaded ? (
-        <p className="text-[12px] text-t3">Loading…</p>
+        <ul
+          aria-label="Loading outputs"
+          data-testid="playbook-outputs-skeleton"
+          className="flex flex-col gap-2.5"
+        >
+          {Array.from({ length: 3 }, (_, i) => (
+            <li
+              key={i}
+              className="animate-pulse rounded-md border border-border bg-bg p-3"
+            >
+              <div className="flex items-start gap-2">
+                <div className="mt-1 h-7 w-6 rounded bg-bg-2" />
+                <div className="min-w-0 flex-1 space-y-2">
+                  <div className="flex items-center gap-2">
+                    <div className="h-3 flex-1 rounded bg-bg-2" />
+                    <div className="h-3 w-14 rounded bg-bg-2" />
+                  </div>
+                  <div className="h-2.5 w-3/4 rounded bg-bg-2" />
+                </div>
+              </div>
+            </li>
+          ))}
+        </ul>
       ) : rows.length === 0 ? (
         <p
           data-testid="playbook-outputs-empty"
@@ -416,9 +462,22 @@ export function PlaybookOutputsEditor({
                   error={rowErrors[row.id]}
                   saving={savingIds.has(row.id)}
                   dirty={isDirty(row)}
+                  editing={row.isPending || editingIds.has(row.id)}
                   onChange={(patch) => setRow(row.id, patch)}
                   onSave={() => handleSaveRow(row.id)}
                   onDelete={() => openDeleteConfirm(row.id)}
+                  onStartEdit={() => startEditing(row.id)}
+                  onCancelEdit={() => {
+                    if (row.saved) {
+                      setRows((current) =>
+                        current.map((r) =>
+                          r.id === row.id ? fromServer(row.saved!) : r,
+                        ),
+                      );
+                    }
+                    setRowError(row.id, undefined);
+                    stopEditing(row.id);
+                  }}
                 />
               ))}
             </ul>
@@ -460,9 +519,12 @@ interface SortableOutputRowProps {
   error: string | undefined;
   saving: boolean;
   dirty: boolean;
+  editing: boolean;
   onChange: (patch: Partial<DraftRow>) => void;
   onSave: () => void;
   onDelete: () => void;
+  onStartEdit: () => void;
+  onCancelEdit: () => void;
 }
 
 function SortableOutputRow({
@@ -470,9 +532,12 @@ function SortableOutputRow({
   error,
   saving,
   dirty,
+  editing,
   onChange,
   onSave,
   onDelete,
+  onStartEdit,
+  onCancelEdit,
 }: SortableOutputRowProps) {
   const {
     attributes,
@@ -491,6 +556,8 @@ function SortableOutputRow({
   };
 
   const showApiCheck = row.kind === "api";
+  const kindLabel =
+    KIND_OPTIONS.find((opt) => opt.value === row.kind)?.label ?? row.kind;
 
   return (
     <li
@@ -498,7 +565,8 @@ function SortableOutputRow({
       data-testid={`playbook-output-row-${row.id}`}
       style={style}
       className={cn(
-        "rounded-md border border-border bg-bg p-3",
+        "rounded-md border border-border bg-bg p-3 transition-colors",
+        editing && "border-border-hi bg-bg-2/60",
         isDragging && "shadow-lg",
       )}
     >
@@ -515,6 +583,52 @@ function SortableOutputRow({
           <GripVertical className="h-4 w-4" />
         </button>
 
+        {!editing ? (
+          <div className="flex min-w-0 flex-1 items-start gap-3">
+            <div className="min-w-0 flex-1">
+              <div className="flex flex-wrap items-center gap-2">
+                <span
+                  data-testid={`playbook-output-name-view-${row.id}`}
+                  className="truncate text-[13px] font-semibold text-t1"
+                >
+                  {row.saved?.name ?? row.name}
+                </span>
+                <span
+                  data-testid={`playbook-output-kind-view-${row.id}`}
+                  className="inline-flex h-5 items-center rounded-full border border-border bg-bg-2 px-2 font-mono text-[10px] uppercase tracking-[0.1em] text-t2"
+                >
+                  {kindLabel}
+                </span>
+              </div>
+              {row.description.trim() ? (
+                <p className="mt-1 line-clamp-2 text-[12px] leading-5 text-t2">
+                  {row.description}
+                </p>
+              ) : null}
+            </div>
+            <div className="flex shrink-0 items-center gap-1">
+              <button
+                type="button"
+                onClick={onStartEdit}
+                aria-label="Edit output"
+                data-testid={`playbook-output-edit-${row.id}`}
+                className="inline-flex h-7 items-center gap-1 rounded-md px-2 text-[11px] font-medium text-t2 transition hover:bg-bg-3 hover:text-t1 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
+              >
+                <TextCursor className="h-3.5 w-3.5" />
+                Edit
+              </button>
+              <button
+                type="button"
+                onClick={onDelete}
+                data-testid={`playbook-output-delete-${row.id}`}
+                className="inline-flex h-7 items-center gap-1 rounded-md px-2 text-[11px] font-medium text-t2 transition hover:bg-bg-3 hover:text-t1 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
+              >
+                <Trash2 className="h-3.5 w-3.5" />
+                Delete
+              </button>
+            </div>
+          </div>
+        ) : (
         <div className="min-w-0 flex-1 space-y-2">
           <div className="flex flex-wrap items-center gap-2">
             <input
@@ -591,6 +705,18 @@ function SortableOutputRow({
               <Trash2 className="h-3.5 w-3.5" />
               Delete
             </button>
+            {!row.isPending ? (
+              <button
+                type="button"
+                onClick={onCancelEdit}
+                disabled={saving}
+                data-testid={`playbook-output-cancel-${row.id}`}
+                className="inline-flex h-7 items-center gap-1 rounded-md px-2 text-[11px] font-medium text-t2 transition hover:bg-bg-3 hover:text-t1 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent disabled:opacity-50"
+              >
+                <X className="h-3.5 w-3.5" />
+                Cancel
+              </button>
+            ) : null}
             <button
               type="button"
               onClick={onSave}
@@ -607,6 +733,7 @@ function SortableOutputRow({
             </button>
           </div>
         </div>
+        )}
       </div>
     </li>
   );

@@ -52,8 +52,8 @@ describe("PlaybookOutputsEditor", () => {
       />,
     );
 
-    expect(screen.getByDisplayValue("report")).toBeInTheDocument();
-    expect(screen.getByDisplayValue("deck")).toBeInTheDocument();
+    expect(screen.getByTestId("playbook-output-name-view-po-1")).toHaveTextContent("report");
+    expect(screen.getByTestId("playbook-output-name-view-po-2")).toHaveTextContent("deck");
     expect(listMock).not.toHaveBeenCalled();
   });
 
@@ -63,7 +63,9 @@ describe("PlaybookOutputsEditor", () => {
     renderWithToast(<PlaybookOutputsEditor playbookId="pb-presales" />);
 
     await waitFor(() => expect(listMock).toHaveBeenCalledWith("pb-presales"));
-    expect(await screen.findByDisplayValue("report")).toBeInTheDocument();
+    expect(
+      await screen.findByTestId("playbook-output-name-view-po-1"),
+    ).toHaveTextContent("report");
   });
 
   it("adds a new output via createPlaybookOutputAction", async () => {
@@ -106,6 +108,7 @@ describe("PlaybookOutputsEditor", () => {
       <PlaybookOutputsEditor playbookId="pb-presales" initialOutputs={[fixture()]} />,
     );
 
+    await user.click(screen.getByTestId("playbook-output-edit-po-1"));
     const nameInput = screen.getByDisplayValue("report");
     await user.clear(nameInput);
     await user.type(nameInput, "report-v2");
@@ -132,6 +135,7 @@ describe("PlaybookOutputsEditor", () => {
       />,
     );
 
+    await user.click(screen.getByTestId("playbook-output-edit-po-2"));
     const deckInput = screen.getByDisplayValue("deck");
     await user.clear(deckInput);
     await user.type(deckInput, "report");

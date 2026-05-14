@@ -17,6 +17,7 @@ import { emitEvent } from "@/lib/events";
 import { cn } from "@/lib/utils";
 import type {
   FrameworkItem,
+  TemplateOutputGroup,
   WorkflowInstanceDetail,
   WorkflowSkill,
   WorkflowTask,
@@ -41,6 +42,9 @@ export interface PlaybookDrawerProps {
   skills: WorkflowSkill[];
   template: WorkflowTemplate | null;
   playbookOptions?: FrameworkItem[];
+  /** Cross-playbook output catalog for this template. Used to render linked
+   *  inputs as "{playbookName} / {outputName}" instead of raw refs. */
+  outputGroups?: TemplateOutputGroup[];
   onClose: () => void;
   onTaskUpdate: (task: WorkflowTask) => void;
 }
@@ -87,6 +91,7 @@ export function PlaybookDrawer({
   instance,
   skills,
   playbookOptions = [],
+  outputGroups = [],
   onClose,
   onTaskUpdate,
 }: PlaybookDrawerProps) {
@@ -298,6 +303,7 @@ export function PlaybookDrawer({
           <InputsSection
             inputDefs={task.inputs}
             inputStates={inputStates}
+            outputGroups={outputGroups}
             dimmed={isInputsDimmed}
             busy={busy}
             onMarkReceived={handleMarkReceived}
