@@ -509,16 +509,22 @@ describe("workflow repository", () => {
       });
 
       const instance = await repo.createInstance("client-delivery", "Acme");
+      const upstream = instance.tasks.find((t) => t.skillId === "sales-ops");
       const downstream = instance.tasks.find((t) => t.skillId === "pm");
+      expect(upstream).toBeDefined();
+      // The template-task-id `tt-a` was rewritten to the materialized
+      // instance task id so UI that resolves upstream by id (the wiring
+      // SVG) can find it. The remaining input fields are preserved.
       expect(downstream?.inputs).toEqual([
         {
           id: "in-1",
           name: "After PD",
           linkMode: "linked",
-          upstreamTaskRef: "tt-a",
+          upstreamTaskRef: upstream?.id,
           upstreamOutputId: "po-1",
         },
       ]);
+      expect(downstream?.inputs[0].upstreamTaskRef).not.toBe("tt-a");
     });
 
     it("throws when updateTemplate receives an empty patch", async () => {

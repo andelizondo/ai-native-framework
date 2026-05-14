@@ -771,7 +771,68 @@ export function createWorkflowRepository(
             tasksErr,
           );
         }
-        tasks = (insertedTasks ?? []).map((row) => mapTask(row as WorkflowTaskRow));
+        const insertedRows = (insertedTasks ?? []) as WorkflowTaskRow[];
+
+        // Wiring refs in template JSONB point at *template* task ids; the
+        // instance materializes with fresh task uuids, so any
+        // `inputs[].upstreamTaskRef` set in the template needs to be
+        // re-pointed at the corresponding instance task. Match by
+        // (skill_id, stage_id) — unique within a template. The auto-satisfy
+        // trigger keys off `upstreamOutputId` so it works regardless, but
+        // any UI that resolves the upstream task by id (the wiring SVG,
+        // future graph views) depends on this remap.
+        const templateIdToInstanceId = new Map<string, string>();
+        for (const tpl of template.taskTemplates) {
+          if (!tpl.id) continue;
+          const match = insertedRows.find(
+            (row) => row.skill_id === tpl.skillId && row.stage_id === tpl.stageId,
+          );
+          if (match) templateIdToInstanceId.set(tpl.id, match.id);
+        }
+
+        const updates: { id: string; inputs: unknown[] }[] = [];
+        for (const row of insertedRows) {
+          const normalized = normalizeInputs(row.inputs);
+          let changed = false;
+          const remapped = normalized.map((input) => {
+            if (
+              input.linkMode === "linked" &&
+              input.upstreamTaskRef &&
+              templateIdToInstanceId.has(input.upstreamTaskRef)
+            ) {
+              const next = templateIdToInstanceId.get(input.upstreamTaskRef) as string;
+              if (next !== input.upstreamTaskRef) {
+                changed = true;
+                return { ...input, upstreamTaskRef: next };
+              }
+            }
+            return input;
+          });
+          if (changed) {
+            updates.push({ id: row.id, inputs: inputsToJsonb(remapped) });
+          }
+        }
+
+        if (updates.length > 0) {
+          await Promise.all(
+            updates.map(async (update) => {
+              const { error: updErr } = await client
+                .from("workflow_tasks")
+                .update({ inputs: update.inputs })
+                .eq("id", update.id);
+              if (updErr) {
+                throw new WorkflowRepositoryError(
+                  "createInstance ref remap failed",
+                  updErr,
+                );
+              }
+              const target = insertedRows.find((row) => row.id === update.id);
+              if (target) target.inputs = update.inputs;
+            }),
+          );
+        }
+
+        tasks = insertedRows.map((row) => mapTask(row));
       }
 
       const taskIO = await loadInstanceTaskIO(client, tasks);
