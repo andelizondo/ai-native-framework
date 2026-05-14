@@ -3,10 +3,55 @@
 import { useEffect, useRef, useState } from "react";
 
 import { ItemAvatar } from "@/components/framework/item-avatar";
-import { findOwnerByLabel } from "@/lib/framework/owner-catalog";
+import { findOwnerByLabel, type OwnerOption } from "@/lib/framework/owner-catalog";
+import { classifyOwner } from "@/lib/workflows/classify-owner";
 import { cn } from "@/lib/utils";
 
 const MAX_VISIBLE = 4;
+
+// Lightning glyph for ad-hoc agent labels (matching the convention in
+// `lib/workflows/classify-owner.ts`: anything prefixed with `agent:`).
+const AGENT_GLYPH = "⚡";
+
+/**
+ * Resolve an owner label to a renderable option. Catalog hits stay as-is
+ * (real model entries like "Claude Opus 4.7" are catalog-resolved). Catalog
+ * misses fall back to classifyOwner: `agent:` labels render a lightning
+ * glyph; everything else renders initials derived from the label so the
+ * stack never silently drops a row.
+ */
+function resolveOwnerForStack(label: string): OwnerOption | null {
+  const catalog = findOwnerByLabel(label);
+  if (catalog) return catalog;
+
+  const trimmed = label.trim();
+  if (!trimmed) return null;
+
+  if (classifyOwner(trimmed) === "agent") {
+    return {
+      id: `agent-fallback-${trimmed}`,
+      label: trimmed.replace(/^agent:\s*/i, ""),
+      group: "agents",
+      subtitle: "Agent",
+      emoji: AGENT_GLYPH,
+      color: "#6366f1",
+    };
+  }
+
+  const initials = trimmed
+    .split(/\s+/)
+    .slice(0, 2)
+    .map((part) => part[0]?.toUpperCase() ?? "")
+    .join("");
+  return {
+    id: `person-fallback-${trimmed}`,
+    label: trimmed,
+    group: "people",
+    subtitle: "",
+    initials: initials || trimmed.slice(0, 2).toUpperCase(),
+    color: "#94a3b8",
+  };
+}
 
 interface OwnerAvatarStackProps {
   /** Owner labels (resolved via the catalog). Unknown labels are skipped. */
@@ -73,7 +118,7 @@ export function OwnerAvatarStack({
       }
     >
       {visible.map((label, index) => {
-        const option = findOwnerByLabel(label);
+        const option = resolveOwnerForStack(label);
         if (!option) return null;
         return (
           <ItemAvatar
@@ -140,7 +185,7 @@ export function OwnerAvatarStack({
               </span>
               <span className="block max-h-[200px] overflow-y-auto p-1.5">
                 {overflow.map((label) => {
-                  const option = findOwnerByLabel(label);
+                  const option = resolveOwnerForStack(label);
                   return (
                     <span
                       key={label}

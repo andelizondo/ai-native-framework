@@ -39,7 +39,7 @@ function linked(ref: string | undefined, name = "linked"): WorkflowInput {
 
 describe("canStart", () => {
   it("returns true for tasks already past not_started regardless of inputs", () => {
-    const a = task("a", { status: "active", inputs: [linked("missing")] });
+    const a = task("a", { status: "in_progress", inputs: [linked("missing")] });
     expect(canStart(a, [a])).toBe(true);
   });
 
@@ -54,7 +54,7 @@ describe("canStart", () => {
   });
 
   it("requires every linked input's upstream task to be complete", () => {
-    const upstream = task("up", { playbookId: "pdr-review", status: "active" });
+    const upstream = task("up", { playbookId: "pdr-review", status: "in_progress" });
     const downstream = task("down", { inputs: [linked("pdr-review")] });
     expect(canStart(downstream, [upstream, downstream])).toBe(false);
 
@@ -88,9 +88,9 @@ describe("canStart", () => {
 describe("barClass", () => {
   it("maps each task status to its prototype bar-state class", () => {
     expect(barClass(task("c", { status: "complete" }), false)).toBe("bar-complete");
-    expect(barClass(task("a", { status: "active" }), false)).toBe("bar-active");
-    expect(barClass(task("p", { status: "pending_approval" }), true)).toBe("bar-glow");
-    expect(barClass(task("b", { status: "blocked" }), true)).toBe("bar-glow");
+    expect(barClass(task("a", { status: "in_progress" }), false)).toBe("bar-active");
+    expect(barClass(task("p", { status: "paused" }), true)).toBe("bar-glow");
+    expect(barClass(task("b", { status: "failed" }), true)).toBe("bar-glow");
   });
 
   it("splits not_started tasks into ready/locked based on canStart", () => {

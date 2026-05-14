@@ -31,6 +31,7 @@ import { CSS } from "@dnd-kit/utilities";
 
 import {
   deleteTemplateAction,
+  listOutputsForTemplateAction,
   renameTemplateAction,
   updateTemplateAction,
 } from "@/app/(dashboard)/workflows/actions";
@@ -48,6 +49,8 @@ import { emitEvent } from "@/lib/events";
 import { resolveSkillColor } from "@/lib/workflows/skill-colors";
 import type {
   FrameworkItem,
+  TemplateOutputGroup,
+  WorkflowInput,
   WorkflowSkill,
   WorkflowStage,
   WorkflowTask,
@@ -290,10 +293,29 @@ export function TemplateEditorScreen({
       playbookId?: string | null;
       notes?: string;
       owners?: string[];
+      inputs?: WorkflowInput[];
     };
   } | null>(null);
   const [pending, startTransition] = useTransition();
   const dndContextId = useId();
+  const [outputGroups, setOutputGroups] = useState<TemplateOutputGroup[]>([]);
+
+  const refetchOutputGroups = useCallback(async () => {
+    try {
+      const groups = await listOutputsForTemplateAction(template.id);
+      setOutputGroups(groups);
+    } catch (err) {
+      captureError(err, {
+        feature: "workflows.template_editor",
+        action: "listOutputsForTemplate",
+        extra: { template_id: template.id },
+      });
+    }
+  }, [template.id]);
+
+  useEffect(() => {
+    void refetchOutputGroups();
+  }, [refetchOutputGroups]);
 
   const playbookById = useMemo(
     () => new Map(playbookOptions.map((pb) => [pb.id, pb])),
@@ -492,6 +514,9 @@ export function TemplateEditorScreen({
             ? err.message
             : "Could not save the workflow template.",
         );
+        // Refetch the picker source-of-truth so a stale `upstreamOutputId`
+        // resolves itself the next time the modal opens.
+        void refetchOutputGroups();
       }
     });
   }
@@ -889,6 +914,7 @@ export function TemplateEditorScreen({
                                 playbookId: templateTask.playbookId ?? null,
                                 notes: templateTask.notes ?? "",
                                 owners: templateTask.owners ?? [],
+                                inputs: templateTask.inputs ?? [],
                               },
                             })
                           }
@@ -986,6 +1012,28 @@ export function TemplateEditorScreen({
           stageName={addTaskFor.stageName}
           playbooks={playbookOptions}
           initial={addTaskFor.initial}
+          upstreamTaskOptions={draft.taskTemplates
+            .filter((t) => t.id && t.id !== addTaskFor.taskId)
+            .map((t) => {
+              const skill = draft.skills.find((s) => s.id === t.skillId);
+              const stage = draft.stages.find((s) => s.id === t.stageId);
+              // Use skill (not playbook) so the playbook name shows on
+              // exactly one slot — the wired-output chip — keeping the
+              // upstream-task select visually distinct.
+              const label = [
+                skill?.label ?? t.skillId,
+                stage?.label ?? t.stageId,
+              ]
+                .filter(Boolean)
+                .join(" · ");
+              return {
+                id: t.id as string,
+                label,
+                playbookId: t.playbookId ?? null,
+              };
+            })}
+          outputGroups={outputGroups}
+          onRefetchOutputs={refetchOutputGroups}
           onClose={() => setAddTaskFor(null)}
           onSubmit={(input) => {
             setDraft((current) => {
@@ -999,6 +1047,7 @@ export function TemplateEditorScreen({
                           playbookId: input.playbookId,
                           notes: input.notes,
                           owners: input.owners,
+                          inputs: input.inputs,
                         }
                       : item,
                   ),
@@ -1015,8 +1064,7 @@ export function TemplateEditorScreen({
                     stageId: addTaskFor.stageId,
                     playbookId: input.playbookId,
                     notes: input.notes,
-                    triggers: [],
-                    gates: [],
+                    inputs: input.inputs,
                     owners: input.owners,
                   },
                 ],
