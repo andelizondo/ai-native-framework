@@ -409,13 +409,13 @@ describe("workflow repository", () => {
       const targetTaskId = instance.tasks[0].id;
 
       const updated = await repo.updateTask(targetTaskId, {
-        status: "active",
+        status: "in_progress",
         substatus: "Agent began work",
         notes: "Started",
       });
 
       expect(updated.id).toBe(targetTaskId);
-      expect(updated.status).toBe("active");
+      expect(updated.status).toBe("in_progress");
       expect(updated.substatus).toBe("Agent began work");
       expect(updated.notes).toBe("Started");
 
@@ -475,6 +475,58 @@ describe("workflow repository", () => {
       });
     });
 
+    it("round-trips inputs[].upstreamOutputId through update + createInstance", async () => {
+      const repo = createWorkflowRepository(makeFakeClient(store));
+
+      await repo.updateTemplate("client-delivery", {
+        taskTemplates: [
+          {
+            id: "tt-a",
+            skillId: "sales-ops",
+            stageId: "pre-sales",
+            playbookId: "presales-qualification",
+            notes: "",
+            inputs: [],
+          },
+          {
+            id: "tt-b",
+            skillId: "pm",
+            stageId: "validation",
+            playbookId: "pdr-review",
+            notes: "",
+            checkpoint: true,
+            inputs: [
+              {
+                id: "in-1",
+                name: "After PD",
+                linkMode: "linked",
+                upstreamTaskRef: "tt-a",
+                upstreamOutputId: "po-1",
+              },
+            ],
+          },
+        ],
+      });
+
+      const instance = await repo.createInstance("client-delivery", "Acme");
+      const upstream = instance.tasks.find((t) => t.skillId === "sales-ops");
+      const downstream = instance.tasks.find((t) => t.skillId === "pm");
+      expect(upstream).toBeDefined();
+      // The template-task-id `tt-a` was rewritten to the materialized
+      // instance task id so UI that resolves upstream by id (the wiring
+      // SVG) can find it. The remaining input fields are preserved.
+      expect(downstream?.inputs).toEqual([
+        {
+          id: "in-1",
+          name: "After PD",
+          linkMode: "linked",
+          upstreamTaskRef: upstream?.id,
+          upstreamOutputId: "po-1",
+        },
+      ]);
+      expect(downstream?.inputs[0].upstreamTaskRef).not.toBe("tt-a");
+    });
+
     it("throws when updateTemplate receives an empty patch", async () => {
       const repo = createWorkflowRepository(makeFakeClient(store));
 
@@ -507,11 +559,12 @@ describe("workflow repository", () => {
       expect(fetched).toBeNull();
     });
 
-    it("filters legacy non-data-flow trigger types out of `inputs` on read", async () => {
-      // Legacy row authored before AEL-59: the JSONB `triggers` column
-      // carried `manual` / `event` / `schedule` / `webhook` items. The
-      // read shim drops them; only `task` / `after_task` survive as
-      // `linked` inputs.
+    it("forward-maps legacy trigger-shaped JSONB to linked inputs on read", async () => {
+      // PR 2 / AEL-60 renamed the column to `inputs` and PR 1's runtime
+      // wrote canonical WorkflowInput JSONB. Defensively, rows authored
+      // before PR 1 may still carry the legacy trigger shape — the
+      // normalizeInputs shim maps them forward. Only `task` / `after_task`
+      // map to a `linked` input; everything else is dropped.
       store.workflow_tasks.push({
         id: "legacy-task",
         instance_id: "inst-x",
@@ -521,16 +574,18 @@ describe("workflow repository", () => {
         status: "not_started",
         substatus: "",
         checkpoint: false,
-        triggers: [
+        inputs: [
           { type: "manual", label: "Manual start" },
           { type: "event", eventName: "external.signal" },
           { type: "schedule", label: "Cron" },
           { type: "webhook", label: "Hook" },
           { type: "after_task", taskRef: "presales-qualification", label: "After PD" },
         ],
-        gates: [{ type: "approval", label: "Approve" }],
         playbook_id: "pdr-review",
         owners: [],
+        paused_reason: null,
+        paused_by: null,
+        paused_at: null,
         created_at: "2026-04-19T12:00:00Z",
         updated_at: "2026-04-19T12:00:00Z",
       });
@@ -552,28 +607,28 @@ describe("workflow repository", () => {
   });
 
   describe("transitionPendingCheckpoint", () => {
-    it("flips a pending_approval checkpoint task to the requested status atomically", async () => {
+    it("resumes a paused checkpoint task to the requested status atomically", async () => {
       const repo = createWorkflowRepository(makeFakeClient(store));
       const instance = await repo.createInstance("client-delivery", "Acme Corp");
       const checkpoint = instance.tasks.find((t) => t.checkpoint)!;
 
-      // Templates materialize tasks in `not_started`; promote to
-      // pending_approval so the conditional UPDATE's predicates match.
-      await repo.updateTask(checkpoint.id, { status: "pending_approval" });
+      // PR 2 routes checkpoint approval through pause/resume semantics —
+      // the predicate now requires status='paused' AND paused_reason='checkpoint'.
+      await repo.pauseTask(checkpoint.id, "checkpoint");
 
       const transitioned = await repo.transitionPendingCheckpoint(
         checkpoint.id,
-        "complete",
+        "in_progress",
       );
 
       expect(transitioned).not.toBeNull();
       expect(transitioned!.id).toBe(checkpoint.id);
-      expect(transitioned!.status).toBe("complete");
+      expect(transitioned!.status).toBe("in_progress");
       expect(transitioned!.checkpoint).toBe(true);
 
-      // Persisted: a re-read sees the new status.
       const refetched = await repo.getTask(checkpoint.id);
-      expect(refetched!.status).toBe("complete");
+      expect(refetched!.status).toBe("in_progress");
+      expect(refetched!.pausedReason).toBeNull();
     });
 
     it("returns null when the task is not a checkpoint (UPDATE matches no row, no write)", async () => {
@@ -581,30 +636,27 @@ describe("workflow repository", () => {
       const instance = await repo.createInstance("client-delivery", "Acme Corp");
       const nonCheckpoint = instance.tasks.find((t) => !t.checkpoint)!;
 
-      // Even after promoting status, the `checkpoint = TRUE` predicate
-      // must fail and the UPDATE must not write — the row stays
-      // untouched so subsequent flows see truthful state.
-      await repo.updateTask(nonCheckpoint.id, { status: "pending_approval" });
+      await repo.pauseTask(nonCheckpoint.id, "checkpoint");
 
       const transitioned = await repo.transitionPendingCheckpoint(
         nonCheckpoint.id,
-        "complete",
+        "in_progress",
       );
 
       expect(transitioned).toBeNull();
       const refetched = await repo.getTask(nonCheckpoint.id);
-      expect(refetched!.status).toBe("pending_approval");
+      expect(refetched!.status).toBe("paused");
     });
 
-    it("returns null when the task is not in pending_approval (UPDATE matches no row, no write)", async () => {
+    it("returns null when the task is not paused on a checkpoint reason", async () => {
       const repo = createWorkflowRepository(makeFakeClient(store));
       const instance = await repo.createInstance("client-delivery", "Acme Corp");
       const checkpoint = instance.tasks.find((t) => t.checkpoint)!;
 
-      // Checkpoint exists but is still `not_started` from materialization.
+      // Checkpoint exists but is still `not_started` — predicate fails.
       const transitioned = await repo.transitionPendingCheckpoint(
         checkpoint.id,
-        "complete",
+        "in_progress",
       );
 
       expect(transitioned).toBeNull();
@@ -617,7 +669,7 @@ describe("workflow repository", () => {
 
       const transitioned = await repo.transitionPendingCheckpoint(
         "does-not-exist",
-        "complete",
+        "in_progress",
       );
 
       expect(transitioned).toBeNull();
@@ -647,12 +699,12 @@ describe("workflow repository", () => {
       const target = instance.tasks[0]!;
 
       const transitioned = await repo.updateTaskIfStatus(target.id, "not_started", {
-        status: "active",
+        status: "in_progress",
       });
 
       expect(transitioned).not.toBeNull();
-      expect(transitioned!.status).toBe("active");
-      expect((await repo.getTask(target.id))!.status).toBe("active");
+      expect(transitioned!.status).toBe("in_progress");
+      expect((await repo.getTask(target.id))!.status).toBe("in_progress");
     });
 
     it("returns null when updateTaskIfStatus sees a stale current status", async () => {
@@ -660,8 +712,8 @@ describe("workflow repository", () => {
       const instance = await repo.createInstance("client-delivery", "Acme Corp");
       const target = instance.tasks[0]!;
 
-      const transitioned = await repo.updateTaskIfStatus(target.id, "active", {
-        status: "blocked",
+      const transitioned = await repo.updateTaskIfStatus(target.id, "in_progress", {
+        status: "failed",
       });
 
       expect(transitioned).toBeNull();
@@ -729,6 +781,217 @@ describe("workflow repository", () => {
 
       expect(store.framework_items).toHaveLength(1);
       expect(store.framework_items[0]?.id).toBe("pb-presales");
+    });
+  });
+
+  // The in-memory fake doesn't enforce the (playbook_id, name) UNIQUE
+  // constraint. We cover the friendly-error path for unique-name conflicts
+  // in the playbook-outputs-editor component test instead.
+  describe("playbook outputs", () => {
+    beforeEach(() => {
+      store.playbook_outputs = [
+        {
+          id: "po-1",
+          playbook_id: "pb-presales",
+          name: "report",
+          description: "Initial report",
+          kind: "file",
+          api_check: null,
+          position: 0,
+          created_at: "2026-04-19T12:00:00Z",
+        },
+        {
+          id: "po-2",
+          playbook_id: "pb-presales",
+          name: "deck",
+          description: null,
+          kind: "media",
+          api_check: null,
+          position: 1,
+          created_at: "2026-04-19T12:00:00Z",
+        },
+      ];
+      store.task_outputs = [
+        {
+          id: "to-1",
+          task_id: "task-a",
+          output_id: "po-1",
+          status: "produced",
+          artifact_url: null,
+          artifact_meta: null,
+          produced_by: null,
+          produced_at: null,
+          created_at: "2026-04-19T12:00:00Z",
+        },
+        {
+          id: "to-2",
+          task_id: "task-b",
+          output_id: "po-1",
+          status: "pending",
+          artifact_url: null,
+          artifact_meta: null,
+          produced_by: null,
+          produced_at: null,
+          created_at: "2026-04-19T12:00:00Z",
+        },
+      ];
+    });
+
+    describe("listOutputsForTemplate", () => {
+      it("returns outputs grouped per attached playbook, sorted by playbook name", async () => {
+        store.workflow_templates.push({
+          id: "tpl-wired",
+          label: "Wired Template",
+          color: "#fff",
+          multi_instance: false,
+          stages: [],
+          skills: [],
+          task_templates: [
+            {
+              id: "t1",
+              skillId: "sk-pm",
+              stageId: "s1",
+              playbookId: "pb-presales",
+              notes: "",
+              inputs: [],
+            },
+            {
+              id: "t2",
+              skillId: "sk-pm",
+              stageId: "s2",
+              playbookId: "pb-empty",
+              notes: "",
+              inputs: [],
+            },
+          ],
+          created_at: "2026-04-19T12:00:00Z",
+          updated_at: "2026-04-19T12:00:00Z",
+        });
+        store.framework_items.push({
+          id: "pb-empty",
+          type: "playbook",
+          name: "ada-onboard",
+          description: "",
+          icon: null,
+          color: null,
+          content: "",
+          created_at: "2026-04-19T12:00:00Z",
+          updated_at: "2026-04-19T12:00:00Z",
+        });
+
+        const repo = createWorkflowRepository(makeFakeClient(store));
+        const groups = await repo.listOutputsForTemplate("tpl-wired");
+
+        expect(groups.map((g) => g.playbookName)).toEqual([
+          "ada-onboard",
+          "presales-qualification",
+        ]);
+        const presales = groups.find((g) => g.playbookId === "pb-presales");
+        expect(presales?.outputs.map((o) => o.name)).toEqual(["report", "deck"]);
+        const empty = groups.find((g) => g.playbookId === "pb-empty");
+        expect(empty?.outputs).toEqual([]);
+      });
+
+      it("returns an empty list when the template has no playbooks attached", async () => {
+        store.workflow_templates.push({
+          id: "tpl-bare",
+          label: "Bare",
+          color: "#fff",
+          multi_instance: false,
+          stages: [],
+          skills: [],
+          task_templates: [{ id: "t1", skillId: "sk-pm", stageId: "s1", playbookId: null, notes: "", inputs: [] }],
+          created_at: "2026-04-19T12:00:00Z",
+          updated_at: "2026-04-19T12:00:00Z",
+        });
+        const repo = createWorkflowRepository(makeFakeClient(store));
+        const groups = await repo.listOutputsForTemplate("tpl-bare");
+        expect(groups).toEqual([]);
+      });
+
+      it("returns an empty list when the template id is unknown", async () => {
+        const repo = createWorkflowRepository(makeFakeClient(store));
+        const groups = await repo.listOutputsForTemplate("nope");
+        expect(groups).toEqual([]);
+      });
+    });
+
+    it("listPlaybookOutputs returns rows for the playbook ordered by position", async () => {
+      const repo = createWorkflowRepository(makeFakeClient(store));
+      const outputs = await repo.listPlaybookOutputs("pb-presales");
+      expect(outputs.map((o) => o.name)).toEqual(["report", "deck"]);
+      expect(outputs[0].position).toBe(0);
+      expect(outputs[1].position).toBe(1);
+    });
+
+    it("createPlaybookOutput auto-positions to (max + 1) when omitted", async () => {
+      const repo = createWorkflowRepository(makeFakeClient(store));
+      const created = await repo.createPlaybookOutput({
+        playbookId: "pb-presales",
+        name: "summary",
+        kind: "manual",
+      });
+      expect(created.position).toBe(2);
+      expect(created.kind).toBe("manual");
+      expect(created.description).toBeNull();
+      expect(store.playbook_outputs).toHaveLength(3);
+    });
+
+    it("createPlaybookOutput on a playbook with no outputs starts at position 0", async () => {
+      store.playbook_outputs = [];
+      const repo = createWorkflowRepository(makeFakeClient(store));
+      const created = await repo.createPlaybookOutput({
+        playbookId: "pb-presales",
+        name: "first",
+        kind: "file",
+      });
+      expect(created.position).toBe(0);
+    });
+
+    it("updatePlaybookOutput patches only provided fields", async () => {
+      const repo = createWorkflowRepository(makeFakeClient(store));
+      const updated = await repo.updatePlaybookOutput("po-1", {
+        name: "report-v2",
+        kind: "link",
+      });
+      expect(updated.name).toBe("report-v2");
+      expect(updated.kind).toBe("link");
+      expect(updated.description).toBe("Initial report");
+    });
+
+    it("updatePlaybookOutput rejects empty patches", async () => {
+      const repo = createWorkflowRepository(makeFakeClient(store));
+      await expect(repo.updatePlaybookOutput("po-1", {})).rejects.toThrow(/empty patch/);
+    });
+
+    it("deletePlaybookOutput removes the row", async () => {
+      const repo = createWorkflowRepository(makeFakeClient(store));
+      await repo.deletePlaybookOutput("po-2");
+      expect(store.playbook_outputs.map((r) => r.id)).toEqual(["po-1"]);
+    });
+
+    it("reorderPlaybookOutputs writes positions in declaration order", async () => {
+      const repo = createWorkflowRepository(makeFakeClient(store));
+      await repo.reorderPlaybookOutputs("pb-presales", ["po-2", "po-1"]);
+      const reread = await repo.listPlaybookOutputs("pb-presales");
+      expect(reread.map((o) => o.id)).toEqual(["po-2", "po-1"]);
+      expect(reread[0].position).toBe(0);
+      expect(reread[1].position).toBe(1);
+    });
+
+    it("reorderPlaybookOutputs tolerates ids that no longer exist", async () => {
+      const repo = createWorkflowRepository(makeFakeClient(store));
+      await repo.reorderPlaybookOutputs("pb-presales", ["po-2", "po-deleted", "po-1"]);
+      const reread = await repo.listPlaybookOutputs("pb-presales");
+      expect(reread.map((o) => o.id)).toEqual(["po-2", "po-1"]);
+      // No phantom row was inserted.
+      expect(store.playbook_outputs).toHaveLength(2);
+    });
+
+    it("countTaskOutputsForPlaybookOutput returns the matching count", async () => {
+      const repo = createWorkflowRepository(makeFakeClient(store));
+      expect(await repo.countTaskOutputsForPlaybookOutput("po-1")).toBe(2);
+      expect(await repo.countTaskOutputsForPlaybookOutput("po-2")).toBe(0);
     });
   });
 });

@@ -2,13 +2,18 @@
 
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import { Search, SearchX } from "lucide-react";
+import { Plus, Search, SearchX, X } from "lucide-react";
 
 import { cn } from "@/lib/utils";
 import { ItemAvatar } from "@/components/framework/item-avatar";
 import { OwnerPicker } from "@/components/framework/owner-picker";
 import { resolveItemColor } from "@/lib/workflows/skill-colors";
-import type { FrameworkItem } from "@/lib/workflows/types";
+import { InputOutputPicker } from "@/components/workflows/input-output-picker";
+import type {
+  FrameworkItem,
+  TemplateOutputGroup,
+  WorkflowInput,
+} from "@/lib/workflows/types";
 
 interface AddPlaybookModalProps {
   mode?: "create" | "edit";
@@ -23,9 +28,29 @@ interface AddPlaybookModalProps {
     playbookId?: string | null;
     notes?: string;
     owners?: readonly string[];
+    inputs?: readonly WorkflowInput[];
   };
+  /** Other tasks in the same template — populates the upstream-task select. */
+  upstreamTaskOptions?: { id: string; label: string; playbookId?: string | null }[];
+  /** Outputs grouped per attached playbook — populates the wiring picker. */
+  outputGroups?: TemplateOutputGroup[];
+  /** Called by the picker when it wants the parent to refetch (e.g. a
+   *  stale-ref save error has fired and the user is reopening the modal). */
+  onRefetchOutputs?: () => void | Promise<void>;
   onClose: () => void;
-  onSubmit: (input: { playbookId: string; notes: string; owners: string[] }) => void;
+  onSubmit: (input: {
+    playbookId: string;
+    notes: string;
+    owners: string[];
+    inputs: WorkflowInput[];
+  }) => void;
+}
+
+function createInputId(): string {
+  if (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function") {
+    return `inp-${crypto.randomUUID()}`;
+  }
+  return `inp-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
 }
 
 export function AddPlaybookModal({
@@ -35,6 +60,9 @@ export function AddPlaybookModal({
   stageName,
   playbooks,
   initial,
+  upstreamTaskOptions = [],
+  outputGroups = [],
+  onRefetchOutputs,
   onClose,
   onSubmit,
 }: AddPlaybookModalProps) {
@@ -43,7 +71,11 @@ export function AddPlaybookModal({
   const [owners, setOwners] = useState<string[]>(
     initial?.owners ? [...initial.owners] : [],
   );
+  const [inputs, setInputs] = useState<WorkflowInput[]>(() =>
+    initial?.inputs ? initial.inputs.map((i) => ({ ...i })) : [],
+  );
   const [query, setQuery] = useState("");
+  const [pendingFocusIndex, setPendingFocusIndex] = useState<number | null>(null);
 
   const allowed = useMemo(
     () =>
@@ -83,7 +115,7 @@ export function AddPlaybookModal({
         onSubmit={(event) => {
           event.preventDefault();
           if (!canSubmit) return;
-          onSubmit({ playbookId: selectedId, notes, owners });
+          onSubmit({ playbookId: selectedId, notes, owners, inputs });
         }}
         className="w-full max-w-[520px] rounded-[14px] border border-border-hi bg-bg-2 p-7 shadow-[var(--shadow-canvas)]"
         role="dialog"
@@ -203,6 +235,148 @@ export function AddPlaybookModal({
                 placeholder="Pick a person or AI agent"
                 ariaLabel="Owners"
               />
+            </div>
+
+            <div className="mb-5">
+              <div className="mb-1.5 flex items-center justify-between">
+                <label className="block text-[11px] font-medium text-t2">
+                  Inputs <span className="font-normal text-t3">(optional)</span>
+                </label>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setInputs((current) => {
+                      setPendingFocusIndex(current.length);
+                      return [
+                        ...current,
+                        {
+                          id: createInputId(),
+                          name: "",
+                          linkMode: "linked",
+                          upstreamTaskRef: undefined,
+                          upstreamOutputId: null,
+                        },
+                      ];
+                    });
+                    void onRefetchOutputs?.();
+                  }}
+                  className="inline-flex items-center gap-1 rounded-md border border-border bg-bg-3 px-2 py-1 text-[11px] text-t2 transition hover:bg-bg-4 hover:text-t1"
+                  data-testid="add-input-row"
+                >
+                  <Plus className="h-3 w-3" /> Add input
+                </button>
+              </div>
+              {inputs.length === 0 ? (
+                <div className="rounded-lg border border-dashed border-border bg-bg-3 px-3 py-3 text-[11.5px] text-t3">
+                  No inputs declared. Add one to wire this task to an upstream
+                  output.
+                </div>
+              ) : (
+                <ul className="space-y-2">
+                  {inputs.map((input, index) => (
+                    <li
+                      key={input.id}
+                      className="rounded-lg border border-border bg-bg-3 p-2.5"
+                      data-testid={`input-row-${index}`}
+                    >
+                      <div className="flex items-start gap-2">
+                        <div className="flex-1 space-y-1.5">
+                          <div className="flex items-center gap-1.5">
+                            <input
+                              ref={(el) => {
+                                if (el && pendingFocusIndex === index) {
+                                  el.focus();
+                                  setPendingFocusIndex(null);
+                                }
+                              }}
+                              value={input.name}
+                              onChange={(event) => {
+                                const value = event.target.value;
+                                setInputs((current) =>
+                                  current.map((i, j) =>
+                                    j === index ? { ...i, name: value } : i,
+                                  ),
+                                );
+                              }}
+                              placeholder="Input name"
+                              aria-label="Input name"
+                              className="h-7 flex-1 rounded-md border border-border bg-bg-2 px-2 text-[12px] text-t1 placeholder:text-t3 focus:border-primary focus:outline-none"
+                            />
+                            <select
+                              value={input.upstreamTaskRef ?? ""}
+                              onChange={(event) => {
+                                const value = event.target.value || undefined;
+                                setInputs((current) =>
+                                  current.map((i, j) =>
+                                    j === index
+                                      ? { ...i, upstreamTaskRef: value }
+                                      : i,
+                                  ),
+                                );
+                              }}
+                              aria-label="Upstream task"
+                              className="h-7 rounded-md border border-border bg-bg-2 px-2 text-[11.5px] text-t2 focus:border-primary focus:outline-none"
+                            >
+                              <option value="">Upstream task…</option>
+                              {upstreamTaskOptions.map((opt) => (
+                                <option key={opt.id} value={opt.id}>
+                                  {opt.label}
+                                </option>
+                              ))}
+                            </select>
+                          </div>
+                          <InputOutputPicker
+                            upstreamOutputId={input.upstreamOutputId ?? null}
+                            available={outputGroups}
+                            hasUpstreamTaskWithoutOutput={
+                              Boolean(input.upstreamTaskRef) &&
+                              !input.upstreamOutputId
+                            }
+                            onChange={(next) => {
+                              setInputs((current) =>
+                                current.map((i, j) => {
+                                  if (j !== index) return i;
+                                  if (next === null) {
+                                    return { ...i, upstreamOutputId: null };
+                                  }
+                                  // Auto-stamp `upstreamTaskRef` from the
+                                  // chosen output's playbook, so downstream
+                                  // consumers (wiring overlay, instance
+                                  // remap) don't have to re-resolve it.
+                                  // Preserve any prior explicit task ref —
+                                  // the upstream-task select above takes
+                                  // precedence when the user has picked it.
+                                  const derivedRef = upstreamTaskOptions.find(
+                                    (opt) => opt.playbookId === next.playbookId,
+                                  )?.id;
+                                  return {
+                                    ...i,
+                                    upstreamOutputId: next.outputId,
+                                    upstreamTaskRef:
+                                      i.upstreamTaskRef ?? derivedRef,
+                                  };
+                                }),
+                              );
+                            }}
+                          />
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setInputs((current) =>
+                              current.filter((_, j) => j !== index),
+                            );
+                          }}
+                          aria-label="Remove input"
+                          className="rounded-md p-1 text-t3 transition hover:bg-bg-4 hover:text-t1"
+                        >
+                          <X className="h-3.5 w-3.5" />
+                        </button>
+                      </div>
+                    </li>
+                  ))}
+                </ul>
+              )}
             </div>
           </>
         )}
