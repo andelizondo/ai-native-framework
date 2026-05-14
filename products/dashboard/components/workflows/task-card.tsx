@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import {
   AlertTriangle,
   Check,
@@ -343,15 +344,94 @@ function StatusBadgePopover({
   taskId: string;
 }) {
   const rootRef = useRef<HTMLDivElement | null>(null);
+  const triggerRef = useRef<HTMLButtonElement | null>(null);
+  const popoverRef = useRef<HTMLDivElement | null>(null);
   const [open, setOpen] = useState(false);
+  const [position, setPosition] = useState<{ left: number; top: number } | null>(null);
   useDismissPopover(rootRef, open, setOpen);
+  useDismissPopover(popoverRef, open, setOpen);
 
   const statusClass = TASK_STATUS_PILL_CLASS[status];
   const statusLabel = TASK_STATUS_LABEL[status];
 
+  // Position the portaled popover above the trigger using viewport coords.
+  // The trigger's position is captured once on open and on scroll/resize so
+  // the popover follows when the matrix scrolls underneath it.
+  useLayoutEffect(() => {
+    if (!open) {
+      setPosition(null);
+      return undefined;
+    }
+    function measure() {
+      const trigger = triggerRef.current;
+      const popover = popoverRef.current;
+      if (!trigger) return;
+      const rect = trigger.getBoundingClientRect();
+      const popoverHeight = popover?.getBoundingClientRect().height ?? 220;
+      setPosition({
+        left: rect.left,
+        top: rect.top - popoverHeight - 6,
+      });
+    }
+    measure();
+    window.addEventListener("scroll", measure, true);
+    window.addEventListener("resize", measure);
+    return () => {
+      window.removeEventListener("scroll", measure, true);
+      window.removeEventListener("resize", measure);
+    };
+  }, [open]);
+
+  const popoverNode =
+    open && typeof document !== "undefined" ? (
+      <div
+        ref={popoverRef}
+        className="tc-popover tc-popover-status"
+        role="listbox"
+        aria-label="Set status"
+        onClick={(event) => event.stopPropagation()}
+        style={
+          position
+            ? {
+                position: "fixed",
+                left: position.left,
+                top: position.top,
+                bottom: "auto",
+              }
+            : { position: "fixed", visibility: "hidden" }
+        }
+      >
+        {TASK_STATUS_ORDER.map((option) => {
+          const selected = option === status;
+          return (
+            <button
+              key={option}
+              type="button"
+              role="option"
+              aria-selected={selected}
+              className={cn("tc-popover-item", selected && "is-selected")}
+              onClick={(event) => {
+                event.stopPropagation();
+                setOpen(false);
+                if (!selected) onChange(option);
+              }}
+            >
+              <span
+                className="tc-popover-dot"
+                aria-hidden
+                style={{ background: TASK_STATUS_VAR[option] }}
+              />
+              <span className="tc-popover-text">{TASK_STATUS_LABEL[option]}</span>
+            </button>
+          );
+        })}
+      </div>
+    ) : null;
+
   return (
     <div ref={rootRef} className="tc-status-wrap">
       <button
+        ref={triggerRef}
         type="button"
         className={cn("s-pill tc-status-trigger", statusClass)}
         data-testid={`task-status-${taskId}`}
@@ -365,39 +445,7 @@ function StatusBadgePopover({
       >
         <span className="s-text">{statusLabel}</span>
       </button>
-      {open ? (
-        <div
-          className="tc-popover tc-popover-status"
-          role="listbox"
-          aria-label="Set status"
-          onClick={(event) => event.stopPropagation()}
-        >
-          {TASK_STATUS_ORDER.map((option) => {
-            const selected = option === status;
-            return (
-              <button
-                key={option}
-                type="button"
-                role="option"
-                aria-selected={selected}
-                className={cn("tc-popover-item", selected && "is-selected")}
-                onClick={(event) => {
-                  event.stopPropagation();
-                  setOpen(false);
-                  if (!selected) onChange(option);
-                }}
-              >
-                <span
-                  className="tc-popover-dot"
-                  aria-hidden
-                  style={{ background: TASK_STATUS_VAR[option] }}
-                />
-                <span className="tc-popover-text">{TASK_STATUS_LABEL[option]}</span>
-              </button>
-            );
-          })}
-        </div>
-      ) : null}
+      {popoverNode ? createPortal(popoverNode, document.body) : null}
     </div>
   );
 }
