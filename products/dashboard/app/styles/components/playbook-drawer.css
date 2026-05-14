@@ -32,6 +32,15 @@
   inset: 0;
   z-index: 55;
   background: var(--overlay);
+  /* Fade in tandem with the drawer slide so the dim wash never appears
+   * before the panel starts moving (and disappears once it's gone). */
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.22s cubic-bezier(0.4, 0, 0.2, 1);
+}
+.pb-drawer-overlay--open {
+  opacity: 1;
+  pointer-events: auto;
 }
 
 .pb-drawer {
@@ -54,7 +63,8 @@
   transform: translateX(0);
 }
 @media (prefers-reduced-motion: reduce) {
-  .pb-drawer {
+  .pb-drawer,
+  .pb-drawer-overlay {
     transition: none;
   }
 }

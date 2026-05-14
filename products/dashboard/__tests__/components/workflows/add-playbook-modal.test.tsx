@@ -89,17 +89,19 @@ describe("AddPlaybookModal — inputs editor", () => {
 
     await user.click(screen.getByTestId("add-input-row"));
 
-    // The newly-added row opens its picker dropdown automatically.
+    // Add-input opens the transient picker directly (no empty list row).
     const dropdown = await screen.findByTestId(
-      "input-row-0-picker-dropdown",
+      "input-row-draft-picker-dropdown",
     );
-    await user.click(within(dropdown).getByTestId("input-row-0-picker-item-po-1"));
+    await user.click(
+      within(dropdown).getByTestId("input-row-draft-picker-item-po-1"),
+    );
 
-    // Trigger now shows the wired playbook · output combo.
+    // Selection turns the draft into a static list item with the wired
+    // playbook · output combo.
     const row = screen.getByTestId("input-row-0");
-    const trigger = within(row).getByTestId("input-row-0-picker-trigger");
-    expect(trigger).toHaveTextContent(/Presales/);
-    expect(trigger).toHaveTextContent(/report/);
+    expect(row).toHaveTextContent(/Presales/);
+    expect(row).toHaveTextContent(/report/);
 
     await user.click(screen.getByRole("button", { name: /Save playbook/i }));
 
@@ -114,7 +116,7 @@ describe("AddPlaybookModal — inputs editor", () => {
     });
   });
 
-  it("clearing the wiring drops the row from the submitted inputs", async () => {
+  it("trashing an existing wired input drops it from the submitted inputs", async () => {
     const user = userEvent.setup();
     const wired: WorkflowInput[] = [
       {
@@ -130,20 +132,13 @@ describe("AddPlaybookModal — inputs editor", () => {
     });
 
     const row = screen.getByTestId("input-row-0");
-    expect(
-      within(row).getByTestId("input-row-0-picker-trigger"),
-    ).toHaveTextContent(/Presales/);
+    expect(row).toHaveTextContent(/Presales/);
 
-    await user.click(within(row).getByTestId("input-row-0-picker-clear"));
-
-    // Cleared row reverts to the "Pick playbook output…" trigger.
-    expect(within(row).getByTestId("input-row-0-picker-trigger")).toHaveTextContent(
-      /Pick playbook output/,
-    );
+    await user.click(within(row).getByTestId("input-row-0-delete"));
+    expect(screen.queryByTestId("input-row-0")).toBeNull();
 
     await user.click(screen.getByRole("button", { name: /Save playbook/i }));
 
-    // Submit filters out unwired rows entirely.
     const submitted = onSubmit.mock.calls[0][0] as { inputs: WorkflowInput[] };
     expect(submitted.inputs).toHaveLength(0);
   });

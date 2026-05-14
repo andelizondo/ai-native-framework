@@ -349,7 +349,7 @@ export function OwnerPicker({
               const list = groups[group];
               return (
                 <div key={group} className="mb-1.5 last:mb-0">
-                  <div className="flex items-center gap-1.5 px-2 pb-1 pt-1.5 font-mono text-[10px] font-semibold uppercase tracking-[0.13em] text-t3">
+                  <div className="sticky top-0 z-10 -mx-1.5 flex items-center gap-1.5 border-b border-border bg-bg-2 px-3 py-1.5 font-mono text-[10px] font-semibold uppercase tracking-[0.13em] text-t3">
                     {group === "people" ? (
                       <User2 aria-hidden className="h-3 w-3" />
                     ) : (

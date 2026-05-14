@@ -120,6 +120,11 @@ export function TaskCard({
           </span>
         ) : null}
       </div>
+      {/* Pip rail is always rendered so the status pill below sits on a
+       *  stable baseline whether or not the linked playbook declares any
+       *  outputs yet. When there's nothing to show we keep the row's
+       *  height empty (no pips, no aria role) so it reads as plain padding
+       *  to screen readers. */}
       {ioState && ioState.outputs.length > 0 ? (
         <div
           className="tc-pip-rail"
@@ -131,14 +136,20 @@ export function TaskCard({
             <span
               key={output.id}
               role="listitem"
-              className="tc-pip"
+              className="group/tc-pip tc-pip"
               data-status={output.status}
               data-testid={`task-pip-${task.id}-${output.id}`}
-              aria-label={`Output ${output.position + 1}: ${output.status}`}
-            />
+              aria-label={`Output ${output.position + 1}: ${output.name} (${output.status})`}
+            >
+              <span role="tooltip" className="tc-pip-tooltip">
+                {output.name}
+              </span>
+            </span>
           ))}
         </div>
-      ) : null}
+      ) : (
+        <div className="tc-pip-rail tc-pip-rail-empty" aria-hidden />
+      )}
       <div className="tc-status-row">
         {templateView ? (
           <div

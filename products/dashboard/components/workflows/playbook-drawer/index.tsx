@@ -99,7 +99,32 @@ export function PlaybookDrawer({
   const closeRef = useRef<HTMLButtonElement>(null);
   const [historyOpen, setHistoryOpen] = useState(false);
   const [isPending, startTransition] = useTransition();
+  // `renderTask` mirrors `task` but lingers after `task` flips to null so
+  // the slide-out transition has time to play before we unmount the
+  // drawer's contents. The matching CSS transition is 260ms; we wait the
+  // same and then clear.
+  const [renderTask, setRenderTask] = useState<WorkflowTask | null>(task);
+  // Two-step open: render the drawer offscreen first, then flip the
+  // `--open` class one frame later so the browser actually animates the
+  // transform instead of painting the open state on first commit.
+  const [openClass, setOpenClass] = useState(false);
   const drawerData = useTaskState(task?.id);
+
+  useEffect(() => {
+    if (task) {
+      // Opening (or switching tasks): render this task immediately, then
+      // flip the open class next frame to trigger the slide-in.
+      setRenderTask(task);
+      const raf = requestAnimationFrame(() => setOpenClass(true));
+      return () => cancelAnimationFrame(raf);
+    }
+    // Closing: drop the open class now so the slide-out runs against the
+    // still-mounted contents, then unmount once the 260ms transition has
+    // had time to play.
+    setOpenClass(false);
+    const timer = window.setTimeout(() => setRenderTask(null), 280);
+    return () => window.clearTimeout(timer);
+  }, [task]);
 
   // Move focus inside drawer on open.
   useEffect(() => {
@@ -128,12 +153,19 @@ export function PlaybookDrawer({
     return () => window.removeEventListener("keydown", handleKey);
   }, [open, onClose]);
 
+  // Use the lingering renderTask for body content so the drawer keeps
+  // rendering its last task while sliding out.
+  const activeTask = task ?? renderTask;
+
   const taskEvents = useMemo(
-    () => (task ? instance.events.filter((e) => e.taskId === task.id) : []),
-    [instance.events, task],
+    () =>
+      activeTask
+        ? instance.events.filter((e) => e.taskId === activeTask.id)
+        : [],
+    [instance.events, activeTask],
   );
 
-  if (!task) {
+  if (!activeTask) {
     return (
       <>
         <div className="pb-drawer-overlay" aria-hidden style={{ display: "none" }} />
@@ -142,9 +174,10 @@ export function PlaybookDrawer({
     );
   }
 
-  const banner = bannerFor(task);
-  const isInputsDimmed = task.status === "paused";
-  const isOutputsDimmed = task.status === "waiting" || task.status === "paused";
+  const banner = bannerFor(activeTask);
+  const isInputsDimmed = activeTask.status === "paused";
+  const isOutputsDimmed =
+    activeTask.status === "waiting" || activeTask.status === "paused";
 
   // Wrappers around server actions: await + propagate update + refresh.
   function runAction<T extends { task: WorkflowTask }>(
@@ -246,7 +279,7 @@ export function PlaybookDrawer({
     : [];
 
   // Compute hasUnmetInputs from drawer data (server is authoritative).
-  const linkedDefIds = task.inputs
+  const linkedDefIds = activeTask.inputs
     .filter((i) => i.linkMode === "linked")
     .map((i) => i.id);
   const inputStates = drawerData.data?.inputs ?? [];
@@ -258,7 +291,10 @@ export function PlaybookDrawer({
   return (
     <>
       <div
-        className="pb-drawer-overlay"
+        className={cn(
+          "pb-drawer-overlay",
+          openClass && "pb-drawer-overlay--open",
+        )}
         aria-hidden
         data-testid="pb-drawer-overlay"
         onClick={onClose}
@@ -266,13 +302,13 @@ export function PlaybookDrawer({
       <aside
         role="dialog"
         aria-modal="true"
-        aria-label={`Playbook: ${task.playbookId ?? task.id}`}
-        className={cn("pb-drawer", open && "pb-drawer--open")}
+        aria-label={`Playbook: ${activeTask.playbookId ?? activeTask.id}`}
+        className={cn("pb-drawer", openClass && "pb-drawer--open")}
         data-testid="pb-drawer"
-        data-status={task.status}
+        data-status={activeTask.status}
       >
         <DrawerHeader
-          task={task}
+          task={activeTask}
           instance={instance}
           skills={skills}
           playbookOptions={playbookOptions}
@@ -280,7 +316,7 @@ export function PlaybookDrawer({
           onStatusChange={handleStatusChange}
         />
         <ActionBar
-          status={task.status}
+          status={activeTask.status}
           hasUnmetInputs={hasUnmetInputs}
           busy={busy}
           onStart={handleStart}
@@ -301,7 +337,7 @@ export function PlaybookDrawer({
           ) : null}
 
           <InputsSection
-            inputDefs={task.inputs}
+            inputDefs={activeTask.inputs}
             inputStates={inputStates}
             outputGroups={outputGroups}
             dimmed={isInputsDimmed}
@@ -310,7 +346,7 @@ export function PlaybookDrawer({
           />
 
           <OutputsSection
-            status={task.status}
+            status={activeTask.status}
             outputDefs={drawerData.data?.playbookOutputs ?? []}
             outputStates={drawerData.data?.outputs ?? []}
             dimmed={isOutputsDimmed}
@@ -327,7 +363,7 @@ export function PlaybookDrawer({
           />
         </div>
         <ChatFooter
-          status={task.status}
+          status={activeTask.status}
           events={taskEvents}
           busy={busy}
           onStart={handleStart}

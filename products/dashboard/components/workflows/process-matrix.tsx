@@ -804,8 +804,30 @@ export function ProcessMatrix({
                 >
                   <div
                     className="mx-role-cell"
-                    role="rowheader"
+                    role={isSkillCollapsed ? "button" : "rowheader"}
                     title={isSkillCollapsed ? skill.label : undefined}
+                    tabIndex={isSkillCollapsed ? 0 : undefined}
+                    aria-label={
+                      isSkillCollapsed ? `Expand ${skill.label}` : undefined
+                    }
+                    onClick={
+                      isSkillCollapsed
+                        ? () => toggleSkillCollapsed(skill.id)
+                        : undefined
+                    }
+                    onKeyDown={
+                      isSkillCollapsed
+                        ? (event) => {
+                            if (event.key === "Enter" || event.key === " ") {
+                              event.preventDefault();
+                              toggleSkillCollapsed(skill.id);
+                            }
+                          }
+                        : undefined
+                    }
+                    style={
+                      isSkillCollapsed ? { cursor: "pointer" } : undefined
+                    }
                   >
                     <span
                       data-testid={`matrix-skill-dot-${skill.id}`}
@@ -931,7 +953,21 @@ export function ProcessMatrix({
                                 onClick={
                                   editMode
                                     ? undefined
-                                    : () => setSelectedTaskId(task.id)
+                                    : () => {
+                                        // Mini cells live in collapsed rows or
+                                        // columns. Clicking the avatar expands
+                                        // them back to full size first; the
+                                        // user has to click again on the full
+                                        // card to open the drawer. Avoids the
+                                        // surprise of a drawer popping over a
+                                        // collapsed row/column.
+                                        if (isSkillCollapsed) {
+                                          toggleSkillCollapsed(skill.id);
+                                        }
+                                        if (isStageCollapsed) {
+                                          toggleStageCollapsed(stage.id);
+                                        }
+                                      }
                                 }
                               />
                             </div>

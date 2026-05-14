@@ -902,6 +902,20 @@ export function TemplateEditorScreen({
                           barState="bar-ready"
                           editMode
                           templateView
+                          ioState={{
+                            taskId: task.id,
+                            outputs: (
+                              outputGroups.find(
+                                (g) => g.playbookId === templateTask.playbookId,
+                              )?.outputs ?? []
+                            ).map((o) => ({
+                              id: o.id,
+                              position: o.position,
+                              status: "pending",
+                              name: o.name,
+                            })),
+                            hasUnmetLinkedInput: false,
+                          }}
                           onEdit={() =>
                             setAddTaskFor({
                               mode: "edit",

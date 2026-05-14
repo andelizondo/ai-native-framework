@@ -144,6 +144,12 @@
   padding: 10px 14px;
   position: relative;
   border-right: 1px solid var(--border-2);
+  /* Stage column collapse re-flows the header from 232×72 down to 36×72;
+   * animate the dimensions + padding to match the body cell transitions
+   * so the column folds as a single piece. */
+  transition:
+    width 0.22s cubic-bezier(0.16, 1, 0.3, 1),
+    padding 0.22s cubic-bezier(0.16, 1, 0.3, 1);
 }
 /*
  * Drag handles overlay the cell border instead of sitting inside the flex
@@ -492,10 +498,15 @@
   align-items: center;
   gap: 7px;
   /* Locked height keeps the row stable while task cards are dragged in/out.
-   * Card height = 116px + cell padding (7×2) + breathing → 132px. */
-  height: 132px;
+   * Card height = 132px + cell padding (7×2) + breathing → 148px. */
+  height: 148px;
   overflow: visible;
-  transition: width 0.2s;
+  /* Match the cell transition timing so role + body cells collapse together
+   * (otherwise the row header lags and a 1-frame gap shows mid-collapse). */
+  transition:
+    width 0.22s cubic-bezier(0.16, 1, 0.3, 1),
+    height 0.22s cubic-bezier(0.16, 1, 0.3, 1),
+    padding 0.22s cubic-bezier(0.16, 1, 0.3, 1);
 }
 .mx-role-cell:hover,
 .mx-role-cell:focus-within {
@@ -614,12 +625,19 @@
   padding: 7px;
   border-right: 1px solid var(--border-2);
   /* Locked height matches `.mx-role-cell` so the row stays a stable
-   * rectangle while task cards drag in/out. The card itself is 116px
+   * rectangle while task cards drag in/out. The card itself is 132px
    * (set in task-card.css); cell padding 7×2 = 14, plus 2px breathing →
-   * 132px. */
-  height: 132px;
+   * 148px. */
+  height: 148px;
   background: var(--bg);
-  transition: background 0.14s;
+  /* Animate height + width + padding so row/column collapse/expand reads
+   * as a smooth fold rather than an instant snap. Hover background keeps
+   * its faster timing so it doesn't lag behind the cursor. */
+  transition:
+    background 0.14s,
+    height 0.22s cubic-bezier(0.16, 1, 0.3, 1),
+    width 0.22s cubic-bezier(0.16, 1, 0.3, 1),
+    padding 0.22s cubic-bezier(0.16, 1, 0.3, 1);
 }
 .mx-task-cell:last-child {
   border-right: none;

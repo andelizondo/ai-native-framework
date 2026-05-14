@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useId, useMemo, useState, useTransition } from "react";
-import { ChevronDown, GripVertical, Plus, TextCursor, Trash2, X } from "lucide-react";
+import { ChevronDown, GripVertical, Pencil, Plus, Trash2, X } from "lucide-react";
 import {
   DndContext,
   KeyboardSensor,
@@ -570,7 +570,7 @@ function SortableOutputRow({
         isDragging && "shadow-lg",
       )}
     >
-      <div className="flex items-start gap-2">
+      <div className={cn("flex gap-2", editing ? "items-start" : "items-center")}>
         <button
           type="button"
           ref={setActivatorNodeRef as unknown as React.Ref<HTMLButtonElement>}
@@ -606,25 +606,26 @@ function SortableOutputRow({
                 </p>
               ) : null}
             </div>
-            <div className="flex shrink-0 items-center gap-1">
+            <div className="mx-entity-actions mx-entity-actions-group shrink-0">
               <button
                 type="button"
                 onClick={onStartEdit}
                 aria-label="Edit output"
+                title="Edit output"
                 data-testid={`playbook-output-edit-${row.id}`}
-                className="inline-flex h-7 items-center gap-1 rounded-md px-2 text-[11px] font-medium text-t2 transition hover:bg-bg-3 hover:text-t1 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
+                className="mx-entity-action"
               >
-                <TextCursor className="h-3.5 w-3.5" />
-                Edit
+                <Pencil aria-hidden size={11} strokeWidth={2.1} />
               </button>
               <button
                 type="button"
                 onClick={onDelete}
+                aria-label="Delete output"
+                title="Delete output"
                 data-testid={`playbook-output-delete-${row.id}`}
-                className="inline-flex h-7 items-center gap-1 rounded-md px-2 text-[11px] font-medium text-t2 transition hover:bg-bg-3 hover:text-t1 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
+                className="mx-entity-action mx-entity-action-danger"
               >
-                <Trash2 className="h-3.5 w-3.5" />
-                Delete
+                <Trash2 aria-hidden size={11} strokeWidth={2.1} />
               </button>
             </div>
           </div>

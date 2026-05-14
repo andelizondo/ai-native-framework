@@ -78,8 +78,11 @@ export function AddPlaybookModal({
     initial?.inputs ? initial.inputs.map((i) => ({ ...i })) : [],
   );
   const [query, setQuery] = useState("");
-  /** Id of the input row whose picker should auto-open (just added). */
-  const [pendingOpenInputId, setPendingOpenInputId] = useState<string | null>(null);
+  /** True while the user has clicked "Add input" but hasn't picked a value
+   *  yet. Drives a transient picker rendered at the bottom of the list;
+   *  rows are only pushed into `inputs` once the user actually selects a
+   *  playbook output. */
+  const [addingDraft, setAddingDraft] = useState(false);
 
   const allowed = useMemo(
     () =>
@@ -96,6 +99,24 @@ export function AddPlaybookModal({
       [pb.name, pb.description].some((field) => field.toLowerCase().includes(q)),
     );
   }, [allowed, query]);
+
+  // Hide already-wired outputs from the draft picker so the same playbook
+  // output can't be added twice. Groups that lose every output are dropped
+  // entirely so the picker doesn't show empty section headers.
+  const availableForDraft = useMemo(() => {
+    const taken = new Set(
+      inputs
+        .map((i) => i.upstreamOutputId)
+        .filter((id): id is string => Boolean(id)),
+    );
+    if (taken.size === 0) return outputGroups;
+    return outputGroups
+      .map((group) => ({
+        ...group,
+        outputs: group.outputs.filter((o) => !taken.has(o.id)),
+      }))
+      .filter((group) => group.outputs.length > 0);
+  }, [outputGroups, inputs]);
 
   const canSubmit = Boolean(selectedId);
 
@@ -129,17 +150,32 @@ export function AddPlaybookModal({
         aria-modal="true"
         aria-labelledby="add-playbook-modal-title"
       >
-        <div
-          id="add-playbook-modal-title"
-          className="text-[16px] font-bold tracking-tight text-t1"
-        >
-          {mode === "edit" ? "Edit playbook" : "Add playbook"}
-        </div>
-        <div className="mb-4 mt-1 text-[12.5px] text-t3">
-          Pick a playbook from your framework library.{" "}
-          <Link href="/framework/playbooks" className="text-accent hover:underline">
-            Manage playbooks →
-          </Link>
+        <div className="flex items-start justify-between gap-3">
+          <div className="min-w-0 flex-1">
+            <div
+              id="add-playbook-modal-title"
+              className="text-[16px] font-bold tracking-tight text-t1"
+            >
+              {mode === "edit" ? "Edit playbook" : "Add playbook"}
+            </div>
+            <div className="mb-4 mt-1 text-[12.5px] text-t3">
+              Pick a playbook from your framework library.{" "}
+              <Link href="/framework/playbooks" className="text-accent hover:underline">
+                Manage playbooks →
+              </Link>
+            </div>
+          </div>
+          {allowed.length > 0 ? (
+            <OwnerPicker
+              values={owners}
+              onChange={setOwners}
+              variant="stack"
+              required={false}
+              ariaLabel="Owners"
+              stackAvatarSize="sm"
+              testIdSuffix="add-playbook-modal"
+            />
+          ) : null}
         </div>
 
         {allowed.length === 0 ? (
@@ -219,20 +255,6 @@ export function AddPlaybookModal({
               </div>
             </div>
 
-            <label className="mb-1.5 block text-[11px] font-medium text-t2">
-              Owners <span className="font-normal text-t3">(optional)</span>
-            </label>
-            <div className="mb-5">
-              <OwnerPicker
-                values={owners}
-                onChange={setOwners}
-                variant="field"
-                required={false}
-                placeholder="Pick a person or AI agent"
-                ariaLabel="Owners"
-              />
-            </div>
-
             <div className="mb-5">
               <div className="mb-1.5 flex items-center justify-between">
                 <label className="block text-[11px] font-medium text-t2">
@@ -241,30 +263,24 @@ export function AddPlaybookModal({
                 <button
                   type="button"
                   onClick={() => {
-                    const id = createInputId();
-                    setInputs((current) => [
-                      ...current,
-                      {
-                        id,
-                        name: "",
-                        linkMode: "linked",
-                        upstreamTaskRef: undefined,
-                        upstreamOutputId: null,
-                      },
-                    ]);
-                    setPendingOpenInputId(id);
+                    setAddingDraft(true);
                     void onRefetchOutputs?.();
                   }}
-                  className="inline-flex items-center gap-1 rounded-md border border-border bg-bg-3 px-2 py-1 text-[11px] text-t2 transition hover:bg-bg-4 hover:text-t1"
+                  disabled={addingDraft || availableForDraft.length === 0}
+                  title={
+                    availableForDraft.length === 0
+                      ? "All available playbook outputs are already wired"
+                      : undefined
+                  }
+                  className="inline-flex items-center gap-1 rounded-md border border-border bg-bg-3 px-2 py-1 text-[11px] text-t2 transition hover:bg-bg-4 hover:text-t1 disabled:cursor-not-allowed disabled:opacity-50"
                   data-testid="add-input-row"
                 >
                   <Plus className="h-3 w-3" /> Add input
                 </button>
               </div>
-              {inputs.length === 0 ? (
+              {inputs.length === 0 && !addingDraft ? (
                 <div className="rounded-lg border border-dashed border-border bg-bg-3 px-3 py-3 text-[11.5px] text-t3">
-                  No inputs declared. Add one to wire this task to a playbook
-                  output.
+                  No inputs declared.
                 </div>
               ) : (
                 <ul className="space-y-2">
@@ -277,84 +293,99 @@ export function AddPlaybookModal({
                     const wiredOutput = wiredGroup?.outputs.find(
                       (o) => o.id === input.upstreamOutputId,
                     );
+                    const wiredPlaybook = wiredGroup
+                      ? playbooks.find((pb) => pb.id === wiredGroup.playbookId)
+                      : null;
                     return (
                       <li
                         key={input.id}
-                        className="rounded-lg border border-border bg-bg-3 p-2"
+                        className="flex items-center gap-2.5 rounded-lg border border-border bg-bg-3 px-2.5 py-2"
                         data-testid={`input-row-${index}`}
                       >
-                        <div className="flex items-center justify-between gap-2">
-                          <PlaybookOutputPicker
-                            value={
-                              wiredGroup && wiredOutput
-                                ? {
-                                    outputId: wiredOutput.id,
-                                    playbookId: wiredGroup.playbookId,
-                                  }
-                                : null
-                            }
-                            available={outputGroups}
-                            playbooks={playbooks}
-                            defaultOpen={pendingOpenInputId === input.id}
-                            testId={`input-row-${index}-picker`}
-                            onChange={(next: PlaybookOutputPickerValue | null) => {
-                              setPendingOpenInputId(null);
-                              setInputs((current) =>
-                                current.map((i, j) => {
-                                  if (j !== index) return i;
-                                  if (next === null) {
-                                    return {
-                                      ...i,
-                                      name: "",
-                                      upstreamOutputId: null,
-                                      upstreamTaskRef: undefined,
-                                    };
-                                  }
-                                  const group = outputGroups.find(
-                                    (g) => g.playbookId === next.playbookId,
-                                  );
-                                  const output = group?.outputs.find(
-                                    (o) => o.id === next.outputId,
-                                  );
-                                  const derivedName = group && output
-                                    ? `${group.playbookName} / ${output.name}`
-                                    : "";
-                                  // Auto-stamp upstreamTaskRef from the chosen
-                                  // output's playbook — wiring overlay /
-                                  // instance remap consume it directly.
-                                  const derivedRef = upstreamTaskOptions.find(
-                                    (opt) => opt.playbookId === next.playbookId,
-                                  )?.id;
-                                  return {
-                                    ...i,
-                                    name: derivedName,
-                                    upstreamOutputId: next.outputId,
-                                    upstreamTaskRef: derivedRef,
-                                  };
-                                }),
-                              );
-                            }}
+                        {wiredPlaybook ? (
+                          <ItemAvatar
+                            emoji={wiredPlaybook.icon}
+                            color={resolveItemColor(wiredPlaybook)}
+                            label={wiredPlaybook.name}
+                            size="sm"
                           />
-                          <button
-                            type="button"
-                            onClick={() => {
-                              setPendingOpenInputId((current) =>
-                                current === input.id ? null : current,
-                              );
-                              setInputs((current) =>
-                                current.filter((_, j) => j !== index),
-                              );
-                            }}
-                            aria-label="Remove input"
-                            data-testid={`input-row-${index}-delete`}
-                            className="inline-flex h-7 items-center gap-1 rounded-md px-2 text-[11px] font-medium text-t2 transition hover:bg-bg-4 hover:text-t1 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
-                          >
-                            <Trash2 className="h-3.5 w-3.5" />
-                          </button>
-                        </div>
+                        ) : null}
+                        <span className="min-w-0 flex-1">
+                          <span className="block truncate text-[12.5px] font-semibold text-t1">
+                            {wiredGroup?.playbookName ?? "Unknown playbook"}
+                          </span>
+                          <span className="mt-0.5 block truncate text-[11px] text-t3">
+                            {wiredOutput?.name ?? "Unknown output"}
+                          </span>
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() =>
+                            setInputs((current) =>
+                              current.filter((_, j) => j !== index),
+                            )
+                          }
+                          aria-label="Remove input"
+                          data-testid={`input-row-${index}-delete`}
+                          className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-md text-t3 transition hover:bg-bg-4 hover:text-t1 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
+                        >
+                          <Trash2 className="h-3.5 w-3.5" />
+                        </button>
                       </li>
                     );
                   })}
+                  {addingDraft ? (
+                    <li
+                      className="flex items-center gap-2 rounded-lg border border-dashed border-border-hi bg-bg-3 px-2.5 py-2"
+                      data-testid="input-row-draft"
+                    >
+                      <PlaybookOutputPicker
+                        value={null}
+                        available={availableForDraft}
+                        playbooks={playbooks}
+                        defaultOpen
+                        testId="input-row-draft-picker"
+                        onChange={(next: PlaybookOutputPickerValue | null) => {
+                          if (next === null) {
+                            setAddingDraft(false);
+                            return;
+                          }
+                          const group = outputGroups.find(
+                            (g) => g.playbookId === next.playbookId,
+                          );
+                          const output = group?.outputs.find(
+                            (o) => o.id === next.outputId,
+                          );
+                          const derivedName = group && output
+                            ? `${group.playbookName} / ${output.name}`
+                            : "";
+                          const derivedRef = upstreamTaskOptions.find(
+                            (opt) => opt.playbookId === next.playbookId,
+                          )?.id;
+                          setInputs((current) => [
+                            ...current,
+                            {
+                              id: createInputId(),
+                              name: derivedName,
+                              linkMode: "linked",
+                              upstreamTaskRef: derivedRef,
+                              upstreamOutputId: next.outputId,
+                            },
+                          ]);
+                          setAddingDraft(false);
+                        }}
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setAddingDraft(false)}
+                        aria-label="Cancel new input"
+                        data-testid="input-row-draft-cancel"
+                        className="ml-auto inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-md text-t3 transition hover:bg-bg-4 hover:text-t1 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
+                      >
+                        <Trash2 className="h-3.5 w-3.5" />
+                      </button>
+                    </li>
+                  ) : null}
                 </ul>
               )}
             </div>

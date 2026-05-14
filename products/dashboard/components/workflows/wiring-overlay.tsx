@@ -39,6 +39,14 @@ interface WiringPair {
 interface ResolvedPath {
   key: string;
   d: string;
+  /** Producer-side endpoint — anchored with a small dot on the upstream
+   *  card so the curve reads as plugged in on both ends. */
+  startX: number;
+  startY: number;
+  /** Input-side endpoint — rendered as a small dot to anchor the curve
+   *  into the consumer card's left edge. */
+  endX: number;
+  endY: number;
   flow: EdgeFlowState;
   hovered: boolean;
 }
@@ -218,8 +226,16 @@ export function WiringOverlay({
         const sag = clampSag(dx);
         cx1 = upstreamLeftOfDownstream ? x1 + sag : x1 - sag;
         cx2 = upstreamLeftOfDownstream ? x2 - sag : x2 + sag;
-        cy1 = y1;
-        cy2 = y2;
+        // Same-row pairs collapse to y1===y2 and cy1===cy2, producing a flat
+        // line that gets occluded by the row's hairline divider. Push the
+        // handles downward so the curve renders as a visible arc below the
+        // row, clear of the divider.
+        const sameRow = Math.abs(y2 - y1) < 1;
+        const bow = sameRow
+          ? Math.max(20, Math.min(48, dx * 0.12))
+          : 0;
+        cy1 = y1 + bow;
+        cy2 = y2 + bow;
       } else if (verticallySeparated) {
         // Same column, stacked. Anchor on facing top/bottom edges, x-centered.
         // The handles need both a y-component (sag — points into the gap so
@@ -260,6 +276,10 @@ export function WiringOverlay({
       next.push({
         key: `${pair.from}->${pair.to}`,
         d,
+        startX: x1,
+        startY: y1,
+        endX: x2,
+        endY: y2,
         flow: pair.flow,
         hovered,
       });
@@ -328,18 +348,35 @@ export function WiringOverlay({
         const style = resolveStyle(path.flow, path.hovered);
         if (style.opacity === 0) return null;
         return (
-          <path
-            key={path.key}
-            data-flow={path.flow}
-            data-hovered={path.hovered ? "true" : undefined}
-            d={path.d}
-            fill="none"
-            stroke="var(--accent)"
-            strokeOpacity={style.opacity}
-            strokeWidth={style.width}
-            strokeLinecap="round"
-            filter={style.glow ? `url(#${glowFilterId})` : undefined}
-          />
+          <g key={path.key} data-flow={path.flow}>
+            <path
+              data-hovered={path.hovered ? "true" : undefined}
+              d={path.d}
+              fill="none"
+              stroke="var(--accent)"
+              strokeOpacity={style.opacity}
+              strokeWidth={style.width}
+              strokeLinecap="round"
+              filter={style.glow ? `url(#${glowFilterId})` : undefined}
+            />
+            {/* Producer + consumer anchor dots: matching filled circles at
+             * each endpoint so the curve reads as plugged into both cards
+             * (rather than tapering off into nothing on the upstream end). */}
+            <circle
+              cx={path.startX}
+              cy={path.startY}
+              r={2.5}
+              fill="var(--accent)"
+              fillOpacity={style.opacity}
+            />
+            <circle
+              cx={path.endX}
+              cy={path.endY}
+              r={2.5}
+              fill="var(--accent)"
+              fillOpacity={style.opacity}
+            />
+          </g>
         );
       })}
     </svg>

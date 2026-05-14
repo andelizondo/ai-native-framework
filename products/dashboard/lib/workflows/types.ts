@@ -255,8 +255,10 @@ export interface TaskIOSummary {
   taskId: string;
   /** One entry per declared `playbook_outputs` row, sorted by `position`
    *  ascending. `status` reflects the matching `task_outputs.status` if a
-   *  row exists, otherwise defaults to `"pending"`. */
-  outputs: { id: string; position: number; status: TaskOutputStatus }[];
+   *  row exists, otherwise defaults to `"pending"`. `name` mirrors the
+   *  source `playbook_outputs.name` so the matrix can render it in pip
+   *  tooltips. */
+  outputs: { id: string; position: number; status: TaskOutputStatus; name: string }[];
   /** True iff at least one `linked` input on the task has no `task_inputs`
    *  row with `received=true`. */
   hasUnmetLinkedInput: boolean;

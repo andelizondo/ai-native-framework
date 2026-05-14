@@ -371,7 +371,7 @@ function PortalDropdown({
           id={headingId}
           className="font-mono text-[10px] font-semibold uppercase tracking-[0.13em] text-t3"
         >
-          Wire from playbook output
+          Playbook outputs
         </div>
       </div>
 
@@ -410,13 +410,13 @@ function PortalDropdown({
                     className="mb-1 last:mb-0"
                     data-testid={`${testId}-group-${group.playbookId}`}
                   >
-                    <div className="flex items-center gap-1.5 px-2 pb-1 pt-1.5">
+                    <div className="sticky top-0 z-10 -mx-1.5 flex items-center gap-1.5 border-b border-border bg-bg-2 px-3 py-1.5">
                       {playbook ? (
                         <ItemAvatar
                           emoji={playbook.icon}
                           color={resolveItemColor(playbook)}
                           label={playbook.name}
-                          size="sm"
+                          size="xs"
                         />
                       ) : null}
                       <span className="font-mono text-[10px] font-semibold uppercase tracking-[0.1em] text-t3">
@@ -434,7 +434,7 @@ function PortalDropdown({
                           onClick={() => onPick(row)}
                           data-testid={`${testId}-item-${row.outputId}`}
                           className={cn(
-                            "ml-5 flex w-[calc(100%-1.25rem)] items-center gap-2 rounded-md px-2 py-1.5 text-left transition",
+                            "mt-1 flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left transition",
                             checked
                               ? "bg-primary-bg text-t1"
                               : "text-t2 hover:bg-bg-3 hover:text-t1",

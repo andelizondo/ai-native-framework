@@ -169,9 +169,9 @@ describe("TaskCard", () => {
           ioState={{
             taskId: "io-card",
             outputs: [
-              { id: "o-1", position: 0, status: "produced" },
-              { id: "o-2", position: 1, status: "pending" },
-              { id: "o-3", position: 2, status: "pending" },
+              { id: "o-1", position: 0, status: "produced", name: "Output 1" },
+              { id: "o-2", position: 1, status: "pending", name: "Output 2" },
+              { id: "o-3", position: 2, status: "pending", name: "Output 3" },
             ],
             hasUnmetLinkedInput: false,
           }}
@@ -192,7 +192,7 @@ describe("TaskCard", () => {
           barState="bar-glow"
           ioState={{
             taskId: "io-failed",
-            outputs: [{ id: "o-1", position: 0, status: "failed" }],
+            outputs: [{ id: "o-1", position: 0, status: "failed", name: "Output 1" }],
             hasUnmetLinkedInput: false,
           }}
         />,
@@ -254,7 +254,7 @@ describe("TaskCard", () => {
           barState="bar-active"
           ioState={{
             taskId: "io-ok",
-            outputs: [{ id: "o-1", position: 0, status: "produced" }],
+            outputs: [{ id: "o-1", position: 0, status: "produced", name: "Output 1" }],
             hasUnmetLinkedInput: false,
           }}
         />,

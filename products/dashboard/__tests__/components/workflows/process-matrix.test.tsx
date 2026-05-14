@@ -206,8 +206,8 @@ describe("ProcessMatrix", () => {
       {
         taskId: "io-1",
         outputs: [
-          { id: "out-a", position: 0, status: "produced" },
-          { id: "out-b", position: 1, status: "pending" },
+          { id: "out-a", position: 0, status: "produced", name: "Output A" },
+          { id: "out-b", position: 1, status: "pending", name: "Output B" },
         ],
         hasUnmetLinkedInput: true,
       },

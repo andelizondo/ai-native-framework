@@ -514,6 +514,7 @@ async function loadInstanceTaskIO(
           id: po.id,
           position: po.position,
           status: (tor?.status ?? "pending") as TaskOutputStatus,
+          name: po.name,
         };
       });
     const received = receivedInputsByTask.get(task.id) ?? new Set<string>();
