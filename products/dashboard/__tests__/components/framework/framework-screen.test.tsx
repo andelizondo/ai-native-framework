@@ -9,6 +9,12 @@ import type { FrameworkItem } from "@/lib/workflows/types";
 vi.mock("@/app/(dashboard)/framework/actions", () => ({
   deleteFrameworkItemAction: vi.fn(),
   upsertFrameworkItemAction: vi.fn(),
+  listPlaybookOutputsAction: vi.fn().mockResolvedValue([]),
+  createPlaybookOutputAction: vi.fn(),
+  updatePlaybookOutputAction: vi.fn(),
+  deletePlaybookOutputAction: vi.fn(),
+  reorderPlaybookOutputsAction: vi.fn(),
+  countTaskOutputsForPlaybookOutputAction: vi.fn().mockResolvedValue(0),
 }));
 
 vi.mock("@/components/dashboard-topbar-context", () => ({

@@ -3,6 +3,5 @@
 @import "./styles/base.css";
 @import "./styles/components/process-matrix.css";
 @import "./styles/components/task-card.css";
-@import "./styles/components/task-drawer.css";
-@import "./styles/components/agent-run-panel.css";
+@import "./styles/components/playbook-drawer.css";
 @import "./styles/components/checkpoint-panel.css";

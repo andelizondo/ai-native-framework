@@ -53,9 +53,17 @@ import { useUnsavedChangesGuard } from "@/lib/use-unsaved-changes-guard";
 import { cn } from "@/lib/utils";
 import { barClass, canStart } from "@/lib/workflows/matrix";
 import { resolveSkillColor } from "@/lib/workflows/skill-colors";
+import {
+  activeSkillIds,
+  activeStageIds,
+  seedCollapsedSkills,
+  seedCollapsedStages,
+} from "@/lib/workflows/active-flow";
 import { ItemAvatar } from "@/components/framework/item-avatar";
 import type {
   FrameworkItem,
+  TaskIOSummary,
+  TemplateOutputGroup,
   WorkflowInstanceDetail,
   WorkflowSkill,
   WorkflowStage,
@@ -63,13 +71,17 @@ import type {
   WorkflowTaskStatus,
   WorkflowTemplate,
 } from "@/lib/workflows/types";
-import { TASK_STATUS_VAR } from "@/lib/workflows/task-status";
+import {
+  TASK_STATUS_LABEL,
+  TASK_STATUS_PILL_CLASS,
+  TASK_STATUS_VAR,
+} from "@/lib/workflows/task-status";
 
 import { AddPlaybookModal } from "./add-playbook-modal";
-import { AgentRunPanel } from "./agent-run-panel";
 import { HeaderActionsMenu } from "./header-actions-menu";
+import { PlaybookDrawer } from "./playbook-drawer";
 import { TaskCard } from "./task-card";
-import { TaskDrawer } from "./task-drawer";
+import { WiringOverlay } from "./wiring-overlay";
 
 interface Props {
   instance: WorkflowInstanceDetail;
@@ -77,6 +89,7 @@ interface Props {
   editMode?: boolean;
   skillOptions?: FrameworkItem[];
   playbookOptions?: FrameworkItem[];
+  outputGroups?: TemplateOutputGroup[];
 }
 
 export function ProcessMatrix({
@@ -85,15 +98,34 @@ export function ProcessMatrix({
   editMode = false,
   skillOptions = [],
   playbookOptions = [],
+  outputGroups = [],
 }: Props) {
   const { setConfig } = useDashboardTopBar();
   const { success: toastSuccess, error: toastError } = useToast();
+  // Stages/skills derivation has to happen here (before the collapse state)
+  // so the lazy useState initializers can seed from the active flow.
+  const seedStages: WorkflowStage[] =
+    instance.stages && instance.stages.length > 0
+      ? instance.stages
+      : template?.stages ?? [];
+  const seedSkills: WorkflowSkill[] =
+    instance.skills && instance.skills.length > 0
+      ? instance.skills
+      : template?.skills ?? [];
   const [collapsed, setCollapsed] = useState(false);
+  // Edit mode opens the matrix fully expanded so the user can author every
+  // cell; the focus-on-active seed applies only to read-only viewing.
   const [collapsedStageIds, setCollapsedStageIds] = useState<Set<string>>(
-    () => new Set(),
+    () =>
+      editMode
+        ? new Set()
+        : seedCollapsedStages(instance.tasks, instance.taskIO, seedStages),
   );
   const [collapsedSkillIds, setCollapsedSkillIds] = useState<Set<string>>(
-    () => new Set(),
+    () =>
+      editMode
+        ? new Set()
+        : seedCollapsedSkills(instance.tasks, instance.taskIO, seedSkills),
   );
 
   const toggleStageCollapsed = useCallback((stageId: string) => {
@@ -117,15 +149,10 @@ export function ProcessMatrix({
   // Stages and skills are snapshotted onto the instance at create time so
   // template edits do not mutate or orphan tasks on existing instances.
   // Fall back to the template only for legacy instances persisted before
-  // the snapshot column existed.
-  const stages: WorkflowStage[] =
-    instance.stages && instance.stages.length > 0
-      ? instance.stages
-      : template?.stages ?? [];
-  const skills: WorkflowSkill[] =
-    instance.skills && instance.skills.length > 0
-      ? instance.skills
-      : template?.skills ?? [];
+  // the snapshot column existed. Reuse the values computed for the lazy
+  // collapse-state seeds above — same source, same derivation.
+  const stages: WorkflowStage[] = seedStages;
+  const skills: WorkflowSkill[] = seedSkills;
   const allCollapsed =
     collapsed &&
     stages.length > 0 &&
@@ -146,6 +173,8 @@ export function ProcessMatrix({
   }, [allCollapsed, stages, skills]);
   const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null);
   const [dragTaskId, setDragTaskId] = useState<string | null>(null);
+  const [hoveredTaskId, setHoveredTaskId] = useState<string | null>(null);
+  const matrixWrapRef = useRef<HTMLDivElement | null>(null);
   const [addTaskFor, setAddTaskFor] = useState<{
     mode: "create" | "edit";
     taskId?: string;
@@ -162,7 +191,6 @@ export function ProcessMatrix({
   const [confirmDeleteTask, setConfirmDeleteTask] = useState<WorkflowTask | null>(
     null,
   );
-  const [agentRunOpen, setAgentRunOpen] = useState(false);
   const [localTasks, setLocalTasks] = useState<WorkflowTask[]>(instance.tasks);
   const [lastSavedTasks, setLastSavedTasks] = useState<WorkflowTask[]>(instance.tasks);
   const [confirmDiscardOpen, setConfirmDiscardOpen] = useState(false);
@@ -176,6 +204,11 @@ export function ProcessMatrix({
   const playbookById = useMemo(
     () => new Map(playbookOptions.map((pb) => [pb.id, pb])),
     [playbookOptions],
+  );
+
+  const ioByTaskId = useMemo(
+    () => new Map((instance.taskIO ?? []).map((io) => [io.taskId, io])),
+    [instance.taskIO],
   );
 
   const handleStatusChange = useCallback(
@@ -213,6 +246,54 @@ export function ProcessMatrix({
     setLocalTasks(instance.tasks);
     setLastSavedTasks(instance.tasks);
   }, [instance.tasks, editMode]);
+
+  // Auto-expand stages/skills as work flows. When a task's status flips or
+  // an upstream output unblocks a downstream input, the formerly-dormant
+  // region becomes "active" and we want it visible without the user needing
+  // to refresh. We track the previously-active sets and only act on what's
+  // newly added — manual collapses on already-active regions are preserved.
+  const prevActiveRef = useRef<{ stages: Set<string>; skills: Set<string> }>({
+    stages: activeStageIds(instance.tasks, instance.taskIO),
+    skills: activeSkillIds(instance.tasks, instance.taskIO),
+  });
+  useEffect(() => {
+    if (editMode) return;
+    const stages = activeStageIds(localTasks, instance.taskIO);
+    const skills = activeSkillIds(localTasks, instance.taskIO);
+    const newStages: string[] = [];
+    for (const id of stages) {
+      if (!prevActiveRef.current.stages.has(id)) newStages.push(id);
+    }
+    const newSkills: string[] = [];
+    for (const id of skills) {
+      if (!prevActiveRef.current.skills.has(id)) newSkills.push(id);
+    }
+    if (newStages.length > 0) {
+      setCollapsedStageIds((prev) => {
+        let next: Set<string> | null = null;
+        for (const id of newStages) {
+          if (prev.has(id)) {
+            if (!next) next = new Set(prev);
+            next.delete(id);
+          }
+        }
+        return next ?? prev;
+      });
+    }
+    if (newSkills.length > 0) {
+      setCollapsedSkillIds((prev) => {
+        let next: Set<string> | null = null;
+        for (const id of newSkills) {
+          if (prev.has(id)) {
+            if (!next) next = new Set(prev);
+            next.delete(id);
+          }
+        }
+        return next ?? prev;
+      });
+    }
+    prevActiveRef.current = { stages, skills };
+  }, [localTasks, instance.taskIO, editMode]);
 
   const handleTaskUpdate = useCallback((updated: WorkflowTask) => {
     setLocalTasks((prev) => prev.map((task) => (task.id === updated.id ? updated : task)));
@@ -529,7 +610,13 @@ export function ProcessMatrix({
         data-dragging={dragTaskId ? "true" : undefined}
         className={cn("matrix-wrap", collapsed && "roles-collapsed")}
       >
-        <div className="matrix" role="table" aria-label="Workflow process matrix">
+        <div
+          ref={matrixWrapRef}
+          className="matrix"
+          role="table"
+          aria-label="Workflow process matrix"
+          style={{ position: "relative" }}
+        >
           <div className="matrix-head-row" role="row">
             <div className="mx-corner" role="columnheader">
               <button
@@ -822,21 +909,49 @@ export function ProcessMatrix({
                       >
                         {task ? (
                           isMini ? (
-                            <MiniTaskCell
-                              task={task}
-                              playbook={playbook}
-                              skillColor={skillColor}
-                              onClick={
+                            <div
+                              data-task-id={task.id}
+                              onMouseEnter={
+                                editMode ? undefined : () => setHoveredTaskId(task.id)
+                              }
+                              onMouseLeave={
                                 editMode
                                   ? undefined
-                                  : () => setSelectedTaskId(task.id)
+                                  : () =>
+                                      setHoveredTaskId((current) =>
+                                        current === task.id ? null : current,
+                                      )
                               }
-                            />
+                            >
+                              <MiniTaskCell
+                                task={task}
+                                playbook={playbook}
+                                skillColor={skillColor}
+                                ioState={ioByTaskId.get(task.id)}
+                                onClick={
+                                  editMode
+                                    ? undefined
+                                    : () => setSelectedTaskId(task.id)
+                                }
+                              />
+                            </div>
                           ) : (
                             <DraggableTaskCard
                               taskId={task.id}
                               disabled={!editMode}
                               isActive={dragTaskId === task.id}
+                              dataTaskId={task.id}
+                              onHoverStart={
+                                editMode ? undefined : () => setHoveredTaskId(task.id)
+                              }
+                              onHoverEnd={
+                                editMode
+                                  ? undefined
+                                  : () =>
+                                      setHoveredTaskId((current) =>
+                                        current === task.id ? null : current,
+                                      )
+                              }
                             >
                               <TaskCard
                                 task={task}
@@ -844,6 +959,7 @@ export function ProcessMatrix({
                                 skillColor={skillColor}
                                 barState={barClass(task, canStart(task, localTasks))}
                                 editMode={editMode}
+                                ioState={ioByTaskId.get(task.id)}
                                 onClick={
                                   editMode
                                     ? undefined
@@ -908,26 +1024,26 @@ export function ProcessMatrix({
               );
             })
           )}
+          {!editMode ? (
+            <WiringOverlay
+              containerRef={matrixWrapRef}
+              tasks={localTasks}
+              hoveredTaskId={hoveredTaskId}
+              outputGroups={outputGroups}
+              taskIO={instance.taskIO}
+            />
+          ) : null}
         </div>
       </div>
       </DndContext>
 
-      <TaskDrawer
+      <PlaybookDrawer
         task={selectedTask}
         instance={instance}
         skills={skills}
         template={template}
         playbookOptions={playbookOptions}
-        onClose={() => { setSelectedTaskId(null); setAgentRunOpen(false); }}
-        onTaskUpdate={handleTaskUpdate}
-        onViewLiveRun={selectedTask?.playbookId ? () => setAgentRunOpen(true) : undefined}
-      />
-
-      <AgentRunPanel
-        task={agentRunOpen ? selectedTask : null}
-        instance={instance}
-        open={agentRunOpen}
-        onClose={() => setAgentRunOpen(false)}
+        onClose={() => setSelectedTaskId(null)}
         onTaskUpdate={handleTaskUpdate}
       />
 
@@ -1028,11 +1144,17 @@ function DraggableTaskCard({
   taskId,
   disabled,
   isActive,
+  dataTaskId,
+  onHoverStart,
+  onHoverEnd,
   children,
 }: {
   taskId: string;
   disabled: boolean;
   isActive: boolean;
+  dataTaskId?: string;
+  onHoverStart?: () => void;
+  onHoverEnd?: () => void;
   children: React.ReactNode;
 }) {
   const { attributes, listeners, setNodeRef, transform } = useDraggable({
@@ -1049,7 +1171,15 @@ function DraggableTaskCard({
   };
 
   return (
-    <div ref={setNodeRef} style={style} {...attributes} {...listeners}>
+    <div
+      ref={setNodeRef}
+      style={style}
+      data-task-id={dataTaskId}
+      onMouseEnter={onHoverStart}
+      onMouseLeave={onHoverEnd}
+      {...attributes}
+      {...listeners}
+    >
       {children}
     </div>
   );
@@ -1106,11 +1236,13 @@ function MiniTaskCell({
   task,
   playbook,
   skillColor,
+  ioState,
   onClick,
 }: {
   task: WorkflowTask;
   playbook: FrameworkItem | null;
   skillColor: string;
+  ioState?: TaskIOSummary;
   onClick?: () => void;
 }) {
   const title = playbook?.name ?? (task.playbookId ? "Playbook removed" : "No playbook");
@@ -1131,26 +1263,9 @@ function MiniTaskCell({
       : task.status === "complete"
         ? 0.7
         : 1;
-  const statusLabel =
-    task.status === "active"
-      ? "In progress"
-      : task.status === "pending_approval"
-        ? "Pending approval"
-        : task.status === "blocked"
-          ? "Failed"
-          : task.status === "complete"
-            ? "Complete"
-            : "Not started";
-  const statusClass =
-    task.status === "active"
-      ? "s-active"
-      : task.status === "pending_approval"
-        ? "s-pending"
-        : task.status === "blocked"
-          ? "s-blocked"
-          : task.status === "complete"
-            ? "s-complete"
-            : "s-not_started";
+  const statusLabel = TASK_STATUS_LABEL[task.status];
+  const statusClass = TASK_STATUS_PILL_CLASS[task.status];
+  const aggregateIo = aggregateIoStatus(ioState);
   return (
     <button
       type="button"
@@ -1158,7 +1273,7 @@ function MiniTaskCell({
       data-testid={`task-mini-${task.id}`}
       data-status={task.status}
       data-pulse={
-        task.status === "pending_approval" || task.status === "blocked"
+        task.status === "paused" || task.status === "failed"
           ? "true"
           : undefined
       }
@@ -1193,6 +1308,14 @@ function MiniTaskCell({
           label={title}
           size="xs"
         />
+        {aggregateIo ? (
+          <span
+            className="mx-mini-cell-io-dot"
+            data-testid={`task-mini-io-${task.id}`}
+            data-io-status={aggregateIo}
+            aria-label={`Outputs ${aggregateIo}`}
+          />
+        ) : null}
         <FloatingHoverTooltip
           name={title}
           sub={statusLabel}
@@ -1202,6 +1325,26 @@ function MiniTaskCell({
       </span>
     </button>
   );
+}
+
+/**
+ * Single-dot summary of a task's declared output progress, for spaces too
+ * small to render the full pip rail (the matrix mini cell). Returns:
+ *   - "ok"      — every declared output has been produced
+ *   - "err"     — at least one output failed
+ *   - "pending" — at least one output remains pending (none failed yet)
+ *   - null      — the task has no declared outputs (don't render a dot)
+ */
+function aggregateIoStatus(
+  io: TaskIOSummary | undefined,
+): "ok" | "err" | "pending" | null {
+  if (!io || io.outputs.length === 0) return null;
+  let allProduced = true;
+  for (const output of io.outputs) {
+    if (output.status === "failed") return "err";
+    if (output.status !== "produced") allProduced = false;
+  }
+  return allProduced ? "ok" : "pending";
 }
 
 /**

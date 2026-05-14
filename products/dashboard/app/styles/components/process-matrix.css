@@ -1061,13 +1061,15 @@
 .mx-floating-tooltip-sub.s-complete {
   color: var(--pill-complete-t);
 }
-.mx-floating-tooltip-sub.s-active {
+.mx-floating-tooltip-sub.s-in_progress,
+.mx-floating-tooltip-sub.s-running {
   color: var(--pill-active-t);
 }
-.mx-floating-tooltip-sub.s-pending {
+.mx-floating-tooltip-sub.s-waiting {
   color: var(--pill-pending-t);
 }
-.mx-floating-tooltip-sub.s-blocked {
+.mx-floating-tooltip-sub.s-paused,
+.mx-floating-tooltip-sub.s-failed {
   color: var(--pill-blocked-t);
 }
 .mx-floating-tooltip-sub.s-not_started {
@@ -1220,4 +1222,28 @@
 .mx-mini-cell-btn:focus-visible {
   outline: 2px solid var(--accent);
   outline-offset: -2px;
+}
+
+/* Aggregate-IO dot anchored to the lower-right of the mini avatar.
+ * Replaces the full pip rail when a task lives in a collapsed column /
+ * row and the avatar is too small to host individual pips. */
+.mx-mini-cell-io-dot {
+  position: absolute;
+  right: -1px;
+  bottom: -1px;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  border: 1px solid var(--bg);
+  background: var(--t3);
+  pointer-events: none;
+}
+.mx-mini-cell-io-dot[data-io-status="ok"] {
+  background: var(--ok);
+}
+.mx-mini-cell-io-dot[data-io-status="err"] {
+  background: var(--err);
+}
+.mx-mini-cell-io-dot[data-io-status="pending"] {
+  background: var(--pill-pending-d);
 }
