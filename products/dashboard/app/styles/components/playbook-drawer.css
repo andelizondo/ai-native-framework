@@ -32,6 +32,10 @@
   inset: 0;
   z-index: 55;
   background: var(--overlay);
+  /* Match the add/edit drawer's overlay so the dim wash blurs the
+   * underlying matrix the same way regardless of which drawer is open. */
+  backdrop-filter: blur(3px);
+  -webkit-backdrop-filter: blur(3px);
   /* Fade in tandem with the drawer slide so the dim wash never appears
    * before the panel starts moving (and disappears once it's gone). */
   opacity: 0;
@@ -48,7 +52,7 @@
   right: 0;
   top: 0;
   bottom: 0;
-  width: min(480px, 100vw);
+  width: min(520px, 100vw);
   background: var(--surface);
   border-left: 1px solid var(--border-hi);
   box-shadow: var(--shadow-canvas);
@@ -69,14 +73,16 @@
   }
 }
 
-/* ── Context bar ─────────────────────────────────────────────────────── */
-.pb-drawer-context {
-  flex-shrink: 0;
-  border-bottom: 1px solid var(--border);
+/* ── Head stack ───────────────────────────────────────────────────────── */
+/* Wrapper for the three top sections (header + action bar + status section
+ * in the playbook drawer, header + action bar in the add/edit drawer). The
+ * stripe lives on the wrapper so it spans every section as one continuous
+ * accent line, matching the matrix card's left bar. */
+.pb-drawer-head {
   position: relative;
-  background: var(--surface);
+  flex-shrink: 0;
 }
-.pb-drawer-context::before {
+.pb-drawer-head::before {
   content: "";
   position: absolute;
   left: 0;
@@ -85,75 +91,51 @@
   width: 3px;
   background: var(--role-color, var(--accent));
   transition: all 0.2s;
+  z-index: 1;
 }
-.pb-drawer-context--bar-active::before {
+.pb-drawer-head--bar-active::before {
   box-shadow: 2px 0 8px var(--role-color, var(--accent));
 }
-.pb-drawer-context--bar-pending::before {
+.pb-drawer-head--bar-pending::before {
   background: var(--warn);
   box-shadow: 2px 0 12px color-mix(in srgb, var(--warn) 60%, transparent);
 }
-.pb-drawer-context--bar-blocked::before {
+.pb-drawer-head--bar-blocked::before {
   background: var(--err);
 }
-.pb-drawer-context__inner {
-  padding: 14px 18px 0;
-}
-.pb-drawer-context__top {
-  display: flex;
-  align-items: flex-start;
-  gap: 10px;
-  margin-bottom: 10px;
-}
-.pb-drawer-context__icon {
-  width: 30px;
-  height: 30px;
-  border-radius: 7px;
-  background: var(--surface-2);
-  border: 1px solid var(--border);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 15px;
+
+/* ── Context bar ─────────────────────────────────────────────────────── */
+.pb-drawer-context {
   flex-shrink: 0;
+  border-bottom: 1px solid var(--border);
+  position: relative;
+  background: var(--bg-2);
 }
-.pb-drawer-context__title-block {
-  flex: 1;
-  min-width: 0;
-}
-.pb-drawer-context__title {
-  font-size: 14.5px;
-  font-weight: 600;
-  color: var(--t1);
-  margin: 0 0 3px;
-  line-height: 1.3;
-}
-.pb-drawer-context__desc {
-  font-size: 11px;
-  color: var(--t2);
-  line-height: 1.45;
-  margin: 0;
+.pb-drawer-context__inner {
+  padding: 14px 18px 12px;
+  position: relative;
 }
 .pb-drawer-context__crumbs {
-  font-size: 10px;
+  font-size: 9.5px;
   color: var(--t3);
   display: flex;
   align-items: center;
   gap: 5px;
   flex-wrap: wrap;
-  margin-top: 4px;
-  letter-spacing: 0.02em;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  font-weight: 600;
+  padding-right: 32px;
+  margin-bottom: 10px;
 }
 .pb-drawer-context__crumb-sep {
-  color: var(--t4);
+  color: color-mix(in srgb, var(--t3) 60%, transparent);
+  margin: 0 2px;
 }
-.pb-drawer-context__actions {
-  display: flex;
-  align-items: center;
-  gap: 4px;
-  flex-shrink: 0;
-}
-.pb-drawer-context__icon-btn {
+.pb-drawer-context__close {
+  position: absolute;
+  top: 10px;
+  right: 12px;
   width: 26px;
   height: 26px;
   display: flex;
@@ -166,28 +148,37 @@
   border-radius: 5px;
   transition: all 0.14s;
 }
-.pb-drawer-context__icon-btn:hover {
-  background: var(--surface-2);
+.pb-drawer-context__close:hover {
+  background: var(--bg-3);
   color: var(--t1);
 }
-.pb-drawer-context__footer {
+.pb-drawer-context__top {
   display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 10px;
-  padding: 0 18px 10px;
+  align-items: flex-start;
+  gap: 12px;
 }
-.pb-drawer-context__owners {
-  display: flex;
-  align-items: center;
-  gap: 6px;
+.pb-drawer-context__title-block {
+  flex: 1;
+  min-width: 0;
+  padding-top: 2px;
 }
-.pb-drawer-context__owners-lbl {
-  font-size: 9.5px;
-  letter-spacing: 0.14em;
-  text-transform: uppercase;
-  color: var(--t3);
-  font-weight: 600;
+.pb-drawer-context__title {
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--t1);
+  margin: 0 0 3px;
+  line-height: 1.3;
+  letter-spacing: -0.005em;
+}
+.pb-drawer-context__desc {
+  font-size: 11.5px;
+  color: var(--t2);
+  line-height: 1.45;
+  margin: 0;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
 }
 
 /* ── Status pill ─────────────────────────────────────────────────────── */
@@ -310,6 +301,46 @@
 .pb-drawer-actionbar__spacer {
   flex: 1;
 }
+.pb-drawer-actionbar__owners {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-right: auto;
+}
+.pb-drawer-actionbar__owners-readonly {
+  font-size: 11.5px;
+  color: var(--t2);
+}
+.pb-drawer-actionbar__info {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+/* The card's info-badge tooltip floats to the right of the icon, which
+ * fits inside the matrix row. In the drawer the badges sit on the right
+ * edge of the action bar — flipping the tooltip to the left keeps the
+ * popover inside the drawer rather than overflowing past its edge. */
+.pb-drawer-actionbar__info .tc-info-badge-popover {
+  left: auto;
+  right: calc(100% + 8px);
+}
+
+/* Status section — mirrors the matrix card's bottom row: status pill on
+ * the left, output dots (pip rail) on the right. Sits between the action
+ * bar and the body so the drawer surfaces the same affordances as the
+ * card without needing a header pill. */
+.pb-drawer-status-section {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 10px 16px;
+  /* Match the action bar so the header + actionbar + status-section read
+   * as a single grouped surface above the body. */
+  background: var(--bg-3);
+  border-bottom: 1px solid var(--border);
+  flex-shrink: 0;
+}
 
 /* ── Body ────────────────────────────────────────────────────────────── */
 .pb-drawer-body {
@@ -329,6 +360,11 @@
   display: flex;
   flex-direction: column;
   gap: 8px;
+}
+.pb-drawer-state-card--not_started {
+  background: var(--pill-ns-bg);
+  border-color: var(--border-hi);
+  color: var(--t2);
 }
 .pb-drawer-state-card--waiting {
   background: var(--pill-pending-bg);
@@ -398,7 +434,7 @@
   letter-spacing: 0.14em;
   text-transform: uppercase;
   color: var(--t3);
-  font-weight: 600;
+  font-weight: 700;
   white-space: nowrap;
   display: inline-flex;
   align-items: center;
@@ -407,7 +443,7 @@
 .pb-drawer-sec__count {
   font-size: 10.5px;
   color: var(--t3);
-  font-weight: 500;
+  font-weight: 400;
   white-space: nowrap;
 }
 .pb-drawer-sec__action {
@@ -457,44 +493,6 @@
   align-items: center;
 }
 
-/* Collapsed inputs / comments toggle */
-.pb-drawer-collapse-toggle {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 10px 12px;
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: var(--pb-radius);
-  cursor: pointer;
-  transition: all 0.14s;
-  width: 100%;
-  color: var(--t2);
-  font-size: 12px;
-  font-weight: 500;
-}
-.pb-drawer-collapse-toggle:hover {
-  border-color: var(--border-hi);
-}
-.pb-drawer-collapse-toggle__left {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-.pb-drawer-collapse-toggle__left strong {
-  color: var(--t1);
-  font-weight: 600;
-}
-.pb-drawer-collapse-toggle__count {
-  color: var(--t3);
-}
-.pb-drawer-collapse-toggle__chev {
-  color: var(--t4);
-  transition: transform 0.14s;
-}
-.pb-drawer-comments--open .pb-drawer-collapse-toggle__chev {
-  transform: rotate(90deg);
-}
 
 /* I/O rows */
 .pb-drawer-io-list {
@@ -514,6 +512,13 @@
 }
 .pb-drawer-io-row:hover {
   border-color: var(--border-hi);
+}
+.pb-drawer-io-row[data-state="received"] {
+  background: color-mix(in srgb, var(--ok) 7%, var(--surface));
+  border-color: color-mix(in srgb, var(--ok) 28%, var(--border));
+}
+.pb-drawer-io-row[data-state="received"]:hover {
+  border-color: color-mix(in srgb, var(--ok) 45%, var(--border));
 }
 .pb-drawer-io-row--dimmed {
   opacity: 0.45;
@@ -638,6 +643,13 @@
   color: var(--t1);
   border-color: var(--border-hi);
 }
+/* "Done" action previews the completed state on hover so
+ * hover → click → completed reads as one continuous gesture. */
+.pb-drawer-io-row[data-state="pending"] .pb-drawer-io-action:hover {
+  background: color-mix(in srgb, var(--ok) 12%, var(--surface));
+  border-color: color-mix(in srgb, var(--ok) 45%, var(--border));
+  color: var(--ok);
+}
 .pb-drawer-io-empty {
   font-size: 11.5px;
   color: var(--t3);
@@ -656,32 +668,14 @@
   display: flex;
   flex-direction: column;
   gap: 10px;
-  padding: 12px;
+  padding: 10px 12px;
   border: 1px solid var(--border);
-  border-top: none;
-  border-radius: 0 0 var(--pb-radius) var(--pb-radius);
-  margin-top: -6px;
+  border-radius: var(--pb-radius);
   background: var(--surface);
-}
-.pb-drawer-comments--open .pb-drawer-collapse-toggle {
-  border-radius: var(--pb-radius) var(--pb-radius) 0 0;
 }
 .pb-drawer-comment {
   display: flex;
   gap: 9px;
-}
-.pb-drawer-comment__av {
-  width: 24px;
-  height: 24px;
-  border-radius: 50%;
-  background: var(--surface-2);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 10px;
-  font-weight: 600;
-  flex-shrink: 0;
-  color: var(--t1);
 }
 .pb-drawer-comment__body {
   flex: 1;
@@ -731,37 +725,10 @@
 }
 
 /* History */
-.pb-drawer-history-row {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 6px 0;
-  font-size: 11px;
-  color: var(--t3);
-  cursor: pointer;
-  background: none;
-  border: none;
-  width: 100%;
-}
-.pb-drawer-history-row:hover {
-  color: var(--t1);
-}
-.pb-drawer-history-row__left {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-}
-.pb-drawer-history-row__chev {
-  transition: transform 0.14s;
-}
-.pb-drawer-history-row__chev--open {
-  transform: rotate(90deg);
-}
 .pb-drawer-events {
   display: flex;
   flex-direction: column;
-  gap: 6px;
-  padding: 8px 0;
+  gap: 4px;
 }
 .pb-drawer-events__empty {
   font-size: 11.5px;
@@ -772,29 +739,33 @@
 .pb-drawer-event {
   display: flex;
   gap: 9px;
-  padding: 6px 11px;
-  font-size: 11.5px;
+  padding: 7px 10px;
+  border: 1px solid var(--border);
+  border-radius: var(--pb-radius-sm);
+  background: var(--surface);
   align-items: flex-start;
-}
-.pb-drawer-event__time {
-  color: var(--t4);
-  font-size: 10px;
-  flex-shrink: 0;
-  width: 48px;
-  padding-top: 2px;
 }
 .pb-drawer-event__body {
   flex: 1;
+  min-width: 0;
 }
-.pb-drawer-event__name {
+.pb-drawer-event__title {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--t1);
+  line-height: 1.3;
+}
+.pb-drawer-event__sub {
   font-size: 10.5px;
-  color: var(--t2);
-  font-weight: 500;
+  color: var(--t3);
+  margin-top: 2px;
+  line-height: 1.3;
 }
 .pb-drawer-event__desc {
-  color: var(--t3);
+  color: var(--t2);
   font-size: 11px;
-  margin-top: 1px;
+  margin-top: 4px;
+  line-height: 1.4;
 }
 
 /* ── Chat footer ─────────────────────────────────────────────────────── */

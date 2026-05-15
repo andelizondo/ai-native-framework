@@ -71,12 +71,15 @@ export function OutputsSection({
   ).length;
   const isComplete = status === "complete";
   const allDone = total > 0 && done === total;
+  const isEmpty = total === 0 && !loading;
 
-  // Auto-collapse once the task is complete; user override sticks for both
-  // directions.
+  // Auto-collapse once the task is complete, or when no outputs are declared
+  // at all — there's nothing to act on, so the section starts folded. User
+  // override sticks for both directions.
   const [userOverride, setUserOverride] = useState<UserOverride>(null);
   const collapsed =
-    userOverride === "collapsed" || (userOverride === null && isComplete);
+    userOverride === "collapsed" ||
+    (userOverride === null && (isComplete || isEmpty));
 
   return (
     <section

@@ -1,9 +1,11 @@
 "use client";
 
 import { useState } from "react";
-import { ChevronRight, MessageSquare } from "lucide-react";
+import { ChevronRight } from "lucide-react";
 
+import { ItemAvatar } from "@/components/framework/item-avatar";
 import { cn } from "@/lib/utils";
+import { actorInitials } from "@/lib/workflows/event-labels";
 import type { WorkflowEvent } from "@/lib/workflows/types";
 
 export interface CommentsSectionProps {
@@ -26,44 +28,52 @@ export function CommentsSection({ events }: CommentsSectionProps) {
   const comments = events.filter((e) => e.name === "workflow.task_commented");
 
   return (
-    <section className="pb-drawer-sec" data-testid="pb-drawer-comments-section">
-      <div className="pb-drawer-sec__lbl">Comments</div>
-      <div className={cn("pb-drawer-comments", open && "pb-drawer-comments--open")}>
+    <section
+      className="pb-drawer-sec"
+      data-testid="pb-drawer-comments-section"
+      data-collapsed={!open}
+    >
+      <div className="pb-drawer-sec__head">
         <button
           type="button"
-          className="pb-drawer-collapse-toggle"
+          className="pb-drawer-sec__toggle"
           onClick={() => setOpen((v) => !v)}
+          aria-expanded={open}
           data-testid="pb-drawer-comments-toggle"
         >
-          <span className="pb-drawer-collapse-toggle__left">
-            <MessageSquare size={13} aria-hidden />
-            <span>
-              <strong>{comments.length} comments</strong>
-            </span>
-          </span>
           <ChevronRight
-            size={14}
-            className="pb-drawer-collapse-toggle__chev"
+            size={12}
+            className={cn(
+              "pb-drawer-sec__chev",
+              open && "pb-drawer-sec__chev--open",
+            )}
             aria-hidden
           />
+          <span className="pb-drawer-sec__lbl">
+            Comments{" "}
+            <span className="pb-drawer-sec__count">{comments.length}</span>
+          </span>
         </button>
-        {open ? (
-          <div className="pb-drawer-comments__list">
-            {comments.length === 0 ? (
-              <div className="pb-drawer-comments__empty">
-                No comments yet.
-              </div>
-            ) : (
-              comments.map((event) => (
+      </div>
+      {open ? (
+        <div className="pb-drawer-comments__list">
+          {comments.length === 0 ? (
+            <div className="pb-drawer-comments__empty">No comments yet.</div>
+          ) : (
+            comments.map((event) => {
+              const author =
+                (event.payload?.author as string | undefined)?.trim() ?? "Unknown";
+              return (
                 <div className="pb-drawer-comment" key={event.id}>
-                  <div className="pb-drawer-comment__av">
-                    {(event.payload?.author as string | undefined)
-                      ?.slice(0, 2)
-                      .toUpperCase() ?? "··"}
-                  </div>
+                  <ItemAvatar
+                    initials={actorInitials(author)}
+                    color="var(--accent)"
+                    label={author}
+                    size="xs"
+                  />
                   <div className="pb-drawer-comment__body">
                     <div className="pb-drawer-comment__meta">
-                      <strong>{(event.payload?.author as string | undefined) ?? "Unknown"}</strong>
+                      <strong>{author}</strong>
                       <span>{new Date(event.createdAt).toLocaleString()}</span>
                     </div>
                     <div className="pb-drawer-comment__text">
@@ -71,33 +81,33 @@ export function CommentsSection({ events }: CommentsSectionProps) {
                     </div>
                   </div>
                 </div>
-              ))
-            )}
-            <div className="pb-drawer-comment__input-row">
-              <textarea
-                className="pb-drawer-comment__input"
-                placeholder="Add a comment… (TODO: comments backend)"
-                rows={1}
-                value={draft}
-                onChange={(e) => setDraft(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key === "Enter" && !e.shiftKey) {
-                    e.preventDefault();
-                    if (process.env.NODE_ENV !== "test") {
-                      // eslint-disable-next-line no-console
-                      console.info(
-                        "[playbook-drawer] comment composer is stubbed (AEL-61 follow-up)",
-                      );
-                    }
-                    setDraft("");
+              );
+            })
+          )}
+          <div className="pb-drawer-comment__input-row">
+            <textarea
+              className="pb-drawer-comment__input"
+              placeholder="Add a comment… (TODO: comments backend)"
+              rows={1}
+              value={draft}
+              onChange={(e) => setDraft(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter" && !e.shiftKey) {
+                  e.preventDefault();
+                  if (process.env.NODE_ENV !== "test") {
+                    // eslint-disable-next-line no-console
+                    console.info(
+                      "[playbook-drawer] comment composer is stubbed (AEL-61 follow-up)",
+                    );
                   }
-                }}
-                data-testid="pb-drawer-comment-input"
-              />
-            </div>
+                  setDraft("");
+                }
+              }}
+              data-testid="pb-drawer-comment-input"
+            />
           </div>
-        ) : null}
-      </div>
+        </div>
+      ) : null}
     </section>
   );
 }

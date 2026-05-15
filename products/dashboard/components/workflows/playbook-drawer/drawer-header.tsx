@@ -1,18 +1,8 @@
 "use client";
 
-import type { ButtonHTMLAttributes } from "react";
-import { MoreVertical, X } from "lucide-react";
+import { X } from "lucide-react";
 
-import { OwnerAvatarStack } from "@/components/framework/owner-avatar-stack";
-import {
-  EmptyOwnerAvatar,
-  StatusBadgePopover,
-} from "@/components/workflows/task-card";
-import { cn } from "@/lib/utils";
-import {
-  TASK_STATUS_LABEL,
-  TASK_STATUS_PILL_CLASS,
-} from "@/lib/workflows/task-status";
+import { resolveSkillColor } from "@/lib/workflows/skill-colors";
 import type {
   FrameworkItem,
   WorkflowInstanceDetail,
@@ -23,7 +13,7 @@ import type {
 
 export type HeaderBarVariant = "active" | "pending" | "blocked" | null;
 
-const STATUS_BAR_VARIANT: Record<WorkflowTaskStatus, HeaderBarVariant> = {
+export const STATUS_BAR_VARIANT: Record<WorkflowTaskStatus, HeaderBarVariant> = {
   not_started: null,
   waiting: "pending",
   paused: "blocked",
@@ -38,8 +28,19 @@ export interface DrawerHeaderProps {
   instance: WorkflowInstanceDetail;
   skills: WorkflowSkill[];
   playbookOptions: FrameworkItem[];
+  /** Framework skill catalog — has the user-chosen color. Falls back to
+   *  the instance skill snapshot when the framework skill was removed. */
+  frameworkSkills?: FrameworkItem[];
   onClose: () => void;
-  onStatusChange?: (next: WorkflowTaskStatus) => void;
+}
+
+/** Resolves the same stripe color the matrix card uses for a given task,
+ *  so the drawer's accent line never repaints when a card is clicked. */
+export function resolveDrawerStripeColor(
+  skillId: string,
+  frameworkSkills: FrameworkItem[],
+): string {
+  return resolveSkillColor(skillId, frameworkSkills);
 }
 
 export function DrawerHeader({
@@ -47,8 +48,8 @@ export function DrawerHeader({
   instance,
   skills,
   playbookOptions,
+  frameworkSkills = [],
   onClose,
-  onStatusChange,
 }: DrawerHeaderProps) {
   const skill = skills.find((s) => s.id === task.skillId);
   const playbook = task.playbookId
@@ -58,102 +59,45 @@ export function DrawerHeader({
 
   const title = playbook?.name ?? (task.playbookId ? "Playbook removed" : "Playbook");
   const description = playbook?.description?.trim() ?? "";
-  const roleColor = playbook?.color ?? "#6366f1";
-  const barVariant = STATUS_BAR_VARIANT[task.status];
+  const crumbs = [
+    instance.label,
+    stage?.label ?? task.stageId,
+    skill?.label ?? task.skillId,
+  ].filter(Boolean);
 
   return (
     <header
-      className={cn(
-        "pb-drawer-context",
-        barVariant && `pb-drawer-context--bar-${barVariant}`,
-      )}
-      style={{ "--role-color": roleColor } as React.CSSProperties}
+      className="pb-drawer-context"
       data-testid="pb-drawer-header"
-      data-bar-variant={barVariant ?? "none"}
     >
       <div className="pb-drawer-context__inner">
-        <div className="pb-drawer-context__top">
-          <div className="pb-drawer-context__icon" aria-hidden>
-            {playbook?.icon ?? "📋"}
-          </div>
-          <div className="pb-drawer-context__title-block">
-            <h2 className="pb-drawer-context__title">{title}</h2>
-            {description ? (
-              <p className="pb-drawer-context__desc">{description}</p>
-            ) : null}
-            <div className="pb-drawer-context__crumbs">
-              <span>{instance.label}</span>
-              <span className="pb-drawer-context__crumb-sep" aria-hidden>›</span>
-              <span>{stage?.label ?? task.stageId}</span>
-              <span className="pb-drawer-context__crumb-sep" aria-hidden>›</span>
-              <span>{skill?.label ?? task.skillId}</span>
-            </div>
-          </div>
-          <div className="pb-drawer-context__actions">
-            <button
-              type="button"
-              className="pb-drawer-context__icon-btn"
-              aria-label="More"
-              title="More"
-            >
-              <MoreVertical size={14} aria-hidden />
-            </button>
-            <button
-              type="button"
-              className="pb-drawer-context__icon-btn"
-              aria-label="Close playbook drawer"
-              title="Close"
-              onClick={onClose}
-              data-testid="pb-drawer-close"
-            >
-              <X size={14} aria-hidden />
-            </button>
-          </div>
+        <div className="pb-drawer-context__crumbs" data-testid="pb-drawer-crumbs">
+          {crumbs.map((crumb, index) => (
+            <span key={`${crumb}-${index}`}>
+              {index > 0 ? (
+                <span className="pb-drawer-context__crumb-sep" aria-hidden>
+                  ·
+                </span>
+              ) : null}
+              <span>{crumb}</span>
+            </span>
+          ))}
         </div>
-      </div>
-      <div className="pb-drawer-context__footer">
-        {onStatusChange ? (
-          <StatusBadgePopover
-            status={task.status}
-            taskId={`pb-drawer-${task.id}`}
-            onChange={onStatusChange}
-            triggerClassName={cn(
-              "pb-drawer-status-pill",
-              TASK_STATUS_PILL_CLASS[task.status],
-            )}
-            triggerContent={
-              <>
-                <span className="pb-drawer-status-pill__dot" aria-hidden />
-                {TASK_STATUS_LABEL[task.status]}
-              </>
-            }
-            triggerProps={
-              {
-                "data-testid": "pb-drawer-status-pill",
-                "data-status": task.status,
-              } as ButtonHTMLAttributes<HTMLButtonElement>
-            }
-          />
-        ) : (
-          <span
-            className={cn(
-              "pb-drawer-status-pill",
-              TASK_STATUS_PILL_CLASS[task.status],
-            )}
-            data-status={task.status}
-            data-testid="pb-drawer-status-pill"
-          >
-            <span className="pb-drawer-status-pill__dot" aria-hidden />
-            {TASK_STATUS_LABEL[task.status]}
-          </span>
-        )}
-        <div className="pb-drawer-context__owners" data-testid="pb-drawer-owners">
-          <span className="pb-drawer-context__owners-lbl">Owners</span>
-          {task.owners.length > 0 ? (
-            <OwnerAvatarStack labels={task.owners} size="xs" testIdSuffix="pb-drawer" />
-          ) : (
-            <EmptyOwnerAvatar taskId={`pb-drawer-${task.id}`} />
-          )}
+        <button
+          type="button"
+          className="pb-drawer-context__close"
+          aria-label="Close playbook drawer"
+          title="Close"
+          onClick={onClose}
+          data-testid="pb-drawer-close"
+        >
+          <X size={14} aria-hidden />
+        </button>
+        <div className="pb-drawer-context__title-block">
+          <h2 className="pb-drawer-context__title">{title}</h2>
+          {description ? (
+            <p className="pb-drawer-context__desc">{description}</p>
+          ) : null}
         </div>
       </div>
     </header>

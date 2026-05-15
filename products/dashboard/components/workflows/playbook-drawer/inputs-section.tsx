@@ -85,13 +85,16 @@ export function InputsSection({
   const totalAll = inputDefs.length;
   const receivedAll = inputDefs.filter((i) => stateById.get(i.id)?.received === true).length;
 
-  // Collapse seed: auto-collapsed once all linked inputs are received. User
-  // override sticks — clicking the header chevron flips state in either
-  // direction regardless of the auto seed.
+  const isEmpty = totalAll === 0;
+
+  // Collapse seed: auto-collapsed once all linked inputs are received, or
+  // when no inputs are declared at all (nothing to act on). User override
+  // sticks — clicking the header chevron flips state in either direction
+  // regardless of the auto seed.
   const [userOverride, setUserOverride] = useState<UserOverride>(null);
   const collapsed =
     userOverride === "collapsed" ||
-    (userOverride === null && allLinkedReceived);
+    (userOverride === null && (allLinkedReceived || isEmpty));
 
   return (
     <section
