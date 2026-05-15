@@ -8,7 +8,11 @@ import {
   EMOJI_CATEGORIES,
   type EmojiEntry,
 } from "@/lib/framework/emoji-catalog";
+import { SKILL_COLORS } from "@/lib/workflows/skill-colors";
 import { cn } from "@/lib/utils";
+
+const RAINBOW_GRADIENT =
+  "conic-gradient(from 90deg, #f43f5e, #f97316, #eab308, #84cc16, #10b981, #06b6d4, #6366f1, #8b5cf6, #ec4899, #f43f5e)";
 
 interface CompactEmojiPickerProps {
   value: string;
@@ -17,16 +21,34 @@ interface CompactEmojiPickerProps {
    *  editor header. */
   color?: string;
   onSelect: (emoji: string) => void;
+  /** When provided, an inline swatch row appears inside the popover between
+   *  the search input and the emoji grid — both pickers in one place. */
+  onColorChange?: (color: string) => void;
+  /** Whether the color row exposes the rainbow swatch that opens the OS
+   *  color picker. Defaults to true; ignored if `onColorChange` is unset. */
+  allowCustomColor?: boolean;
 }
 
-export function CompactEmojiPicker({ value, color, onSelect }: CompactEmojiPickerProps) {
+export function CompactEmojiPicker({
+  value,
+  color,
+  onSelect,
+  onColorChange,
+  allowCustomColor = true,
+}: CompactEmojiPickerProps) {
   const rootRef = useRef<HTMLDivElement | null>(null);
   const inputRef = useRef<HTMLInputElement | null>(null);
   const scrollRef = useRef<HTMLDivElement | null>(null);
+  const customColorRef = useRef<HTMLInputElement | null>(null);
   // One ref per category section so the bottom jump bar can scroll to it.
   const sectionRefs = useRef<Record<string, HTMLDivElement | null>>({});
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
+
+  const isCustomColor =
+    typeof color === "string" &&
+    color.startsWith("#") &&
+    !SKILL_COLORS.includes(color as (typeof SKILL_COLORS)[number]);
 
   useEffect(() => {
     if (!open) return;
@@ -149,6 +171,67 @@ export function CompactEmojiPicker({ value, color, onSelect }: CompactEmojiPicke
                 <span className="text-[16px]">{typedEmoji}</span>
                 Use typed emoji
               </button>
+            ) : null}
+
+            {onColorChange ? (
+              <div
+                role="group"
+                aria-label="Pick a color"
+                className="mt-3 flex flex-wrap items-center gap-1.5"
+              >
+                {SKILL_COLORS.map((swatch) => {
+                  const selected = swatch === color;
+                  return (
+                    <button
+                      key={swatch}
+                      type="button"
+                      aria-label={`Use ${swatch}`}
+                      aria-pressed={selected}
+                      onClick={() => onColorChange(swatch)}
+                      className="h-5 w-5 cursor-pointer rounded-full transition-transform hover:scale-110"
+                      style={{
+                        backgroundColor: swatch,
+                        outline: selected ? `2px solid ${swatch}` : undefined,
+                        outlineOffset: 2,
+                      }}
+                    />
+                  );
+                })}
+                {allowCustomColor ? (
+                  <>
+                    <button
+                      type="button"
+                      aria-label="Pick a custom color"
+                      aria-pressed={isCustomColor}
+                      onClick={() => customColorRef.current?.click()}
+                      className="relative h-5 w-5 cursor-pointer rounded-full transition-transform hover:scale-110"
+                      style={{
+                        background: RAINBOW_GRADIENT,
+                        outline: isCustomColor && color ? `2px solid ${color}` : undefined,
+                        outlineOffset: 2,
+                      }}
+                    >
+                      {isCustomColor && color ? (
+                        <span
+                          aria-hidden
+                          className="absolute left-1/2 top-1/2 h-2 w-2 -translate-x-1/2 -translate-y-1/2 rounded-full ring-1 ring-white/70"
+                          style={{ backgroundColor: color }}
+                        />
+                      ) : null}
+                    </button>
+                    {/* Hidden native picker — the rainbow slot opens the OS UI. */}
+                    <input
+                      ref={customColorRef}
+                      type="color"
+                      value={isCustomColor && color ? color : "#ffffff"}
+                      onChange={(event) => onColorChange(event.target.value)}
+                      className="pointer-events-none absolute h-0 w-0 opacity-0"
+                      tabIndex={-1}
+                      aria-hidden
+                    />
+                  </>
+                ) : null}
+              </div>
             ) : null}
           </div>
 

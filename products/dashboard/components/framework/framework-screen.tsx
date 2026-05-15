@@ -41,7 +41,6 @@ import {
 } from "@/app/(dashboard)/framework/actions";
 import { useDashboardTopBar } from "@/components/dashboard-topbar-context";
 import { AllowedItemsPicker } from "@/components/framework/allowed-items-picker";
-import { ColorDotPicker } from "@/components/framework/color-dot-picker";
 import { CompactEmojiPicker } from "@/components/framework/compact-emoji-picker";
 import { FrameworkHeaderActionsMenu } from "@/components/framework/framework-header-actions-menu";
 import { FrameworkItemModal } from "@/components/framework/framework-item-modal";
@@ -666,9 +665,14 @@ export function FrameworkScreen({
                 onSelect={(emoji) =>
                   setDraftItem((current) => (current ? { ...current, icon: emoji } : current))
                 }
+                onColorChange={(nextColor) =>
+                  setDraftItem((current) =>
+                    current ? { ...current, color: nextColor } : current,
+                  )
+                }
               />
-              <div className="min-w-0">
-                <div className="flex items-center gap-2">
+              <div className="min-w-0 flex-1">
+                <div className="min-w-0">
                   <InlineEditableText
                     value={draftItem.name}
                     onChange={(next) =>
@@ -679,15 +683,6 @@ export function FrameworkScreen({
                     ariaLabel={`${type === "skill" ? "skill" : "playbook"} name`}
                     placeholder="Untitled"
                     className="text-[22px] font-bold tracking-tight text-t1"
-                  />
-                  <ColorDotPicker
-                    color={resolveItemColor(draftItem)}
-                    ariaLabel={`Change ${type} color`}
-                    onChange={(nextColor) =>
-                      setDraftItem((current) =>
-                        current ? { ...current, color: nextColor } : current,
-                      )
-                    }
                   />
                 </div>
                 <InlineEditableText
