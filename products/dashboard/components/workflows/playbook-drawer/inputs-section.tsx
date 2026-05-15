@@ -3,6 +3,8 @@
 import { useMemo, useState } from "react";
 import { Check, ChevronRight, Plus } from "lucide-react";
 
+type UserOverride = "expanded" | "collapsed" | null;
+
 import { resolveItemColor } from "@/lib/workflows/skill-colors";
 import { cn } from "@/lib/utils";
 import type {
@@ -83,11 +85,13 @@ export function InputsSection({
   const totalAll = inputDefs.length;
   const receivedAll = inputDefs.filter((i) => stateById.get(i.id)?.received === true).length;
 
-  // Collapsed by default once all linked inputs are received; user can
-  // expand explicitly. We re-derive on every render so re-fetch flips it
-  // back without explicit syncing.
-  const [userExpanded, setUserExpanded] = useState(false);
-  const collapsed = allLinkedReceived && !userExpanded;
+  // Collapse seed: auto-collapsed once all linked inputs are received. User
+  // override sticks — clicking the header chevron flips state in either
+  // direction regardless of the auto seed.
+  const [userOverride, setUserOverride] = useState<UserOverride>(null);
+  const collapsed =
+    userOverride === "collapsed" ||
+    (userOverride === null && allLinkedReceived);
 
   return (
     <section
@@ -99,55 +103,53 @@ export function InputsSection({
       data-testid="pb-drawer-inputs-section"
       data-collapsed={collapsed}
     >
-      {collapsed ? (
+      <div className="pb-drawer-sec__head">
         <button
           type="button"
-          className="pb-drawer-collapse-toggle"
-          onClick={() => setUserExpanded(true)}
-          data-testid="pb-drawer-inputs-collapsed"
+          className="pb-drawer-sec__toggle"
+          onClick={() => setUserOverride(collapsed ? "expanded" : "collapsed")}
+          aria-expanded={!collapsed}
+          data-testid="pb-drawer-inputs-toggle"
         >
-          <span className="pb-drawer-collapse-toggle__left">
-            <Check size={13} strokeWidth={2.5} aria-hidden />
-            <span>
-              <strong>All inputs received</strong>{" "}
-              <span className="pb-drawer-collapse-toggle__count">
-                {receivedAll} / {totalAll}
-              </span>
-            </span>
-          </span>
           <ChevronRight
-            size={14}
-            className="pb-drawer-collapse-toggle__chev"
+            size={12}
+            className={cn(
+              "pb-drawer-sec__chev",
+              !collapsed && "pb-drawer-sec__chev--open",
+            )}
             aria-hidden
           />
-        </button>
-      ) : (
-        <>
-          <div className="pb-drawer-sec__head">
-            <div className="pb-drawer-sec__lbl">
-              Inputs{" "}
-              <span className="pb-drawer-sec__count">
-                {receivedAll} / {totalAll}
+          <span className="pb-drawer-sec__lbl">
+            Inputs{" "}
+            <span className="pb-drawer-sec__count">
+              {receivedAll} / {totalAll}
+            </span>
+            {totalAll > 0 && receivedAll === totalAll ? (
+              <span className="pb-drawer-sec__done" aria-hidden>
+                <Check size={11} strokeWidth={2.5} />
               </span>
-            </div>
-            {onAddInput ? (
-              <button
-                type="button"
-                className="pb-drawer-sec__action"
-                onClick={onAddInput}
-                data-testid="pb-drawer-add-input-btn"
-              >
-                <Plus size={11} aria-hidden /> Add
-              </button>
             ) : null}
-          </div>
-          <div className="pb-drawer-io-list">
-            {inputDefs.length === 0 ? (
-              <div className="pb-drawer-io-empty" data-testid="pb-drawer-inputs-empty">
-                No inputs defined.
-              </div>
-            ) : (
-              inputDefs.map((input) => {
+          </span>
+        </button>
+        {onAddInput && !collapsed ? (
+          <button
+            type="button"
+            className="pb-drawer-sec__action"
+            onClick={onAddInput}
+            data-testid="pb-drawer-add-input-btn"
+          >
+            <Plus size={11} aria-hidden /> Add
+          </button>
+        ) : null}
+      </div>
+      {!collapsed ? (
+        <div className="pb-drawer-io-list">
+          {inputDefs.length === 0 ? (
+            <div className="pb-drawer-io-empty" data-testid="pb-drawer-inputs-empty">
+              No inputs defined.
+            </div>
+          ) : (
+            inputDefs.map((input) => {
                 const taskState = stateById.get(input.id);
                 const state = stateFor(input, taskState);
                 const linkedMatch =
@@ -188,10 +190,9 @@ export function InputsSection({
                   />
                 );
               })
-            )}
-          </div>
-        </>
-      )}
+          )}
+        </div>
+      ) : null}
     </section>
   );
 }

@@ -1,8 +1,11 @@
 "use client";
 
-import { Plus } from "lucide-react";
+import { useState } from "react";
+import { Check, ChevronRight, Plus } from "lucide-react";
 
 import { cn } from "@/lib/utils";
+
+type UserOverride = "expanded" | "collapsed" | null;
 import type {
   PlaybookOutput,
   PlaybookOutputKind,
@@ -67,6 +70,13 @@ export function OutputsSection({
     (def) => stateById.get(def.id)?.status === "produced",
   ).length;
   const isComplete = status === "complete";
+  const allDone = total > 0 && done === total;
+
+  // Auto-collapse once the task is complete; user override sticks for both
+  // directions.
+  const [userOverride, setUserOverride] = useState<UserOverride>(null);
+  const collapsed =
+    userOverride === "collapsed" || (userOverride === null && isComplete);
 
   return (
     <section
@@ -78,15 +88,37 @@ export function OutputsSection({
       )}
       data-testid="pb-drawer-outputs-section"
       data-complete={isComplete}
+      data-collapsed={collapsed}
     >
       <div className="pb-drawer-sec__head">
-        <div className="pb-drawer-sec__lbl">
-          Outputs{" "}
-          <span className="pb-drawer-sec__count">
-            {done} / {total}
+        <button
+          type="button"
+          className="pb-drawer-sec__toggle"
+          onClick={() => setUserOverride(collapsed ? "expanded" : "collapsed")}
+          aria-expanded={!collapsed}
+          data-testid="pb-drawer-outputs-toggle"
+        >
+          <ChevronRight
+            size={12}
+            className={cn(
+              "pb-drawer-sec__chev",
+              !collapsed && "pb-drawer-sec__chev--open",
+            )}
+            aria-hidden
+          />
+          <span className="pb-drawer-sec__lbl">
+            Outputs{" "}
+            <span className="pb-drawer-sec__count">
+              {done} / {total}
+            </span>
+            {allDone ? (
+              <span className="pb-drawer-sec__done" aria-hidden>
+                <Check size={11} strokeWidth={2.5} />
+              </span>
+            ) : null}
           </span>
-        </div>
-        {onAddOutput ? (
+        </button>
+        {onAddOutput && !collapsed ? (
           <button
             type="button"
             className="pb-drawer-sec__action"
@@ -97,37 +129,39 @@ export function OutputsSection({
           </button>
         ) : null}
       </div>
-      <div className="pb-drawer-io-list">
-        {loading && outputDefs.length === 0 ? (
-          <OutputsSkeleton />
-        ) : outputDefs.length === 0 ? (
-          <div className="pb-drawer-io-empty" data-testid="pb-drawer-outputs-empty">
-            No outputs declared on this playbook.
-          </div>
-        ) : (
-          outputDefs.map((def) => {
-            const taskState = stateById.get(def.id);
-            const state = stateFor(taskState);
-            return (
-              <IORow
-                key={def.id}
-                kind="output"
-                primaryLabel={def.name}
-                secondaryLabel={def.description ?? undefined}
-                avatar={avatarFor(def)}
-                state={state}
-                dimmed={dimmed}
-                onAction={
-                  state !== "received" && !busy
-                    ? () => onProduce(def.id)
-                    : undefined
-                }
-                testId={`pb-drawer-output-${def.id}`}
-              />
-            );
-          })
-        )}
-      </div>
+      {!collapsed ? (
+        <div className="pb-drawer-io-list">
+          {loading && outputDefs.length === 0 ? (
+            <OutputsSkeleton />
+          ) : outputDefs.length === 0 ? (
+            <div className="pb-drawer-io-empty" data-testid="pb-drawer-outputs-empty">
+              No outputs declared on this playbook.
+            </div>
+          ) : (
+            outputDefs.map((def) => {
+              const taskState = stateById.get(def.id);
+              const state = stateFor(taskState);
+              return (
+                <IORow
+                  key={def.id}
+                  kind="output"
+                  primaryLabel={def.name}
+                  secondaryLabel={def.description ?? undefined}
+                  avatar={avatarFor(def)}
+                  state={state}
+                  dimmed={dimmed}
+                  onAction={
+                    state !== "received" && !busy
+                      ? () => onProduce(def.id)
+                      : undefined
+                  }
+                  testId={`pb-drawer-output-${def.id}`}
+                />
+              );
+            })
+          )}
+        </div>
+      ) : null}
     </section>
   );
 }
