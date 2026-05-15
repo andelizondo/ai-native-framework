@@ -970,16 +970,11 @@ export function ProcessMatrix({
                             <div
                               data-task-id={task.id}
                               data-mini="true"
-                              onMouseEnter={
-                                editMode ? undefined : () => setHoveredTaskId(task.id)
-                              }
-                              onMouseLeave={
-                                editMode
-                                  ? undefined
-                                  : () =>
-                                      setHoveredTaskId((current) =>
-                                        current === task.id ? null : current,
-                                      )
+                              onMouseEnter={() => setHoveredTaskId(task.id)}
+                              onMouseLeave={() =>
+                                setHoveredTaskId((current) =>
+                                  current === task.id ? null : current,
+                                )
                               }
                             >
                               <MiniTaskCell
@@ -1013,16 +1008,11 @@ export function ProcessMatrix({
                               disabled={!editMode}
                               isActive={dragTaskId === task.id}
                               dataTaskId={task.id}
-                              onHoverStart={
-                                editMode ? undefined : () => setHoveredTaskId(task.id)
-                              }
-                              onHoverEnd={
-                                editMode
-                                  ? undefined
-                                  : () =>
-                                      setHoveredTaskId((current) =>
-                                        current === task.id ? null : current,
-                                      )
+                              onHoverStart={() => setHoveredTaskId(task.id)}
+                              onHoverEnd={() =>
+                                setHoveredTaskId((current) =>
+                                  current === task.id ? null : current,
+                                )
                               }
                             >
                               <TaskCard
@@ -1093,16 +1083,14 @@ export function ProcessMatrix({
               );
             })
           )}
-          {!editMode ? (
-            <WiringOverlay
-              containerRef={matrixWrapRef}
-              tasks={localTasks}
-              hoveredTaskId={hoveredTaskId}
-              outputGroups={outputGroups}
-              taskIO={instance.taskIO}
-              collapseKey={`${collapsed ? "1" : "0"}|${[...collapsedStageIds].sort().join(",")}|${[...collapsedSkillIds].sort().join(",")}`}
-            />
-          ) : null}
+          <WiringOverlay
+            containerRef={matrixWrapRef}
+            tasks={localTasks}
+            hoveredTaskId={hoveredTaskId}
+            outputGroups={outputGroups}
+            taskIO={instance.taskIO}
+            collapseKey={`${collapsed ? "1" : "0"}|${[...collapsedStageIds].sort().join(",")}|${[...collapsedSkillIds].sort().join(",")}`}
+          />
         </div>
       </div>
       </DndContext>

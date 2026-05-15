@@ -875,6 +875,56 @@ function normalizeTemplateInputs(inputs: unknown): WorkflowInput[] {
   return normalized;
 }
 
+const VALID_OUTPUT_KINDS = new Set<PlaybookOutput["kind"]>([
+  "file",
+  "media",
+  "link",
+  "manual",
+  "api",
+]);
+
+const MAX_OUTPUT_NAME_LENGTH = 80;
+const MAX_OUTPUT_DESCRIPTION_LENGTH = 240;
+const MAX_OUTPUT_ID_LENGTH = 120;
+
+function normalizeTemplateOutputs(outputs: unknown): PlaybookOutput[] {
+  if (!Array.isArray(outputs)) return [];
+  const result: PlaybookOutput[] = [];
+  for (const raw of outputs as PlaybookOutput[]) {
+    if (!raw || typeof raw !== "object") continue;
+    const id =
+      typeof raw.id === "string" && raw.id.trim()
+        ? raw.id.trim().slice(0, MAX_OUTPUT_ID_LENGTH)
+        : "";
+    if (!id) continue;
+    const playbookId =
+      typeof raw.playbookId === "string" && raw.playbookId.trim()
+        ? raw.playbookId.trim().slice(0, MAX_PLAYBOOK_LENGTH)
+        : "";
+    const name =
+      typeof raw.name === "string" && raw.name.trim()
+        ? raw.name.trim().slice(0, MAX_OUTPUT_NAME_LENGTH)
+        : "";
+    const description =
+      typeof raw.description === "string"
+        ? raw.description.slice(0, MAX_OUTPUT_DESCRIPTION_LENGTH)
+        : null;
+    const kind =
+      typeof raw.kind === "string" && VALID_OUTPUT_KINDS.has(raw.kind as PlaybookOutput["kind"])
+        ? (raw.kind as PlaybookOutput["kind"])
+        : null;
+    const apiCheck =
+      raw.apiCheck && typeof raw.apiCheck === "object" && !Array.isArray(raw.apiCheck)
+        ? (raw.apiCheck as Record<string, unknown>)
+        : null;
+    const position =
+      typeof raw.position === "number" && Number.isFinite(raw.position) ? raw.position : 0;
+    const createdAt = typeof raw.createdAt === "string" ? raw.createdAt : "";
+    result.push({ id, playbookId, name, description, kind, apiCheck, position, createdAt });
+  }
+  return result;
+}
+
 function normalizeTemplateTaskTemplates(
   taskTemplates: WorkflowTemplate["taskTemplates"],
 ): WorkflowTaskTemplate[] {
@@ -888,6 +938,11 @@ function normalizeTemplateTaskTemplates(
         : null,
       notes: normalizeTaskField(task.notes ?? "", "taskTemplate.notes", MAX_NOTES_LENGTH),
       inputs: normalizeTemplateInputs(task.inputs),
+      // Persist the per-task outputs snapshot (PR AEL-XXX, see
+      // 20260515120000_workflow_task_outputs_snapshot.sql). Previously this
+      // field was dropped on every save, silently emptying every task's
+      // outputs in JSONB whenever the editor or the playbook drawer saved.
+      outputs: normalizeTemplateOutputs(task.outputs),
       checkpoint: Boolean(task.checkpoint),
       owners: normalizeOwnerList(task.owners) ?? [],
     }))

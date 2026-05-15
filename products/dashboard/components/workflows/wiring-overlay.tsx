@@ -132,7 +132,14 @@ export function WiringOverlay({
       }
     }
 
-    const result: WiringPair[] = [];
+    // Dedupe by (from, to). A downstream task with multiple linked inputs
+    // pointing at the same upstream (e.g. two outputs of the same playbook
+    // feeding into one consumer) would otherwise emit several pairs sharing
+    // the same React key downstream, which makes React leave a stale path
+    // in the DOM that never re-renders to hidden — the "stuck line" bug.
+    // One visual wire per (from, to) is also the right rendering: parallel
+    // wires between the same two cards would overlap.
+    const seen = new Map<string, WiringPair>();
     for (const task of tasks) {
       for (const input of task.inputs ?? []) {
         if (input.linkMode !== "linked") continue;
@@ -144,11 +151,13 @@ export function WiringOverlay({
         if (!upstream || !taskIds.has(upstream)) continue;
         const fromTask = taskById.get(upstream);
         if (!fromTask) continue;
+        const key = `${upstream}->${task.id}`;
+        if (seen.has(key)) continue;
         const flow = classifyEdge(fromTask, task, ioByTaskId.get(task.id));
-        result.push({ from: upstream, to: task.id, flow });
+        seen.set(key, { from: upstream, to: task.id, flow });
       }
     }
-    return result;
+    return Array.from(seen.values());
   }, [tasks, outputGroups, taskIO]);
 
   const [size, setSize] = useState<{ width: number; height: number }>({
