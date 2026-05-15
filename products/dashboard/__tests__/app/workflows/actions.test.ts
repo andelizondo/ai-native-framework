@@ -32,6 +32,7 @@ import type {
   WorkflowEvent,
   WorkflowRepository,
   WorkflowTask,
+  WorkflowTaskTemplate,
   WorkflowTemplate,
 } from "@/lib/workflows/types";
 
@@ -389,6 +390,7 @@ describe("workflow matrix edit actions", () => {
           notes: "Trimmed",
           checkpoint: false,
           inputs: [],
+          outputs: [],
           owners: [],
         },
       ],
@@ -398,6 +400,83 @@ describe("workflow matrix edit actions", () => {
       "/workflows/templates/client-delivery/edit",
     );
     expect(result.template.id).toBe("client-delivery");
+  });
+
+  it("updateTemplateAction preserves the per-task outputs snapshot", async () => {
+    // Regression: `normalizeTemplateTaskTemplates` previously dropped the
+    // `outputs` field, silently emptying every task's outputs in JSONB on
+    // every save — breaking the input-wiring picker and the per-task IO
+    // state. This test pins the field's preservation end-to-end through
+    // the action.
+    const baseTemplate: WorkflowTemplate = {
+      id: "client-delivery",
+      label: "Client Project Delivery",
+      color: "#14b8a6",
+      multiInstance: true,
+      stages: [{ id: "stage-1", label: "Planning", sub: "Scope" }],
+      skills: [{ id: "pm", label: "Product", owners: ["Andres"] }],
+      taskTemplates: [],
+      createdAt: "2026-04-19T12:00:00Z",
+      updatedAt: "2026-04-19T12:00:00Z",
+    };
+    const updateTemplate = vi.fn().mockResolvedValue(baseTemplate);
+    mockGetRepo.mockResolvedValue({
+      updateTemplate,
+    } satisfies Partial<WorkflowRepository>);
+
+    await updateTemplateAction("client-delivery", {
+      ...baseTemplate,
+      taskTemplates: [
+        {
+          id: "tt-1",
+          skillId: "pm",
+          stageId: "stage-1",
+          playbookId: "slice-spec",
+          notes: "",
+          outputs: [
+            {
+              id: "out-pdr-decision",
+              playbookId: "slice-spec",
+              name: "PDR Decision",
+              description: "Accept/Reject/Counter",
+              kind: "manual",
+              apiCheck: null,
+              position: 0,
+              createdAt: "2026-04-19T12:00:00Z",
+            },
+            {
+              id: "out-quote",
+              playbookId: "slice-spec",
+              name: "Quote",
+              description: null,
+              kind: "file",
+              apiCheck: null,
+              position: 1,
+              createdAt: "2026-04-19T12:00:00Z",
+            },
+          ],
+        },
+      ],
+    });
+
+    const call = updateTemplate.mock.calls[0]?.[1] as { taskTemplates: WorkflowTaskTemplate[] };
+    expect(call.taskTemplates).toHaveLength(1);
+    expect(call.taskTemplates[0].outputs).toEqual([
+      expect.objectContaining({
+        id: "out-pdr-decision",
+        playbookId: "slice-spec",
+        name: "PDR Decision",
+        kind: "manual",
+        position: 0,
+      }),
+      expect.objectContaining({
+        id: "out-quote",
+        playbookId: "slice-spec",
+        name: "Quote",
+        kind: "file",
+        position: 1,
+      }),
+    ]);
   });
 
   it("updateTemplateAction rejects blank template colors", async () => {
