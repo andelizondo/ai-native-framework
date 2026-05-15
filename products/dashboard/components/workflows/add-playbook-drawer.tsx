@@ -2,7 +2,14 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
-import { ChevronDown, Plus, Search, SearchX, Trash2, X } from "lucide-react";
+import {
+  ChevronRight,
+  Plus,
+  Search,
+  SearchX,
+  Trash2,
+  X,
+} from "lucide-react";
 
 import { cn } from "@/lib/utils";
 import { ItemAvatar } from "@/components/framework/item-avatar";
@@ -23,6 +30,9 @@ interface AddPlaybookDrawerProps {
   /** Skill row this task belongs to (locked context, not a picker). */
   skillId: string;
   skillLabel: string;
+  /** Resolved skill color, used to paint the header stripe so the drawer
+   *  matches the source card's identity bar. */
+  skillColor?: string;
   stageId: string;
   stageName: string;
   /** All playbooks loaded by the parent page; drawer filters by allowedSkillIds. */
@@ -60,6 +70,7 @@ export function AddPlaybookDrawer({
   mode = "create",
   skillId,
   skillLabel,
+  skillColor,
   stageName,
   playbooks,
   initial,
@@ -78,18 +89,47 @@ export function AddPlaybookDrawer({
     initial?.inputs ? initial.inputs.map((i) => ({ ...i })) : [],
   );
   const [query, setQuery] = useState("");
-  /** True while the user has clicked "Add input" but hasn't picked a value
-   *  yet. Drives a transient picker rendered at the bottom of the list;
-   *  rows are only pushed into `inputs` once the user actually selects a
-   *  playbook output. */
-  const [addingDraft, setAddingDraft] = useState(false);
+  /** User override for the Inputs collapse header. Defaults to `null`
+   *  (expanded). Switching to "collapsed" lets the user hide the editor. */
+  const [inputsOverride, setInputsOverride] = useState<
+    "expanded" | "collapsed" | null
+  >(null);
+  /** User override for the Notes collapse header. Auto-seeds expanded
+   *  when the existing notes have content (matches the previous `<details
+   *  open>` behavior); otherwise collapsed. */
+  const [notesOverride, setNotesOverride] = useState<
+    "expanded" | "collapsed" | null
+  >(null);
   // Two-step open: mount offscreen, then flip the class one frame later so
   // the slide-in animation actually plays.
   const [openClass, setOpenClass] = useState(false);
+  const closingRef = useRef(false);
   useEffect(() => {
     const raf = requestAnimationFrame(() => setOpenClass(true));
     return () => cancelAnimationFrame(raf);
   }, []);
+
+  // Drawer mount is the canonical opportunity to refresh the upstream
+  // output catalog. Previously this fired when the user clicked "+ Add
+  // input"; with the inline picker that gate is gone, so we refetch once
+  // on mount so the dropdown always shows the current outputs.
+  useEffect(() => {
+    void onRefetchOutputs?.();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Animated close: drop the open class so the slide-out plays, wait for
+  // the 260ms transition, then call the parent's unmount (`onClose`). Idem-
+  // potent — chained calls (overlay click + Escape, etc.) are no-ops once
+  // the animation has started.
+  const requestClose = () => {
+    if (closingRef.current) return;
+    closingRef.current = true;
+    setOpenClass(false);
+    window.setTimeout(() => {
+      onClose();
+    }, 280);
+  };
 
   const didScrollToSelectedRef = useRef(false);
   const setActivePlaybookButtonRef = (el: HTMLButtonElement | null) => {
@@ -105,6 +145,11 @@ export function AddPlaybookDrawer({
         (pb) => pb.type === "playbook" && (pb.allowedSkillIds ?? []).includes(skillId),
       ),
     [playbooks, skillId],
+  );
+
+  const selectedPlaybook = useMemo(
+    () => playbooks.find((pb) => pb.id === selectedId) ?? null,
+    [playbooks, selectedId],
   );
 
   const filtered = useMemo(() => {
@@ -134,14 +179,27 @@ export function AddPlaybookDrawer({
   }, [outputGroups, inputs]);
 
   const canSubmit = Boolean(selectedId);
+  // Editor context: default expanded so the "+ Add" affordance is always one
+  // click away. User can collapse via the chevron; their choice sticks.
+  // (The playbook drawer auto-collapses when empty because it's a read-only
+  // surface — auto-folding the editor would hide the only way to wire inputs.)
+  const inputsCollapsed = inputsOverride === "collapsed";
+  // Notes auto-collapse when empty (mirrors the previous `<details open>`
+  // behavior that opened only when seeded with text). User override sticks.
+  const notesCollapsed =
+    notesOverride === "collapsed" ||
+    (notesOverride === null && notes.trim().length === 0);
 
   useEffect(() => {
     function handleKeyDown(event: KeyboardEvent) {
-      if (event.key === "Escape") onClose();
+      if (event.key === "Escape") requestClose();
     }
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [onClose]);
+    // requestClose is stable for the lifetime of the component (relies on
+    // refs + setState) so we intentionally don't list it as a dep.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   return (
     <>
@@ -151,7 +209,7 @@ export function AddPlaybookDrawer({
           openClass ? "opacity-100" : "pointer-events-none opacity-0",
         )}
         aria-hidden
-        onClick={onClose}
+        onClick={requestClose}
         data-testid="add-playbook-drawer-overlay"
       />
       <aside
@@ -175,36 +233,81 @@ export function AddPlaybookDrawer({
           }}
           className="flex h-full min-h-0 flex-col"
         >
-          <header className="flex items-start justify-between gap-3 border-b border-border px-6 py-5">
-            <div className="min-w-0 flex-1">
-              <p className="font-mono text-[10px] uppercase tracking-[0.13em] text-t3">
-                {stageName} · {skillLabel}
-              </p>
-              <h2
-                id="add-playbook-drawer-title"
-                className="mt-1 text-[18px] font-bold tracking-tight text-t1"
+          <div
+            className="pb-drawer-head"
+            style={
+              skillColor
+                ? ({ "--role-color": skillColor } as React.CSSProperties)
+                : undefined
+            }
+            data-bar-variant="none"
+          >
+          <header
+            className="pb-drawer-context"
+          >
+            <div className="pb-drawer-context__inner">
+              <div className="pb-drawer-context__crumbs">
+                <span>{stageName}</span>
+                <span className="pb-drawer-context__crumb-sep" aria-hidden>
+                  ·
+                </span>
+                <span>{skillLabel}</span>
+              </div>
+              <button
+                type="button"
+                onClick={requestClose}
+                aria-label="Close"
+                className="pb-drawer-context__close"
               >
-                {mode === "edit" ? "Edit playbook" : "Add playbook"}
-              </h2>
-              <p className="mt-1 text-[12.5px] text-t3">
-                Pick a playbook from your framework library.{" "}
-                <Link
-                  href="/framework/playbooks"
-                  className="text-accent hover:underline"
-                >
-                  Manage playbooks →
-                </Link>
-              </p>
+                <X size={14} aria-hidden />
+              </button>
+              {mode === "edit" && selectedPlaybook ? (
+                <div className="pb-drawer-context__title-block">
+                  <h2
+                    id="add-playbook-drawer-title"
+                    className="pb-drawer-context__title"
+                  >
+                    {selectedPlaybook.name}
+                  </h2>
+                  {selectedPlaybook.description ? (
+                    <p className="pb-drawer-context__desc">
+                      {selectedPlaybook.description}
+                    </p>
+                  ) : null}
+                </div>
+              ) : (
+                <div className="pb-drawer-context__title-block flex items-end justify-between gap-3">
+                  <h2
+                    id="add-playbook-drawer-title"
+                    className="pb-drawer-context__title"
+                  >
+                    Add playbook
+                  </h2>
+                  <Link
+                    href="/framework/playbooks"
+                    className="text-[11.5px] text-t3 hover:text-accent hover:underline"
+                  >
+                    Manage playbooks →
+                  </Link>
+                </div>
+              )}
             </div>
-            <button
-              type="button"
-              onClick={onClose}
-              aria-label="Close"
-              className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-md text-t3 transition hover:bg-bg-3 hover:text-t1 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
-            >
-              <X className="h-4 w-4" />
-            </button>
           </header>
+
+          {allowed.length > 0 ? (
+            <div className="flex shrink-0 items-center gap-2 border-b border-border bg-bg-3 px-6 py-3">
+              <OwnerPicker
+                values={owners}
+                onChange={setOwners}
+                variant="stack"
+                required={false}
+                stackAvatarSize="xs"
+                stackEmptyLabel
+                testIdSuffix="add-playbook-drawer"
+              />
+            </div>
+          ) : null}
+          </div>
 
           <div className="flex-1 min-h-0 overflow-y-auto px-6 py-5">
             {allowed.length === 0 ? (
@@ -221,6 +324,7 @@ export function AddPlaybookDrawer({
               </div>
             ) : (
               <>
+                {mode === "edit" ? null : (
                 <div className="mb-4 rounded-lg border border-border bg-bg-3">
                   <div className="flex items-center gap-2 border-b border-border px-3 py-2">
                     <Search className="h-3.5 w-3.5 text-t3" />
@@ -282,11 +386,42 @@ export function AddPlaybookDrawer({
                     )}
                   </div>
                 </div>
+                )}
 
-                <div className="mb-5">
-                  <label className="mb-1.5 block text-[11px] font-medium text-t2">
-                    Inputs <span className="font-normal text-t3">(optional)</span>
-                  </label>
+                <section
+                  className={cn("pb-drawer-sec", "pb-drawer-inputs", "mb-5")}
+                  data-testid="add-playbook-drawer-inputs-section"
+                  data-collapsed={inputsCollapsed}
+                >
+                  <div className="pb-drawer-sec__head">
+                    <button
+                      type="button"
+                      className="pb-drawer-sec__toggle"
+                      onClick={() =>
+                        setInputsOverride(
+                          inputsCollapsed ? "expanded" : "collapsed",
+                        )
+                      }
+                      aria-expanded={!inputsCollapsed}
+                      data-testid="add-playbook-drawer-inputs-toggle"
+                    >
+                      <ChevronRight
+                        size={12}
+                        className={cn(
+                          "pb-drawer-sec__chev",
+                          !inputsCollapsed && "pb-drawer-sec__chev--open",
+                        )}
+                        aria-hidden
+                      />
+                      <span className="pb-drawer-sec__lbl">
+                        Inputs{" "}
+                        <span className="pb-drawer-sec__count">
+                          {inputs.length}
+                        </span>
+                      </span>
+                    </button>
+                  </div>
+                  {!inputsCollapsed ? (
                   <ul className="space-y-2">
                       {inputs.map((input, index) => {
                         const wiredGroup = input.upstreamOutputId
@@ -338,123 +473,101 @@ export function AddPlaybookDrawer({
                           </li>
                         );
                       })}
-                      {addingDraft ? (
-                        <li
-                          className="flex items-center gap-2 rounded-lg border border-dashed border-border-hi bg-bg-3 px-2.5 py-2"
-                          data-testid="input-row-draft"
-                        >
-                          <PlaybookOutputPicker
-                            value={null}
-                            available={availableForDraft}
-                            playbooks={playbooks}
-                            defaultOpen
-                            testId="input-row-draft-picker"
-                            onChange={(next: PlaybookOutputPickerValue | null) => {
-                              if (next === null) {
-                                setAddingDraft(false);
-                                return;
-                              }
-                              const group = outputGroups.find(
-                                (g) => g.playbookId === next.playbookId,
-                              );
-                              const output = group?.outputs.find(
-                                (o) => o.id === next.outputId,
-                              );
-                              const derivedName = group && output
-                                ? `${group.playbookName} / ${output.name}`
-                                : "";
-                              const derivedRef = upstreamTaskOptions.find(
-                                (opt) => opt.playbookId === next.playbookId,
-                              )?.id;
-                              setInputs((current) => [
-                                ...current,
-                                {
-                                  id: createInputId(),
-                                  name: derivedName,
-                                  linkMode: "linked",
-                                  upstreamTaskRef: derivedRef,
-                                  upstreamOutputId: next.outputId,
-                                },
-                              ]);
-                              setAddingDraft(false);
-                            }}
-                          />
-                          <button
-                            type="button"
-                            onClick={() => setAddingDraft(false)}
-                            aria-label="Cancel new input"
-                            data-testid="input-row-draft-cancel"
-                            className="ml-auto inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-md text-t3 transition hover:bg-bg-4 hover:text-t1 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
-                          >
-                            <Trash2 className="h-3.5 w-3.5" />
-                          </button>
-                        </li>
-                      ) : (
-                        <li>
-                          <button
-                            type="button"
-                            onClick={() => {
-                              setAddingDraft(true);
-                              void onRefetchOutputs?.();
-                            }}
-                            disabled={availableForDraft.length === 0}
-                            title={
-                              availableForDraft.length === 0
-                                ? "All available playbook outputs are already wired"
-                                : undefined
-                            }
-                            data-testid="add-input-row"
-                            className="group/add inline-flex w-full items-center justify-center gap-1.5 rounded-lg border border-dashed border-border bg-transparent px-3 py-3 text-[11.5px] font-medium text-t3 transition hover:border-border-hi hover:bg-bg-3 hover:text-t1 disabled:cursor-not-allowed disabled:opacity-50 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
-                          >
-                            <Plus className="h-3.5 w-3.5 transition group-hover/add:text-accent" />
-                            Add input
-                          </button>
-                        </li>
-                      )}
+                      <li>
+                        <PlaybookOutputPicker
+                          value={null}
+                          available={availableForDraft}
+                          playbooks={playbooks}
+                          fullWidthTrigger
+                          triggerLabel="Add input"
+                          triggerLeadingIcon={
+                            <Plus
+                              className="h-3.5 w-3.5 transition"
+                              aria-hidden
+                            />
+                          }
+                          hideTriggerChevron
+                          testId="add-input-row"
+                          onChange={(next: PlaybookOutputPickerValue | null) => {
+                            if (next === null) return;
+                            const group = outputGroups.find(
+                              (g) => g.playbookId === next.playbookId,
+                            );
+                            const output = group?.outputs.find(
+                              (o) => o.id === next.outputId,
+                            );
+                            const derivedName = group && output
+                              ? `${group.playbookName} / ${output.name}`
+                              : "";
+                            const derivedRef = upstreamTaskOptions.find(
+                              (opt) => opt.playbookId === next.playbookId,
+                            )?.id;
+                            setInputs((current) => [
+                              ...current,
+                              {
+                                id: createInputId(),
+                                name: derivedName,
+                                linkMode: "linked",
+                                upstreamTaskRef: derivedRef,
+                                upstreamOutputId: next.outputId,
+                              },
+                            ]);
+                          }}
+                        />
+                      </li>
                     </ul>
-                </div>
+                  ) : null}
+                </section>
 
-                <details
-                  className="group rounded-lg border border-border bg-bg-3"
-                  open={notes.trim().length > 0}
+                <section
+                  className="pb-drawer-sec"
+                  data-testid="add-playbook-drawer-notes-section"
+                  data-collapsed={notesCollapsed}
                 >
-                  <summary className="flex cursor-pointer list-none items-center gap-1.5 px-3 py-2 text-[11px] font-medium text-t2 [&::-webkit-details-marker]:hidden">
-                    <ChevronDown
-                      aria-hidden
-                      className="h-3 w-3 text-t3 transition group-open:rotate-180"
+                  <div className="pb-drawer-sec__head">
+                    <button
+                      type="button"
+                      className="pb-drawer-sec__toggle"
+                      onClick={() =>
+                        setNotesOverride(
+                          notesCollapsed ? "expanded" : "collapsed",
+                        )
+                      }
+                      aria-expanded={!notesCollapsed}
+                      data-testid="add-playbook-drawer-notes-toggle"
+                    >
+                      <ChevronRight
+                        size={12}
+                        className={cn(
+                          "pb-drawer-sec__chev",
+                          !notesCollapsed && "pb-drawer-sec__chev--open",
+                        )}
+                        aria-hidden
+                      />
+                      <span className="pb-drawer-sec__lbl">
+                        Notes{" "}
+                        <span className="pb-drawer-sec__count">(optional)</span>
+                      </span>
+                    </button>
+                  </div>
+                  {!notesCollapsed ? (
+                    <textarea
+                      value={notes}
+                      onChange={(event) => setNotes(event.target.value)}
+                      rows={2}
+                      placeholder="Per-instance context for this playbook"
+                      className="block w-full resize-none rounded-lg border border-border bg-bg-3 px-3 py-2.5 text-[13px] leading-6 text-t1 placeholder:text-t3 focus:outline-none focus:border-border-hi"
                     />
-                    Notes <span className="font-normal text-t3">(optional)</span>
-                  </summary>
-                  <textarea
-                    value={notes}
-                    onChange={(event) => setNotes(event.target.value)}
-                    rows={2}
-                    placeholder="Per-instance context for this playbook"
-                    className="block w-full resize-none rounded-b-lg border-0 border-t border-border bg-bg-3 px-3 py-2.5 text-[13px] leading-6 text-t1 placeholder:text-t3 focus:outline-none"
-                  />
-                </details>
+                  ) : null}
+                </section>
               </>
             )}
           </div>
 
-          <footer className="flex items-center justify-between gap-3 border-t border-border bg-bg-2 px-6 py-4">
-            <div className="flex items-center gap-2">
-              {allowed.length > 0 ? (
-                <OwnerPicker
-                  values={owners}
-                  onChange={setOwners}
-                  variant="stack"
-                  required={false}
-                  ariaLabel="Owners"
-                  stackAvatarSize="sm"
-                  testIdSuffix="add-playbook-drawer"
-                />
-              ) : null}
-            </div>
-            <div className="flex items-center gap-2">
+          <footer className="flex items-center justify-end gap-2 border-t border-border bg-bg-2 px-6 py-4">
               <button
                 type="button"
-                onClick={onClose}
+                onClick={requestClose}
                 className="rounded-lg border border-border bg-bg-3 px-4 py-2 text-[13px] font-medium text-t2 transition hover:bg-bg-4 hover:text-t1"
               >
                 Cancel
@@ -466,7 +579,6 @@ export function AddPlaybookDrawer({
               >
                 {mode === "edit" ? "Save playbook →" : "Add playbook →"}
               </button>
-            </div>
           </footer>
         </form>
       </aside>

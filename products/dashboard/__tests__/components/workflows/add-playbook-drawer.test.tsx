@@ -78,9 +78,9 @@ function renderDrawer(overrides: Partial<Parameters<typeof AddPlaybookDrawer>[0]
 }
 
 describe("AddPlaybookDrawer — inputs editor", () => {
-  it("renders the dashed add-input affordance when the task has no inputs", () => {
+  it("renders the inputs section with an add affordance when the task has no inputs", () => {
     renderDrawer();
-    const addBtn = screen.getByTestId("add-input-row");
+    const addBtn = screen.getByTestId("add-input-row-trigger");
     expect(addBtn).toBeInTheDocument();
     expect(addBtn).toHaveTextContent(/Add input/i);
     // Empty state has no other input rows.
@@ -91,18 +91,18 @@ describe("AddPlaybookDrawer — inputs editor", () => {
     const user = userEvent.setup();
     const { onSubmit } = renderDrawer();
 
-    await user.click(screen.getByTestId("add-input-row"));
+    await user.click(screen.getByTestId("add-input-row-trigger"));
 
-    // Add-input opens the transient picker directly (no empty list row).
+    // The inline "+ Add input" trigger opens the picker dropdown directly.
     const dropdown = await screen.findByTestId(
-      "input-row-draft-picker-dropdown",
+      "add-input-row-dropdown",
     );
     await user.click(
-      within(dropdown).getByTestId("input-row-draft-picker-item-po-1"),
+      within(dropdown).getByTestId("add-input-row-item-po-1"),
     );
 
-    // Selection turns the draft into a static list item with the wired
-    // playbook · output combo.
+    // Selection adds a static list item with the wired playbook · output
+    // combo; the inline "+ Add input" trigger stays put for the next pick.
     const row = screen.getByTestId("input-row-0");
     expect(row).toHaveTextContent(/Presales/);
     expect(row).toHaveTextContent(/report/);

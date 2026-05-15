@@ -1,6 +1,13 @@
 "use client";
 
-import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import {
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+  type ReactNode,
+} from "react";
 import { createPortal } from "react-dom";
 import Link from "next/link";
 import { Check, ChevronDown, Search, X } from "lucide-react";
@@ -41,6 +48,22 @@ export interface PlaybookOutputPickerProps {
   defaultOpen?: boolean;
   /** Optional test id suffix for the trigger + dropdown. */
   testId?: string;
+  /** When true, the "Pick playbook output…" trigger expands to fill the
+   *  available width and uses the same padding/sizing as the inputs editor's
+   *  "+ Add input" button. Use when the trigger replaces a full-width row
+   *  affordance (e.g. the add/edit playbook drawer's draft input row). */
+  fullWidthTrigger?: boolean;
+  /** Override the trigger button's label. Defaults to "Pick playbook
+   *  output…". The trailing chevron stays so the affordance still reads
+   *  as a dropdown toggle. */
+  triggerLabel?: string;
+  /** Render a custom icon at the leading edge of the trigger (replaces
+   *  the default leading state — no icon when omitted). */
+  triggerLeadingIcon?: ReactNode;
+  /** Hide the trailing chevron on the trigger. Useful when the trigger
+   *  is presented as a primary action button (e.g. "+ Add input") rather
+   *  than a dropdown affordance. */
+  hideTriggerChevron?: boolean;
 }
 
 export function PlaybookOutputPicker({
@@ -51,6 +74,10 @@ export function PlaybookOutputPicker({
   align = "start",
   defaultOpen = false,
   testId = "playbook-output",
+  fullWidthTrigger = false,
+  triggerLabel = "Pick playbook output…",
+  triggerLeadingIcon,
+  hideTriggerChevron = false,
 }: PlaybookOutputPickerProps) {
   const [open, setOpen] = useState(defaultOpen);
   const [query, setQuery] = useState("");
@@ -260,7 +287,13 @@ export function PlaybookOutputPicker({
 
   // Otherwise render an "Add from playbook…" trigger.
   return (
-    <div ref={rootRef} className="relative inline-flex max-w-full items-center">
+    <div
+      ref={rootRef}
+      className={cn(
+        "relative max-w-full items-center",
+        fullWidthTrigger ? "flex flex-1 min-w-0" : "inline-flex",
+      )}
+    >
       <button
         type="button"
         onClick={() => setOpen((v) => !v)}
@@ -268,15 +301,21 @@ export function PlaybookOutputPicker({
         aria-expanded={open}
         data-testid={`${testId}-trigger`}
         className={cn(
-          "flex min-w-0 items-center gap-1.5 rounded-md border border-dashed border-border-hi bg-bg-3 px-2.5 py-1 text-[12px] text-t2 transition hover:bg-bg-4 hover:text-t1 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent",
+          "items-center rounded-md border border-dashed border-border bg-transparent text-t3 transition hover:border-border-hi hover:bg-bg-2 hover:text-t1 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent",
+          fullWidthTrigger
+            ? "flex w-full justify-center gap-1.5 px-4 py-3 text-[12px] font-medium"
+            : "flex min-w-0 gap-1.5 px-2.5 py-1 text-[12px]",
           open && "border-accent text-t1",
         )}
       >
-        <span>Pick playbook output…</span>
-        <ChevronDown
-          aria-hidden
-          className={cn("h-3 w-3 text-t3 transition", open && "rotate-180")}
-        />
+        {triggerLeadingIcon ?? null}
+        <span>{triggerLabel}</span>
+        {hideTriggerChevron ? null : (
+          <ChevronDown
+            aria-hidden
+            className={cn("h-3 w-3 text-t3 transition", open && "rotate-180")}
+          />
+        )}
       </button>
       {dropdown}
     </div>
