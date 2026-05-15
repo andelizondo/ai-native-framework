@@ -26,6 +26,13 @@ interface WiringOverlayProps {
   outputGroups?: TemplateOutputGroup[];
   /** Per-task IO summary, used to classify each edge as next/current/etc. */
   taskIO?: TaskIOSummary[];
+  /**
+   * Opaque string that changes whenever a row or column collapses/expands.
+   * The container's own `ResizeObserver` doesn't fire during cell collapse
+   * (cells resize, the wrap doesn't), so we drive an explicit re-measure
+   * loop on every key change to track the in-flight CSS transition.
+   */
+  collapseKey?: string;
 }
 
 interface WiringPair {
@@ -47,6 +54,12 @@ interface ResolvedPath {
    *  into the consumer card's left edge. */
   endX: number;
   endY: number;
+  /** When true the producer-side anchor lands on a mini avatar (collapsed
+   *  row/column). We suppress the endpoint dot there so the curve only
+   *  marks endpoints that land on full cards. */
+  startOnMini: boolean;
+  /** Same as `startOnMini` for the consumer-side anchor. */
+  endOnMini: boolean;
   flow: EdgeFlowState;
   hovered: boolean;
 }
@@ -92,6 +105,7 @@ export function WiringOverlay({
   hoveredTaskId,
   outputGroups,
   taskIO,
+  collapseKey,
 }: WiringOverlayProps) {
   const glowFilterId = useId();
   const pairs = useMemo<WiringPair[]>(() => {
@@ -227,15 +241,15 @@ export function WiringOverlay({
         cx1 = upstreamLeftOfDownstream ? x1 + sag : x1 - sag;
         cx2 = upstreamLeftOfDownstream ? x2 - sag : x2 + sag;
         // Same-row pairs collapse to y1===y2 and cy1===cy2, producing a flat
-        // line that gets occluded by the row's hairline divider. Push the
-        // handles downward so the curve renders as a visible arc below the
+        // line that gets occluded by the row's hairline divider. Pull the
+        // handles upward so the curve renders as a visible arc above the
         // row, clear of the divider.
         const sameRow = Math.abs(y2 - y1) < 1;
         const bow = sameRow
-          ? Math.max(20, Math.min(48, dx * 0.12))
+          ? Math.max(12, Math.min(28, dx * 0.07))
           : 0;
-        cy1 = y1 + bow;
-        cy2 = y2 + bow;
+        cy1 = y1 - bow;
+        cy2 = y2 - bow;
       } else if (verticallySeparated) {
         // Same column, stacked. Anchor on facing top/bottom edges, x-centered.
         // The handles need both a y-component (sag — points into the gap so
@@ -280,6 +294,8 @@ export function WiringOverlay({
         startY: y1,
         endX: x2,
         endY: y2,
+        startOnMini: fromEl.dataset.mini === "true",
+        endOnMini: toEl.dataset.mini === "true",
         flow: pair.flow,
         hovered,
       });
@@ -305,6 +321,29 @@ export function WiringOverlay({
       window.removeEventListener("scroll", measure);
     };
   }, [containerRef, measure]);
+
+  // Cell collapse/expand uses a ~220ms CSS transition (matrix-wrap cells —
+  // see `.mx-role-cell` etc.). The wrap's `ResizeObserver` doesn't catch
+  // those because only the inner cells resize, not the wrap. Drive an
+  // explicit measure loop on every collapseKey change so the wiring follows
+  // the animation instead of snapping into place on the next hover.
+  useEffect(() => {
+    if (collapseKey === undefined) return undefined;
+    let cancelled = false;
+    const start = performance.now();
+    const DURATION = 280;
+    function tick() {
+      if (cancelled) return;
+      measure();
+      if (performance.now() - start < DURATION) {
+        requestAnimationFrame(tick);
+      }
+    }
+    requestAnimationFrame(tick);
+    return () => {
+      cancelled = true;
+    };
+  }, [collapseKey, measure]);
 
   if (size.width === 0 || size.height === 0 || paths.length === 0) {
     return null;
@@ -361,21 +400,28 @@ export function WiringOverlay({
             />
             {/* Producer + consumer anchor dots: matching filled circles at
              * each endpoint so the curve reads as plugged into both cards
-             * (rather than tapering off into nothing on the upstream end). */}
-            <circle
-              cx={path.startX}
-              cy={path.startY}
-              r={2.5}
-              fill="var(--accent)"
-              fillOpacity={style.opacity}
-            />
-            <circle
-              cx={path.endX}
-              cy={path.endY}
-              r={2.5}
-              fill="var(--accent)"
-              fillOpacity={style.opacity}
-            />
+             * (rather than tapering off into nothing on the upstream end).
+             * Suppressed on the side that lands on a mini avatar — the
+             * collapsed row/column is too small for the dot to read as a
+             * plug, and the curve into the avatar reads cleaner without it. */}
+            {path.startOnMini ? null : (
+              <circle
+                cx={path.startX}
+                cy={path.startY}
+                r={2.5}
+                fill="var(--accent)"
+                fillOpacity={style.opacity}
+              />
+            )}
+            {path.endOnMini ? null : (
+              <circle
+                cx={path.endX}
+                cy={path.endY}
+                r={2.5}
+                fill="var(--accent)"
+                fillOpacity={style.opacity}
+              />
+            )}
           </g>
         );
       })}

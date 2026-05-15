@@ -218,7 +218,6 @@ describe("ProcessMatrix", () => {
     expect(screen.getByTestId("task-pip-rail-io-1")).toBeInTheDocument();
     expect(screen.getByTestId("task-pip-io-1-out-a").dataset.status).toBe("produced");
     expect(screen.getByTestId("task-pip-io-1-out-b").dataset.status).toBe("pending");
-    expect(screen.getByTestId("task-unmet-input-io-1")).toBeInTheDocument();
   });
 
   it("toggles the role-collapsed class and hides labels when the toggle is pressed", async () => {

@@ -77,7 +77,7 @@ import {
   TASK_STATUS_VAR,
 } from "@/lib/workflows/task-status";
 
-import { AddPlaybookModal } from "./add-playbook-modal";
+import { AddPlaybookDrawer } from "./add-playbook-drawer";
 import { HeaderActionsMenu } from "./header-actions-menu";
 import { PlaybookDrawer } from "./playbook-drawer";
 import { TaskCard } from "./task-card";
@@ -953,6 +953,7 @@ export function ProcessMatrix({
                           isMini ? (
                             <div
                               data-task-id={task.id}
+                              data-mini="true"
                               onMouseEnter={
                                 editMode ? undefined : () => setHoveredTaskId(task.id)
                               }
@@ -969,7 +970,6 @@ export function ProcessMatrix({
                                 task={task}
                                 playbook={playbook}
                                 skillColor={skillColor}
-                                ioState={ioByTaskId.get(task.id)}
                                 onClick={
                                   editMode
                                     ? undefined
@@ -1087,6 +1087,7 @@ export function ProcessMatrix({
               hoveredTaskId={hoveredTaskId}
               outputGroups={outputGroups}
               taskIO={instance.taskIO}
+              collapseKey={`${collapsed ? "1" : "0"}|${[...collapsedStageIds].sort().join(",")}|${[...collapsedSkillIds].sort().join(",")}`}
             />
           ) : null}
         </div>
@@ -1105,7 +1106,7 @@ export function ProcessMatrix({
       />
 
       {addTaskFor ? (
-        <AddPlaybookModal
+        <AddPlaybookDrawer
           mode={addTaskFor.mode}
           skillId={addTaskFor.skillId}
           skillLabel={addTaskFor.skillLabel}
@@ -1293,13 +1294,11 @@ function MiniTaskCell({
   task,
   playbook,
   skillColor,
-  ioState,
   onClick,
 }: {
   task: WorkflowTask;
   playbook: FrameworkItem | null;
   skillColor: string;
-  ioState?: TaskIOSummary;
   onClick?: () => void;
 }) {
   const title = playbook?.name ?? (task.playbookId ? "Playbook removed" : "No playbook");
@@ -1322,7 +1321,6 @@ function MiniTaskCell({
         : 1;
   const statusLabel = TASK_STATUS_LABEL[task.status];
   const statusClass = TASK_STATUS_PILL_CLASS[task.status];
-  const aggregateIo = aggregateIoStatus(ioState);
   return (
     <button
       type="button"
@@ -1365,14 +1363,6 @@ function MiniTaskCell({
           label={title}
           size="xs"
         />
-        {aggregateIo ? (
-          <span
-            className="mx-mini-cell-io-dot"
-            data-testid={`task-mini-io-${task.id}`}
-            data-io-status={aggregateIo}
-            aria-label={`Outputs ${aggregateIo}`}
-          />
-        ) : null}
         <FloatingHoverTooltip
           name={title}
           sub={statusLabel}
@@ -1392,18 +1382,6 @@ function MiniTaskCell({
  *   - "pending" — at least one output remains pending (none failed yet)
  *   - null      — the task has no declared outputs (don't render a dot)
  */
-function aggregateIoStatus(
-  io: TaskIOSummary | undefined,
-): "ok" | "err" | "pending" | null {
-  if (!io || io.outputs.length === 0) return null;
-  let allProduced = true;
-  for (const output of io.outputs) {
-    if (output.status === "failed") return "err";
-    if (output.status !== "produced") allProduced = false;
-  }
-  return allProduced ? "ok" : "pending";
-}
-
 /**
  * Hover tooltip portaled to `document.body` so it can paint above the
  * matrix scroll wrap (`overflow: auto`) without being clipped. Anchors to

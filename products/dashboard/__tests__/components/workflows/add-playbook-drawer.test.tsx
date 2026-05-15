@@ -2,7 +2,7 @@ import { screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 
-import { AddPlaybookModal } from "@/components/workflows/add-playbook-modal";
+import { AddPlaybookDrawer } from "@/components/workflows/add-playbook-drawer";
 import { renderWithToast } from "@/tests/test-utils";
 import type {
   FrameworkItem,
@@ -55,11 +55,11 @@ const UPSTREAM_TASKS = [
   { id: "task-a", label: "Presales · Pre-Sales", playbookId: "pb-presales" },
 ];
 
-function renderModal(overrides: Partial<Parameters<typeof AddPlaybookModal>[0]> = {}) {
+function renderDrawer(overrides: Partial<Parameters<typeof AddPlaybookDrawer>[0]> = {}) {
   const onSubmit = vi.fn();
   const onClose = vi.fn();
   renderWithToast(
-    <AddPlaybookModal
+    <AddPlaybookDrawer
       mode="edit"
       skillId="sk-pm"
       skillLabel="PM"
@@ -77,15 +77,19 @@ function renderModal(overrides: Partial<Parameters<typeof AddPlaybookModal>[0]> 
   return { onSubmit, onClose };
 }
 
-describe("AddPlaybookModal — inputs editor", () => {
-  it("renders an empty-state placeholder when the task has no inputs", () => {
-    renderModal();
-    expect(screen.getByText(/No inputs declared/i)).toBeInTheDocument();
+describe("AddPlaybookDrawer — inputs editor", () => {
+  it("renders the dashed add-input affordance when the task has no inputs", () => {
+    renderDrawer();
+    const addBtn = screen.getByTestId("add-input-row");
+    expect(addBtn).toBeInTheDocument();
+    expect(addBtn).toHaveTextContent(/Add input/i);
+    // Empty state has no other input rows.
+    expect(screen.queryByTestId("input-row-0")).toBeNull();
   });
 
   it("adds an input row, picks a playbook output via the styled picker, and submits the wiring with a derived name", async () => {
     const user = userEvent.setup();
-    const { onSubmit } = renderModal();
+    const { onSubmit } = renderDrawer();
 
     await user.click(screen.getByTestId("add-input-row"));
 
@@ -127,7 +131,7 @@ describe("AddPlaybookModal — inputs editor", () => {
         upstreamOutputId: "po-1",
       },
     ];
-    const { onSubmit } = renderModal({
+    const { onSubmit } = renderDrawer({
       initial: { playbookId: "pb-presales", inputs: wired },
     });
 
@@ -154,7 +158,7 @@ describe("AddPlaybookModal — inputs editor", () => {
         upstreamOutputId: "po-1",
       },
     ];
-    const { onSubmit } = renderModal({
+    const { onSubmit } = renderDrawer({
       initial: { playbookId: "pb-presales", inputs: wired },
     });
 

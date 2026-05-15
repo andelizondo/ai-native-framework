@@ -40,7 +40,7 @@ import { useToast } from "@/lib/toast";
 import { useUnsavedChangesGuard } from "@/lib/use-unsaved-changes-guard";
 import { AddSkillModal } from "@/components/workflows/add-skill-modal";
 import { AddStageModal } from "@/components/workflows/add-stage-modal";
-import { AddPlaybookModal } from "@/components/workflows/add-playbook-modal";
+import { AddPlaybookDrawer } from "@/components/workflows/add-playbook-drawer";
 import { HeaderActionsMenu } from "@/components/workflows/header-actions-menu";
 import { ConfirmModal } from "@/components/ui/confirm-modal";
 import { InlineEditableText } from "@/components/ui/inline-editable-text";
@@ -1009,7 +1009,7 @@ export function TemplateEditorScreen({
       ) : null}
 
       {addTaskFor ? (
-        <AddPlaybookModal
+        <AddPlaybookDrawer
           mode={addTaskFor.mode}
           skillId={addTaskFor.skillId}
           skillLabel={addTaskFor.skillLabel}

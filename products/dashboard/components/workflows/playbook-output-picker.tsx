@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useId, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import Link from "next/link";
 import { Check, ChevronDown, Search, X } from "lucide-react";
@@ -57,11 +57,13 @@ export function PlaybookOutputPicker({
   const rootRef = useRef<HTMLDivElement | null>(null);
   const dropdownRef = useRef<HTMLDivElement | null>(null);
   const searchRef = useRef<HTMLInputElement | null>(null);
-  const headingId = useId();
   // Absolute viewport-anchored coordinates the portalled dropdown uses.
+  // `triggerTop` / `triggerBottom` are kept separately so the dropdown can
+  // auto-flip above the trigger when there isn't enough room below.
   // null while closed or before the first measurement.
   const [anchorRect, setAnchorRect] = useState<{
-    top: number;
+    triggerTop: number;
+    triggerBottom: number;
     left: number;
     right: number;
     width: number;
@@ -150,7 +152,8 @@ export function PlaybookOutputPicker({
       if (!el) return;
       const rect = el.getBoundingClientRect();
       setAnchorRect({
-        top: rect.bottom,
+        triggerTop: rect.top,
+        triggerBottom: rect.bottom,
         left: rect.left,
         right: rect.right,
         width: rect.width,
@@ -187,7 +190,6 @@ export function PlaybookOutputPicker({
             ref={dropdownRef}
             anchorRect={anchorRect}
             align={align}
-            headingId={headingId}
             testId={testId}
             available={available}
             filtered={filtered}
@@ -294,9 +296,14 @@ const PORTAL_DROPDOWN_WIDTH = 320;
 
 interface PortalDropdownProps {
   ref: React.RefObject<HTMLDivElement | null>;
-  anchorRect: { top: number; left: number; right: number; width: number };
+  anchorRect: {
+    triggerTop: number;
+    triggerBottom: number;
+    left: number;
+    right: number;
+    width: number;
+  };
   align: "start" | "end";
-  headingId: string;
   testId: string;
   available: readonly TemplateOutputGroup[];
   filtered: FilteredRow[];
@@ -312,7 +319,6 @@ function PortalDropdown({
   ref,
   anchorRect,
   align,
-  headingId,
   testId,
   available,
   filtered,
@@ -346,10 +352,22 @@ function PortalDropdown({
     return Array.from(map.values());
   }, [filtered]);
 
-  // Position: anchor below the trigger, clamped to viewport.
-  const top = anchorRect.top + 8;
+  // Position: by default anchor below the trigger. When there isn't enough
+  // room below (e.g. the picker sits near the viewport's bottom edge), flip
+  // and anchor above so the dropdown remains fully visible.
   const viewportWidth =
     typeof window !== "undefined" ? window.innerWidth : 1024;
+  const viewportHeight =
+    typeof window !== "undefined" ? window.innerHeight : 768;
+  // Approximate dropdown height: header (~38) + search (~38) + list max-h
+  // (280) + bottom padding (~16) ≈ 372. Add some breathing room.
+  const ESTIMATED_HEIGHT = 392;
+  const spaceBelow = viewportHeight - anchorRect.triggerBottom;
+  const spaceAbove = anchorRect.triggerTop;
+  const openUp = spaceBelow < ESTIMATED_HEIGHT && spaceAbove > spaceBelow;
+  const positionStyle: React.CSSProperties = openUp
+    ? { bottom: Math.max(8, viewportHeight - anchorRect.triggerTop + 8) }
+    : { top: anchorRect.triggerBottom + 8 };
   let left =
     align === "end"
       ? anchorRect.right - PORTAL_DROPDOWN_WIDTH
@@ -361,20 +379,12 @@ function PortalDropdown({
     <div
       ref={ref}
       role="dialog"
-      aria-labelledby={headingId}
-      style={{ top, left, width: PORTAL_DROPDOWN_WIDTH }}
+      aria-label="Playbook outputs"
+      style={{ ...positionStyle, left, width: PORTAL_DROPDOWN_WIDTH }}
+      data-open-direction={openUp ? "up" : "down"}
       className="fixed z-[80] overflow-hidden rounded-[12px] border border-border-hi bg-bg-2 shadow-[var(--shadow-canvas)]"
       data-testid={`${testId}-dropdown`}
     >
-      <div className="border-b border-border px-3 py-2.5">
-        <div
-          id={headingId}
-          className="font-mono text-[10px] font-semibold uppercase tracking-[0.13em] text-t3"
-        >
-          Playbook outputs
-        </div>
-      </div>
-
       {available.length === 0 ? (
         <div className="px-3 py-6 text-center text-[12px] text-t3">
           <div className="mb-2 font-medium text-t2">No playbook outputs yet</div>

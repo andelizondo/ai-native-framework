@@ -6,7 +6,6 @@ import {
   AlertTriangle,
   Check,
   CircleAlert,
-  CornerUpRight,
   Pencil,
   StickyNote,
   Trash2,
@@ -106,20 +105,7 @@ export function TaskCard({
       }
       aria-label={onClick ? `Open playbook: ${title}` : undefined}
     >
-      <div className="tc-top">
-        <div className="tc-title">{title}</div>
-        {ioState?.hasUnmetLinkedInput ? (
-          <span
-            className="tc-unmet-input-glyph"
-            role="img"
-            aria-label="Waiting on upstream output"
-            title="Waiting on upstream output"
-            data-testid={`task-unmet-input-${task.id}`}
-          >
-            <CornerUpRight aria-hidden size={11} strokeWidth={2.1} />
-          </span>
-        ) : null}
-      </div>
+      <div className="tc-title">{title}</div>
       {/* Pip rail is always rendered so the status pill below sits on a
        *  stable baseline whether or not the linked playbook declares any
        *  outputs yet. When there's nothing to show we keep the row's
