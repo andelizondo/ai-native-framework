@@ -64,6 +64,7 @@ import type {
   FrameworkItem,
   TaskIOSummary,
   TemplateOutputGroup,
+  WorkflowInput,
   WorkflowInstanceDetail,
   WorkflowSkill,
   WorkflowStage,
@@ -77,11 +78,12 @@ import {
   TASK_STATUS_VAR,
 } from "@/lib/workflows/task-status";
 
-import { AddPlaybookModal } from "./add-playbook-modal";
+import { AddPlaybookDrawer } from "./add-playbook-drawer";
 import { HeaderActionsMenu } from "./header-actions-menu";
 import { PlaybookDrawer } from "./playbook-drawer";
 import { TaskCard } from "./task-card";
 import { WiringOverlay } from "./wiring-overlay";
+import { WorkflowInstanceHeader } from "./workflow-instance-header";
 
 interface Props {
   instance: WorkflowInstanceDetail;
@@ -186,6 +188,7 @@ export function ProcessMatrix({
       playbookId?: string | null;
       notes?: string;
       owners?: string[];
+      inputs?: WorkflowInput[];
     };
   } | null>(null);
   const [confirmDeleteTask, setConfirmDeleteTask] = useState<WorkflowTask | null>(
@@ -193,6 +196,8 @@ export function ProcessMatrix({
   );
   const [localTasks, setLocalTasks] = useState<WorkflowTask[]>(instance.tasks);
   const [lastSavedTasks, setLastSavedTasks] = useState<WorkflowTask[]>(instance.tasks);
+  const [draftLabel, setDraftLabel] = useState(instance.label);
+  const [savedLabel, setSavedLabel] = useState(instance.label);
   const [confirmDiscardOpen, setConfirmDiscardOpen] = useState(false);
   const [pendingNavigation, setPendingNavigation] = useState<(() => void) | null>(null);
   const [isPending, startTransition] = useTransition();
@@ -246,6 +251,16 @@ export function ProcessMatrix({
     setLocalTasks(instance.tasks);
     setLastSavedTasks(instance.tasks);
   }, [instance.tasks, editMode]);
+
+  useEffect(() => {
+    setSavedLabel((current) => {
+      if (current === instance.label) return current;
+      // Re-seed draft only when the user hasn't begun editing locally,
+      // otherwise we'd clobber in-flight edits.
+      setDraftLabel((draft) => (draft === current ? instance.label : draft));
+      return instance.label;
+    });
+  }, [instance.label]);
 
   // Auto-expand stages/skills as work flows. When a task's status flips or
   // an upstream output unblocks a downstream input, the formerly-dormant
@@ -301,8 +316,10 @@ export function ProcessMatrix({
   }, []);
 
   const isDirty = useMemo(
-    () => JSON.stringify(localTasks) !== JSON.stringify(lastSavedTasks),
-    [localTasks, lastSavedTasks],
+    () =>
+      draftLabel.trim() !== savedLabel ||
+      JSON.stringify(localTasks) !== JSON.stringify(lastSavedTasks),
+    [draftLabel, savedLabel, localTasks, lastSavedTasks],
   );
 
   const exitEditMode = useCallback(() => {
@@ -323,9 +340,10 @@ export function ProcessMatrix({
 
   const discardAndExit = useCallback(() => {
     setLocalTasks(lastSavedTasks);
+    setDraftLabel(savedLabel);
     setConfirmDiscardOpen(false);
     exitEditMode();
-  }, [exitEditMode, lastSavedTasks]);
+  }, [exitEditMode, lastSavedTasks, savedLabel]);
 
   const handleBlockedNavigation = useCallback((proceed: () => void) => {
     setPendingNavigation(() => proceed);
@@ -342,8 +360,9 @@ export function ProcessMatrix({
     if (!proceed) return;
     setLocalTasks(lastSavedTasks);
     setLastSavedTasks(lastSavedTasks);
+    setDraftLabel(savedLabel);
     proceed();
-  }, [lastSavedTasks, pendingNavigation]);
+  }, [lastSavedTasks, pendingNavigation, savedLabel]);
 
   const tasksByCell = useMemo(() => {
     const map = new Map<string, WorkflowTask>();
@@ -372,6 +391,13 @@ export function ProcessMatrix({
   const saveInstanceEdits = useCallback(() => {
     startTransition(async () => {
       try {
+        const trimmedLabel = draftLabel.trim();
+        if (trimmedLabel && trimmedLabel !== savedLabel) {
+          const result = await renameInstanceAction(instance.id, trimmedLabel);
+          setSavedLabel(result.instance.label);
+          setDraftLabel(result.instance.label);
+        }
+
         const savedById = new Map(lastSavedTasks.map((t) => [t.id, t]));
         const draftById = new Map(localTasks.map((t) => [t.id, t]));
 
@@ -395,10 +421,14 @@ export function ProcessMatrix({
             (saved.owners ?? []).some(
               (value, index) => value !== (task.owners ?? [])[index],
             );
+          const inputsChanged =
+            JSON.stringify(saved.inputs ?? []) !==
+            JSON.stringify(task.inputs ?? []);
           if (
             saved.notes !== task.notes ||
             saved.playbookId !== task.playbookId ||
-            ownersChanged
+            ownersChanged ||
+            inputsChanged
           ) {
             toUpdate.push(task);
           }
@@ -441,6 +471,7 @@ export function ProcessMatrix({
             playbookId: task.playbookId,
             notes: task.notes,
             owners: task.owners,
+            inputs: task.inputs,
           });
           finalById.set(result.task.id, result.task);
         }
@@ -461,10 +492,12 @@ export function ProcessMatrix({
       }
     });
   }, [
+    draftLabel,
     exitEditMode,
     instance.id,
     lastSavedTasks,
     localTasks,
+    savedLabel,
     toastError,
     toastSuccess,
   ]);
@@ -475,31 +508,18 @@ export function ProcessMatrix({
       crumbs: [
         { label: "Workflows" },
         { label: template?.label ?? "Workflow" },
-        { label: instance.label },
+        { label: savedLabel },
       ],
       editMode,
       isDirty,
       saveDisabled: !isDirty || isPending,
       savePending: isPending,
-      onSave: editMode ? saveInstanceEdits : undefined,
+      onSave: editMode || isDirty ? saveInstanceEdits : undefined,
       onCancelEdit: editMode ? handleCancelEdit : undefined,
       actions: (
         <HeaderActionsMenu
-          entityLabel={instance.label}
+          entityLabel={savedLabel}
           entityType="instance"
-          onRename={async (nextLabel) => {
-            try {
-              await renameInstanceAction(instance.id, nextLabel);
-              toastSuccess("Instance renamed");
-            } catch (err) {
-              toastError(
-                err instanceof Error && err.message
-                  ? err.message
-                  : "Could not rename the instance.",
-              );
-              throw err;
-            }
-          }}
           onDelete={async () => {
             try {
               await deleteInstanceAction(instance.id);
@@ -522,7 +542,7 @@ export function ProcessMatrix({
     editMode,
     handleCancelEdit,
     instance.id,
-    instance.label,
+    savedLabel,
     isDirty,
     isPending,
     saveInstanceEdits,
@@ -596,6 +616,13 @@ export function ProcessMatrix({
 
   return (
     <>
+      <WorkflowInstanceHeader
+        label={draftLabel}
+        onLabelChange={setDraftLabel}
+        taskCount={localTasks.length}
+        skillCount={skills.length}
+        stageCount={stages.length}
+      />
       <DndContext
         id={dndContextId}
         sensors={sensors}
@@ -804,8 +831,30 @@ export function ProcessMatrix({
                 >
                   <div
                     className="mx-role-cell"
-                    role="rowheader"
+                    role={isSkillCollapsed ? "button" : "rowheader"}
                     title={isSkillCollapsed ? skill.label : undefined}
+                    tabIndex={isSkillCollapsed ? 0 : undefined}
+                    aria-label={
+                      isSkillCollapsed ? `Expand ${skill.label}` : undefined
+                    }
+                    onClick={
+                      isSkillCollapsed
+                        ? () => toggleSkillCollapsed(skill.id)
+                        : undefined
+                    }
+                    onKeyDown={
+                      isSkillCollapsed
+                        ? (event) => {
+                            if (event.key === "Enter" || event.key === " ") {
+                              event.preventDefault();
+                              toggleSkillCollapsed(skill.id);
+                            }
+                          }
+                        : undefined
+                    }
+                    style={
+                      isSkillCollapsed ? { cursor: "pointer" } : undefined
+                    }
                   >
                     <span
                       data-testid={`matrix-skill-dot-${skill.id}`}
@@ -911,6 +960,7 @@ export function ProcessMatrix({
                           isMini ? (
                             <div
                               data-task-id={task.id}
+                              data-mini="true"
                               onMouseEnter={
                                 editMode ? undefined : () => setHoveredTaskId(task.id)
                               }
@@ -927,11 +977,24 @@ export function ProcessMatrix({
                                 task={task}
                                 playbook={playbook}
                                 skillColor={skillColor}
-                                ioState={ioByTaskId.get(task.id)}
                                 onClick={
                                   editMode
                                     ? undefined
-                                    : () => setSelectedTaskId(task.id)
+                                    : () => {
+                                        // Mini cells live in collapsed rows or
+                                        // columns. Clicking the avatar expands
+                                        // them back to full size first; the
+                                        // user has to click again on the full
+                                        // card to open the drawer. Avoids the
+                                        // surprise of a drawer popping over a
+                                        // collapsed row/column.
+                                        if (isSkillCollapsed) {
+                                          toggleSkillCollapsed(skill.id);
+                                        }
+                                        if (isStageCollapsed) {
+                                          toggleStageCollapsed(stage.id);
+                                        }
+                                      }
                                 }
                               />
                             </div>
@@ -962,16 +1025,6 @@ export function ProcessMatrix({
                                 ioState={ioByTaskId.get(task.id)}
                                 onClick={
                                   editMode
-                                    ? undefined
-                                    : () => setSelectedTaskId(task.id)
-                                }
-                                onStatusChange={
-                                  editMode
-                                    ? undefined
-                                    : (next) => handleStatusChange(task.id, next)
-                                }
-                                onEdit={
-                                  editMode
                                     ? () =>
                                         setAddTaskFor({
                                           mode: "edit",
@@ -984,9 +1037,15 @@ export function ProcessMatrix({
                                             playbookId: task.playbookId ?? null,
                                             notes: task.notes ?? "",
                                             owners: task.owners ?? [],
+                                            inputs: task.inputs ?? [],
                                           },
                                         })
-                                    : undefined
+                                    : () => setSelectedTaskId(task.id)
+                                }
+                                onStatusChange={
+                                  editMode
+                                    ? undefined
+                                    : (next) => handleStatusChange(task.id, next)
                                 }
                                 onRemove={
                                   editMode ? () => setConfirmDeleteTask(task) : undefined
@@ -1031,6 +1090,7 @@ export function ProcessMatrix({
               hoveredTaskId={hoveredTaskId}
               outputGroups={outputGroups}
               taskIO={instance.taskIO}
+              collapseKey={`${collapsed ? "1" : "0"}|${[...collapsedStageIds].sort().join(",")}|${[...collapsedSkillIds].sort().join(",")}`}
             />
           ) : null}
         </div>
@@ -1043,19 +1103,40 @@ export function ProcessMatrix({
         skills={skills}
         template={template}
         playbookOptions={playbookOptions}
+        frameworkSkills={skillOptions}
+        outputGroups={outputGroups}
         onClose={() => setSelectedTaskId(null)}
         onTaskUpdate={handleTaskUpdate}
       />
 
       {addTaskFor ? (
-        <AddPlaybookModal
+        <AddPlaybookDrawer
           mode={addTaskFor.mode}
           skillId={addTaskFor.skillId}
           skillLabel={addTaskFor.skillLabel}
+          skillColor={resolveSkillColor(addTaskFor.skillId, skillOptions)}
           stageId={addTaskFor.stageId}
           stageName={addTaskFor.stageName}
           playbooks={playbookOptions}
           initial={addTaskFor.initial}
+          upstreamTaskOptions={localTasks
+            .filter((t) => t.id !== addTaskFor.taskId)
+            .map((t) => {
+              const taskSkill = skills.find((s) => s.id === t.skillId);
+              const taskStage = stages.find((s) => s.id === t.stageId);
+              const label = [
+                taskSkill?.label ?? t.skillId,
+                taskStage?.label ?? t.stageId,
+              ]
+                .filter(Boolean)
+                .join(" · ");
+              return {
+                id: t.id,
+                label,
+                playbookId: t.playbookId ?? null,
+              };
+            })}
+          outputGroups={outputGroups}
           onClose={() => setAddTaskFor(null)}
           onSubmit={(input) => {
             const target = addTaskFor;
@@ -1069,6 +1150,7 @@ export function ProcessMatrix({
                         playbookId: input.playbookId,
                         notes: input.notes,
                         owners: input.owners,
+                        inputs: input.inputs,
                       }
                     : task,
                 ),
@@ -1091,7 +1173,7 @@ export function ProcessMatrix({
               status: "not_started",
               substatus: "",
               checkpoint: false,
-              inputs: [],
+              inputs: input.inputs,
               playbookId: input.playbookId,
               owners: input.owners,
               createdAt: now,
@@ -1236,13 +1318,11 @@ function MiniTaskCell({
   task,
   playbook,
   skillColor,
-  ioState,
   onClick,
 }: {
   task: WorkflowTask;
   playbook: FrameworkItem | null;
   skillColor: string;
-  ioState?: TaskIOSummary;
   onClick?: () => void;
 }) {
   const title = playbook?.name ?? (task.playbookId ? "Playbook removed" : "No playbook");
@@ -1265,7 +1345,6 @@ function MiniTaskCell({
         : 1;
   const statusLabel = TASK_STATUS_LABEL[task.status];
   const statusClass = TASK_STATUS_PILL_CLASS[task.status];
-  const aggregateIo = aggregateIoStatus(ioState);
   return (
     <button
       type="button"
@@ -1308,14 +1387,6 @@ function MiniTaskCell({
           label={title}
           size="xs"
         />
-        {aggregateIo ? (
-          <span
-            className="mx-mini-cell-io-dot"
-            data-testid={`task-mini-io-${task.id}`}
-            data-io-status={aggregateIo}
-            aria-label={`Outputs ${aggregateIo}`}
-          />
-        ) : null}
         <FloatingHoverTooltip
           name={title}
           sub={statusLabel}
@@ -1335,18 +1406,6 @@ function MiniTaskCell({
  *   - "pending" — at least one output remains pending (none failed yet)
  *   - null      — the task has no declared outputs (don't render a dot)
  */
-function aggregateIoStatus(
-  io: TaskIOSummary | undefined,
-): "ok" | "err" | "pending" | null {
-  if (!io || io.outputs.length === 0) return null;
-  let allProduced = true;
-  for (const output of io.outputs) {
-    if (output.status === "failed") return "err";
-    if (output.status !== "produced") allProduced = false;
-  }
-  return allProduced ? "ok" : "pending";
-}
-
 /**
  * Hover tooltip portaled to `document.body` so it can paint above the
  * matrix scroll wrap (`overflow: auto`) without being clipped. Anchors to

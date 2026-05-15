@@ -22,3 +22,4 @@ settings.local.json
 
 # Editor / agent local config
 .cursor/
+.claude/worktrees/

@@ -1,15 +1,19 @@
 "use client";
 
-import { Plus } from "lucide-react";
+import { useState } from "react";
+import { Check, ChevronRight, Plus } from "lucide-react";
 
 import { cn } from "@/lib/utils";
+
+type UserOverride = "expanded" | "collapsed" | null;
 import type {
   PlaybookOutput,
+  PlaybookOutputKind,
   TaskOutput,
   WorkflowTaskStatus,
 } from "@/lib/workflows/types";
 
-import { IORow, type IORowChip, type IORowState } from "./io-row";
+import { IORow, type IORowAvatar, type IORowState } from "./io-row";
 
 export interface OutputsSectionProps {
   status: WorkflowTaskStatus;
@@ -17,14 +21,29 @@ export interface OutputsSectionProps {
   outputStates: TaskOutput[];
   dimmed: boolean;
   busy: boolean;
+  /** True until the drawer has fetched its data the first time. Drives the
+   *  skeleton rows so the section doesn't render an empty "No outputs"
+   *  message and then jump to real rows when the fetch resolves. */
+  loading?: boolean;
   onProduce: (outputId: string) => void;
   onAddOutput?: () => void;
 }
 
-function chipFor(def: PlaybookOutput): { chip: IORowChip; chipLabel: string } {
+/** Visual encoding per output kind: emoji + ring color the avatar uses
+ *  in place of the previous text chip. Each kind gets a distinct hue so
+ *  the row reads at a glance without leaning on the emoji alone. */
+const KIND_AVATAR: Record<PlaybookOutputKind, { emoji: string; color: string }> = {
+  file: { emoji: "📎", color: "#3b82f6" },   // blue — documents
+  media: { emoji: "🎬", color: "#a855f7" },  // violet — rich media
+  link: { emoji: "🔗", color: "#06b6d4" },   // cyan — URLs / web
+  api: { emoji: "🔌", color: "#10b981" },    // emerald — integrations
+  manual: { emoji: "✏️", color: "#f59e0b" }, // amber — human action
+};
+
+function avatarFor(def: PlaybookOutput): IORowAvatar {
   const kind = def.kind ?? "manual";
-  const label = kind === "manual" ? "manual" : kind;
-  return { chip: kind, chipLabel: label };
+  const { emoji, color } = KIND_AVATAR[kind];
+  return { emoji, color, label: `${kind} output` };
 }
 
 function stateFor(taskState: TaskOutput | undefined): IORowState {
@@ -41,6 +60,7 @@ export function OutputsSection({
   outputStates,
   dimmed,
   busy,
+  loading = false,
   onProduce,
   onAddOutput,
 }: OutputsSectionProps) {
@@ -50,6 +70,16 @@ export function OutputsSection({
     (def) => stateById.get(def.id)?.status === "produced",
   ).length;
   const isComplete = status === "complete";
+  const allDone = total > 0 && done === total;
+  const isEmpty = total === 0 && !loading;
+
+  // Auto-collapse once the task is complete, or when no outputs are declared
+  // at all — there's nothing to act on, so the section starts folded. User
+  // override sticks for both directions.
+  const [userOverride, setUserOverride] = useState<UserOverride>(null);
+  const collapsed =
+    userOverride === "collapsed" ||
+    (userOverride === null && (isComplete || isEmpty));
 
   return (
     <section
@@ -61,15 +91,37 @@ export function OutputsSection({
       )}
       data-testid="pb-drawer-outputs-section"
       data-complete={isComplete}
+      data-collapsed={collapsed}
     >
       <div className="pb-drawer-sec__head">
-        <div className="pb-drawer-sec__lbl">
-          Outputs{" "}
-          <span className="pb-drawer-sec__count">
-            {done} / {total}
+        <button
+          type="button"
+          className="pb-drawer-sec__toggle"
+          onClick={() => setUserOverride(collapsed ? "expanded" : "collapsed")}
+          aria-expanded={!collapsed}
+          data-testid="pb-drawer-outputs-toggle"
+        >
+          <ChevronRight
+            size={12}
+            className={cn(
+              "pb-drawer-sec__chev",
+              !collapsed && "pb-drawer-sec__chev--open",
+            )}
+            aria-hidden
+          />
+          <span className="pb-drawer-sec__lbl">
+            Outputs{" "}
+            <span className="pb-drawer-sec__count">
+              {done} / {total}
+            </span>
+            {allDone ? (
+              <span className="pb-drawer-sec__done" aria-hidden>
+                <Check size={11} strokeWidth={2.5} />
+              </span>
+            ) : null}
           </span>
-        </div>
-        {onAddOutput ? (
+        </button>
+        {onAddOutput && !collapsed ? (
           <button
             type="button"
             className="pb-drawer-sec__action"
@@ -80,36 +132,59 @@ export function OutputsSection({
           </button>
         ) : null}
       </div>
-      <div className="pb-drawer-io-list">
-        {outputDefs.length === 0 ? (
-          <div className="pb-drawer-io-empty" data-testid="pb-drawer-outputs-empty">
-            No outputs declared on this playbook.
-          </div>
-        ) : (
-          outputDefs.map((def) => {
-            const taskState = stateById.get(def.id);
-            const state = stateFor(taskState);
-            const { chip, chipLabel } = chipFor(def);
-            return (
-              <IORow
-                key={def.id}
-                kind="output"
-                name={def.name}
-                chip={chip}
-                chipLabel={chipLabel}
-                state={state}
-                dimmed={dimmed}
-                onAction={
-                  state !== "received" && !busy
-                    ? () => onProduce(def.id)
-                    : undefined
-                }
-                testId={`pb-drawer-output-${def.id}`}
-              />
-            );
-          })
-        )}
-      </div>
+      {!collapsed ? (
+        <div className="pb-drawer-io-list">
+          {loading && outputDefs.length === 0 ? (
+            <OutputsSkeleton />
+          ) : outputDefs.length === 0 ? (
+            <div className="pb-drawer-io-empty" data-testid="pb-drawer-outputs-empty">
+              No outputs declared on this playbook.
+            </div>
+          ) : (
+            outputDefs.map((def) => {
+              const taskState = stateById.get(def.id);
+              const state = stateFor(taskState);
+              return (
+                <IORow
+                  key={def.id}
+                  kind="output"
+                  primaryLabel={def.name}
+                  secondaryLabel={def.description ?? undefined}
+                  avatar={avatarFor(def)}
+                  state={state}
+                  dimmed={dimmed}
+                  onAction={
+                    state !== "received" && !busy
+                      ? () => onProduce(def.id)
+                      : undefined
+                  }
+                  testId={`pb-drawer-output-${def.id}`}
+                />
+              );
+            })
+          )}
+        </div>
+      ) : null}
     </section>
+  );
+}
+
+/** Two pulsing placeholder rows that match the real `IORow` footprint —
+ *  avatar circle + 2-line label + meta column — so the section doesn't
+ *  shift when the fetched outputs paint over them. */
+function OutputsSkeleton() {
+  return (
+    <div data-testid="pb-drawer-outputs-skeleton" aria-hidden>
+      {[0, 1].map((i) => (
+        <div key={i} className="pb-drawer-io-row pb-drawer-io-row--skeleton">
+          <div className="pb-drawer-io-skel-avatar" />
+          <div className="pb-drawer-io-main">
+            <div className="pb-drawer-io-skel-line pb-drawer-io-skel-line--name" />
+            <div className="pb-drawer-io-skel-line pb-drawer-io-skel-line--sub" />
+          </div>
+          <div className="pb-drawer-io-skel-action" />
+        </div>
+      ))}
+    </div>
   );
 }

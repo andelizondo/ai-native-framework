@@ -3,7 +3,6 @@
 import { useEffect, useId, useRef, useState } from "react";
 import { ArrowRight, Loader2 } from "lucide-react";
 
-import { ColorDotPicker } from "@/components/framework/color-dot-picker";
 import { CompactEmojiPicker } from "@/components/framework/compact-emoji-picker";
 import { fallbackColorForId } from "@/lib/workflows/skill-colors";
 
@@ -173,7 +172,12 @@ export function FrameworkItemModal({
         </label>
         <div className="flex items-center gap-2">
           {showAvatarPickers ? (
-            <CompactEmojiPicker value={icon} color={color} onSelect={setIcon} />
+            <CompactEmojiPicker
+              value={icon}
+              color={color}
+              onSelect={setIcon}
+              onColorChange={setColor}
+            />
           ) : null}
           <input
             id={nameId}
@@ -183,9 +187,6 @@ export function FrameworkItemModal({
             className="block w-full rounded-lg border border-border bg-bg-3 px-3 py-2.5 text-[13px] text-t1 placeholder:text-t3 focus:border-primary focus:outline-none"
             placeholder="Title"
           />
-          {showAvatarPickers ? (
-            <ColorDotPicker color={color} onChange={setColor} ariaLabel="Pick color" />
-          ) : null}
         </div>
 
         <label

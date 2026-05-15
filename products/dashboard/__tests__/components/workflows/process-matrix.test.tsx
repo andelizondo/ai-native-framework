@@ -206,8 +206,8 @@ describe("ProcessMatrix", () => {
       {
         taskId: "io-1",
         outputs: [
-          { id: "out-a", position: 0, status: "produced" },
-          { id: "out-b", position: 1, status: "pending" },
+          { id: "out-a", position: 0, status: "produced", name: "Output A" },
+          { id: "out-b", position: 1, status: "pending", name: "Output B" },
         ],
         hasUnmetLinkedInput: true,
       },
@@ -218,7 +218,6 @@ describe("ProcessMatrix", () => {
     expect(screen.getByTestId("task-pip-rail-io-1")).toBeInTheDocument();
     expect(screen.getByTestId("task-pip-io-1-out-a").dataset.status).toBe("produced");
     expect(screen.getByTestId("task-pip-io-1-out-b").dataset.status).toBe("pending");
-    expect(screen.getByTestId("task-unmet-input-io-1")).toBeInTheDocument();
   });
 
   it("toggles the role-collapsed class and hides labels when the toggle is pressed", async () => {

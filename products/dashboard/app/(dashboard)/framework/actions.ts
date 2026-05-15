@@ -39,6 +39,14 @@ function normalizeRequiredField(
   return normalized;
 }
 
+function normalizeOptionalText(
+  value: unknown,
+  maxLength: number,
+): string {
+  if (typeof value !== "string") return "";
+  return value.trim().slice(0, maxLength);
+}
+
 function normalizeType(type: FrameworkItemType): FrameworkItemType {
   if (type !== "skill" && type !== "playbook") {
     throw new Error(`Unsupported framework item type "${type}"`);
@@ -62,11 +70,7 @@ export async function upsertFrameworkItemAction(
     id: normalizeRequiredField(item.id, "Framework item id", 160),
     type,
     name: normalizeRequiredField(item.name, "Framework item name", MAX_NAME_LENGTH),
-    description: normalizeRequiredField(
-      item.description,
-      "Framework item description",
-      MAX_DESCRIPTION_LENGTH,
-    ),
+    description: normalizeOptionalText(item.description, MAX_DESCRIPTION_LENGTH),
     icon: item.icon?.trim() ? item.icon.trim().slice(0, 16) : null,
     color: typeof item.color === "string" && item.color.trim() ? item.color.trim().slice(0, 32) : null,
     content: typeof item.content === "string" ? item.content : "",
