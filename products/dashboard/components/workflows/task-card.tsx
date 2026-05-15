@@ -386,7 +386,10 @@ export function StatusBadgePopover({
 
   // Position the portaled popover above the trigger using viewport coords.
   // The trigger's position is captured once on open and on scroll/resize so
-  // the popover follows when the matrix scrolls underneath it.
+  // the popover follows when the matrix scrolls underneath it. Falls back
+  // to opening *below* the trigger when there isn't enough headroom — the
+  // drawer header sits right against the top of the viewport, and the
+  // status chip there had nowhere to render.
   useLayoutEffect(() => {
     if (!open) {
       setPosition(null);
@@ -398,10 +401,11 @@ export function StatusBadgePopover({
       if (!trigger) return;
       const rect = trigger.getBoundingClientRect();
       const popoverHeight = popover?.getBoundingClientRect().height ?? 220;
-      setPosition({
-        left: rect.left,
-        top: rect.top - popoverHeight - 6,
-      });
+      const gap = 6;
+      const topAbove = rect.top - popoverHeight - gap;
+      const overflowsTop = topAbove < gap;
+      const top = overflowsTop ? rect.bottom + gap : topAbove;
+      setPosition({ left: rect.left, top });
     }
     measure();
     window.addEventListener("scroll", measure, true);

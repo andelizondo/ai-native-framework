@@ -658,7 +658,10 @@
 }
 .tc-popover {
   position: absolute;
-  z-index: 50;
+  /* Sits above the playbook drawer (z=60) and the AddPlaybookDrawer aside
+   * (z=70) so the portaled status / owners dropdowns render in front when
+   * triggered from inside a drawer. */
+  z-index: 80;
   bottom: calc(100% + 6px);
   left: 0;
   min-width: 168px;
