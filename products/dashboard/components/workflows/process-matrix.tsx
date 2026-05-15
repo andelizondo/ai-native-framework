@@ -64,6 +64,7 @@ import type {
   FrameworkItem,
   TaskIOSummary,
   TemplateOutputGroup,
+  WorkflowInput,
   WorkflowInstanceDetail,
   WorkflowSkill,
   WorkflowStage,
@@ -187,6 +188,7 @@ export function ProcessMatrix({
       playbookId?: string | null;
       notes?: string;
       owners?: string[];
+      inputs?: WorkflowInput[];
     };
   } | null>(null);
   const [confirmDeleteTask, setConfirmDeleteTask] = useState<WorkflowTask | null>(
@@ -419,10 +421,14 @@ export function ProcessMatrix({
             (saved.owners ?? []).some(
               (value, index) => value !== (task.owners ?? [])[index],
             );
+          const inputsChanged =
+            JSON.stringify(saved.inputs ?? []) !==
+            JSON.stringify(task.inputs ?? []);
           if (
             saved.notes !== task.notes ||
             saved.playbookId !== task.playbookId ||
-            ownersChanged
+            ownersChanged ||
+            inputsChanged
           ) {
             toUpdate.push(task);
           }
@@ -465,6 +471,7 @@ export function ProcessMatrix({
             playbookId: task.playbookId,
             notes: task.notes,
             owners: task.owners,
+            inputs: task.inputs,
           });
           finalById.set(result.task.id, result.task);
         }
@@ -1040,6 +1047,7 @@ export function ProcessMatrix({
                                             playbookId: task.playbookId ?? null,
                                             notes: task.notes ?? "",
                                             owners: task.owners ?? [],
+                                            inputs: task.inputs ?? [],
                                           },
                                         })
                                     : undefined
@@ -1114,6 +1122,24 @@ export function ProcessMatrix({
           stageName={addTaskFor.stageName}
           playbooks={playbookOptions}
           initial={addTaskFor.initial}
+          upstreamTaskOptions={localTasks
+            .filter((t) => t.id !== addTaskFor.taskId)
+            .map((t) => {
+              const taskSkill = skills.find((s) => s.id === t.skillId);
+              const taskStage = stages.find((s) => s.id === t.stageId);
+              const label = [
+                taskSkill?.label ?? t.skillId,
+                taskStage?.label ?? t.stageId,
+              ]
+                .filter(Boolean)
+                .join(" · ");
+              return {
+                id: t.id,
+                label,
+                playbookId: t.playbookId ?? null,
+              };
+            })}
+          outputGroups={outputGroups}
           onClose={() => setAddTaskFor(null)}
           onSubmit={(input) => {
             const target = addTaskFor;
@@ -1127,6 +1153,7 @@ export function ProcessMatrix({
                         playbookId: input.playbookId,
                         notes: input.notes,
                         owners: input.owners,
+                        inputs: input.inputs,
                       }
                     : task,
                 ),
@@ -1149,7 +1176,7 @@ export function ProcessMatrix({
               status: "not_started",
               substatus: "",
               checkpoint: false,
-              inputs: [],
+              inputs: input.inputs,
               playbookId: input.playbookId,
               owners: input.owners,
               createdAt: now,

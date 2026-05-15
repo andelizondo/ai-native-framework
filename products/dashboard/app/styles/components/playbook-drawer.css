@@ -592,6 +592,9 @@
   white-space: nowrap;
 }
 .pb-drawer-io-action {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
   font-size: 10.5px;
   color: var(--t3);
   background: none;

@@ -39,7 +39,7 @@ const ACTION_LABEL: Record<IORowKind, Record<IORowState, string | null>> = {
   },
   output: {
     received: "View",
-    pending: "Attach",
+    pending: "Done",
     failed: "Retry",
     bypass: "Skipped",
   },
@@ -111,6 +111,9 @@ export function IORow({
             onClick={onAction}
             data-testid={testId ? `${testId}-action` : undefined}
           >
+            {kind === "output" && state === "pending" ? (
+              <Check size={11} strokeWidth={2.5} aria-hidden />
+            ) : null}
             {actionLabel}
           </button>
         ) : null}
