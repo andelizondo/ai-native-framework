@@ -62,6 +62,7 @@ import type {
 import { cn } from "@/lib/utils";
 
 import { TaskCard } from "./task-card";
+import { WiringOverlay } from "./wiring-overlay";
 
 interface TemplateEditorScreenProps {
   template: WorkflowTemplate;
@@ -332,6 +333,17 @@ export function TemplateEditorScreen({
   );
 
   const [dragTaskId, setDragTaskId] = useState<string | null>(null);
+  const [hoveredTaskId, setHoveredTaskId] = useState<string | null>(null);
+  const matrixRef = useRef<HTMLDivElement | null>(null);
+
+  // Synthetic WorkflowTask[] for the wiring overlay. The overlay reads only
+  // `id`, `inputs[]`, and `playbookId` to derive edges; in templates every
+  // task classifies as `dormant` flow (no live status) which renders only on
+  // hover — matching the instance-view behavior the user expects.
+  const derivedWiringTasks = useMemo<WorkflowTask[]>(
+    () => draft.taskTemplates.map(templateTaskToCard),
+    [draft.taskTemplates],
+  );
 
   const dragAllowedSkillIds = useMemo<Set<string> | null>(() => {
     if (!dragTaskId?.startsWith("task::")) return null;
@@ -635,7 +647,11 @@ export function TemplateEditorScreen({
           onDragEnd={handleDragEnd}
           onDragCancel={handleDragCancel}
         >
-        <div className="matrix inline-block min-w-full">
+        <div
+          ref={matrixRef}
+          className="matrix inline-block min-w-full"
+          style={{ position: "relative" }}
+        >
           <div className="matrix-head-row" role="row">
             <div className="mx-corner" role="columnheader">
               <span className="flex-1">Skills</span>
@@ -889,6 +905,15 @@ export function TemplateEditorScreen({
                       <DraggableTemplateTask
                         taskId={`task::${templateTask.id ?? task.id}`}
                         isActive={dragTaskId === `task::${templateTask.id ?? task.id}`}
+                        dataTaskId={templateTask.id ?? task.id}
+                        onHoverStart={() =>
+                          setHoveredTaskId(templateTask.id ?? task.id)
+                        }
+                        onHoverEnd={() =>
+                          setHoveredTaskId((current) =>
+                            current === (templateTask.id ?? task.id) ? null : current,
+                          )
+                        }
                       >
                         <TaskCard
                           task={task}
@@ -977,6 +1002,12 @@ export function TemplateEditorScreen({
                 </SortableMatrixItem>
               ))}
             </SortableContext>
+          <WiringOverlay
+            containerRef={matrixRef}
+            tasks={derivedWiringTasks}
+            hoveredTaskId={hoveredTaskId}
+            outputGroups={outputGroups}
+          />
         </div>
         </DndContext>
       </div>
@@ -1114,10 +1145,16 @@ export function TemplateEditorScreen({
 function DraggableTemplateTask({
   taskId,
   isActive,
+  dataTaskId,
+  onHoverStart,
+  onHoverEnd,
   children,
 }: {
   taskId: string;
   isActive: boolean;
+  dataTaskId?: string;
+  onHoverStart?: () => void;
+  onHoverEnd?: () => void;
   children: React.ReactNode;
 }) {
   const { attributes, listeners, setNodeRef, transform } = useDraggable({
@@ -1133,7 +1170,15 @@ function DraggableTemplateTask({
   };
 
   return (
-    <div ref={setNodeRef} style={style} {...attributes} {...listeners}>
+    <div
+      ref={setNodeRef}
+      style={style}
+      data-task-id={dataTaskId}
+      onMouseEnter={onHoverStart}
+      onMouseLeave={onHoverEnd}
+      {...attributes}
+      {...listeners}
+    >
       {children}
     </div>
   );
