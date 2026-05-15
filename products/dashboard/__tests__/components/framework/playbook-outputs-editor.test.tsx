@@ -34,6 +34,14 @@ const fixture = (overrides: Partial<PlaybookOutput> = {}): PlaybookOutput => ({
   ...overrides,
 });
 
+/** Open the inline-edit name input for a given row testid by clicking
+ *  the read-mode button rendered by `InlineEditableText`. */
+async function focusName(user: ReturnType<typeof userEvent.setup>, rowId: string) {
+  const row = screen.getByTestId(`playbook-output-row-${rowId}`);
+  await user.click(within(row).getByRole("button", { name: /edit output name/i }));
+  return within(row).getByLabelText("Output name") as HTMLInputElement;
+}
+
 describe("PlaybookOutputsEditor", () => {
   beforeEach(() => {
     listMock.mockReset();
@@ -48,12 +56,15 @@ describe("PlaybookOutputsEditor", () => {
     renderWithToast(
       <PlaybookOutputsEditor
         playbookId="pb-presales"
-        initialOutputs={[fixture(), fixture({ id: "po-2", name: "deck", kind: "media", position: 1 })]}
+        initialOutputs={[
+          fixture(),
+          fixture({ id: "po-2", name: "deck", kind: "media", position: 1 }),
+        ]}
       />,
     );
 
-    expect(screen.getByTestId("playbook-output-name-view-po-1")).toHaveTextContent("report");
-    expect(screen.getByTestId("playbook-output-name-view-po-2")).toHaveTextContent("deck");
+    expect(screen.getByText("report")).toBeInTheDocument();
+    expect(screen.getByText("deck")).toBeInTheDocument();
     expect(listMock).not.toHaveBeenCalled();
   });
 
@@ -63,9 +74,7 @@ describe("PlaybookOutputsEditor", () => {
     renderWithToast(<PlaybookOutputsEditor playbookId="pb-presales" />);
 
     await waitFor(() => expect(listMock).toHaveBeenCalledWith("pb-presales"));
-    expect(
-      await screen.findByTestId("playbook-output-name-view-po-1"),
-    ).toHaveTextContent("report");
+    expect(await screen.findByText("report")).toBeInTheDocument();
   });
 
   it("adds a new output via createPlaybookOutputAction", async () => {
@@ -81,11 +90,19 @@ describe("PlaybookOutputsEditor", () => {
     await user.click(screen.getByTestId("playbook-outputs-add"));
 
     const newRow = screen.getAllByRole("listitem").at(-1)!;
-    const nameInput = within(newRow).getByLabelText("Output name");
+    // Type the name into the inline-editable field.
+    await user.click(within(newRow).getByRole("button", { name: /edit output name/i }));
+    const nameInput = within(newRow).getByLabelText("Output name") as HTMLInputElement;
     await user.type(nameInput, "summary");
+    await user.tab(); // commit via blur
 
-    const kindSelect = within(newRow).getByLabelText("Output kind");
-    await user.selectOptions(kindSelect, "manual");
+    // Change kind from the default ("file") to "manual" via the avatar picker.
+    await user.click(
+      within(newRow).getByRole("button", { name: /output kind/i }),
+    );
+    await user.click(
+      within(newRow).getByRole("option", { name: /manual/i }),
+    );
 
     await user.click(within(newRow).getByRole("button", { name: "Add" }));
 
@@ -108,10 +125,10 @@ describe("PlaybookOutputsEditor", () => {
       <PlaybookOutputsEditor playbookId="pb-presales" initialOutputs={[fixture()]} />,
     );
 
-    await user.click(screen.getByTestId("playbook-output-edit-po-1"));
-    const nameInput = screen.getByDisplayValue("report");
+    const nameInput = await focusName(user, "po-1");
     await user.clear(nameInput);
     await user.type(nameInput, "report-v2");
+    await user.tab(); // commit
 
     await user.click(screen.getByRole("button", { name: "Save" }));
 
@@ -135,15 +152,13 @@ describe("PlaybookOutputsEditor", () => {
       />,
     );
 
-    await user.click(screen.getByTestId("playbook-output-edit-po-2"));
-    const deckInput = screen.getByDisplayValue("deck");
+    const deckInput = await focusName(user, "po-2");
     await user.clear(deckInput);
     await user.type(deckInput, "report");
+    await user.tab();
 
-    const saveButton = within(deckInput.closest("li")!).getByRole("button", {
-      name: "Save",
-    });
-    await user.click(saveButton);
+    const row = screen.getByTestId("playbook-output-row-po-2");
+    await user.click(within(row).getByRole("button", { name: "Save" }));
 
     expect(updateMock).not.toHaveBeenCalled();
     expect(
@@ -161,9 +176,7 @@ describe("PlaybookOutputsEditor", () => {
 
     await user.click(screen.getByTestId("playbook-output-delete-po-1"));
 
-    await waitFor(() =>
-      expect(countMock).toHaveBeenCalledWith("po-1"),
-    );
+    await waitFor(() => expect(countMock).toHaveBeenCalledWith("po-1"));
     const impact = await screen.findByTestId("playbook-outputs-delete-impact");
     expect(impact).toHaveTextContent(/3 task output rows/i);
   });
@@ -178,8 +191,9 @@ describe("PlaybookOutputsEditor", () => {
     await user.click(screen.getByTestId("playbook-outputs-add"));
     const rows = screen.getAllByRole("listitem");
     const pendingRow = rows.at(-1)!;
-    const pendingDelete = within(pendingRow).getByRole("button", { name: "Delete" });
-    await user.click(pendingDelete);
+    await user.click(
+      within(pendingRow).getByRole("button", { name: /delete output/i }),
+    );
 
     expect(deleteMock).not.toHaveBeenCalled();
     expect(screen.getAllByRole("listitem")).toHaveLength(1);
