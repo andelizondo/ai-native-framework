@@ -6,7 +6,6 @@ import {
   AlertTriangle,
   Check,
   CircleAlert,
-  Pencil,
   StickyNote,
   Trash2,
   UserRound,
@@ -41,7 +40,6 @@ export interface TaskCardProps {
   /** Opens the Task Drawer for this card. */
   onClick?: () => void;
   editMode?: boolean;
-  onEdit?: () => void;
   onRemove?: () => void;
   /** Render the card in template-editor mode: the status pill becomes a
    *  neutral "Default" badge (template tasks don't have a runtime status)
@@ -64,7 +62,6 @@ export function TaskCard({
   barState,
   onClick,
   editMode = false,
-  onEdit,
   onRemove,
   templateView = false,
   onStatusChange,
@@ -75,7 +72,7 @@ export function TaskCard({
 
   const title = playbook?.name ?? (task.playbookId ? "Playbook removed" : "No playbook");
   const owners = task.owners ?? [];
-  const showActions = editMode && (Boolean(onEdit) || Boolean(onRemove));
+  const showActions = editMode && Boolean(onRemove);
 
   return (
     <div
@@ -106,55 +103,21 @@ export function TaskCard({
       aria-label={onClick ? `Open playbook: ${title}` : undefined}
     >
       <div className="tc-title">{title}</div>
-      {/* Pip rail is always rendered so the status pill below sits on a
-       *  stable baseline whether or not the linked playbook declares any
-       *  outputs yet. When there's nothing to show we keep the row's
-       *  height empty (no pips, no aria role) so it reads as plain padding
-       *  to screen readers. */}
-      {ioState && ioState.outputs.length > 0 ? (
-        <div
-          className="tc-pip-rail"
-          role="list"
-          aria-label="Outputs progress"
-          data-testid={`task-pip-rail-${task.id}`}
-        >
-          {ioState.outputs.map((output) => (
-            <span
-              key={output.id}
-              role="listitem"
-              className="group/tc-pip tc-pip"
-              data-status={output.status}
-              data-testid={`task-pip-${task.id}-${output.id}`}
-              aria-label={`Output ${output.position + 1}: ${output.name} (${output.status})`}
-            >
-              <span role="tooltip" className="tc-pip-tooltip">
-                {output.name}
-              </span>
-            </span>
-          ))}
-        </div>
-      ) : (
-        <div className="tc-pip-rail tc-pip-rail-empty" aria-hidden />
-      )}
       <div className="tc-status-row">
-        {templateView ? (
-          <div
-            className="s-pill s-default"
-            data-testid={`task-status-${task.id}`}
-          >
-            <span className="s-text">Default</span>
-          </div>
-        ) : onStatusChange ? (
-          <StatusBadgePopover
-            status={task.status}
-            onChange={onStatusChange}
-            taskId={task.id}
-          />
-        ) : (
-          <div className={cn("s-pill", statusClass)} data-testid={`task-status-${task.id}`}>
-            <div className="s-text">{statusLabel}</div>
-          </div>
-        )}
+        <div
+          className="tc-owners"
+          onClick={(event) => event.stopPropagation()}
+        >
+          {owners.length > 0 ? (
+            <OwnerAvatarStack
+              labels={owners}
+              size="xs"
+              testIdSuffix={`task-${task.id}`}
+            />
+          ) : (
+            <EmptyOwnerAvatar taskId={task.id} />
+          )}
+        </div>
         <div className="tc-info-badges">
           {task.notes ? (
             <InfoBadge
@@ -196,36 +159,36 @@ export function TaskCard({
       </div>
       <div className="tc-bottom">
         <div
-          className="tc-bottom-left"
+          className="tc-bottom-status"
           onClick={(event) => event.stopPropagation()}
         >
-          {owners.length > 0 ? (
-            <OwnerAvatarStack
-              labels={owners}
-              size="xs"
-              testIdSuffix={`task-${task.id}`}
+          {templateView ? (
+            <div
+              className="s-pill s-default"
+              data-testid={`task-status-${task.id}`}
+            >
+              <span className="s-text">Default</span>
+            </div>
+          ) : onStatusChange ? (
+            <StatusBadgePopover
+              status={task.status}
+              onChange={onStatusChange}
+              taskId={task.id}
             />
           ) : (
-            <EmptyOwnerAvatar taskId={task.id} />
+            <div className={cn("s-pill", statusClass)} data-testid={`task-status-${task.id}`}>
+              <div className="s-text">{statusLabel}</div>
+            </div>
           )}
         </div>
-        {showActions ? (
-          <div className="tc-actions mx-entity-actions mx-entity-actions-group">
-            {onEdit ? (
-              <button
-                type="button"
-                className="mx-entity-action"
-                aria-label={`Edit playbook: ${title}`}
-                title={`Edit ${title}`}
-                onClick={(event) => {
-                  event.stopPropagation();
-                  onEdit();
-                }}
-              >
-                <Pencil aria-hidden size={11} strokeWidth={2.1} />
-              </button>
-            ) : null}
-            {onRemove ? (
+        <div className="tc-bottom-right">
+          <PipRail
+            outputs={ioState?.outputs ?? []}
+            testIdPrefix={`task-pip-${task.id}`}
+            railTestId={`task-pip-rail-${task.id}`}
+          />
+          {showActions && onRemove ? (
+            <div className="tc-actions mx-entity-actions mx-entity-actions-group">
               <button
                 type="button"
                 className="mx-entity-action mx-entity-action-danger"
@@ -238,11 +201,55 @@ export function TaskCard({
               >
                 <Trash2 aria-hidden size={11} strokeWidth={2.1} />
               </button>
-            ) : null}
-          </div>
-        ) : null}
+            </div>
+          ) : null}
+        </div>
       </div>
     </div>
+  );
+}
+
+export interface PipRailOutput {
+  id: string;
+  name: string;
+  position: number;
+  status: string;
+}
+
+export function PipRail({
+  outputs,
+  testIdPrefix,
+  railTestId,
+}: {
+  outputs: readonly PipRailOutput[];
+  testIdPrefix?: string;
+  railTestId?: string;
+}) {
+  if (outputs.length === 0) {
+    return <span className="tc-pip-rail tc-pip-rail-empty" aria-hidden />;
+  }
+  return (
+    <span
+      className="tc-pip-rail"
+      role="list"
+      aria-label="Outputs progress"
+      data-testid={railTestId}
+    >
+      {outputs.map((output) => (
+        <span
+          key={output.id}
+          role="listitem"
+          className="group/tc-pip tc-pip"
+          data-status={output.status}
+          data-testid={testIdPrefix ? `${testIdPrefix}-${output.id}` : undefined}
+          aria-label={`Output ${output.position + 1}: ${output.name} (${output.status})`}
+        >
+          <span role="tooltip" className="tc-pip-tooltip">
+            {output.name}
+          </span>
+        </span>
+      ))}
+    </span>
   );
 }
 
@@ -276,7 +283,7 @@ function formatCompletionTimestamp(iso: string): string {
   });
 }
 
-function InfoBadge({
+export function InfoBadge({
   tone,
   icon: Icon,
   header,

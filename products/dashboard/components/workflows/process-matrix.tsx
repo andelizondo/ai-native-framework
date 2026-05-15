@@ -1025,16 +1025,6 @@ export function ProcessMatrix({
                                 ioState={ioByTaskId.get(task.id)}
                                 onClick={
                                   editMode
-                                    ? undefined
-                                    : () => setSelectedTaskId(task.id)
-                                }
-                                onStatusChange={
-                                  editMode
-                                    ? undefined
-                                    : (next) => handleStatusChange(task.id, next)
-                                }
-                                onEdit={
-                                  editMode
                                     ? () =>
                                         setAddTaskFor({
                                           mode: "edit",
@@ -1050,7 +1040,12 @@ export function ProcessMatrix({
                                             inputs: task.inputs ?? [],
                                           },
                                         })
-                                    : undefined
+                                    : () => setSelectedTaskId(task.id)
+                                }
+                                onStatusChange={
+                                  editMode
+                                    ? undefined
+                                    : (next) => handleStatusChange(task.id, next)
                                 }
                                 onRemove={
                                   editMode ? () => setConfirmDeleteTask(task) : undefined
@@ -1108,6 +1103,7 @@ export function ProcessMatrix({
         skills={skills}
         template={template}
         playbookOptions={playbookOptions}
+        frameworkSkills={skillOptions}
         outputGroups={outputGroups}
         onClose={() => setSelectedTaskId(null)}
         onTaskUpdate={handleTaskUpdate}
@@ -1118,6 +1114,7 @@ export function ProcessMatrix({
           mode={addTaskFor.mode}
           skillId={addTaskFor.skillId}
           skillLabel={addTaskFor.skillLabel}
+          skillColor={resolveSkillColor(addTaskFor.skillId, skillOptions)}
           stageId={addTaskFor.stageId}
           stageName={addTaskFor.stageName}
           playbooks={playbookOptions}

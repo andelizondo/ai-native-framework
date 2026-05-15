@@ -498,8 +498,8 @@
   align-items: center;
   gap: 7px;
   /* Locked height keeps the row stable while task cards are dragged in/out.
-   * Card height = 132px + cell padding (7×2) + breathing → 148px. */
-  height: 148px;
+   * Card height = 120px + cell padding (7×2) + breathing → 136px. */
+  height: 136px;
   overflow: visible;
   /* Match the cell transition timing so role + body cells collapse together
    * (otherwise the row header lags and a 1-frame gap shows mid-collapse). */
@@ -625,10 +625,10 @@
   padding: 7px;
   border-right: 1px solid var(--border-2);
   /* Locked height matches `.mx-role-cell` so the row stays a stable
-   * rectangle while task cards drag in/out. The card itself is 132px
+   * rectangle while task cards drag in/out. The card itself is 120px
    * (set in task-card.css); cell padding 7×2 = 14, plus 2px breathing →
-   * 148px. */
-  height: 148px;
+   * 136px. */
+  height: 136px;
   background: var(--bg);
   /* Animate height + width + padding so row/column collapse/expand reads
    * as a smooth fold rather than an instant snap. Hover background keeps

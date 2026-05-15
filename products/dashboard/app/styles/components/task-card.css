@@ -3,11 +3,12 @@
  * template-mode vs. instance-mode renders sit on identical pixel boundaries
  * (the pip rail is now reserved in both modes — empty slots when no task
  * outputs exist yet — so toggling Customize never makes the row jump). The
- * card stacks: title (2 lines reserved) → pip rail (8px) → status row (22px)
- * → divider → owners row (22px), plus 8px top + 8px bottom padding. */
+ * card stacks: title (2 lines reserved) → owners row (22px) → divider →
+ * status row (22px, with pip rail + actions inline), plus 8px top + 8px
+ * bottom padding. */
 .task-card {
   width: 100%;
-  height: 132px;
+  height: 120px;
   padding: 8px 12px 8px 14px;
   border-radius: 7px;
   border: 1px solid var(--border);
@@ -208,20 +209,19 @@
    * the ellipsis. */
   max-height: calc(1.3em * 2);
 }
-/* Output pip rail (PR 4 / AEL-62). Sits between the title and the status
- * row. One pip per declared `playbook_outputs` row, sorted by position. The
- * rail itself only mounts when the parent passes `ioState` with at least one
- * output, so the template editor (which has no IO) keeps its prior layout. */
+/* Output pip rail (PR 4 / AEL-62). Renders inline next to the status pill
+ * in the card's bottom row, or in the drawer's status section. One pip per
+ * declared `playbook_outputs` row, sorted by position. The empty rail still
+ * mounts so neighboring elements sit on a stable baseline whether or not
+ * the linked playbook has declared any outputs yet. */
 .tc-pip-rail {
-  display: flex;
+  display: inline-flex;
   align-items: center;
   gap: 3px;
-  /* Fixed height (matches the larger 7px pip + a hair of room) reserved on
-   * every card, even when the linked playbook has no declared outputs yet —
-   * keeps the status pill below on a stable baseline whether or not the
-   * rail has anything to show. */
-  height: 8px;
-  margin-top: 2px;
+  height: 22px;
+}
+.tc-pip-rail-empty {
+  width: 0;
 }
 .tc-pip {
   position: relative;
@@ -251,8 +251,11 @@
   pointer-events: none;
   position: absolute;
   bottom: calc(100% + 6px);
-  left: 50%;
-  transform: translateX(-50%);
+  /* Right-anchor so long output names extend leftward from the pip; both
+   * the card's bottom row and the drawer's status section keep pips
+   * right-aligned in their container, so leftward growth keeps the
+   * tooltip inside its viewport. */
+  right: -4px;
   z-index: 60;
   white-space: nowrap;
   padding: 3px 7px;
@@ -275,18 +278,36 @@
   align-items: center;
   justify-content: space-between;
   gap: 6px;
-  /* Lock the row to the pill height so the status pill, info badges and
-   * default chip line up on a shared 22px baseline; without this the
-   * row's intrinsic height fluctuates when no badges are present. */
+  /* Lock the row to the avatar/badge height so owners and info badges
+   * line up on a shared 22px baseline whether or not badges are present. */
   min-height: 22px;
   margin-top: 2px;
 }
+/* Owners sit on the left side of the info-badge row. The 22px height
+ * matches both `OwnerAvatarStack` (xs) and `EmptyOwnerAvatar` so the row
+ * keeps a stable footprint. */
+.tc-owners {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 22px;
+  min-width: 0;
+}
+.tc-owners > [data-testid^="owners-stack-task-"] {
+  margin-left: 0;
+}
 /* Optical-alignment nudge: the status pill's 9999px radius pushes its
  * visible content inward from the pill's actual left edge. Pull the pill
- * left so its label sits closer to the card's left padding line. */
-.tc-status-row > .s-pill,
-.tc-status-row > .tc-status-wrap {
+ * in the bottom row left so its label sits closer to the card's left
+ * padding line. */
+.tc-bottom-status > .s-pill,
+.tc-bottom-status > .tc-status-wrap {
   margin-left: -4px;
+}
+.tc-bottom-status {
+  display: inline-flex;
+  align-items: center;
+  min-width: 0;
 }
 /* Template-mode "Default" pill — neutral grey treatment so it reads as
  * a placeholder where a runtime status will eventually live. */
@@ -392,19 +413,6 @@
 .group\/tc-info:focus-within .tc-info-badge-popover {
   opacity: 1;
 }
-.tc-bottom-left {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  min-width: 0;
-}
-/* `OwnerAvatarStack` ships with `ml-2` to space itself from a sibling
- * label in the owner picker; inside the task-card footer there's no such
- * label, so the 8px shoves the stack out of alignment with the title and
- * status pill above. Reset it here. */
-.tc-bottom-left > [data-testid^="owners-stack-task-"] {
-  margin-left: 0;
-}
 /* Empty-owner placeholder. Renders in the read-only mode whenever a card
  * has no owners on its linked playbook so the row's left side never sits
  * "blank" — the dashed circle reads as an absence rather than as
@@ -464,6 +472,12 @@
    * the same height in view and edit mode and the avatars don't jump
    * when the edit/delete buttons mount. */
   min-height: 33px;
+}
+.tc-bottom-right {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
 }
 .tc-actions {
   display: inline-flex;

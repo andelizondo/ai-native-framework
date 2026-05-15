@@ -907,7 +907,7 @@ export function TemplateEditorScreen({
                             })),
                             hasUnmetLinkedInput: false,
                           }}
-                          onEdit={() =>
+                          onClick={() =>
                             setAddTaskFor({
                               mode: "edit",
                               taskId: templateTask.id,
@@ -1013,6 +1013,7 @@ export function TemplateEditorScreen({
           mode={addTaskFor.mode}
           skillId={addTaskFor.skillId}
           skillLabel={addTaskFor.skillLabel}
+          skillColor={resolveSkillColor(addTaskFor.skillId, skillOptions)}
           stageId={addTaskFor.stageId}
           stageName={addTaskFor.stageName}
           playbooks={playbookOptions}
