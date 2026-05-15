@@ -1,5 +1,25 @@
 # Changelog
 
+## [0.24.0](https://github.com/andelizondo/ai-native-framework/compare/v0.23.0...v0.24.0) (2026-05-15)
+
+
+### Features
+
+* **dashboard:** focus-on-active matrix + wiring polish + drawer status menu (AEL-66) ([e02f3a6](https://github.com/andelizondo/ai-native-framework/commit/e02f3a67a08dd5c128292e8901a76131f063f885))
+* **dashboard:** input wiring picker (AEL-64) ([e02f3a6](https://github.com/andelizondo/ai-native-framework/commit/e02f3a67a08dd5c128292e8901a76131f063f885))
+* **dashboard:** matrix card pips + unmet-input glyph (AEL-62) ([e02f3a6](https://github.com/andelizondo/ai-native-framework/commit/e02f3a67a08dd5c128292e8901a76131f063f885))
+* **dashboard:** matrix cards + playbook drawer redesign polish ([e02f3a6](https://github.com/andelizondo/ai-native-framework/commit/e02f3a67a08dd5c128292e8901a76131f063f885))
+* **dashboard:** outputs schema + 7-state status enum (AEL-60) ([e02f3a6](https://github.com/andelizondo/ai-native-framework/commit/e02f3a67a08dd5c128292e8901a76131f063f885))
+* **dashboard:** playbook drawer + dissolve agent-run-panel (AEL-61) ([e02f3a6](https://github.com/andelizondo/ai-native-framework/commit/e02f3a67a08dd5c128292e8901a76131f063f885))
+* **dashboard:** playbook outputs editor (AEL-63) ([e02f3a6](https://github.com/andelizondo/ai-native-framework/commit/e02f3a67a08dd5c128292e8901a76131f063f885))
+* **dashboard:** wiring SVG + cleanup pass (AEL-65) ([e02f3a6](https://github.com/andelizondo/ai-native-framework/commit/e02f3a67a08dd5c128292e8901a76131f063f885))
+
+
+### Bug Fixes
+
+* **dashboard:** remap upstreamTaskRef on instance creation ([e02f3a6](https://github.com/andelizondo/ai-native-framework/commit/e02f3a67a08dd5c128292e8901a76131f063f885))
+* **dashboard:** restore matrix task-card status tints + glow for 7-state taxonomy ([e02f3a6](https://github.com/andelizondo/ai-native-framework/commit/e02f3a67a08dd5c128292e8901a76131f063f885))
+
 ## [0.23.0](https://github.com/andelizondo/ai-native-framework/compare/v0.22.1...v0.23.0) (2026-05-04)
 
 
