@@ -5,11 +5,12 @@ import { Plus } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type {
   PlaybookOutput,
+  PlaybookOutputKind,
   TaskOutput,
   WorkflowTaskStatus,
 } from "@/lib/workflows/types";
 
-import { IORow, type IORowChip, type IORowState } from "./io-row";
+import { IORow, type IORowAvatar, type IORowState } from "./io-row";
 
 export interface OutputsSectionProps {
   status: WorkflowTaskStatus;
@@ -17,14 +18,29 @@ export interface OutputsSectionProps {
   outputStates: TaskOutput[];
   dimmed: boolean;
   busy: boolean;
+  /** True until the drawer has fetched its data the first time. Drives the
+   *  skeleton rows so the section doesn't render an empty "No outputs"
+   *  message and then jump to real rows when the fetch resolves. */
+  loading?: boolean;
   onProduce: (outputId: string) => void;
   onAddOutput?: () => void;
 }
 
-function chipFor(def: PlaybookOutput): { chip: IORowChip; chipLabel: string } {
+/** Visual encoding per output kind: emoji + ring color the avatar uses
+ *  in place of the previous text chip. Colors mirror the chip palette
+ *  so the kind reads the same way at a glance. */
+const KIND_AVATAR: Record<PlaybookOutputKind, { emoji: string; color: string }> = {
+  file: { emoji: "📎", color: "var(--pill-active-d)" },
+  media: { emoji: "🎬", color: "var(--pill-active-d)" },
+  link: { emoji: "🔗", color: "var(--pill-active-d)" },
+  api: { emoji: "🔌", color: "var(--pill-complete-d)" },
+  manual: { emoji: "✏️", color: "var(--t3)" },
+};
+
+function avatarFor(def: PlaybookOutput): IORowAvatar {
   const kind = def.kind ?? "manual";
-  const label = kind === "manual" ? "manual" : kind;
-  return { chip: kind, chipLabel: label };
+  const { emoji, color } = KIND_AVATAR[kind];
+  return { emoji, color, label: `${kind} output` };
 }
 
 function stateFor(taskState: TaskOutput | undefined): IORowState {
@@ -41,6 +57,7 @@ export function OutputsSection({
   outputStates,
   dimmed,
   busy,
+  loading = false,
   onProduce,
   onAddOutput,
 }: OutputsSectionProps) {
@@ -81,7 +98,9 @@ export function OutputsSection({
         ) : null}
       </div>
       <div className="pb-drawer-io-list">
-        {outputDefs.length === 0 ? (
+        {loading && outputDefs.length === 0 ? (
+          <OutputsSkeleton />
+        ) : outputDefs.length === 0 ? (
           <div className="pb-drawer-io-empty" data-testid="pb-drawer-outputs-empty">
             No outputs declared on this playbook.
           </div>
@@ -89,14 +108,13 @@ export function OutputsSection({
           outputDefs.map((def) => {
             const taskState = stateById.get(def.id);
             const state = stateFor(taskState);
-            const { chip, chipLabel } = chipFor(def);
             return (
               <IORow
                 key={def.id}
                 kind="output"
-                name={def.name}
-                chip={chip}
-                chipLabel={chipLabel}
+                primaryLabel={def.name}
+                secondaryLabel={def.description ?? undefined}
+                avatar={avatarFor(def)}
                 state={state}
                 dimmed={dimmed}
                 onAction={
@@ -111,5 +129,25 @@ export function OutputsSection({
         )}
       </div>
     </section>
+  );
+}
+
+/** Two pulsing placeholder rows that match the real `IORow` footprint —
+ *  avatar circle + 2-line label + meta column — so the section doesn't
+ *  shift when the fetched outputs paint over them. */
+function OutputsSkeleton() {
+  return (
+    <div data-testid="pb-drawer-outputs-skeleton" aria-hidden>
+      {[0, 1].map((i) => (
+        <div key={i} className="pb-drawer-io-row pb-drawer-io-row--skeleton">
+          <div className="pb-drawer-io-skel-avatar" />
+          <div className="pb-drawer-io-main">
+            <div className="pb-drawer-io-skel-line pb-drawer-io-skel-line--name" />
+            <div className="pb-drawer-io-skel-line pb-drawer-io-skel-line--sub" />
+          </div>
+          <div className="pb-drawer-io-skel-action" />
+        </div>
+      ))}
+    </div>
   );
 }

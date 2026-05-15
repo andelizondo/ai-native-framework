@@ -340,6 +340,7 @@ export function PlaybookDrawer({
             inputDefs={activeTask.inputs}
             inputStates={inputStates}
             outputGroups={outputGroups}
+            playbookOptions={playbookOptions}
             dimmed={isInputsDimmed}
             busy={busy}
             onMarkReceived={handleMarkReceived}
@@ -351,6 +352,7 @@ export function PlaybookDrawer({
             outputStates={drawerData.data?.outputs ?? []}
             dimmed={isOutputsDimmed}
             busy={busy}
+            loading={drawerData.data === null}
             onProduce={handleProduce}
           />
 

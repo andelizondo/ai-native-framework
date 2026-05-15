@@ -489,6 +489,48 @@
 .pb-drawer-io-row--dimmed {
   opacity: 0.45;
 }
+/* Skeleton placeholder — same footprint as the real row so the section
+ * doesn't reflow when async data lands. */
+.pb-drawer-io-row--skeleton {
+  pointer-events: none;
+}
+.pb-drawer-io-row--skeleton:not(:last-child) {
+  margin-bottom: 4px;
+}
+.pb-drawer-io-skel-avatar {
+  width: 26px;
+  height: 26px;
+  border-radius: 9999px;
+  background: var(--bg-3);
+  flex-shrink: 0;
+  animation: pb-drawer-io-skel-pulse 1.2s ease-in-out infinite;
+}
+.pb-drawer-io-skel-line {
+  height: 10px;
+  border-radius: 4px;
+  background: var(--bg-3);
+  animation: pb-drawer-io-skel-pulse 1.2s ease-in-out infinite;
+}
+.pb-drawer-io-skel-line--name {
+  width: 55%;
+}
+.pb-drawer-io-skel-line--sub {
+  width: 75%;
+  margin-top: 6px;
+  height: 8px;
+}
+.pb-drawer-io-skel-action {
+  width: 56px;
+  height: 22px;
+  border-radius: 5px;
+  background: var(--bg-3);
+  flex-shrink: 0;
+  animation: pb-drawer-io-skel-pulse 1.2s ease-in-out infinite;
+}
+@keyframes pb-drawer-io-skel-pulse {
+  0%, 100% { opacity: 0.55; }
+  50% { opacity: 0.85; }
+}
 .pb-drawer-io-check {
   width: 18px;
   height: 18px;
@@ -524,23 +566,23 @@
 .pb-drawer-io-name {
   font-size: 12.5px;
   color: var(--t1);
-  font-weight: 500;
+  font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 .pb-drawer-io-name--checked {
   text-decoration: line-through;
   color: var(--t3);
   text-decoration-color: var(--t4);
 }
-.pb-drawer-io-source {
-  font-size: 10.5px;
+.pb-drawer-io-sub {
+  font-size: 11px;
   color: var(--t3);
   margin-top: 2px;
-  display: flex;
-  align-items: center;
-  gap: 4px;
-}
-.pb-drawer-io-source span {
-  color: var(--accent);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 .pb-drawer-io-meta {
   display: flex;
@@ -548,39 +590,6 @@
   gap: 6px;
   flex-shrink: 0;
   white-space: nowrap;
-}
-.pb-drawer-io-chip {
-  font-size: 10px;
-  padding: 2px 7px;
-  border-radius: 99px;
-  border: 1px solid var(--border);
-  background: var(--surface);
-  color: var(--t3);
-  font-weight: 500;
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  white-space: nowrap;
-  flex-shrink: 0;
-}
-.pb-drawer-io-chip--linked {
-  color: var(--pill-active-t);
-  background: var(--pill-active-bg);
-  border-color: color-mix(in srgb, var(--info) 35%, transparent);
-}
-.pb-drawer-io-chip--bypass {
-  color: var(--t4);
-  font-style: italic;
-}
-.pb-drawer-io-chip--api {
-  color: var(--pill-complete-t);
-  background: var(--pill-complete-bg);
-  border-color: color-mix(in srgb, var(--ok) 35%, transparent);
-}
-.pb-drawer-io-chip--file {
-  color: var(--pill-active-t);
-  background: var(--pill-active-bg);
-  border-color: color-mix(in srgb, var(--info) 35%, transparent);
 }
 .pb-drawer-io-action {
   font-size: 10.5px;

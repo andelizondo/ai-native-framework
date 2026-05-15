@@ -3,14 +3,16 @@
 import { useMemo, useState } from "react";
 import { Check, ChevronRight, Plus } from "lucide-react";
 
+import { resolveItemColor } from "@/lib/workflows/skill-colors";
 import { cn } from "@/lib/utils";
 import type {
+  FrameworkItem,
   TaskInputState,
   TemplateOutputGroup,
   WorkflowInput,
 } from "@/lib/workflows/types";
 
-import { IORow, type IORowChip, type IORowState } from "./io-row";
+import { IORow, type IORowState } from "./io-row";
 
 export interface InputsSectionProps {
   inputDefs: WorkflowInput[];
@@ -18,6 +20,9 @@ export interface InputsSectionProps {
   /** Cross-playbook output catalog for the template — used to derive a
    *  readable "{playbookName} / {outputName}" label for linked inputs. */
   outputGroups?: TemplateOutputGroup[];
+  /** Playbook catalog — used to resolve the upstream playbook's emoji + color
+   *  for the linked-input avatar. */
+  playbookOptions?: FrameworkItem[];
   dimmed: boolean;
   busy: boolean;
   onMarkReceived: (inputId: string) => void;
@@ -25,25 +30,10 @@ export interface InputsSectionProps {
 }
 
 interface OutputLookup {
-  byOutputId: Map<string, { playbookName: string; outputName: string }>;
-}
-
-function chipFor(input: WorkflowInput): { chip: IORowChip; chipLabel: string } {
-  if (input.linkMode === "linked") return { chip: "linked", chipLabel: "linked" };
-  if (input.linkMode === "bypass") return { chip: "bypass", chipLabel: "bypass" };
-  return { chip: "manual", chipLabel: "manual" };
-}
-
-/** Display name. For linked inputs with a known upstream output, render
- *  `"{playbookName} / {outputName}"` (mirrors the popup picker chip). Falls
- *  back to the stored `input.name`, or "Input" if that's the raw UUID slug. */
-function displayNameFor(input: WorkflowInput, lookup: OutputLookup): string {
-  if (input.linkMode === "linked" && input.upstreamOutputId) {
-    const match = lookup.byOutputId.get(input.upstreamOutputId);
-    if (match) return `${match.playbookName} / ${match.outputName}`;
-  }
-  if (input.name && !input.name.startsWith("inp-")) return input.name;
-  return "Input";
+  byOutputId: Map<
+    string,
+    { playbookId: string; playbookName: string; outputName: string }
+  >;
 }
 
 function stateFor(input: WorkflowInput, taskState: TaskInputState | undefined): IORowState {
@@ -56,6 +46,7 @@ export function InputsSection({
   inputDefs,
   inputStates,
   outputGroups = [],
+  playbookOptions = [],
   dimmed,
   busy,
   onMarkReceived,
@@ -65,11 +56,12 @@ export function InputsSection({
   const lookup = useMemo<OutputLookup>(() => {
     const byOutputId = new Map<
       string,
-      { playbookName: string; outputName: string }
+      { playbookId: string; playbookName: string; outputName: string }
     >();
     for (const group of outputGroups) {
       for (const output of group.outputs) {
         byOutputId.set(output.id, {
+          playbookId: group.playbookId,
           playbookName: group.playbookName,
           outputName: output.name,
         });
@@ -77,6 +69,10 @@ export function InputsSection({
     }
     return { byOutputId };
   }, [outputGroups]);
+  const playbookById = useMemo(
+    () => new Map(playbookOptions.map((pb) => [pb.id, pb])),
+    [playbookOptions],
+  );
   const linkedDefs = inputDefs.filter((i) => i.linkMode === "linked");
   const totalLinked = linkedDefs.length;
   const receivedLinked = linkedDefs.filter(
@@ -154,15 +150,33 @@ export function InputsSection({
               inputDefs.map((input) => {
                 const taskState = stateById.get(input.id);
                 const state = stateFor(input, taskState);
-                const { chip, chipLabel } = chipFor(input);
-                const displayName = displayNameFor(input, lookup);
+                const linkedMatch =
+                  input.linkMode === "linked" && input.upstreamOutputId
+                    ? lookup.byOutputId.get(input.upstreamOutputId)
+                    : undefined;
+                const upstreamPlaybook = linkedMatch
+                  ? playbookById.get(linkedMatch.playbookId)
+                  : undefined;
+                const primaryLabel = linkedMatch
+                  ? linkedMatch.playbookName
+                  : input.name && !input.name.startsWith("inp-")
+                    ? input.name
+                    : "Input";
+                const secondaryLabel = linkedMatch?.outputName;
+                const avatar = upstreamPlaybook
+                  ? {
+                      emoji: upstreamPlaybook.icon,
+                      color: resolveItemColor(upstreamPlaybook),
+                      label: upstreamPlaybook.name,
+                    }
+                  : undefined;
                 return (
                   <IORow
                     key={input.id}
                     kind="input"
-                    name={displayName}
-                    chip={chip}
-                    chipLabel={chipLabel}
+                    primaryLabel={primaryLabel}
+                    secondaryLabel={secondaryLabel}
+                    avatar={avatar}
                     state={state}
                     dimmed={dimmed}
                     onAction={

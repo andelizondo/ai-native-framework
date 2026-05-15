@@ -2,20 +2,29 @@
 
 import { Check, X } from "lucide-react";
 
+import { ItemAvatar } from "@/components/framework/item-avatar";
 import { cn } from "@/lib/utils";
 
 export type IORowKind = "input" | "output";
-export type IORowChip = "linked" | "manual" | "bypass" | "file" | "media" | "link" | "api";
 export type IORowState = "received" | "pending" | "failed" | "bypass";
+
+export interface IORowAvatar {
+  emoji?: string | null;
+  color: string;
+  label: string;
+}
 
 export interface IORowProps {
   kind: IORowKind;
-  name: string;
-  chip: IORowChip;
-  chipLabel: string;
+  /** Bold top-line label. For linked inputs this is the upstream playbook
+   *  name; for outputs and unlinked inputs this is the I/O name itself. */
+  primaryLabel: string;
+  /** Optional second line (e.g. the upstream output name on linked inputs,
+   *  the description on outputs). */
+  secondaryLabel?: string;
+  /** Avatar for the upstream playbook (linked inputs) or output kind (outputs). */
+  avatar?: IORowAvatar;
   state: IORowState;
-  /** Optional source label shown under unmet inputs (e.g. upstream task name). */
-  sourceLabel?: string;
   dimmed?: boolean;
   onAction?: () => void;
   testId?: string;
@@ -38,25 +47,17 @@ const ACTION_LABEL: Record<IORowKind, Record<IORowState, string | null>> = {
 
 export function IORow({
   kind,
-  name,
-  chip,
-  chipLabel,
+  primaryLabel,
+  secondaryLabel,
+  avatar,
   state,
-  sourceLabel,
   dimmed = false,
   onAction,
   testId,
 }: IORowProps) {
-  const checkClass =
-    state === "received"
-      ? "checked"
-      : state === "failed"
-        ? "failed"
-        : state === "bypass"
-          ? "bypass"
-          : "";
   const actionLabel = ACTION_LABEL[kind][state];
   const isReceived = state === "received";
+  const isFailed = state === "failed";
 
   return (
     <div
@@ -65,29 +66,44 @@ export function IORow({
       data-kind={kind}
       data-state={state}
     >
-      <div className={cn("pb-drawer-io-check", checkClass && `pb-drawer-io-check--${checkClass}`)}>
-        {state === "received" ? (
-          <Check size={11} strokeWidth={2.5} aria-hidden />
-        ) : state === "failed" ? (
-          <X size={10} strokeWidth={2.5} aria-hidden />
-        ) : null}
-      </div>
+      {avatar ? (
+        <ItemAvatar
+          emoji={avatar.emoji}
+          color={avatar.color}
+          label={avatar.label}
+          size="sm"
+        />
+      ) : (
+        <div
+          className={cn(
+            "pb-drawer-io-check",
+            isReceived && "pb-drawer-io-check--checked",
+            isFailed && "pb-drawer-io-check--failed",
+            state === "bypass" && "pb-drawer-io-check--bypass",
+          )}
+          aria-hidden
+        >
+          {isReceived ? (
+            <Check size={11} strokeWidth={2.5} />
+          ) : isFailed ? (
+            <X size={10} strokeWidth={2.5} />
+          ) : null}
+        </div>
+      )}
       <div className="pb-drawer-io-main">
         <div
           className={cn(
             "pb-drawer-io-name",
-            isReceived && kind === "input" && "pb-drawer-io-name--checked",
-            isReceived && kind === "output" && "pb-drawer-io-name--checked",
+            isReceived && "pb-drawer-io-name--checked",
           )}
         >
-          {name}
+          {primaryLabel}
         </div>
-        {sourceLabel ? (
-          <div className="pb-drawer-io-source">⤴ from <span>{sourceLabel}</span></div>
+        {secondaryLabel ? (
+          <div className="pb-drawer-io-sub">{secondaryLabel}</div>
         ) : null}
       </div>
       <div className="pb-drawer-io-meta">
-        <span className={cn("pb-drawer-io-chip", `pb-drawer-io-chip--${chip}`)}>{chipLabel}</span>
         {actionLabel && onAction ? (
           <button
             type="button"
