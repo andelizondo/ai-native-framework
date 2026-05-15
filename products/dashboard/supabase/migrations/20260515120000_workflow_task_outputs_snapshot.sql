@@ -79,7 +79,7 @@ update public.workflow_templates wt
                          ) order by po.position asc
                        )
                   from public.playbook_outputs po
-                 where po.playbook_id = (task_def ->> 'playbookId')::uuid
+                 where po.playbook_id = (task_def ->> 'playbookId')
               ), '[]'::jsonb)
             )
             else task_def
