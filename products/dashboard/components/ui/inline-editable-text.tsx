@@ -96,7 +96,7 @@ export function InlineEditableText({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isEditing, multiline]);
 
-  function beginEdit(event?: ReactMouseEvent<HTMLButtonElement>) {
+  function beginEdit(event?: ReactMouseEvent<HTMLElement>) {
     if (event) {
       pendingCaretRef.current = caretOffsetFromPoint(event.clientX, event.clientY);
       const rect = event.currentTarget.getBoundingClientRect();
@@ -134,6 +134,13 @@ export function InlineEditableText({
     }
   }
 
+  // Visual underline used in edit mode. Drawn with `inset box-shadow`
+  // (not `border-bottom`) so it doesn't add to the element's box height
+  // in `border-box` — read mode and edit mode then share identical
+  // dimensions and toggling never shifts surrounding layout.
+  const editUnderline =
+    "shadow-[inset_0_-1px_0_var(--border)] focus:shadow-[inset_0_-1px_0_var(--border-hi)]";
+
   if (isEditing) {
     if (multiline) {
       return (
@@ -153,7 +160,8 @@ export function InlineEditableText({
           aria-label={ariaLabel}
           placeholder={placeholder}
           className={cn(
-            "block w-full resize-none bg-transparent border-0 border-b border-border p-0 outline-none focus:border-border-hi",
+            "block w-full resize-none bg-transparent border-0 p-0 outline-none",
+            editUnderline,
             className,
           )}
         />
@@ -173,25 +181,49 @@ export function InlineEditableText({
         // in the focus effect, so typing doesn't push neighboring
         // controls. Long text scrolls horizontally inside the input.
         className={cn(
-          "min-w-0 max-w-full bg-transparent border-0 border-b border-border p-0 outline-none focus:border-border-hi",
+          "min-w-0 max-w-full bg-transparent border-0 p-0 outline-none",
+          editUnderline,
           className,
         )}
       />
     );
   }
 
-  // Read-mode mirrors the input's box exactly: same border-b width (kept
-  // transparent so the line only appears on edit), same padding, same
-  // background — so toggling between read and edit doesn't shift the
-  // layout by even one pixel.
+  // Multiline read uses a div (with button semantics) instead of a real
+  // <button> element — buttons carry UA quirks (white-space, intrinsic
+  // sizing) that can wrap or stretch text differently from a plain <p>,
+  // which is what the original layout used.
+  if (multiline) {
+    return (
+      <div
+        role="button"
+        tabIndex={0}
+        onClick={(event) => beginEdit(event)}
+        onKeyDown={(event) => {
+          if (event.key === "Enter" || event.key === " ") {
+            event.preventDefault();
+            beginEdit();
+          }
+        }}
+        aria-label={`Edit ${ariaLabel}`}
+        className={cn(
+          "block w-full text-left cursor-text",
+          !value && "text-t3",
+          className,
+        )}
+      >
+        {value || placeholder || ""}
+      </div>
+    );
+  }
+
   return (
     <button
       type="button"
       onClick={(event) => beginEdit(event)}
       aria-label={`Edit ${ariaLabel}`}
       className={cn(
-        "block text-left bg-transparent border-0 border-b border-transparent p-0 cursor-text",
-        multiline ? "w-full" : "min-w-0 max-w-full truncate",
+        "block text-left bg-transparent border-0 p-0 cursor-text min-w-0 max-w-full truncate",
         !value && "text-t3",
         className,
       )}
