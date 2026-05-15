@@ -30,14 +30,14 @@ export interface OutputsSectionProps {
 }
 
 /** Visual encoding per output kind: emoji + ring color the avatar uses
- *  in place of the previous text chip. Colors mirror the chip palette
- *  so the kind reads the same way at a glance. */
+ *  in place of the previous text chip. Each kind gets a distinct hue so
+ *  the row reads at a glance without leaning on the emoji alone. */
 const KIND_AVATAR: Record<PlaybookOutputKind, { emoji: string; color: string }> = {
-  file: { emoji: "📎", color: "var(--pill-active-d)" },
-  media: { emoji: "🎬", color: "var(--pill-active-d)" },
-  link: { emoji: "🔗", color: "var(--pill-active-d)" },
-  api: { emoji: "🔌", color: "var(--pill-complete-d)" },
-  manual: { emoji: "✏️", color: "var(--t3)" },
+  file: { emoji: "📎", color: "#3b82f6" },   // blue — documents
+  media: { emoji: "🎬", color: "#a855f7" },  // violet — rich media
+  link: { emoji: "🔗", color: "#06b6d4" },   // cyan — URLs / web
+  api: { emoji: "🔌", color: "#10b981" },    // emerald — integrations
+  manual: { emoji: "✏️", color: "#f59e0b" }, // amber — human action
 };
 
 function avatarFor(def: PlaybookOutput): IORowAvatar {
