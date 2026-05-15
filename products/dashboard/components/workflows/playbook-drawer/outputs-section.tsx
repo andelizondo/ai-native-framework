@@ -4,11 +4,11 @@ import { useState } from "react";
 import { Check, ChevronRight, Plus } from "lucide-react";
 
 import { cn } from "@/lib/utils";
+import { outputKindAvatar, outputKindLabel } from "@/lib/workflows/output-kind";
 
 type UserOverride = "expanded" | "collapsed" | null;
 import type {
   PlaybookOutput,
-  PlaybookOutputKind,
   TaskOutput,
   WorkflowTaskStatus,
 } from "@/lib/workflows/types";
@@ -29,21 +29,9 @@ export interface OutputsSectionProps {
   onAddOutput?: () => void;
 }
 
-/** Visual encoding per output kind: emoji + ring color the avatar uses
- *  in place of the previous text chip. Each kind gets a distinct hue so
- *  the row reads at a glance without leaning on the emoji alone. */
-const KIND_AVATAR: Record<PlaybookOutputKind, { emoji: string; color: string }> = {
-  file: { emoji: "📎", color: "#3b82f6" },   // blue — documents
-  media: { emoji: "🎬", color: "#a855f7" },  // violet — rich media
-  link: { emoji: "🔗", color: "#06b6d4" },   // cyan — URLs / web
-  api: { emoji: "🔌", color: "#10b981" },    // emerald — integrations
-  manual: { emoji: "✏️", color: "#f59e0b" }, // amber — human action
-};
-
 function avatarFor(def: PlaybookOutput): IORowAvatar {
-  const kind = def.kind ?? "manual";
-  const { emoji, color } = KIND_AVATAR[kind];
-  return { emoji, color, label: `${kind} output` };
+  const { emoji, color } = outputKindAvatar(def.kind);
+  return { emoji, color, label: outputKindLabel(def) };
 }
 
 function stateFor(taskState: TaskOutput | undefined): IORowState {

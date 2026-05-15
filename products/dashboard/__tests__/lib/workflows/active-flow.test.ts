@@ -25,6 +25,7 @@ function task(over: Partial<WorkflowTask>): WorkflowTask {
     substatus: "",
     checkpoint: false,
     inputs: [],
+    outputs: [],
     playbookId: null,
     owners: [],
     createdAt: "2026-04-19T12:00:00Z",

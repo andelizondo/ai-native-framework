@@ -44,6 +44,14 @@
 .task-card.bar-ready::before {
   opacity: 0.5;
 }
+/* Waiting reuses `bar-locked` from `barClass()` so the card doesn't get the
+ * "ready to start" cue, but unlike a locked `not_started` card it IS started
+ * — it just can't proceed until an upstream input lands. The 10% opacity
+ * bar reads as grey/inert; bumping it here keeps the role color visible so
+ * the row's identity is preserved at a glance. */
+.task-card.s-waiting.bar-locked::before {
+  opacity: 0.55;
+}
 .task-card.bar-active::before {
   opacity: 1;
   box-shadow: 2px 0 8px var(--role-color);
@@ -99,8 +107,11 @@
 .task-card.bar-glow {
   --bar-glow-color: var(--role-color, var(--border));
 }
+/* Paused = "human is the bottleneck", not a hard error — share the amber
+ * pending palette with `waiting` so the eye reads it as awaiting attention,
+ * not as a failure. Failed stays in the red blocked palette. */
 .task-card.s-paused.bar-glow {
-  --bar-glow-color: var(--pill-blocked-d);
+  --bar-glow-color: var(--pill-pending-d);
 }
 .task-card.s-failed.bar-glow {
   --bar-glow-color: var(--pill-blocked-d);
@@ -156,7 +167,10 @@
 .task-card.s-running,
 .task-card.s-complete,
 .task-card.s-failed {
-  background: color-mix(in srgb, var(--card-wash, transparent) 5%, var(--bg-2));
+  /* 9% so the status tint stays readable even when the row's role color
+   * (the bar) clashes with the wash hue — at 5% the eye lost the amber on
+   * green-bar rows, which made same-status cards look inconsistent. */
+  background: color-mix(in srgb, var(--card-wash, transparent) 9%, var(--bg-2));
 }
 .task-card.s-waiting:hover,
 .task-card.s-paused:hover,
@@ -164,12 +178,12 @@
 .task-card.s-running:hover,
 .task-card.s-complete:hover,
 .task-card.s-failed:hover {
-  background: color-mix(in srgb, var(--card-wash, transparent) 8%, var(--bg-3));
+  background: color-mix(in srgb, var(--card-wash, transparent) 13%, var(--bg-3));
 }
-.task-card.s-waiting {
+.task-card.s-waiting,
+.task-card.s-paused {
   --card-wash: var(--pill-pending-d);
 }
-.task-card.s-paused,
 .task-card.s-failed {
   --card-wash: var(--pill-blocked-d);
 }
@@ -522,11 +536,11 @@
   background: var(--pill-active-bg);
   --pill-stroke: color-mix(in srgb, var(--pill-active-d) 30%, var(--border));
 }
-.s-waiting .s-pill {
+.s-waiting .s-pill,
+.s-paused .s-pill {
   background: var(--pill-pending-bg);
   --pill-stroke: color-mix(in srgb, var(--pill-pending-d) 30%, var(--border));
 }
-.s-paused .s-pill,
 .s-failed .s-pill {
   background: var(--pill-blocked-bg);
   --pill-stroke: color-mix(in srgb, var(--pill-blocked-d) 30%, var(--border));
@@ -572,10 +586,10 @@
 .s-running .s-text {
   color: var(--pill-active-t);
 }
-.s-waiting .s-text {
+.s-waiting .s-text,
+.s-paused .s-text {
   color: var(--pill-pending-t);
 }
-.s-paused .s-text,
 .s-failed .s-text {
   color: var(--pill-blocked-t);
 }
@@ -658,7 +672,10 @@
 }
 .tc-popover {
   position: absolute;
-  z-index: 50;
+  /* Sits above the playbook drawer (z=60) and the AddPlaybookDrawer aside
+   * (z=70) so the portaled status / owners dropdowns render in front when
+   * triggered from inside a drawer. */
+  z-index: 80;
   bottom: calc(100% + 6px);
   left: 0;
   min-width: 168px;

@@ -55,6 +55,7 @@ vi.mock("@/app/(dashboard)/workflows/actions", () => ({
 vi.mock("@/app/(dashboard)/framework/actions", () => ({
   upsertFrameworkItemAction: mockUpsertFrameworkItemAction,
   deleteFrameworkItemAction: vi.fn(),
+  listPlaybookOutputsAction: vi.fn(async () => []),
 }));
 
 vi.mock("@/lib/monitoring", () => ({
@@ -99,6 +100,7 @@ function task(overrides: Partial<WorkflowTask>): WorkflowTask {
     substatus: "",
     checkpoint: false,
     inputs: [],
+    outputs: [],
     playbookId: null,
     owners: [],
     createdAt: "2026-04-19T12:00:00Z",

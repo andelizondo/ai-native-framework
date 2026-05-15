@@ -84,6 +84,7 @@ function task(
     substatus: "",
     checkpoint: isPausedCheckpoint,
     inputs: [],
+    outputs: [],
     playbookId: null,
     owners: [],
     pausedReason: isPausedCheckpoint ? "checkpoint" : null,

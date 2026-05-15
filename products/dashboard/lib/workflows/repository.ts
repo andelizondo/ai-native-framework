@@ -62,6 +62,7 @@ interface WorkflowTaskRow {
   substatus: string;
   checkpoint: boolean;
   inputs: unknown;
+  outputs: unknown;
   playbook_id: string | null;
   owners: unknown;
   paused_reason: string | null;
@@ -252,6 +253,75 @@ function inputsToJsonb(inputs: WorkflowInput[]): unknown[] {
   }));
 }
 
+const VALID_OUTPUT_KINDS = new Set<PlaybookOutputKind>([
+  "file",
+  "media",
+  "link",
+  "manual",
+  "api",
+]);
+
+/** Read the per-task `outputs` JSONB column and coerce it into the canonical
+ *  `PlaybookOutput[]` shape. Tolerates rows authored before this column
+ *  existed (returns []) and rows that had stray extra keys. */
+function normalizeOutputsSnapshot(raw: unknown): PlaybookOutput[] {
+  return toJsonArray<Record<string, unknown>>(raw)
+    .map((item, index): PlaybookOutput | null => {
+      if (item == null || typeof item !== "object") return null;
+      const id = typeof item.id === "string" && item.id.trim() ? item.id.trim() : null;
+      if (!id) return null;
+      const playbookId =
+        typeof item.playbookId === "string" && item.playbookId.trim()
+          ? item.playbookId.trim()
+          : "";
+      const name = typeof item.name === "string" ? item.name : "";
+      const description =
+        typeof item.description === "string" ? item.description : null;
+      const kindCandidate = typeof item.kind === "string" ? item.kind : null;
+      const kind =
+        kindCandidate && VALID_OUTPUT_KINDS.has(kindCandidate as PlaybookOutputKind)
+          ? (kindCandidate as PlaybookOutputKind)
+          : null;
+      const apiCheck =
+        item.apiCheck && typeof item.apiCheck === "object" && !Array.isArray(item.apiCheck)
+          ? (item.apiCheck as Record<string, unknown>)
+          : null;
+      const position =
+        typeof item.position === "number" && Number.isFinite(item.position)
+          ? item.position
+          : index;
+      const createdAt =
+        typeof item.createdAt === "string" ? item.createdAt : new Date(0).toISOString();
+      return {
+        id,
+        playbookId,
+        name,
+        description,
+        kind,
+        apiCheck,
+        position,
+        createdAt,
+      };
+    })
+    .filter((value): value is PlaybookOutput => value !== null)
+    .sort((a, b) => a.position - b.position);
+}
+
+function outputsToJsonb(outputs: PlaybookOutput[]): unknown[] {
+  return outputs.map((output, index) => ({
+    id: output.id,
+    playbookId: output.playbookId,
+    name: output.name,
+    description: output.description ?? null,
+    kind: output.kind,
+    apiCheck: output.apiCheck ?? null,
+    // Re-stamp position from array order so reorder edits in the drawer
+    // persist without callers having to maintain `position` themselves.
+    position: index,
+    createdAt: output.createdAt,
+  }));
+}
+
 function mapTemplate(row: WorkflowTemplateRow): WorkflowTemplate {
   const taskTemplates = toJsonArray<WorkflowTaskTemplate>(row.task_templates).map(
     (task, index) => ({
@@ -300,6 +370,7 @@ function mapTask(row: WorkflowTaskRow): WorkflowTask {
     substatus: row.substatus,
     checkpoint: row.checkpoint,
     inputs: normalizeInputs(row.inputs),
+    outputs: normalizeOutputsSnapshot(row.outputs),
     playbookId: row.playbook_id,
     owners: toJsonArray<unknown>(row.owners)
       .filter((value): value is string => typeof value === "string" && value.trim().length > 0)
@@ -395,6 +466,7 @@ function patchToRow(patch: WorkflowTaskPatch): Record<string, unknown> {
   if (patch.substatus !== undefined) row.substatus = patch.substatus;
   if (patch.checkpoint !== undefined) row.checkpoint = patch.checkpoint;
   if (patch.inputs !== undefined) row.inputs = inputsToJsonb(patch.inputs);
+  if (patch.outputs !== undefined) row.outputs = outputsToJsonb(patch.outputs);
   if (patch.playbookId !== undefined) row.playbook_id = patch.playbookId;
   if (patch.owners !== undefined) row.owners = patch.owners;
   if (patch.pausedReason !== undefined) row.paused_reason = patch.pausedReason;
@@ -511,16 +583,25 @@ async function loadInstanceTaskIO(
 ): Promise<TaskIOSummary[]> {
   if (tasks.length === 0) return [];
   const taskIds = tasks.map((t) => t.id);
-  const playbookIds = Array.from(
-    new Set(tasks.map((t) => t.playbookId).filter((id): id is string => Boolean(id))),
+
+  // Snapshots are the source of truth for which outputs each task carries.
+  // Only fall back to live `playbook_outputs` for tasks whose snapshot is
+  // empty AND that have a playbook attached — handles legacy rows authored
+  // before the snapshot column existed.
+  const fallbackPlaybookIds = Array.from(
+    new Set(
+      tasks
+        .filter((t) => t.outputs.length === 0 && Boolean(t.playbookId))
+        .map((t) => t.playbookId as string),
+    ),
   );
 
   const [pbOutputsRes, taskOutputsRes, taskInputsRes] = await Promise.all([
-    playbookIds.length > 0
+    fallbackPlaybookIds.length > 0
       ? client
           .from("playbook_outputs")
           .select("*")
-          .in("playbook_id", playbookIds)
+          .in("playbook_id", fallbackPlaybookIds)
           .order("position", { ascending: true })
       : Promise.resolve({ data: [], error: null } as const),
     client.from("task_outputs").select("*").in("task_id", taskIds),
@@ -537,11 +618,11 @@ async function loadInstanceTaskIO(
     throw new WorkflowRepositoryError("loadInstanceTaskIO task_inputs failed", taskInputsRes.error);
   }
 
-  const pbOutputsByPlaybook = new Map<string, PlaybookOutputRow[]>();
+  const fallbackByPlaybook = new Map<string, PlaybookOutput[]>();
   for (const row of (pbOutputsRes.data ?? []) as PlaybookOutputRow[]) {
-    const list = pbOutputsByPlaybook.get(row.playbook_id) ?? [];
-    list.push(row);
-    pbOutputsByPlaybook.set(row.playbook_id, list);
+    const list = fallbackByPlaybook.get(row.playbook_id) ?? [];
+    list.push(mapPlaybookOutput(row));
+    fallbackByPlaybook.set(row.playbook_id, list);
   }
 
   const taskOutputByTaskAndOutput = new Map<string, TaskOutputRow>();
@@ -558,10 +639,13 @@ async function loadInstanceTaskIO(
   }
 
   return tasks.map((task) => {
-    const pbOutputs = task.playbookId
-      ? (pbOutputsByPlaybook.get(task.playbookId) ?? [])
-      : [];
-    const outputs = pbOutputs
+    const taskOutputs =
+      task.outputs.length > 0
+        ? task.outputs
+        : task.playbookId
+          ? (fallbackByPlaybook.get(task.playbookId) ?? [])
+          : [];
+    const outputs = taskOutputs
       .slice()
       .sort((a, b) => a.position - b.position)
       .map((po) => {
@@ -812,6 +896,7 @@ export function createWorkflowRepository(
             substatus: "",
             checkpoint: tpl.checkpoint ?? false,
             inputs: inputsToJsonb(tpl.inputs ?? []),
+            outputs: outputsToJsonb(tpl.outputs ?? []),
             playbook_id: tpl.playbookId ?? null,
             owners: tpl.owners ?? [],
           }),
@@ -929,6 +1014,7 @@ export function createWorkflowRepository(
           substatus: "",
           checkpoint: input.checkpoint ?? false,
           inputs: inputsToJsonb(input.inputs ?? []),
+          outputs: outputsToJsonb(input.outputs ?? []),
           playbook_id: input.playbookId ?? null,
           owners: input.owners ?? [],
         })
@@ -1162,8 +1248,12 @@ export function createWorkflowRepository(
         throw new WorkflowRepositoryError("getDrawerData outputs failed", outputsRes.error);
       }
 
-      let playbookOutputs: PlaybookOutput[] = [];
-      if (task.playbookId) {
+      // Per-task snapshot is the source of truth. Fall back to the live
+      // playbook_outputs only when the snapshot is empty AND the task is
+      // wired to a playbook — covers any rows authored before the snapshot
+      // backfill (or manual SQL inserts that skip outputs).
+      let playbookOutputs: PlaybookOutput[] = task.outputs;
+      if (playbookOutputs.length === 0 && task.playbookId) {
         const { data: poRows, error: poErr } = await client
           .from("playbook_outputs")
           .select("*")
@@ -1266,45 +1356,62 @@ export function createWorkflowRepository(
       }
       if (!templateRow) return [];
 
-      const taskTemplates = toJsonArray<{ playbookId?: unknown }>(
-        (templateRow as { task_templates: unknown }).task_templates,
-      );
-      const playbookIds = Array.from(
-        new Set(
-          taskTemplates
-            .map((task) =>
-              typeof task.playbookId === "string" && task.playbookId.trim()
-                ? task.playbookId.trim()
-                : null,
-            )
-            .filter((value): value is string => value !== null),
-        ),
-      );
-      if (playbookIds.length === 0) return [];
+      const taskTemplates = toJsonArray<{
+        playbookId?: unknown;
+        outputs?: unknown;
+      }>((templateRow as { task_templates: unknown }).task_templates);
 
-      const [{ data: itemRows, error: itemErr }, { data: outputRows, error: outputErr }] =
-        await Promise.all([
-          client
-            .from("framework_items")
-            .select("id,name")
-            .in("id", playbookIds)
-            .eq("type", "playbook"),
-          client
-            .from("playbook_outputs")
-            .select("*")
-            .in("playbook_id", playbookIds)
-            .order("position", { ascending: true }),
-        ]);
+      // Per-template-task snapshots are the source of truth. Group by
+      // playbookId; if multiple tasks share a playbook (rare), union by id.
+      const snapshotByPlaybook = new Map<string, Map<string, PlaybookOutput>>();
+      const playbookIdsNeedingFallback = new Set<string>();
+      const allPlaybookIds = new Set<string>();
+      for (const task of taskTemplates) {
+        const playbookId =
+          typeof task.playbookId === "string" && task.playbookId.trim()
+            ? task.playbookId.trim()
+            : null;
+        if (!playbookId) continue;
+        allPlaybookIds.add(playbookId);
+        const snapshot = normalizeOutputsSnapshot(task.outputs);
+        if (snapshot.length === 0) {
+          playbookIdsNeedingFallback.add(playbookId);
+          continue;
+        }
+        const bucket = snapshotByPlaybook.get(playbookId) ?? new Map<string, PlaybookOutput>();
+        for (const output of snapshot) {
+          if (!bucket.has(output.id)) bucket.set(output.id, output);
+        }
+        snapshotByPlaybook.set(playbookId, bucket);
+      }
+      if (allPlaybookIds.size === 0) return [];
+      const playbookIds = Array.from(allPlaybookIds);
+      const fallbackIds = Array.from(playbookIdsNeedingFallback);
+
+      const [{ data: itemRows, error: itemErr }, fallbackRes] = await Promise.all([
+        client
+          .from("framework_items")
+          .select("id,name")
+          .in("id", playbookIds)
+          .eq("type", "playbook"),
+        fallbackIds.length > 0
+          ? client
+              .from("playbook_outputs")
+              .select("*")
+              .in("playbook_id", fallbackIds)
+              .order("position", { ascending: true })
+          : Promise.resolve({ data: [], error: null } as const),
+      ]);
       if (itemErr) {
         throw new WorkflowRepositoryError(
           "listOutputsForTemplate framework_items lookup failed",
           itemErr,
         );
       }
-      if (outputErr) {
+      if (fallbackRes.error) {
         throw new WorkflowRepositoryError(
           "listOutputsForTemplate playbook_outputs lookup failed",
-          outputErr,
+          fallbackRes.error,
         );
       }
 
@@ -1312,12 +1419,11 @@ export function createWorkflowRepository(
       for (const row of (itemRows ?? []) as { id: string; name: string }[]) {
         nameById.set(row.id, row.name);
       }
-      const outputsByPlaybook = new Map<string, PlaybookOutput[]>();
-      for (const row of (outputRows ?? []) as PlaybookOutputRow[]) {
-        const mapped = mapPlaybookOutput(row);
-        const list = outputsByPlaybook.get(row.playbook_id) ?? [];
-        list.push(mapped);
-        outputsByPlaybook.set(row.playbook_id, list);
+      for (const row of (fallbackRes.data ?? []) as PlaybookOutputRow[]) {
+        const bucket =
+          snapshotByPlaybook.get(row.playbook_id) ?? new Map<string, PlaybookOutput>();
+        bucket.set(row.id, mapPlaybookOutput(row));
+        snapshotByPlaybook.set(row.playbook_id, bucket);
       }
 
       return playbookIds
@@ -1325,7 +1431,9 @@ export function createWorkflowRepository(
         .map((id) => ({
           playbookId: id,
           playbookName: nameById.get(id) as string,
-          outputs: outputsByPlaybook.get(id) ?? [],
+          outputs: Array.from(snapshotByPlaybook.get(id)?.values() ?? []).sort(
+            (a, b) => a.position - b.position,
+          ),
         }))
         .sort((a, b) =>
           a.playbookName.localeCompare(b.playbookName, undefined, {

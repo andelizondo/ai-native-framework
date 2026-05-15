@@ -41,6 +41,7 @@ import { useUnsavedChangesGuard } from "@/lib/use-unsaved-changes-guard";
 import { AddSkillModal } from "@/components/workflows/add-skill-modal";
 import { AddStageModal } from "@/components/workflows/add-stage-modal";
 import { AddPlaybookDrawer } from "@/components/workflows/add-playbook-drawer";
+import { listPlaybookOutputsAction } from "@/app/(dashboard)/framework/actions";
 import { HeaderActionsMenu } from "@/components/workflows/header-actions-menu";
 import { ConfirmModal } from "@/components/ui/confirm-modal";
 import { InlineEditableText } from "@/components/ui/inline-editable-text";
@@ -49,6 +50,7 @@ import { emitEvent } from "@/lib/events";
 import { resolveSkillColor } from "@/lib/workflows/skill-colors";
 import type {
   FrameworkItem,
+  PlaybookOutput,
   TemplateOutputGroup,
   WorkflowInput,
   WorkflowSkill,
@@ -122,6 +124,7 @@ function templateTaskToCard(task: WorkflowTaskTemplate): WorkflowTask {
     substatus: "",
     checkpoint: Boolean(task.checkpoint),
     inputs: task.inputs ?? [],
+    outputs: task.outputs ?? [],
     playbookId: task.playbookId ?? null,
     owners: task.owners ?? [],
     createdAt: "",
@@ -294,6 +297,7 @@ export function TemplateEditorScreen({
       notes?: string;
       owners?: string[];
       inputs?: WorkflowInput[];
+      outputs?: PlaybookOutput[];
     };
   } | null>(null);
   const [pending, startTransition] = useTransition();
@@ -920,6 +924,7 @@ export function TemplateEditorScreen({
                                 notes: templateTask.notes ?? "",
                                 owners: templateTask.owners ?? [],
                                 inputs: templateTask.inputs ?? [],
+                                outputs: templateTask.outputs ?? [],
                               },
                             })
                           }
@@ -1040,6 +1045,7 @@ export function TemplateEditorScreen({
             })}
           outputGroups={outputGroups}
           onRefetchOutputs={refetchOutputGroups}
+          loadPlaybookOutputs={listPlaybookOutputsAction}
           onClose={() => setAddTaskFor(null)}
           onSubmit={(input) => {
             setDraft((current) => {
@@ -1054,6 +1060,7 @@ export function TemplateEditorScreen({
                           notes: input.notes,
                           owners: input.owners,
                           inputs: input.inputs,
+                          outputs: input.outputs,
                         }
                       : item,
                   ),
@@ -1071,6 +1078,7 @@ export function TemplateEditorScreen({
                     playbookId: input.playbookId,
                     notes: input.notes,
                     inputs: input.inputs,
+                    outputs: input.outputs,
                     owners: input.owners,
                   },
                 ],

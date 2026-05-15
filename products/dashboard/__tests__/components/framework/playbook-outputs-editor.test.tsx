@@ -178,7 +178,7 @@ describe("PlaybookOutputsEditor", () => {
 
     await waitFor(() => expect(countMock).toHaveBeenCalledWith("po-1"));
     const impact = await screen.findByTestId("playbook-outputs-delete-impact");
-    expect(impact).toHaveTextContent(/3 task output rows/i);
+    expect(impact).toHaveTextContent(/3 produced task output rows/i);
   });
 
   it("removes a pending (unsaved) row locally without calling delete", async () => {
