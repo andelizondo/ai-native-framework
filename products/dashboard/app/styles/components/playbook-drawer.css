@@ -93,15 +93,37 @@
   transition: all 0.2s;
   z-index: 1;
 }
+/* Status-driven intensity. The bar's color stays role-derived in every
+ * state — what changes is the surrounding glow's strength and (for blocked)
+ * its pulse. Mirrors the matrix card's bar treatment so the two surfaces
+ * read the same. */
 .pb-drawer-head--bar-active::before {
   box-shadow: 2px 0 8px var(--role-color, var(--accent));
 }
 .pb-drawer-head--bar-pending::before {
-  background: var(--warn);
-  box-shadow: 2px 0 12px color-mix(in srgb, var(--warn) 60%, transparent);
+  box-shadow:
+    3px 0 14px 1px color-mix(in srgb, var(--role-color, var(--accent)) 55%, transparent);
 }
 .pb-drawer-head--bar-blocked::before {
-  background: var(--err);
+  box-shadow:
+    4px 0 22px 2px color-mix(in srgb, var(--role-color, var(--accent)) 75%, transparent);
+  animation: pb-drawer-head-bar-pulse 2s ease-in-out infinite;
+}
+@keyframes pb-drawer-head-bar-pulse {
+  0%,
+  100% {
+    box-shadow:
+      3px 0 14px 1px color-mix(in srgb, var(--role-color, var(--accent)) 55%, transparent);
+  }
+  50% {
+    box-shadow:
+      6px 0 28px 3px color-mix(in srgb, var(--role-color, var(--accent)) 95%, transparent);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .pb-drawer-head--bar-blocked::before {
+    animation: none;
+  }
 }
 
 /* ── Context bar ─────────────────────────────────────────────────────── */
@@ -207,12 +229,12 @@
   background: var(--pill-ns-bg);
   color: var(--pill-ns-t);
 }
-.pb-drawer-status-pill[data-status="waiting"] {
+.pb-drawer-status-pill[data-status="waiting"],
+.pb-drawer-status-pill[data-status="paused"] {
   background: var(--pill-pending-bg);
   color: var(--pill-pending-t);
   border-color: color-mix(in srgb, var(--warn) 35%, transparent);
 }
-.pb-drawer-status-pill[data-status="paused"],
 .pb-drawer-status-pill[data-status="failed"] {
   background: var(--pill-blocked-bg);
   color: var(--pill-blocked-t);
@@ -366,12 +388,12 @@
   border-color: var(--border-hi);
   color: var(--t2);
 }
-.pb-drawer-state-card--waiting {
+.pb-drawer-state-card--waiting,
+.pb-drawer-state-card--paused {
   background: var(--pill-pending-bg);
   border-color: color-mix(in srgb, var(--warn) 35%, transparent);
   color: var(--pill-pending-t);
 }
-.pb-drawer-state-card--paused,
 .pb-drawer-state-card--failed {
   background: var(--pill-blocked-bg);
   border-color: color-mix(in srgb, var(--err) 35%, transparent);

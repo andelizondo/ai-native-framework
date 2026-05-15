@@ -1083,10 +1083,10 @@
 .mx-floating-tooltip-sub.s-running {
   color: var(--pill-active-t);
 }
-.mx-floating-tooltip-sub.s-waiting {
+.mx-floating-tooltip-sub.s-waiting,
+.mx-floating-tooltip-sub.s-paused {
   color: var(--pill-pending-t);
 }
-.mx-floating-tooltip-sub.s-paused,
 .mx-floating-tooltip-sub.s-failed {
   color: var(--pill-blocked-t);
 }
