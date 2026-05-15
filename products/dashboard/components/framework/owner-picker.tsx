@@ -46,6 +46,10 @@ interface OwnerPickerProps {
   stackAvatarSize?: "xs" | "sm" | "md";
   /** For `stack` variant — small data-testid suffix for queries. */
   testIdSuffix?: string;
+  /** For `stack` variant — when true and there are no owners yet, render an
+   *  inline "No owner assigned" label next to the `+` trigger so the empty
+   *  state reads as an absence rather than an ambiguous affordance. */
+  stackEmptyLabel?: boolean;
 }
 
 const GROUP_TITLE: Record<"people" | "agents", string> = {
@@ -79,10 +83,12 @@ export function OwnerPicker({
   required = false,
   stackAvatarSize = "md",
   testIdSuffix,
+  stackEmptyLabel = false,
 }: OwnerPickerProps) {
   const rootRef = useRef<HTMLDivElement | null>(null);
   const [open, setOpen] = useState(false);
   const [placement, setPlacement] = useState<"below" | "above">("below");
+  const [hAlign, setHAlign] = useState<"left" | "right">("left");
   const [maxBodyHeight, setMaxBodyHeight] = useState<number>(320);
   const headingId = useId();
 
@@ -106,9 +112,25 @@ export function OwnerPicker({
   useLayoutEffect(() => {
     if (!open || !rootRef.current) return;
 
+    function getClippingRect(el: HTMLElement): DOMRect {
+      let cur: HTMLElement | null = el.parentElement;
+      while (cur && cur !== document.body) {
+        const overflow = window.getComputedStyle(cur).overflow;
+        if (
+          overflow === "hidden" ||
+          overflow === "auto" ||
+          overflow === "scroll"
+        ) {
+          return cur.getBoundingClientRect();
+        }
+        cur = cur.parentElement;
+      }
+      return new DOMRect(0, 0, window.innerWidth, window.innerHeight);
+    }
     function compute() {
-      const trigger = rootRef.current?.getBoundingClientRect();
-      if (!trigger) return;
+      const rootEl = rootRef.current;
+      if (!rootEl) return;
+      const trigger = rootEl.getBoundingClientRect();
       const viewportH =
         typeof window !== "undefined" ? window.innerHeight : 0;
       const spaceBelow = viewportH - trigger.bottom - VIEWPORT_MARGIN;
@@ -120,6 +142,24 @@ export function OwnerPicker({
       } else {
         setPlacement("above");
         setMaxBodyHeight(Math.max(180, Math.min(360, spaceAbove - 80)));
+      }
+
+      // Horizontal placement: measure room within the nearest clipping
+      // ancestor (a `overflow: hidden` drawer aside, typically) instead
+      // of the viewport — the inline-positioned dropdown gets cut by that
+      // boundary even when the viewport itself has plenty of space.
+      const clip = getClippingRect(rootEl);
+      const spaceRightFromLeftEdge = clip.right - trigger.left - VIEWPORT_MARGIN;
+      const spaceLeftFromRightEdge = trigger.right - clip.left - VIEWPORT_MARGIN;
+      if (spaceRightFromLeftEdge >= DROPDOWN_WIDTH) {
+        setHAlign("left");
+      } else if (spaceLeftFromRightEdge >= DROPDOWN_WIDTH) {
+        setHAlign("right");
+      } else {
+        // Neither side fits cleanly — pick the side with more room.
+        setHAlign(
+          spaceRightFromLeftEdge >= spaceLeftFromRightEdge ? "left" : "right",
+        );
       }
     }
 
@@ -164,9 +204,8 @@ export function OwnerPicker({
   }
 
   const triggerLabel = hasValues ? trimmedValues.join(", ") : placeholder;
-  const stackTriggerLabel = hasValues
-    ? ariaLabel ?? "Edit owners"
-    : ariaLabel ?? "Add owners";
+  const stackTriggerLabel = hasValues ? "Edit owners" : "Add owner";
+  const stackAriaLabel = ariaLabel ?? stackTriggerLabel;
 
   return (
     <div
@@ -181,7 +220,7 @@ export function OwnerPicker({
           <span className="group/owner-trigger relative inline-flex">
             <button
               type="button"
-              aria-label={stackTriggerLabel}
+              aria-label={stackAriaLabel}
               aria-haspopup="dialog"
               aria-expanded={open}
               onClick={() => setOpen((v) => !v)}
@@ -208,10 +247,14 @@ export function OwnerPicker({
                 strokeWidth={2.25}
               />
             </button>
-            {!open && !hasValues ? (
+            {!open ? (
               <span
                 role="tooltip"
-                className="pointer-events-none absolute left-0 top-[calc(100%+6px)] z-[60] whitespace-nowrap rounded-md border border-border-hi bg-bg-2 px-2 py-1 text-[11px] font-medium text-t1 opacity-0 shadow-[var(--shadow-canvas)] transition-opacity duration-100 group-hover/owner-trigger:opacity-100"
+                /* Anchor to the trigger's left edge (matching the card's
+                 * tc-empty-owner tooltip pattern). Centering with
+                 * `-translate-x-1/2` overflowed the drawer's left edge when
+                 * the trigger sat in the leftmost slot of the action bar. */
+                className="pointer-events-none absolute left-0 top-[calc(100%+6px)] z-[60] whitespace-nowrap rounded-md border border-border-hi bg-bg-2 px-2 py-1 text-[11px] text-t1 opacity-0 shadow-[var(--shadow-canvas)] transition-opacity duration-100 group-hover/owner-trigger:opacity-100"
               >
                 {stackTriggerLabel}
               </span>
@@ -223,6 +266,15 @@ export function OwnerPicker({
               size={stackAvatarSize}
               testIdSuffix={testIdSuffix}
             />
+          ) : stackEmptyLabel ? (
+            <span
+              className="ml-2 text-[11.5px] italic text-t3"
+              data-testid={
+                testIdSuffix ? `owners-empty-${testIdSuffix}` : undefined
+              }
+            >
+              No owner assigned
+            </span>
           ) : null}
         </>
       ) : variant === "field" ? (
@@ -324,7 +376,12 @@ export function OwnerPicker({
           aria-labelledby={headingId}
           style={{ width: DROPDOWN_WIDTH }}
           className={cn(
-            "absolute left-0 z-40 overflow-hidden rounded-[12px] border border-border-hi bg-bg-2 shadow-[var(--shadow-canvas)]",
+            "absolute z-40 overflow-hidden rounded-[12px] border border-border-hi bg-bg-2 shadow-[var(--shadow-canvas)]",
+            // Horizontal anchor measured at open time — picks left or right
+            // depending on which side has 280px of room. Fixes the case
+            // where the stack trigger flips between drawer-left (playbook
+            // drawer) and drawer-right (add/edit drawer).
+            hAlign === "right" ? "right-0" : "left-0",
             placement === "below"
               ? "top-[calc(100%+8px)]"
               : "bottom-[calc(100%+8px)]",

@@ -168,7 +168,9 @@ export function OwnerAvatarStack({
           {!overflowOpen ? (
             <span
               role="tooltip"
-              className="pointer-events-none absolute left-1/2 top-[calc(100%+6px)] z-[60] -translate-x-1/2 whitespace-nowrap rounded-md border border-border-hi bg-bg-2 px-2 py-1 text-[11px] font-medium text-t1 opacity-0 shadow-[var(--shadow-canvas)] transition-opacity duration-100 group-hover/owner-overflow:opacity-100"
+              /* Anchor to the trigger's left edge so the preview extends
+               * inward when the stack sits on the left of a drawer. */
+              className="pointer-events-none absolute left-0 top-[calc(100%+6px)] z-[60] whitespace-nowrap rounded-md border border-border-hi bg-bg-2 px-2 py-1 text-[11px] font-medium text-t1 opacity-0 shadow-[var(--shadow-canvas)] transition-opacity duration-100 group-hover/owner-overflow:opacity-100"
             >
               {overflow.join(", ")}
             </span>
@@ -177,7 +179,10 @@ export function OwnerAvatarStack({
             <span
               role="dialog"
               aria-label="Additional owners"
-              className="absolute right-0 top-[calc(100%+6px)] z-50 min-w-[160px] overflow-hidden rounded-md border border-border-hi bg-bg-2 shadow-[var(--shadow-canvas)]"
+              /* Anchored to the trigger's bottom-left so the popover
+               * always extends down + right, regardless of which drawer
+               * hosts it. */
+              className="absolute left-0 top-[calc(100%+6px)] z-50 min-w-[160px] overflow-hidden rounded-md border border-border-hi bg-bg-2 shadow-[var(--shadow-canvas)]"
               onClick={(event) => event.stopPropagation()}
             >
               <span className="block border-b border-border px-3 py-2 font-mono text-[10px] font-semibold uppercase tracking-[0.13em] text-t3">
