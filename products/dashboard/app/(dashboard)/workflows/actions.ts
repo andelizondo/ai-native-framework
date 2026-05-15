@@ -383,6 +383,7 @@ export interface UpdateTaskDetailsInput {
   playbookId?: string | null;
   notes?: string;
   owners?: string[];
+  inputs?: WorkflowInput[];
 }
 
 const MAX_OWNER_LABEL_LENGTH = 80;
@@ -477,6 +478,7 @@ export async function updateTaskDetailsAction(
     playbookId: playbookId || null,
     notes,
     ...(owners !== undefined ? { owners } : {}),
+    ...(Array.isArray(input.inputs) ? { inputs: input.inputs } : {}),
   });
 
   try {

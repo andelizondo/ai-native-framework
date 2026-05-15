@@ -1,10 +1,10 @@
 "use client";
 
-import { CircleAlert, Clock, Pause } from "lucide-react";
+import { CircleAlert, Clock, Pause, Play } from "lucide-react";
 
 import { cn } from "@/lib/utils";
 
-export type StateCardKind = "waiting" | "paused" | "failed";
+export type StateCardKind = "not_started" | "waiting" | "paused" | "failed";
 
 export interface StateCardAction {
   label: string;
@@ -21,7 +21,14 @@ export interface StateCardProps {
 }
 
 export function StateCard({ kind, title, body, actions = [] }: StateCardProps) {
-  const Icon = kind === "waiting" ? Clock : kind === "paused" ? Pause : CircleAlert;
+  const Icon =
+    kind === "not_started"
+      ? Play
+      : kind === "waiting"
+        ? Clock
+        : kind === "paused"
+          ? Pause
+          : CircleAlert;
 
   return (
     <div

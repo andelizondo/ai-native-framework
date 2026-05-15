@@ -1,6 +1,5 @@
 "use client";
 
-import { useEffect, useState } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { Loader2, Save, SlidersHorizontal } from "lucide-react";
 
@@ -58,14 +57,6 @@ export function TopBar() {
     !!pathname && WORKFLOW_INSTANCE_ROUTE_REGEX.test(pathname);
   const editMode = searchParams.get("edit") === "1";
 
-  const [templateLabelDraft, setTemplateLabelDraft] = useState("");
-
-  useEffect(() => {
-    if (config?.mode === "template-editor") {
-      setTemplateLabelDraft(config.label);
-    }
-  }, [config]);
-
   function toggleEditMode() {
     if (!pathname) return;
     const next = new URLSearchParams(searchParams.toString());
@@ -80,32 +71,38 @@ export function TopBar() {
 
   const instanceEditMode =
     config?.mode === "workflow-instance" && config.editMode === true;
+  const instanceSaveActive =
+    config?.mode === "workflow-instance" &&
+    typeof config.onSave === "function" &&
+    (config.editMode === true || config.isDirty === true);
   const saveDisabled =
     config?.mode === "template-editor"
       ? config.saveDisabled
       : config?.mode === "page"
         ? (config.saveDisabled ?? true)
-        : instanceEditMode
+        : instanceSaveActive
           ? (config.saveDisabled ?? true)
           : true;
   const savePending =
     config?.mode === "template-editor" || config?.mode === "page"
       ? (config.savePending ?? false)
-      : instanceEditMode
+      : instanceSaveActive
         ? (config.savePending ?? false)
         : false;
   const showSaveButton =
     ((config?.mode === "template-editor" || config?.mode === "page") &&
       typeof config.onSave === "function") ||
-    (instanceEditMode && typeof config.onSave === "function");
+    instanceSaveActive;
   const onSaveHandler =
     config?.mode === "template-editor" ||
     config?.mode === "page" ||
-    instanceEditMode
+    instanceSaveActive
       ? config.onSave
       : undefined;
   const onCancelEditHandler =
-    instanceEditMode && typeof config.onCancelEdit === "function"
+    instanceEditMode &&
+    config?.mode === "workflow-instance" &&
+    typeof config.onCancelEdit === "function"
       ? config.onCancelEdit
       : undefined;
 
@@ -121,61 +118,31 @@ export function TopBar() {
             return (
               <span key={`${crumb.label}-${idx}`} className="flex items-center gap-1.5">
                 {idx > 0 && <span className="text-t3">›</span>}
-                {isLast && config?.mode === "template-editor" ? (
-                  <input
-                    value={templateLabelDraft}
-                    onChange={(event) => {
-                      const nextValue = event.target.value;
-                      setTemplateLabelDraft(nextValue);
-                      config.onLabelChange(nextValue);
-                    }}
-                    onKeyDown={(event) => {
-                      if (event.key === "Enter") {
-                        event.preventDefault();
-                        void config.onSave();
-                      }
-                      if (event.key === "Escape") {
-                        event.preventDefault();
-                        setTemplateLabelDraft(config.label);
-                        config.onLabelChange(config.label);
-                      }
-                    }}
-                    className="min-w-[140px] bg-transparent p-0 text-[13px] font-semibold text-t1 outline-none placeholder:text-t3"
-                    aria-label="Workflow template name"
-                  />
-                ) : (
-                  <button
-                    type="button"
-                    onClick={crumb.onClick}
-                    disabled={!crumb.onClick || isLast}
-                    className={
-                      isLast
-                        ? "truncate text-[13px] font-semibold text-t1"
-                        : cn(
-                            "truncate text-[13px] font-medium text-t2 transition",
-                            crumb.onClick
-                              ? "cursor-pointer hover:text-t1"
-                              : "cursor-default",
-                          )
-                    }
-                    aria-current={isLast ? "page" : undefined}
-                  >
-                    {crumb.label}
-                  </button>
-                )}
+                <button
+                  type="button"
+                  onClick={crumb.onClick}
+                  disabled={!crumb.onClick || isLast}
+                  className={
+                    isLast
+                      ? "truncate text-[13px] font-semibold text-t1"
+                      : cn(
+                          "truncate text-[13px] font-medium text-t2 transition",
+                          crumb.onClick
+                            ? "cursor-pointer hover:text-t1"
+                            : "cursor-default",
+                        )
+                  }
+                  aria-current={isLast ? "page" : undefined}
+                >
+                  {crumb.label}
+                </button>
               </span>
             );
           })}
         </nav>
 
         <div className="flex shrink-0 items-center gap-1.5">
-          {config?.mode === "template-editor" ? (
-            <>
-              {config.actions ?? null}
-            </>
-          ) : (
-            config?.actions ?? null
-          )}
+          {config?.actions ?? null}
 
           {onCancelEditHandler ? (
             <button

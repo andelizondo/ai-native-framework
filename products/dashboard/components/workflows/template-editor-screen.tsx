@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useId, useMemo, useRef, useState, useTransition } from "react";
-import { CircleAlert, GripVertical, Pencil, Plus, Trash2 } from "lucide-react";
+import { CircleAlert, GripVertical, Plus, TextCursor, Trash2 } from "lucide-react";
 import { ColorDotPicker } from "@/components/framework/color-dot-picker";
 import { ItemAvatar } from "@/components/framework/item-avatar";
 import {
@@ -32,7 +32,6 @@ import { CSS } from "@dnd-kit/utilities";
 import {
   deleteTemplateAction,
   listOutputsForTemplateAction,
-  renameTemplateAction,
   updateTemplateAction,
 } from "@/app/(dashboard)/workflows/actions";
 import { captureError } from "@/lib/monitoring";
@@ -41,9 +40,10 @@ import { useToast } from "@/lib/toast";
 import { useUnsavedChangesGuard } from "@/lib/use-unsaved-changes-guard";
 import { AddSkillModal } from "@/components/workflows/add-skill-modal";
 import { AddStageModal } from "@/components/workflows/add-stage-modal";
-import { AddPlaybookModal } from "@/components/workflows/add-playbook-modal";
+import { AddPlaybookDrawer } from "@/components/workflows/add-playbook-drawer";
 import { HeaderActionsMenu } from "@/components/workflows/header-actions-menu";
 import { ConfirmModal } from "@/components/ui/confirm-modal";
+import { InlineEditableText } from "@/components/ui/inline-editable-text";
 import { useAnalytics } from "@/lib/analytics/events";
 import { emitEvent } from "@/lib/events";
 import { resolveSkillColor } from "@/lib/workflows/skill-colors";
@@ -524,10 +524,7 @@ export function TemplateEditorScreen({
   useEffect(() => {
     setConfig({
       mode: "template-editor",
-      crumbs: [{ label: "Workflows" }, { label: draft.label }],
-      label: draft.label,
-      onLabelChange: (value) =>
-        setDraft((current) => ({ ...current, label: value })),
+      crumbs: [{ label: "Workflows" }, { label: lastSaved.label }],
       onSave: saveTemplate,
       saveDisabled: !isDirty || pending,
       savePending: pending,
@@ -535,21 +532,6 @@ export function TemplateEditorScreen({
         <HeaderActionsMenu
           entityLabel={draft.label}
           entityType="template"
-          onRename={async (nextLabel) => {
-            try {
-              const result = await renameTemplateAction(draft.id, nextLabel);
-              setDraft((current) => ({ ...current, label: result.template.label }));
-              setLastSaved((current) => ({ ...current, label: result.template.label }));
-              toastSuccess("Template renamed");
-            } catch (err) {
-              toastError(
-                err instanceof Error && err.message
-                  ? err.message
-                  : "Could not rename the template.",
-              );
-              throw err;
-            }
-          }}
           onDelete={async () => {
             try {
               await deleteTemplateAction(draft.id);
@@ -580,7 +562,7 @@ export function TemplateEditorScreen({
     });
 
     return () => setConfig(null);
-  }, [draft.label, isDirty, pending, setConfig, toastSuccess, toastError]);
+  }, [draft.label, lastSaved.label, isDirty, pending, setConfig, toastSuccess, toastError]);
 
   return (
     <div className="flex h-full flex-col overflow-hidden">
@@ -610,7 +592,16 @@ export function TemplateEditorScreen({
               </div>
             </div>
             <div className="mt-1 flex items-center gap-2">
-              <h1 className="truncate text-[20px] font-bold tracking-tight text-t1">{draft.label}</h1>
+              <InlineEditableText
+                value={draft.label}
+                onChange={(next) =>
+                  setDraft((current) => ({ ...current, label: next }))
+                }
+                ariaLabel="workflow template name"
+                placeholder="Untitled template"
+                className="text-[20px] font-bold tracking-tight text-t1"
+                maxLength={120}
+              />
               <ColorDotPicker
                 color={draft.color}
                 ariaLabel="Change workflow template color"
@@ -702,7 +693,7 @@ export function TemplateEditorScreen({
                                 })
                               }
                             >
-                              <Pencil className="h-[11px] w-[11px]" />
+                              <TextCursor className="h-[11px] w-[11px]" />
                             </button>
                             <button
                               type="button"
@@ -902,7 +893,21 @@ export function TemplateEditorScreen({
                           barState="bar-ready"
                           editMode
                           templateView
-                          onEdit={() =>
+                          ioState={{
+                            taskId: task.id,
+                            outputs: (
+                              outputGroups.find(
+                                (g) => g.playbookId === templateTask.playbookId,
+                              )?.outputs ?? []
+                            ).map((o) => ({
+                              id: o.id,
+                              position: o.position,
+                              status: "pending",
+                              name: o.name,
+                            })),
+                            hasUnmetLinkedInput: false,
+                          }}
+                          onClick={() =>
                             setAddTaskFor({
                               mode: "edit",
                               taskId: templateTask.id,
@@ -1004,10 +1009,11 @@ export function TemplateEditorScreen({
       ) : null}
 
       {addTaskFor ? (
-        <AddPlaybookModal
+        <AddPlaybookDrawer
           mode={addTaskFor.mode}
           skillId={addTaskFor.skillId}
           skillLabel={addTaskFor.skillLabel}
+          skillColor={resolveSkillColor(addTaskFor.skillId, skillOptions)}
           stageId={addTaskFor.stageId}
           stageName={addTaskFor.stageName}
           playbooks={playbookOptions}

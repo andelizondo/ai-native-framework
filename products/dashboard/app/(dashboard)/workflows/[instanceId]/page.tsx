@@ -2,7 +2,6 @@ import { notFound } from "next/navigation";
 
 import { ShellEvents } from "@/components/shell-events";
 import { ProcessMatrix } from "@/components/workflows/process-matrix";
-import { WorkflowInstanceHeader } from "@/components/workflows/workflow-instance-header";
 import { getServerWorkflowRepository } from "@/lib/workflows/repository.server";
 
 /**
@@ -61,13 +60,6 @@ export default async function WorkflowInstancePage({
       <ShellEvents route="/workflows/[instanceId]" />
 
       <div className="flex h-full flex-col overflow-hidden">
-        <WorkflowInstanceHeader
-          instanceLabel={instance.label}
-          taskCount={instance.tasks.length}
-          skillCount={instance.skills.length}
-          stageCount={instance.stages.length}
-        />
-
         <ProcessMatrix
           instance={instance}
           template={template}

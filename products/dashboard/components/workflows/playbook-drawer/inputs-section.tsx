@@ -1,33 +1,41 @@
 "use client";
 
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { Check, ChevronRight, Plus } from "lucide-react";
 
-import { cn } from "@/lib/utils";
-import type { TaskInputState, WorkflowInput } from "@/lib/workflows/types";
+type UserOverride = "expanded" | "collapsed" | null;
 
-import { IORow, type IORowChip, type IORowState } from "./io-row";
+import { resolveItemColor } from "@/lib/workflows/skill-colors";
+import { cn } from "@/lib/utils";
+import type {
+  FrameworkItem,
+  TaskInputState,
+  TemplateOutputGroup,
+  WorkflowInput,
+} from "@/lib/workflows/types";
+
+import { IORow, type IORowState } from "./io-row";
 
 export interface InputsSectionProps {
   inputDefs: WorkflowInput[];
   inputStates: TaskInputState[];
+  /** Cross-playbook output catalog for the template — used to derive a
+   *  readable "{playbookName} / {outputName}" label for linked inputs. */
+  outputGroups?: TemplateOutputGroup[];
+  /** Playbook catalog — used to resolve the upstream playbook's emoji + color
+   *  for the linked-input avatar. */
+  playbookOptions?: FrameworkItem[];
   dimmed: boolean;
   busy: boolean;
   onMarkReceived: (inputId: string) => void;
   onAddInput?: () => void;
 }
 
-function chipFor(input: WorkflowInput): { chip: IORowChip; chipLabel: string } {
-  if (input.linkMode === "linked") {
-    return {
-      chip: "linked",
-      chipLabel: input.upstreamTaskRef ? `linked: ${input.upstreamTaskRef}` : "linked",
-    };
-  }
-  if (input.linkMode === "bypass") {
-    return { chip: "bypass", chipLabel: "bypass" };
-  }
-  return { chip: "manual", chipLabel: "manual" };
+interface OutputLookup {
+  byOutputId: Map<
+    string,
+    { playbookId: string; playbookName: string; outputName: string }
+  >;
 }
 
 function stateFor(input: WorkflowInput, taskState: TaskInputState | undefined): IORowState {
@@ -39,12 +47,34 @@ function stateFor(input: WorkflowInput, taskState: TaskInputState | undefined): 
 export function InputsSection({
   inputDefs,
   inputStates,
+  outputGroups = [],
+  playbookOptions = [],
   dimmed,
   busy,
   onMarkReceived,
   onAddInput,
 }: InputsSectionProps) {
   const stateById = new Map(inputStates.map((s) => [s.inputId, s]));
+  const lookup = useMemo<OutputLookup>(() => {
+    const byOutputId = new Map<
+      string,
+      { playbookId: string; playbookName: string; outputName: string }
+    >();
+    for (const group of outputGroups) {
+      for (const output of group.outputs) {
+        byOutputId.set(output.id, {
+          playbookId: group.playbookId,
+          playbookName: group.playbookName,
+          outputName: output.name,
+        });
+      }
+    }
+    return { byOutputId };
+  }, [outputGroups]);
+  const playbookById = useMemo(
+    () => new Map(playbookOptions.map((pb) => [pb.id, pb])),
+    [playbookOptions],
+  );
   const linkedDefs = inputDefs.filter((i) => i.linkMode === "linked");
   const totalLinked = linkedDefs.length;
   const receivedLinked = linkedDefs.filter(
@@ -55,11 +85,16 @@ export function InputsSection({
   const totalAll = inputDefs.length;
   const receivedAll = inputDefs.filter((i) => stateById.get(i.id)?.received === true).length;
 
-  // Collapsed by default once all linked inputs are received; user can
-  // expand explicitly. We re-derive on every render so re-fetch flips it
-  // back without explicit syncing.
-  const [userExpanded, setUserExpanded] = useState(false);
-  const collapsed = allLinkedReceived && !userExpanded;
+  const isEmpty = totalAll === 0;
+
+  // Collapse seed: auto-collapsed once all linked inputs are received, or
+  // when no inputs are declared at all (nothing to act on). User override
+  // sticks — clicking the header chevron flips state in either direction
+  // regardless of the auto seed.
+  const [userOverride, setUserOverride] = useState<UserOverride>(null);
+  const collapsed =
+    userOverride === "collapsed" ||
+    (userOverride === null && (allLinkedReceived || isEmpty));
 
   return (
     <section
@@ -71,71 +106,83 @@ export function InputsSection({
       data-testid="pb-drawer-inputs-section"
       data-collapsed={collapsed}
     >
-      {collapsed ? (
+      <div className="pb-drawer-sec__head">
         <button
           type="button"
-          className="pb-drawer-collapse-toggle"
-          onClick={() => setUserExpanded(true)}
-          data-testid="pb-drawer-inputs-collapsed"
+          className="pb-drawer-sec__toggle"
+          onClick={() => setUserOverride(collapsed ? "expanded" : "collapsed")}
+          aria-expanded={!collapsed}
+          data-testid="pb-drawer-inputs-toggle"
         >
-          <span className="pb-drawer-collapse-toggle__left">
-            <Check size={13} strokeWidth={2.5} aria-hidden />
-            <span>
-              <strong>All inputs received</strong>{" "}
-              <span className="pb-drawer-collapse-toggle__count">
-                {receivedAll} / {totalAll}
-              </span>
-            </span>
-          </span>
           <ChevronRight
-            size={14}
-            className="pb-drawer-collapse-toggle__chev"
+            size={12}
+            className={cn(
+              "pb-drawer-sec__chev",
+              !collapsed && "pb-drawer-sec__chev--open",
+            )}
             aria-hidden
           />
-        </button>
-      ) : (
-        <>
-          <div className="pb-drawer-sec__head">
-            <div className="pb-drawer-sec__lbl">
-              Inputs{" "}
-              <span className="pb-drawer-sec__count">
-                {receivedAll} / {totalAll}
+          <span className="pb-drawer-sec__lbl">
+            Inputs{" "}
+            <span className="pb-drawer-sec__count">
+              {receivedAll} / {totalAll}
+            </span>
+            {totalAll > 0 && receivedAll === totalAll ? (
+              <span className="pb-drawer-sec__done" aria-hidden>
+                <Check size={11} strokeWidth={2.5} />
               </span>
-            </div>
-            {onAddInput ? (
-              <button
-                type="button"
-                className="pb-drawer-sec__action"
-                onClick={onAddInput}
-                data-testid="pb-drawer-add-input-btn"
-              >
-                <Plus size={11} aria-hidden /> Add
-              </button>
             ) : null}
-          </div>
-          <div className="pb-drawer-io-list">
-            {inputDefs.length === 0 ? (
-              <div className="pb-drawer-io-empty" data-testid="pb-drawer-inputs-empty">
-                No inputs defined.
-              </div>
-            ) : (
-              inputDefs.map((input) => {
+          </span>
+        </button>
+        {onAddInput && !collapsed ? (
+          <button
+            type="button"
+            className="pb-drawer-sec__action"
+            onClick={onAddInput}
+            data-testid="pb-drawer-add-input-btn"
+          >
+            <Plus size={11} aria-hidden /> Add
+          </button>
+        ) : null}
+      </div>
+      {!collapsed ? (
+        <div className="pb-drawer-io-list">
+          {inputDefs.length === 0 ? (
+            <div className="pb-drawer-io-empty" data-testid="pb-drawer-inputs-empty">
+              No inputs defined.
+            </div>
+          ) : (
+            inputDefs.map((input) => {
                 const taskState = stateById.get(input.id);
                 const state = stateFor(input, taskState);
-                const { chip, chipLabel } = chipFor(input);
+                const linkedMatch =
+                  input.linkMode === "linked" && input.upstreamOutputId
+                    ? lookup.byOutputId.get(input.upstreamOutputId)
+                    : undefined;
+                const upstreamPlaybook = linkedMatch
+                  ? playbookById.get(linkedMatch.playbookId)
+                  : undefined;
+                const primaryLabel = linkedMatch
+                  ? linkedMatch.playbookName
+                  : input.name && !input.name.startsWith("inp-")
+                    ? input.name
+                    : "Input";
+                const secondaryLabel = linkedMatch?.outputName;
+                const avatar = upstreamPlaybook
+                  ? {
+                      emoji: upstreamPlaybook.icon,
+                      color: resolveItemColor(upstreamPlaybook),
+                      label: upstreamPlaybook.name,
+                    }
+                  : undefined;
                 return (
                   <IORow
                     key={input.id}
                     kind="input"
-                    name={input.name}
-                    chip={chip}
-                    chipLabel={chipLabel}
+                    primaryLabel={primaryLabel}
+                    secondaryLabel={secondaryLabel}
+                    avatar={avatar}
                     state={state}
-                    sourceLabel={
-                      state === "pending" && input.upstreamTaskRef
-                        ? input.upstreamTaskRef
-                        : undefined
-                    }
                     dimmed={dimmed}
                     onAction={
                       state === "pending" && !busy
@@ -146,10 +193,9 @@ export function InputsSection({
                   />
                 );
               })
-            )}
-          </div>
-        </>
-      )}
+          )}
+        </div>
+      ) : null}
     </section>
   );
 }

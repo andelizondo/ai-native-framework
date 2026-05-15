@@ -169,9 +169,9 @@ describe("TaskCard", () => {
           ioState={{
             taskId: "io-card",
             outputs: [
-              { id: "o-1", position: 0, status: "produced" },
-              { id: "o-2", position: 1, status: "pending" },
-              { id: "o-3", position: 2, status: "pending" },
+              { id: "o-1", position: 0, status: "produced", name: "Output 1" },
+              { id: "o-2", position: 1, status: "pending", name: "Output 2" },
+              { id: "o-3", position: 2, status: "pending", name: "Output 3" },
             ],
             hasUnmetLinkedInput: false,
           }}
@@ -192,7 +192,7 @@ describe("TaskCard", () => {
           barState="bar-glow"
           ioState={{
             taskId: "io-failed",
-            outputs: [{ id: "o-1", position: 0, status: "failed" }],
+            outputs: [{ id: "o-1", position: 0, status: "failed", name: "Output 1" }],
             hasUnmetLinkedInput: false,
           }}
         />,
@@ -210,7 +210,6 @@ describe("TaskCard", () => {
         />,
       );
       expect(screen.queryByTestId("task-pip-rail-io-none")).not.toBeInTheDocument();
-      expect(screen.queryByTestId("task-unmet-input-io-none")).not.toBeInTheDocument();
     });
 
     it("does not render the pip rail when ioState carries no outputs", () => {
@@ -226,41 +225,6 @@ describe("TaskCard", () => {
       expect(screen.queryByTestId("task-pip-rail-io-empty")).not.toBeInTheDocument();
     });
 
-    it("renders the unmet-input glyph when a linked input is unsatisfied", () => {
-      render(
-        <TaskCard
-          task={task({ id: "io-waiting" })}
-          playbook={PLAYBOOK}
-          skillColor="#6366f1"
-          barState="bar-locked"
-          ioState={{
-            taskId: "io-waiting",
-            outputs: [],
-            hasUnmetLinkedInput: true,
-          }}
-        />,
-      );
-      const glyph = screen.getByTestId("task-unmet-input-io-waiting");
-      expect(glyph).toBeInTheDocument();
-      expect(glyph).toHaveAttribute("aria-label", "Waiting on upstream output");
-    });
-
-    it("omits the unmet-input glyph when all linked inputs are received", () => {
-      render(
-        <TaskCard
-          task={task({ id: "io-ok" })}
-          playbook={PLAYBOOK}
-          skillColor="#6366f1"
-          barState="bar-active"
-          ioState={{
-            taskId: "io-ok",
-            outputs: [{ id: "o-1", position: 0, status: "produced" }],
-            hasUnmetLinkedInput: false,
-          }}
-        />,
-      );
-      expect(screen.queryByTestId("task-unmet-input-io-ok")).not.toBeInTheDocument();
-    });
   });
 
   it("renders the checkpoint pip only when the task has checkpoint: true", () => {

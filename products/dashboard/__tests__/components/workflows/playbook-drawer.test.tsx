@@ -220,7 +220,7 @@ describe("PlaybookDrawer", () => {
   });
 
   describe("state card visibility", () => {
-    it.each<WorkflowTaskStatus>(["waiting", "paused", "failed"])(
+    it.each<WorkflowTaskStatus>(["not_started", "waiting", "paused", "failed"])(
       "renders the state card on %s",
       async (status) => {
         await renderDrawer(status, makeDrawerData(makeTask(status), { allLinkedReceived: status !== "waiting" }));
@@ -228,15 +228,13 @@ describe("PlaybookDrawer", () => {
       },
     );
 
-    it.each<WorkflowTaskStatus>([
-      "not_started",
-      "in_progress",
-      "running",
-      "complete",
-    ])("hides the state card on %s", async (status) => {
-      await renderDrawer(status, makeDrawerData(makeTask(status), { allLinkedReceived: true, outputsProduced: status === "complete" ? 3 : 0 }));
-      expect(screen.queryByTestId("pb-drawer-state-card")).not.toBeInTheDocument();
-    });
+    it.each<WorkflowTaskStatus>(["in_progress", "running", "complete"])(
+      "hides the state card on %s",
+      async (status) => {
+        await renderDrawer(status, makeDrawerData(makeTask(status), { allLinkedReceived: true, outputsProduced: status === "complete" ? 3 : 0 }));
+        expect(screen.queryByTestId("pb-drawer-state-card")).not.toBeInTheDocument();
+      },
+    );
   });
 
   describe("inputs collapsed", () => {
@@ -318,21 +316,19 @@ describe("PlaybookDrawer", () => {
   });
 
   describe("action bar buttons", () => {
-    it("Start enabled on not_started", async () => {
+    it("Banner Start visible on not_started", async () => {
       await renderDrawer("not_started", makeDrawerData(makeTask("not_started"), { allLinkedReceived: true }));
-      const btn = screen.getByTestId("pb-drawer-start-btn");
-      expect(btn).not.toBeDisabled();
+      expect(screen.getByTestId("pb-drawer-banner-start-btn")).toBeInTheDocument();
     });
 
-    it("Start disabled on waiting", async () => {
+    it("Waiting banner shows upstream-task action when inputs are unmet", async () => {
       await renderDrawer("waiting", makeDrawerData(makeTask("waiting"), { allLinkedReceived: false }));
-      const btn = screen.getByTestId("pb-drawer-start-btn");
-      expect(btn).toBeDisabled();
-      expect(btn).toHaveTextContent(/waiting on inputs/i);
+      expect(screen.getByTestId("pb-drawer-banner-waiting-btn")).toBeInTheDocument();
+      expect(screen.queryByTestId("pb-drawer-banner-start-btn")).not.toBeInTheDocument();
     });
 
-    it("Start hidden on paused/in_progress/running/complete/failed", async () => {
-      for (const status of ["paused", "in_progress", "running", "complete", "failed"] as const) {
+    it("Action bar never renders a dedicated Start button", async () => {
+      for (const status of ["not_started", "paused", "in_progress", "running", "complete", "failed", "waiting"] as const) {
         const { unmount } = await renderDrawer(
           status,
           makeDrawerData(makeTask(status), {
@@ -345,23 +341,34 @@ describe("PlaybookDrawer", () => {
       }
     });
 
-    it("Pause visible on in_progress and running", async () => {
-      for (const status of ["in_progress", "running"] as const) {
+    it("Pause button is never rendered (status pill drives transitions)", async () => {
+      for (const status of [
+        "not_started",
+        "waiting",
+        "paused",
+        "in_progress",
+        "running",
+        "complete",
+        "failed",
+      ] as const) {
         const { unmount } = await renderDrawer(
           status,
-          makeDrawerData(makeTask(status), { allLinkedReceived: true }),
+          makeDrawerData(makeTask(status), {
+            allLinkedReceived: true,
+            outputsProduced: status === "complete" ? 3 : 0,
+          }),
         );
-        expect(screen.getByTestId("pb-drawer-pause-btn")).toBeInTheDocument();
+        expect(screen.queryByTestId("pb-drawer-pause-btn")).not.toBeInTheDocument();
         unmount();
       }
     });
 
-    it("Resume visible on paused", async () => {
+    it("Resume visible on paused (state-card action)", async () => {
       await renderDrawer("paused", makeDrawerData(makeTask("paused"), { allLinkedReceived: true }));
       expect(screen.getByTestId("pb-drawer-resume-btn")).toBeInTheDocument();
     });
 
-    it("Retry visible on failed", async () => {
+    it("Retry visible on failed (state-card action)", async () => {
       await renderDrawer("failed", makeDrawerData(makeTask("failed"), { allLinkedReceived: true, outputsFailed: 1 }));
       expect(screen.getByTestId("pb-drawer-retry-btn")).toBeInTheDocument();
     });
@@ -384,8 +391,8 @@ describe("PlaybookDrawer", () => {
           outputsProduced: status === "complete" ? 3 : 0,
         }),
       );
-      const header = screen.getByTestId("pb-drawer-header");
-      expect(header.dataset.barVariant).toBe(expected);
+      const head = screen.getByTestId("pb-drawer-head");
+      expect(head.dataset.barVariant).toBe(expected);
     });
   });
 

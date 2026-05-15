@@ -41,13 +41,13 @@ import {
 } from "@/app/(dashboard)/framework/actions";
 import { useDashboardTopBar } from "@/components/dashboard-topbar-context";
 import { AllowedItemsPicker } from "@/components/framework/allowed-items-picker";
-import { ColorDotPicker } from "@/components/framework/color-dot-picker";
 import { CompactEmojiPicker } from "@/components/framework/compact-emoji-picker";
 import { FrameworkHeaderActionsMenu } from "@/components/framework/framework-header-actions-menu";
 import { FrameworkItemModal } from "@/components/framework/framework-item-modal";
 import { ItemAvatar } from "@/components/framework/item-avatar";
 import { PlaybookOutputsEditor } from "@/components/framework/playbook-outputs-editor";
 import { ConfirmModal } from "@/components/ui/confirm-modal";
+import { InlineEditableText } from "@/components/ui/inline-editable-text";
 import { useAnalytics } from "@/lib/analytics/events";
 import { useToast } from "@/lib/toast";
 import { useUnsavedChangesGuard } from "@/lib/use-unsaved-changes-guard";
@@ -71,7 +71,6 @@ type EditorViewMode = "markdown" | "plain-text";
 type FrameworkItemModalState =
   | null
   | {
-      mode: "create" | "rename";
       initialName: string;
       initialDescription: string;
     };
@@ -167,6 +166,7 @@ export function FrameworkScreen({
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
   const [deletingItemId, setDeletingItemId] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
+  const [filterIds, setFilterIds] = useState<string[]>([]);
   const [sortDirection, setSortDirection] = useState<"asc" | "desc">("asc");
   const [pending, startTransition] = useTransition();
   const editorTextareaRef = useRef<HTMLTextAreaElement | null>(null);
@@ -190,16 +190,27 @@ export function FrameworkScreen({
   );
   const normalizedSearchQuery = deferredSearchQuery.trim().toLowerCase();
   const filteredItems = useMemo(() => {
-    if (normalizedSearchQuery.length === 0) {
-      return typedItems;
+    let next = typedItems;
+
+    if (normalizedSearchQuery.length > 0) {
+      next = next.filter((item) =>
+        [item.name, item.description, item.content, item.id]
+          .filter(Boolean)
+          .some((value) => value.toLowerCase().includes(normalizedSearchQuery)),
+      );
     }
 
-    return typedItems.filter((item) =>
-      [item.name, item.description, item.content, item.id]
-        .filter(Boolean)
-        .some((value) => value.toLowerCase().includes(normalizedSearchQuery)),
-    );
-  }, [normalizedSearchQuery, typedItems]);
+    if (filterIds.length > 0) {
+      const filterSet = new Set(filterIds);
+      next = next.filter((item) => {
+        const related =
+          type === "playbook" ? item.allowedSkillIds : item.allowedPlaybookIds;
+        return related?.some((id) => filterSet.has(id)) ?? false;
+      });
+    }
+
+    return next;
+  }, [filterIds, normalizedSearchQuery, type, typedItems]);
   const visibleItems = useMemo(() => {
     const direction = sortDirection === "asc" ? 1 : -1;
     return [...filteredItems].sort(
@@ -600,19 +611,11 @@ export function FrameworkScreen({
         saveDisabled:
           pending ||
           !isDirty ||
-          !draftItem.name.trim() ||
-          !draftItem.description.trim(),
+          !draftItem.name.trim(),
         savePending: pending,
         actions: (
           <FrameworkHeaderActionsMenu
             entityName={type === "skill" ? "skill" : "playbook"}
-            onRename={() =>
-              setItemModalState({
-                mode: "rename",
-                initialName: draftItem.name,
-                initialDescription: draftItem.description,
-              })
-            }
             onDelete={() => setConfirmDeleteId(draftItem.id)}
           />
         ),
@@ -628,7 +631,6 @@ export function FrameworkScreen({
           type="button"
           onClick={() => {
             setItemModalState({
-              mode: "create",
               initialName: "",
               initialDescription: "",
             });
@@ -663,25 +665,38 @@ export function FrameworkScreen({
                 onSelect={(emoji) =>
                   setDraftItem((current) => (current ? { ...current, icon: emoji } : current))
                 }
+                onColorChange={(nextColor) =>
+                  setDraftItem((current) =>
+                    current ? { ...current, color: nextColor } : current,
+                  )
+                }
               />
-              <div className="min-w-0">
-                <div className="flex items-center gap-2">
-                  <h1 className="truncate text-[22px] font-bold tracking-tight text-t1">
-                    {draftItem.name}
-                  </h1>
-                  <ColorDotPicker
-                    color={resolveItemColor(draftItem)}
-                    ariaLabel={`Change ${type} color`}
-                    onChange={(nextColor) =>
+              <div className="min-w-0 flex-1">
+                <div className="min-w-0">
+                  <InlineEditableText
+                    value={draftItem.name}
+                    onChange={(next) =>
                       setDraftItem((current) =>
-                        current ? { ...current, color: nextColor } : current,
+                        current ? { ...current, name: next } : current,
                       )
                     }
+                    ariaLabel={`${type === "skill" ? "skill" : "playbook"} name`}
+                    placeholder="Untitled"
+                    className="text-[22px] font-bold tracking-tight text-t1"
                   />
                 </div>
-                <p className="mt-1 max-w-3xl text-[13px] leading-6 text-t2">
-                  {draftItem.description}
-                </p>
+                <InlineEditableText
+                  value={draftItem.description}
+                  onChange={(next) =>
+                    setDraftItem((current) =>
+                      current ? { ...current, description: next } : current,
+                    )
+                  }
+                  ariaLabel={`${type === "skill" ? "skill" : "playbook"} description`}
+                  placeholder="Add a description"
+                  multiline
+                  className="mt-1 max-w-3xl text-[13px] leading-6 text-t2"
+                />
               </div>
             </div>
           ) : (
@@ -986,7 +1001,16 @@ export function FrameworkScreen({
                         </div>
                       </div>
 
-                      <div className="flex justify-end">
+                      <div className="flex items-center gap-2 justify-end">
+                        <AllowedItemsPicker
+                          kind={type === "playbook" ? "skills" : "playbooks"}
+                          mode="filter"
+                          value={filterIds}
+                          available={
+                            type === "playbook" ? availableSkills : availablePlaybooks
+                          }
+                          onChange={setFilterIds}
+                        />
                         <button
                           type="button"
                           onClick={() =>
@@ -1048,12 +1072,14 @@ export function FrameworkScreen({
                         <p className="mt-4 text-[15px] font-semibold tracking-[-0.01em] text-t1">
                           {typedItems.length === 0
                             ? `No ${type === "skill" ? "skills" : "playbooks"} yet`
-                            : `No ${type === "skill" ? "skills" : "playbooks"} match that search`}
+                            : `No ${type === "skill" ? "skills" : "playbooks"} match`}
                         </p>
                         <p className="mt-2 text-[12.5px] leading-6 text-t2">
                           {typedItems.length === 0
                             ? `Create the first ${type === "skill" ? "skill" : "playbook"} to start building this library.`
-                            : `Try a different title or keyword to keep scanning the library.`}
+                            : filterIds.length > 0
+                              ? `Try a different keyword or clear the ${type === "skill" ? "playbook" : "skill"} filter.`
+                              : `Try a different title or keyword to keep scanning the library.`}
                         </p>
                       </div>
                     </div>
@@ -1068,27 +1094,13 @@ export function FrameworkScreen({
 
       {itemModalState ? (
         <FrameworkItemModal
-          title={
-            itemModalState.mode === "create"
-              ? `Create ${type === "skill" ? "skill" : "playbook"}`
-              : `Rename ${type === "skill" ? "skill" : "playbook"}`
-          }
-          description={
-            itemModalState.mode === "create"
-              ? `Pick an icon, color, and title for your new ${type === "skill" ? "skill" : "playbook"}.`
-              : `Update the ${type === "skill" ? "skill" : "playbook"} title and description.`
-          }
+          title={`Create ${type === "skill" ? "skill" : "playbook"}`}
+          description={`Pick an icon, color, and title for your new ${type === "skill" ? "skill" : "playbook"}.`}
           initialName={itemModalState.initialName}
           initialDescription={itemModalState.initialDescription}
           defaultIcon={defaultIcon}
-          initialIcon={
-            itemModalState.mode === "rename" ? draftItem?.icon ?? null : null
-          }
-          initialColor={
-            itemModalState.mode === "rename" ? draftItem?.color ?? null : null
-          }
-          showAvatarPickers={itemModalState.mode === "create"}
-          submitLabel={itemModalState.mode === "create" ? "Create" : "Apply"}
+          showAvatarPickers
+          submitLabel="Create"
           pending={pending}
           onClose={() => {
             if (!pending) {
@@ -1096,20 +1108,6 @@ export function FrameworkScreen({
             }
           }}
           onSubmit={({ name, description, icon, color }) => {
-            if (itemModalState.mode === "rename") {
-              setDraftItem((current) =>
-                current
-                  ? {
-                      ...current,
-                      name: name.trim(),
-                      description: description.trim(),
-                    }
-                  : current,
-              );
-              setItemModalState(null);
-              return;
-            }
-
             const draft = createDraftItem(type, name, description, icon, color);
             startTransition(async () => {
               try {

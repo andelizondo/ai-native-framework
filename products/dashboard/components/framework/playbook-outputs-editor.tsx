@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useId, useMemo, useState, useTransition } from "react";
+import { useCallback, useEffect, useId, useMemo, useRef, useState, useTransition } from "react";
 import { ChevronDown, GripVertical, Plus, Trash2 } from "lucide-react";
 import {
   DndContext,
@@ -29,17 +29,31 @@ import {
   updatePlaybookOutputAction,
 } from "@/app/(dashboard)/framework/actions";
 import { ConfirmModal } from "@/components/ui/confirm-modal";
+import { InlineEditableText } from "@/components/ui/inline-editable-text";
+import { ItemAvatar } from "@/components/framework/item-avatar";
 import { useToast } from "@/lib/toast";
 import type { PlaybookOutput, PlaybookOutputKind } from "@/lib/workflows/types";
 import { cn } from "@/lib/utils";
 
-const KIND_OPTIONS: ReadonlyArray<{ value: PlaybookOutputKind; label: string }> = [
-  { value: "file", label: "File" },
-  { value: "media", label: "Media" },
-  { value: "link", label: "Link" },
-  { value: "manual", label: "Manual" },
-  { value: "api", label: "API" },
+/** Visual encoding per output kind: emoji + ring color the picker uses
+ *  in place of a text dropdown. Mirrors the drawer's avatar palette so
+ *  the same kind reads the same way across both surfaces. */
+const KIND_OPTIONS: ReadonlyArray<{
+  value: PlaybookOutputKind;
+  label: string;
+  emoji: string;
+  color: string;
+}> = [
+  { value: "file", label: "File", emoji: "📎", color: "var(--pill-active-d)" },
+  { value: "media", label: "Media", emoji: "🎬", color: "var(--pill-active-d)" },
+  { value: "link", label: "Link", emoji: "🔗", color: "var(--pill-active-d)" },
+  { value: "api", label: "API", emoji: "🔌", color: "var(--pill-complete-d)" },
+  { value: "manual", label: "Manual", emoji: "✏️", color: "var(--t3)" },
 ];
+
+function kindOption(kind: PlaybookOutputKind) {
+  return KIND_OPTIONS.find((opt) => opt.value === kind) ?? KIND_OPTIONS[0];
+}
 
 const NAME_MAX = 80;
 
@@ -369,61 +383,86 @@ export function PlaybookOutputsEditor({
       aria-labelledby={headingId}
       className="mt-10 border-t border-border pt-7"
     >
-      <header className="mb-4 flex items-center justify-between gap-3">
-        <div>
-          <h2
-            id={headingId}
-            className="text-[15px] font-semibold tracking-[-0.01em] text-t1"
-          >
-            Outputs
-          </h2>
-          <p className="mt-1 text-[12px] text-t2">
-            Declared artifacts produced by tasks running this playbook.
-          </p>
-        </div>
-        <button
-          type="button"
-          onClick={handleAdd}
-          data-testid="playbook-outputs-add"
-          className="inline-flex h-8 items-center gap-1.5 rounded-md border border-border bg-bg px-2.5 text-[12px] font-medium text-t1 transition hover:bg-bg-3 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
-        >
-          <Plus className="h-3.5 w-3.5" />
-          Add output
-        </button>
-      </header>
+      <h2
+        id={headingId}
+        className="mb-4 text-[15px] font-semibold tracking-[-0.01em] text-t1"
+      >
+        Outputs
+      </h2>
 
       {!loaded ? (
-        <p className="text-[12px] text-t3">Loading…</p>
-      ) : rows.length === 0 ? (
-        <p
-          data-testid="playbook-outputs-empty"
-          className="rounded-md border border-dashed border-border bg-bg-2 px-4 py-6 text-center text-[12px] text-t2"
+        <ul
+          aria-label="Loading outputs"
+          data-testid="playbook-outputs-skeleton"
+          className="flex flex-col gap-2.5"
         >
-          No outputs declared yet.
-        </p>
+          {Array.from({ length: 3 }, (_, i) => (
+            <li
+              key={i}
+              className="animate-pulse rounded-md border border-border bg-bg p-3"
+            >
+              <div className="flex items-start gap-2">
+                <div className="mt-1 h-7 w-6 rounded bg-bg-2" />
+                <div className="min-w-0 flex-1 space-y-2">
+                  <div className="flex items-center gap-2">
+                    <div className="h-3 flex-1 rounded bg-bg-2" />
+                    <div className="h-3 w-14 rounded bg-bg-2" />
+                  </div>
+                  <div className="h-2.5 w-3/4 rounded bg-bg-2" />
+                </div>
+              </div>
+            </li>
+          ))}
+        </ul>
       ) : (
-        <DndContext
-          sensors={sensors}
-          collisionDetection={closestCenter}
-          onDragEnd={handleDragEnd}
-        >
-          <SortableContext items={sortableIds} strategy={verticalListSortingStrategy}>
-            <ul className="flex flex-col gap-2.5">
-              {rows.map((row) => (
-                <SortableOutputRow
-                  key={row.id}
-                  row={row}
-                  error={rowErrors[row.id]}
-                  saving={savingIds.has(row.id)}
-                  dirty={isDirty(row)}
-                  onChange={(patch) => setRow(row.id, patch)}
-                  onSave={() => handleSaveRow(row.id)}
-                  onDelete={() => openDeleteConfirm(row.id)}
-                />
-              ))}
-            </ul>
-          </SortableContext>
-        </DndContext>
+        <div className="flex flex-col gap-2.5">
+          {rows.length > 0 ? (
+            <DndContext
+              sensors={sensors}
+              collisionDetection={closestCenter}
+              onDragEnd={handleDragEnd}
+            >
+              <SortableContext
+                items={sortableIds}
+                strategy={verticalListSortingStrategy}
+              >
+                <ul className="flex flex-col gap-2.5">
+                  {rows.map((row) => (
+                    <SortableOutputRow
+                      key={row.id}
+                      row={row}
+                      error={rowErrors[row.id]}
+                      saving={savingIds.has(row.id)}
+                      dirty={isDirty(row)}
+                      onChange={(patch) => setRow(row.id, patch)}
+                      onSave={() => handleSaveRow(row.id)}
+                      onDelete={() => openDeleteConfirm(row.id)}
+                      onDiscard={() => {
+                        if (row.saved) {
+                          setRows((current) =>
+                            current.map((r) =>
+                              r.id === row.id ? fromServer(row.saved!) : r,
+                            ),
+                          );
+                        }
+                        setRowError(row.id, undefined);
+                      }}
+                    />
+                  ))}
+                </ul>
+              </SortableContext>
+            </DndContext>
+          ) : null}
+          <button
+            type="button"
+            onClick={handleAdd}
+            data-testid="playbook-outputs-add"
+            className="group/add inline-flex items-center justify-center gap-1.5 rounded-md border border-dashed border-border bg-transparent px-4 py-3 text-[12px] font-medium text-t3 transition hover:border-border-hi hover:bg-bg-2 hover:text-t1 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
+          >
+            <Plus className="h-3.5 w-3.5 transition group-hover/add:text-accent" />
+            Add output
+          </button>
+        </div>
       )}
 
       {pendingDelete ? (
@@ -463,6 +502,7 @@ interface SortableOutputRowProps {
   onChange: (patch: Partial<DraftRow>) => void;
   onSave: () => void;
   onDelete: () => void;
+  onDiscard: () => void;
 }
 
 function SortableOutputRow({
@@ -473,6 +513,7 @@ function SortableOutputRow({
   onChange,
   onSave,
   onDelete,
+  onDiscard,
 }: SortableOutputRowProps) {
   const {
     attributes,
@@ -491,6 +532,7 @@ function SortableOutputRow({
   };
 
   const showApiCheck = row.kind === "api";
+  const canDiscard = !row.isPending && dirty;
 
   return (
     <li
@@ -498,11 +540,12 @@ function SortableOutputRow({
       data-testid={`playbook-output-row-${row.id}`}
       style={style}
       className={cn(
-        "rounded-md border border-border bg-bg p-3",
+        "rounded-md border border-border bg-bg px-3 py-2.5 transition-colors",
+        dirty && "border-border-hi bg-bg-2/60",
         isDragging && "shadow-lg",
       )}
     >
-      <div className="flex items-start gap-2">
+      <div className="flex items-center gap-3">
         <button
           type="button"
           ref={setActivatorNodeRef as unknown as React.Ref<HTMLButtonElement>}
@@ -510,50 +553,39 @@ function SortableOutputRow({
           data-testid={`playbook-output-drag-${row.id}`}
           {...(attributes as unknown as Record<string, unknown>)}
           {...(listeners as unknown as Record<string, unknown>)}
-          className="mt-1 flex h-7 w-6 cursor-grab items-center justify-center rounded text-t3 hover:bg-bg-3 hover:text-t2 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
+          className="flex h-7 w-5 cursor-grab items-center justify-center rounded text-t3 hover:bg-bg-3 hover:text-t2 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
         >
           <GripVertical className="h-4 w-4" />
         </button>
 
-        <div className="min-w-0 flex-1 space-y-2">
-          <div className="flex flex-wrap items-center gap-2">
-            <input
-              type="text"
-              value={row.name}
-              onChange={(e) => onChange({ name: e.target.value })}
-              placeholder="Output name"
-              maxLength={NAME_MAX}
-              aria-label="Output name"
-              data-testid={`playbook-output-name-${row.id}`}
-              className="h-8 min-w-0 flex-1 rounded-md border border-border bg-bg-2 px-2.5 text-[13px] text-t1 placeholder:text-t3 focus:border-accent focus:outline-none"
-            />
-            <select
-              value={row.kind}
-              onChange={(e) => onChange({ kind: e.target.value as PlaybookOutputKind })}
-              aria-label="Output kind"
-              data-testid={`playbook-output-kind-${row.id}`}
-              className="h-8 rounded-md border border-border bg-bg-2 px-2 text-[12px] text-t1 focus:border-accent focus:outline-none"
-            >
-              {KIND_OPTIONS.map((opt) => (
-                <option key={opt.value} value={opt.value}>
-                  {opt.label}
-                </option>
-              ))}
-            </select>
-          </div>
+        <KindAvatarPicker
+          rowId={row.id}
+          value={row.kind}
+          onChange={(next) => onChange({ kind: next })}
+        />
 
-          <textarea
-            value={row.description}
-            onChange={(e) => onChange({ description: e.target.value })}
-            placeholder="Description (optional)"
-            rows={2}
-            aria-label="Output description"
-            data-testid={`playbook-output-description-${row.id}`}
-            className="block w-full resize-y rounded-md border border-border bg-bg-2 px-2.5 py-1.5 text-[12px] text-t1 placeholder:text-t3 focus:border-accent focus:outline-none"
+        <div className="min-w-0 flex-1">
+          <InlineEditableText
+            value={row.name}
+            onChange={(next) => onChange({ name: next })}
+            ariaLabel="Output name"
+            placeholder="Output name"
+            maxLength={NAME_MAX}
+            className="block text-[14px] font-semibold tracking-tight text-t1"
           />
-
+          <InlineEditableText
+            value={row.description}
+            onChange={(next) => onChange({ description: next })}
+            ariaLabel="Output description"
+            placeholder="Add a description"
+            multiline
+            className="mt-0.5 text-[12px] leading-5 text-t2"
+          />
           {showApiCheck ? (
-            <details className="group rounded-md border border-border bg-bg-2">
+            <details
+              className="group mt-2 rounded-md border border-border bg-bg-2"
+              data-testid={`playbook-output-api-check-wrap-${row.id}`}
+            >
               <summary className="flex cursor-pointer list-none items-center gap-1 px-2.5 py-1.5 text-[11px] font-medium uppercase tracking-[0.08em] text-t2 [&::-webkit-details-marker]:hidden">
                 <ChevronDown className="h-3.5 w-3.5 transition group-open:rotate-180" />
                 api_check
@@ -570,44 +602,144 @@ function SortableOutputRow({
               />
             </details>
           ) : null}
-
           {error ? (
             <p
               data-testid={`playbook-output-error-${row.id}`}
-              className="text-[12px] text-rose-400"
+              className="mt-1 text-[12px] text-rose-400"
               role="alert"
             >
               {error}
             </p>
           ) : null}
+        </div>
 
-          <div className="flex items-center justify-end gap-2">
+        <div className="flex shrink-0 items-center gap-1.5">
+          <button
+            type="button"
+            onClick={onDelete}
+            aria-label="Delete output"
+            title="Delete output"
+            data-testid={`playbook-output-delete-${row.id}`}
+            className="flex h-7 w-7 items-center justify-center rounded-md border border-border bg-bg-2 text-t3 transition hover:border-border-hi hover:bg-bg-3 hover:text-rose-400 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
+          >
+            <Trash2 className="h-3.5 w-3.5" />
+          </button>
+          {canDiscard ? (
             <button
               type="button"
-              onClick={onDelete}
-              data-testid={`playbook-output-delete-${row.id}`}
-              className="inline-flex h-7 items-center gap-1 rounded-md px-2 text-[11px] font-medium text-t2 transition hover:bg-bg-3 hover:text-t1 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
+              onClick={onDiscard}
+              disabled={saving}
+              data-testid={`playbook-output-cancel-${row.id}`}
+              className="flex h-7 cursor-pointer items-center gap-1.5 rounded-md border border-border bg-bg-2 px-2.5 text-[11.5px] font-medium text-t2 transition hover:border-border-hi hover:bg-bg-3 hover:text-t1 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent disabled:cursor-not-allowed disabled:opacity-50"
             >
-              <Trash2 className="h-3.5 w-3.5" />
-              Delete
+              Discard
             </button>
+          ) : null}
+          {dirty || row.isPending ? (
             <button
               type="button"
               onClick={onSave}
-              disabled={!dirty || saving}
+              disabled={saving}
               data-testid={`playbook-output-save-${row.id}`}
               className={cn(
-                "inline-flex h-7 items-center gap-1 rounded-md border border-border px-2.5 text-[11px] font-medium transition focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent",
-                dirty && !saving
-                  ? "bg-accent text-bg hover:opacity-90"
-                  : "bg-bg-2 text-t3",
+                "flex h-7 items-center gap-1.5 rounded-md px-2.5 text-[11.5px] font-semibold transition focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent",
+                saving
+                  ? "cursor-not-allowed border border-border bg-bg-2 text-t3 opacity-70"
+                  : "border border-[#10b981] bg-[#10b981] text-white shadow-[0_0_0_1px_rgba(16,185,129,0.16),0_8px_22px_rgba(16,185,129,0.24)] hover:bg-[#22c55e]",
               )}
             >
               {saving ? "Saving…" : row.isPending ? "Add" : "Save"}
             </button>
-          </div>
+          ) : null}
         </div>
       </div>
     </li>
+  );
+}
+
+interface KindAvatarPickerProps {
+  rowId: string;
+  value: PlaybookOutputKind;
+  onChange: (next: PlaybookOutputKind) => void;
+}
+
+function KindAvatarPicker({ rowId, value, onChange }: KindAvatarPickerProps) {
+  const [open, setOpen] = useState(false);
+  const rootRef = useRef<HTMLDivElement | null>(null);
+  const current = kindOption(value);
+
+  useEffect(() => {
+    if (!open) return;
+    function handlePointerDown(event: MouseEvent) {
+      if (rootRef.current?.contains(event.target as Node)) return;
+      setOpen(false);
+    }
+    function handleKey(event: KeyboardEvent) {
+      if (event.key === "Escape") setOpen(false);
+    }
+    document.addEventListener("mousedown", handlePointerDown);
+    document.addEventListener("keydown", handleKey);
+    return () => {
+      document.removeEventListener("mousedown", handlePointerDown);
+      document.removeEventListener("keydown", handleKey);
+    };
+  }, [open]);
+
+  return (
+    <div ref={rootRef} className="relative shrink-0">
+      <button
+        type="button"
+        onClick={() => setOpen((prev) => !prev)}
+        aria-label={`Output kind: ${current.label}. Change kind.`}
+        aria-haspopup="listbox"
+        aria-expanded={open}
+        data-testid={`playbook-output-kind-${rowId}`}
+        data-kind={value}
+        className="rounded-full focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
+      >
+        <ItemAvatar
+          emoji={current.emoji}
+          color={current.color}
+          label={current.label}
+          size="md"
+        />
+      </button>
+      {open ? (
+        <div
+          role="listbox"
+          aria-label="Output kind"
+          className="absolute left-0 top-full z-30 mt-2 w-44 overflow-hidden rounded-lg border border-border-hi bg-bg-2 shadow-[var(--shadow-canvas)]"
+        >
+          {KIND_OPTIONS.map((opt) => {
+            const selected = opt.value === value;
+            return (
+              <button
+                key={opt.value}
+                type="button"
+                role="option"
+                aria-selected={selected}
+                onClick={() => {
+                  setOpen(false);
+                  if (!selected) onChange(opt.value);
+                }}
+                data-testid={`playbook-output-kind-option-${rowId}-${opt.value}`}
+                className={cn(
+                  "flex w-full items-center gap-2.5 px-2.5 py-1.5 text-left text-[12.5px] transition",
+                  selected ? "bg-primary-bg text-accent" : "text-t2 hover:bg-bg-3 hover:text-t1",
+                )}
+              >
+                <ItemAvatar
+                  emoji={opt.emoji}
+                  color={opt.color}
+                  label={opt.label}
+                  size="sm"
+                />
+                <span className="font-medium">{opt.label}</span>
+              </button>
+            );
+          })}
+        </div>
+      ) : null}
+    </div>
   );
 }

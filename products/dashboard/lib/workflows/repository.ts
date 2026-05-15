@@ -425,11 +425,37 @@ export class WorkflowRepositoryError extends Error {
     cause?: unknown,
     options?: { code?: WorkflowRepositoryErrorCode },
   ) {
-    super(message);
+    // Compose the underlying Supabase error's message + code into our own
+    // so a toast like "upsertFrameworkItem allowed_playbooks insert failed"
+    // surfaces the actual reason (FK violation, RLS, etc.) instead of just
+    // the wrapper label.
+    const detail = describeCause(cause);
+    super(detail ? `${message} — ${detail}` : message);
     this.name = "WorkflowRepositoryError";
     this.cause = cause;
     this.code = options?.code;
   }
+}
+
+function describeCause(cause: unknown): string {
+  if (!cause || typeof cause !== "object") return "";
+  const obj = cause as {
+    message?: unknown;
+    code?: unknown;
+    details?: unknown;
+    hint?: unknown;
+  };
+  const parts: string[] = [];
+  if (typeof obj.message === "string" && obj.message.trim().length > 0) {
+    parts.push(obj.message);
+  }
+  if (typeof obj.code === "string" && obj.code.length > 0) {
+    parts.push(`(${obj.code})`);
+  }
+  if (typeof obj.details === "string" && obj.details.trim().length > 0) {
+    parts.push(obj.details);
+  }
+  return parts.join(" ");
 }
 
 function isUniqueViolation(error: unknown): boolean {
@@ -439,6 +465,36 @@ function isUniqueViolation(error: unknown): boolean {
     "code" in error &&
     (error as { code?: unknown }).code === "23505"
   );
+}
+
+/**
+ * Returns the subset of `requestedIds` that actually exists in
+ * `framework_items` with the given `type`. Used to scrub stale references
+ * out of `allowedSkillIds` / `allowedPlaybookIds` before we try to write
+ * them to the join table — without this, a deleted playbook (or a draft
+ * id that never made it to the items table) surfaces as an opaque FK
+ * violation on insert.
+ */
+async function filterExistingFrameworkItemIds(
+  client: SupabaseClient,
+  requestedIds: string[],
+  type: "skill" | "playbook",
+): Promise<string[]> {
+  if (requestedIds.length === 0) return [];
+  const { data, error } = await client
+    .from("framework_items")
+    .select("id")
+    .eq("type", type)
+    .in("id", requestedIds);
+  if (error) {
+    throw new WorkflowRepositoryError(
+      `filterExistingFrameworkItemIds failed (${type})`,
+      error,
+    );
+  }
+  const existing = new Set((data ?? []).map((row) => row.id as string));
+  // Preserve the caller's order while dropping unknown ids.
+  return requestedIds.filter((id) => existing.has(id));
 }
 
 /**
@@ -514,6 +570,7 @@ async function loadInstanceTaskIO(
           id: po.id,
           position: po.position,
           status: (tor?.status ?? "pending") as TaskOutputStatus,
+          name: po.name,
         };
       });
     const received = receivedInputsByTask.get(task.id) ?? new Set<string>();
@@ -1580,7 +1637,17 @@ export function createWorkflowRepository(
       // Supabase JS doesn't expose transactional batches — accept the
       // brief inconsistency window for V1 simplicity.
       if (saved.type === "playbook" && item.allowedSkillIds !== undefined) {
-        const desired = item.allowedSkillIds;
+        // Dedupe — the PK (playbook_id, skill_id) would reject duplicates,
+        // and the picker has no need to send them.
+        const requested = Array.from(new Set(item.allowedSkillIds));
+        // Drop IDs that no longer exist as skills. Stale references are a
+        // real-world hazard (deleted skill, drafted-but-never-saved id, etc.)
+        // and would otherwise surface as an opaque FK violation on insert.
+        const desired = await filterExistingFrameworkItemIds(
+          client,
+          requested,
+          "skill",
+        );
 
         const { error: deleteErr } = await client
           .from("framework_item_allowed_skills")
@@ -1594,13 +1661,17 @@ export function createWorkflowRepository(
         }
 
         if (desired.length > 0) {
+          // Use upsert with ignoreDuplicates so a concurrent writer that
+          // re-inserted a (playbook_id, skill_id) pair between our delete
+          // and insert doesn't surface as a PK violation here.
           const { error: insertErr } = await client
             .from("framework_item_allowed_skills")
-            .insert(
+            .upsert(
               desired.map((skillId) => ({
                 playbook_id: saved.id,
                 skill_id: skillId,
               })),
+              { onConflict: "playbook_id,skill_id", ignoreDuplicates: true },
             );
           if (insertErr) {
             throw new WorkflowRepositoryError(
@@ -1612,7 +1683,12 @@ export function createWorkflowRepository(
 
         saved.allowedSkillIds = desired;
       } else if (saved.type === "skill" && item.allowedPlaybookIds !== undefined) {
-        const desired = item.allowedPlaybookIds;
+        const requested = Array.from(new Set(item.allowedPlaybookIds));
+        const desired = await filterExistingFrameworkItemIds(
+          client,
+          requested,
+          "playbook",
+        );
 
         const { error: deleteErr } = await client
           .from("framework_item_allowed_skills")
@@ -1628,11 +1704,12 @@ export function createWorkflowRepository(
         if (desired.length > 0) {
           const { error: insertErr } = await client
             .from("framework_item_allowed_skills")
-            .insert(
+            .upsert(
               desired.map((playbookId) => ({
                 playbook_id: playbookId,
                 skill_id: saved.id,
               })),
+              { onConflict: "playbook_id,skill_id", ignoreDuplicates: true },
             );
           if (insertErr) {
             throw new WorkflowRepositoryError(

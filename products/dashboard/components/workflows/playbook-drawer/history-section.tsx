@@ -1,8 +1,10 @@
 "use client";
 
-import { ChevronRight, Clock } from "lucide-react";
+import { ChevronRight } from "lucide-react";
 
+import { ItemAvatar } from "@/components/framework/item-avatar";
 import { cn } from "@/lib/utils";
+import { actorInitials, humanizeEvent } from "@/lib/workflows/event-labels";
 import type { WorkflowEvent } from "@/lib/workflows/types";
 
 export interface HistorySectionProps {
@@ -18,41 +20,63 @@ function formatTime(iso: string): string {
 
 export function HistorySection({ events, open, onToggle }: HistorySectionProps) {
   return (
-    <section className="pb-drawer-sec" data-testid="pb-drawer-history-section">
-      <button
-        type="button"
-        className="pb-drawer-history-row"
-        onClick={onToggle}
-        data-testid="pb-drawer-history-toggle"
-      >
-        <span className="pb-drawer-history-row__left">
-          <Clock size={11} aria-hidden /> History · {events.length} events
-        </span>
-        <ChevronRight
-          size={11}
-          className={cn(
-            "pb-drawer-history-row__chev",
-            open && "pb-drawer-history-row__chev--open",
-          )}
-          aria-hidden
-        />
-      </button>
+    <section
+      className="pb-drawer-sec"
+      data-testid="pb-drawer-history-section"
+      data-collapsed={!open}
+    >
+      <div className="pb-drawer-sec__head">
+        <button
+          type="button"
+          className="pb-drawer-sec__toggle"
+          onClick={onToggle}
+          aria-expanded={open}
+          data-testid="pb-drawer-history-toggle"
+        >
+          <ChevronRight
+            size={12}
+            className={cn(
+              "pb-drawer-sec__chev",
+              open && "pb-drawer-sec__chev--open",
+            )}
+            aria-hidden
+          />
+          <span className="pb-drawer-sec__lbl">
+            History{" "}
+            <span className="pb-drawer-sec__count">{events.length}</span>
+          </span>
+        </button>
+      </div>
       {open ? (
         <div className="pb-drawer-events" data-testid="pb-drawer-events-list">
           {events.length === 0 ? (
             <div className="pb-drawer-events__empty">No events yet.</div>
           ) : (
-            events.map((event) => (
-              <div className="pb-drawer-event" key={event.id}>
-                <div className="pb-drawer-event__time">{formatTime(event.createdAt)}</div>
-                <div className="pb-drawer-event__body">
-                  <div className="pb-drawer-event__name">{event.name}</div>
-                  {event.description ? (
-                    <div className="pb-drawer-event__desc">{event.description}</div>
-                  ) : null}
+            events.map((event) => {
+              const { title, actor, actorIsAgent } = humanizeEvent(event);
+              return (
+                <div className="pb-drawer-event" key={event.id}>
+                  <ItemAvatar
+                    emoji={actorIsAgent ? "🤖" : null}
+                    initials={actorIsAgent ? null : actorInitials(actor)}
+                    color="var(--accent)"
+                    label={actor}
+                    size="xs"
+                  />
+                  <div className="pb-drawer-event__body">
+                    <div className="pb-drawer-event__title">{title}</div>
+                    <div className="pb-drawer-event__sub">
+                      by {actor} · {formatTime(event.createdAt)}
+                    </div>
+                    {event.description ? (
+                      <div className="pb-drawer-event__desc">
+                        {event.description}
+                      </div>
+                    ) : null}
+                  </div>
                 </div>
-              </div>
-            ))
+              );
+            })
           )}
         </div>
       ) : null}
