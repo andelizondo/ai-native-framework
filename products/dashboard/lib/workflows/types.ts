@@ -86,6 +86,12 @@ export interface WorkflowTaskTemplate {
   notes?: string;
   checkpoint?: boolean;
   inputs?: WorkflowInput[];
+  /** Snapshot of the playbook's outputs at attach time. Editing this list
+   *  (remove, reorder) does not propagate back to the playbook definition;
+   *  removing an output here just opts this template out of producing it.
+   *  Snapshot ids equal the source `playbook_outputs.id` so produce-flow
+   *  upserts on `(task_id, output_id)` continue to work. */
+  outputs?: PlaybookOutput[];
   owners?: string[];
 }
 
@@ -114,6 +120,11 @@ export interface WorkflowTask {
   substatus: string;
   checkpoint: boolean;
   inputs: WorkflowInput[];
+  /** Snapshot of the playbook's outputs at attach time — see
+   *  `WorkflowTaskTemplate.outputs` for the lifecycle. Always-present array
+   *  so callers don't have to null-check; backfill defaults to `[]` for any
+   *  legacy task with no `playbookId`. */
+  outputs: PlaybookOutput[];
   playbookId: string | null;
   /** Owner labels (people or AI agents) assigned to this specific card.
    *  Per-task so two cards pointing at the same playbook can carry different
@@ -209,6 +220,7 @@ export interface WorkflowTaskCreateInput {
   notes?: string;
   checkpoint?: boolean;
   inputs?: WorkflowInput[];
+  outputs?: PlaybookOutput[];
   owners?: string[];
 }
 
@@ -300,6 +312,7 @@ export interface WorkflowTaskPatch {
   substatus?: string;
   checkpoint?: boolean;
   inputs?: WorkflowInput[];
+  outputs?: PlaybookOutput[];
   playbookId?: string | null;
   owners?: string[];
   pausedReason?: string | null;

@@ -62,6 +62,7 @@ import {
 import { ItemAvatar } from "@/components/framework/item-avatar";
 import type {
   FrameworkItem,
+  PlaybookOutput,
   TaskIOSummary,
   TemplateOutputGroup,
   WorkflowInput,
@@ -72,6 +73,7 @@ import type {
   WorkflowTaskStatus,
   WorkflowTemplate,
 } from "@/lib/workflows/types";
+import { listPlaybookOutputsAction } from "@/app/(dashboard)/framework/actions";
 import {
   TASK_STATUS_LABEL,
   TASK_STATUS_PILL_CLASS,
@@ -189,6 +191,7 @@ export function ProcessMatrix({
       notes?: string;
       owners?: string[];
       inputs?: WorkflowInput[];
+      outputs?: PlaybookOutput[];
     };
   } | null>(null);
   const [confirmDeleteTask, setConfirmDeleteTask] = useState<WorkflowTask | null>(
@@ -424,11 +427,15 @@ export function ProcessMatrix({
           const inputsChanged =
             JSON.stringify(saved.inputs ?? []) !==
             JSON.stringify(task.inputs ?? []);
+          const outputsChanged =
+            JSON.stringify(saved.outputs ?? []) !==
+            JSON.stringify(task.outputs ?? []);
           if (
             saved.notes !== task.notes ||
             saved.playbookId !== task.playbookId ||
             ownersChanged ||
-            inputsChanged
+            inputsChanged ||
+            outputsChanged
           ) {
             toUpdate.push(task);
           }
@@ -454,6 +461,7 @@ export function ProcessMatrix({
             notes: task.notes,
             checkpoint: task.checkpoint,
             inputs: task.inputs,
+            outputs: task.outputs,
             owners: task.owners,
           });
           finalById.delete(task.id);
@@ -472,6 +480,7 @@ export function ProcessMatrix({
             notes: task.notes,
             owners: task.owners,
             inputs: task.inputs,
+            outputs: task.outputs,
           });
           finalById.set(result.task.id, result.task);
         }
@@ -1038,6 +1047,7 @@ export function ProcessMatrix({
                                             notes: task.notes ?? "",
                                             owners: task.owners ?? [],
                                             inputs: task.inputs ?? [],
+                                            outputs: task.outputs ?? [],
                                           },
                                         })
                                     : () => setSelectedTaskId(task.id)
@@ -1137,6 +1147,7 @@ export function ProcessMatrix({
               };
             })}
           outputGroups={outputGroups}
+          loadPlaybookOutputs={listPlaybookOutputsAction}
           onClose={() => setAddTaskFor(null)}
           onSubmit={(input) => {
             const target = addTaskFor;
@@ -1151,6 +1162,7 @@ export function ProcessMatrix({
                         notes: input.notes,
                         owners: input.owners,
                         inputs: input.inputs,
+                        outputs: input.outputs,
                       }
                     : task,
                 ),
@@ -1174,6 +1186,7 @@ export function ProcessMatrix({
               substatus: "",
               checkpoint: false,
               inputs: input.inputs,
+              outputs: input.outputs,
               playbookId: input.playbookId,
               owners: input.owners,
               createdAt: now,

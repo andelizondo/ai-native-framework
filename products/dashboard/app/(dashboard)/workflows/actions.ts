@@ -12,6 +12,7 @@ import {
 import type {
   DrawerData,
   OutputArtifact,
+  PlaybookOutput,
   TaskInputState,
   TaskOutput,
   TemplateOutputGroup,
@@ -384,6 +385,7 @@ export interface UpdateTaskDetailsInput {
   notes?: string;
   owners?: string[];
   inputs?: WorkflowInput[];
+  outputs?: PlaybookOutput[];
 }
 
 const MAX_OWNER_LABEL_LENGTH = 80;
@@ -479,6 +481,7 @@ export async function updateTaskDetailsAction(
     notes,
     ...(owners !== undefined ? { owners } : {}),
     ...(Array.isArray(input.inputs) ? { inputs: input.inputs } : {}),
+    ...(Array.isArray(input.outputs) ? { outputs: input.outputs } : {}),
   });
 
   try {

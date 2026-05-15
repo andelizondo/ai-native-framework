@@ -471,17 +471,19 @@ export function PlaybookOutputsEditor({
           description={
             <div className="space-y-2">
               <p>
-                This will permanently delete <span className="font-medium text-t1">{pendingDelete.name}</span>.
+                This will permanently delete <span className="font-medium text-t1">{pendingDelete.name}</span> from this playbook&rsquo;s definition.
+              </p>
+              <p className="text-t3">
+                Tasks already created from this playbook keep their own copy of
+                this output and are not affected.
               </p>
               {pendingDelete.impactCount === null ? (
                 <p className="text-t3">Checking impact…</p>
               ) : pendingDelete.impactCount > 0 ? (
                 <p data-testid="playbook-outputs-delete-impact" className="text-t2">
-                  {pendingDelete.impactCount} task output {pendingDelete.impactCount === 1 ? "row" : "rows"} will be cascade-deleted.
+                  {pendingDelete.impactCount} produced task output {pendingDelete.impactCount === 1 ? "row" : "rows"} will keep its history.
                 </p>
-              ) : (
-                <p className="text-t3">No tasks have produced this output yet.</p>
-              )}
+              ) : null}
             </div>
           }
           confirmLabel="Delete"

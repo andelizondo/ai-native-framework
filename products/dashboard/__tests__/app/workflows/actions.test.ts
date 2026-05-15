@@ -75,6 +75,7 @@ function makeTask(overrides: Partial<WorkflowTask> = {}): WorkflowTask {
     substatus: "",
     checkpoint: true,
     inputs: [],
+    outputs: [],
     playbookId: null,
     owners: [],
     pausedReason: "checkpoint",

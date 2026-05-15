@@ -18,6 +18,7 @@ vi.mock("@/app/(dashboard)/workflows/actions", () => ({
 vi.mock("@/app/(dashboard)/framework/actions", () => ({
   upsertFrameworkItemAction: vi.fn(),
   deleteFrameworkItemAction: vi.fn(),
+  listPlaybookOutputsAction: vi.fn(async () => []),
 }));
 
 vi.mock("@/lib/monitoring", () => ({

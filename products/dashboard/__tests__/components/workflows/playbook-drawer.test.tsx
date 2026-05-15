@@ -111,6 +111,7 @@ function makeTask(status: WorkflowTaskStatus, overrides: Partial<WorkflowTask> =
       { id: "in-1", name: "Discovery brief", linkMode: "linked" },
       { id: "in-2", name: "Notes", linkMode: "manual" },
     ],
+    outputs: [],
     playbookId: "pb-1",
     owners: ["Andres"],
     pausedReason: status === "paused" ? "manual" : null,
