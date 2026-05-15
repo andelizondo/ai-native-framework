@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { ChevronDown, Plus, Search, SearchX, Trash2, X } from "lucide-react";
 
@@ -90,6 +90,14 @@ export function AddPlaybookDrawer({
     const raf = requestAnimationFrame(() => setOpenClass(true));
     return () => cancelAnimationFrame(raf);
   }, []);
+
+  const didScrollToSelectedRef = useRef(false);
+  const setActivePlaybookButtonRef = (el: HTMLButtonElement | null) => {
+    if (el && !didScrollToSelectedRef.current) {
+      el.scrollIntoView({ block: "nearest" });
+      didScrollToSelectedRef.current = true;
+    }
+  };
 
   const allowed = useMemo(
     () =>
@@ -242,6 +250,7 @@ export function AddPlaybookDrawer({
                         return (
                           <button
                             key={pb.id}
+                            ref={active ? setActivePlaybookButtonRef : undefined}
                             type="button"
                             onClick={() => setSelectedId(pb.id)}
                             className={cn(
@@ -398,9 +407,7 @@ export function AddPlaybookDrawer({
                             className="group/add inline-flex w-full items-center justify-center gap-1.5 rounded-lg border border-dashed border-border bg-transparent px-3 py-3 text-[11.5px] font-medium text-t3 transition hover:border-border-hi hover:bg-bg-3 hover:text-t1 disabled:cursor-not-allowed disabled:opacity-50 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
                           >
                             <Plus className="h-3.5 w-3.5 transition group-hover/add:text-accent" />
-                            {inputs.length === 0
-                              ? "Add input"
-                              : "Add another input"}
+                            Add input
                           </button>
                         </li>
                       )}
