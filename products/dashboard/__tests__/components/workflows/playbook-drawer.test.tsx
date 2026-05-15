@@ -220,22 +220,87 @@ describe("PlaybookDrawer", () => {
     vi.clearAllMocks();
   });
 
-  describe("state card visibility", () => {
-    it.each<WorkflowTaskStatus>(["not_started", "waiting", "paused", "failed"])(
-      "renders the state card on %s",
-      async (status) => {
-        await renderDrawer(status, makeDrawerData(makeTask(status), { allLinkedReceived: status !== "waiting" }));
-        expect(screen.getByTestId("pb-drawer-state-card")).toBeInTheDocument();
-      },
-    );
+  describe("chat options panel visibility", () => {
+    it.each<WorkflowTaskStatus>([
+      "not_started",
+      "waiting",
+      "paused",
+      "failed",
+      "complete",
+    ])("renders the chat options panel on %s", async (status) => {
+      await renderDrawer(
+        status,
+        makeDrawerData(makeTask(status), {
+          allLinkedReceived: status !== "waiting",
+          outputsProduced: status === "complete" ? 3 : 0,
+        }),
+      );
+      expect(screen.getByTestId("pb-drawer-chat-options")).toBeInTheDocument();
+    });
 
-    it.each<WorkflowTaskStatus>(["in_progress", "running", "complete"])(
-      "hides the state card on %s",
-      async (status) => {
-        await renderDrawer(status, makeDrawerData(makeTask(status), { allLinkedReceived: true, outputsProduced: status === "complete" ? 3 : 0 }));
-        expect(screen.queryByTestId("pb-drawer-state-card")).not.toBeInTheDocument();
-      },
-    );
+    it("hides the chat options panel on running", async () => {
+      await renderDrawer(
+        "running",
+        makeDrawerData(makeTask("running"), { allLinkedReceived: true }),
+      );
+      expect(
+        screen.queryByTestId("pb-drawer-chat-options"),
+      ).not.toBeInTheDocument();
+    });
+
+    it("stacks one chip per pending output on in_progress", async () => {
+      await renderDrawer(
+        "in_progress",
+        makeDrawerData(makeTask("in_progress"), {
+          allLinkedReceived: true,
+          outputsProduced: 1,
+        }),
+      );
+      const panel = screen.getByTestId("pb-drawer-chat-options");
+      expect(panel.dataset.layout).toBe("stack");
+      // 3 outputs total, 1 produced → 2 pending chips.
+      const primary = screen.getByTestId("pb-drawer-chat-options-primary");
+      expect(primary).toHaveTextContent("Acceptance criteria");
+      expect(
+        screen.getByTestId("pb-drawer-chat-options-output-out-3"),
+      ).toHaveTextContent("Checkpoint");
+    });
+
+    it("shows Complete task chip on in_progress when all outputs are produced", async () => {
+      await renderDrawer(
+        "in_progress",
+        makeDrawerData(makeTask("in_progress"), {
+          allLinkedReceived: true,
+          outputsProduced: 3,
+        }),
+      );
+      const primary = screen.getByTestId("pb-drawer-chat-options-primary");
+      expect(primary).toHaveTextContent("Complete task");
+    });
+
+    it("never renders a banner card in the drawer body", async () => {
+      for (const status of [
+        "not_started",
+        "waiting",
+        "paused",
+        "in_progress",
+        "running",
+        "complete",
+        "failed",
+      ] as const) {
+        const { unmount } = await renderDrawer(
+          status,
+          makeDrawerData(makeTask(status), {
+            allLinkedReceived: status !== "waiting",
+            outputsProduced: status === "complete" ? 3 : 0,
+          }),
+        );
+        expect(
+          screen.queryByTestId("pb-drawer-state-card"),
+        ).not.toBeInTheDocument();
+        unmount();
+      }
+    });
   });
 
   describe("inputs collapsed", () => {
@@ -272,13 +337,13 @@ describe("PlaybookDrawer", () => {
     });
   });
 
-  describe("refine card", () => {
-    it("renders on complete", async () => {
+  describe("refine chip", () => {
+    it("renders Refine playbook chip on complete", async () => {
       await renderDrawer(
         "complete",
         makeDrawerData(makeTask("complete"), { allLinkedReceived: true, outputsProduced: 3 }),
       );
-      expect(screen.getByTestId("pb-drawer-refine")).toBeInTheDocument();
+      expect(screen.getByTestId("pb-drawer-refine-btn")).toBeInTheDocument();
     });
 
     it.each<WorkflowTaskStatus>([
@@ -288,9 +353,9 @@ describe("PlaybookDrawer", () => {
       "in_progress",
       "running",
       "failed",
-    ])("hides on %s", async (status) => {
+    ])("hides Refine chip on %s", async (status) => {
       await renderDrawer(status, makeDrawerData(makeTask(status), { allLinkedReceived: status !== "waiting" }));
-      expect(screen.queryByTestId("pb-drawer-refine")).not.toBeInTheDocument();
+      expect(screen.queryByTestId("pb-drawer-refine-btn")).not.toBeInTheDocument();
     });
   });
 
@@ -317,15 +382,24 @@ describe("PlaybookDrawer", () => {
   });
 
   describe("action bar buttons", () => {
-    it("Banner Start visible on not_started", async () => {
+    it("Start chip visible on not_started", async () => {
       await renderDrawer("not_started", makeDrawerData(makeTask("not_started"), { allLinkedReceived: true }));
-      expect(screen.getByTestId("pb-drawer-banner-start-btn")).toBeInTheDocument();
+      const primary = screen.getByTestId("pb-drawer-chat-options-primary");
+      expect(primary).toHaveTextContent("Start playbook");
     });
 
-    it("Waiting banner shows upstream-task action when inputs are unmet", async () => {
+    it("Waiting panel shows no action chip when inputs are unmet", async () => {
       await renderDrawer("waiting", makeDrawerData(makeTask("waiting"), { allLinkedReceived: false }));
-      expect(screen.getByTestId("pb-drawer-banner-waiting-btn")).toBeInTheDocument();
-      expect(screen.queryByTestId("pb-drawer-banner-start-btn")).not.toBeInTheDocument();
+      expect(screen.getByTestId("pb-drawer-chat-options")).toBeInTheDocument();
+      expect(
+        screen.queryByTestId("pb-drawer-chat-options-primary"),
+      ).not.toBeInTheDocument();
+    });
+
+    it("Waiting panel shows Start playbook when inputs are met", async () => {
+      await renderDrawer("waiting", makeDrawerData(makeTask("waiting"), { allLinkedReceived: true }));
+      const primary = screen.getByTestId("pb-drawer-chat-options-primary");
+      expect(primary).toHaveTextContent("Start playbook");
     });
 
     it("Action bar never renders a dedicated Start button", async () => {
@@ -364,14 +438,19 @@ describe("PlaybookDrawer", () => {
       }
     });
 
-    it("Resume visible on paused (state-card action)", async () => {
+    it("Resume chip visible on paused", async () => {
       await renderDrawer("paused", makeDrawerData(makeTask("paused"), { allLinkedReceived: true }));
       expect(screen.getByTestId("pb-drawer-resume-btn")).toBeInTheDocument();
     });
 
-    it("Retry visible on failed (state-card action)", async () => {
+    it("Retry chip visible on failed", async () => {
       await renderDrawer("failed", makeDrawerData(makeTask("failed"), { allLinkedReceived: true, outputsFailed: 1 }));
       expect(screen.getByTestId("pb-drawer-retry-btn")).toBeInTheDocument();
+    });
+
+    it("Stop chip visible on running", async () => {
+      await renderDrawer("running", makeDrawerData(makeTask("running"), { allLinkedReceived: true }));
+      expect(screen.getByTestId("pb-drawer-stop-btn")).toBeInTheDocument();
     });
   });
 

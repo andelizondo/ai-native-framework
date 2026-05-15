@@ -1,12 +1,16 @@
 "use client";
 
 import { useRef, useState } from "react";
-import { ChevronUp, Paperclip, Send } from "lucide-react";
+import { ChevronUp, Paperclip, Send, Square } from "lucide-react";
 
 import { cn } from "@/lib/utils";
-import type { WorkflowEvent, WorkflowTaskStatus } from "@/lib/workflows/types";
+import type {
+  PlaybookOutput,
+  WorkflowEvent,
+  WorkflowTask,
+} from "@/lib/workflows/types";
 
-import { RefineCard } from "./refine-card";
+import { ChatActionPanel } from "./chat-action-panel";
 import { useChatStream } from "./hooks/use-chat-stream";
 
 const MODEL_OPTIONS = ["Sonnet 4.6", "Opus 4.7", "Haiku 4.5"] as const;
@@ -15,30 +19,47 @@ type Model = (typeof MODEL_OPTIONS)[number];
 const RUN_INTENT = /\b(run( this)?|start)\b/i;
 
 export interface ChatFooterProps {
-  status: WorkflowTaskStatus;
+  task: WorkflowTask;
   events: WorkflowEvent[];
   busy: boolean;
+  hasUnmetInputs: boolean;
+  pendingOutputs: PlaybookOutput[];
+  hasOutputs: boolean;
   onStart: () => void;
+  onResume: () => void;
+  onRetry: () => void;
   onRefine: () => void;
+  onStop: () => void;
+  onProduceOutput: (outputId: string) => void;
+  onCompleteTask: () => void;
 }
 
-const PLACEHOLDER: Record<WorkflowTaskStatus, string> = {
-  not_started: 'Ask for help, or type "run this" to start the agent…',
-  waiting: "Ask about what's missing, or about this playbook…",
-  paused: "Ask about the pause, or message the team…",
-  in_progress: "Ask the agent to do a step, or message the team…",
-  running: 'Add context, or interrupt with "stop"…',
-  complete: "Ask anything about this run…",
-  failed: "Ask what went wrong, or fix and retry…",
+const PLACEHOLDER: Record<WorkflowTask["status"], string> = {
+  not_started: 'Type here to clarify, or "run this" to start…',
+  waiting: "Type here what's blocking, or what you need…",
+  paused: "Type here what changed, or why to keep going…",
+  in_progress: "Type here what step to take next…",
+  running: 'Type here to add context, or "stop" to interrupt…',
+  complete: "Type here what to capture about this run…",
+  failed: "Type here what went wrong, or how to fix it…",
 };
 
 export function ChatFooter({
-  status,
+  task,
   events,
   busy,
+  hasUnmetInputs,
+  pendingOutputs,
+  hasOutputs,
   onStart,
+  onResume,
+  onRetry,
   onRefine,
+  onStop,
+  onProduceOutput,
+  onCompleteTask,
 }: ChatFooterProps) {
+  const status = task.status;
   const { trace, currentSummary, mode } = useChatStream(status, events);
   const [model, setModel] = useState<Model>("Sonnet 4.6");
   const [draft, setDraft] = useState("");
@@ -46,7 +67,6 @@ export function ChatFooter({
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
   const showActivity = mode === "streaming";
-  const showRefine = status === "complete";
 
   function handleSend() {
     const text = draft.trim();
@@ -77,28 +97,42 @@ export function ChatFooter({
   return (
     <div className="pb-drawer-chat" data-testid="pb-drawer-chat">
       {showActivity ? (
-        <button
-          type="button"
-          className="pb-drawer-activity"
-          onClick={() => setShowTrace((v) => !v)}
-          data-testid="pb-drawer-activity-strip"
-        >
-          <div className="pb-drawer-activity__spin" aria-hidden />
-          <div className="pb-drawer-activity__text">
-            {currentSummary ?? "Working…"}
-          </div>
-          <span className="pb-drawer-activity__toggle">
-            <ChevronUp
-              size={11}
-              className={cn(
-                "pb-drawer-activity__chev",
-                showTrace && "pb-drawer-activity__chev--open",
-              )}
-              aria-hidden
-            />
-            {showTrace ? "Hide trace" : "Show trace"}
-          </span>
-        </button>
+        <div className="pb-drawer-activity-row">
+          <button
+            type="button"
+            className="pb-drawer-activity"
+            onClick={() => setShowTrace((v) => !v)}
+            data-testid="pb-drawer-activity-strip"
+          >
+            <div className="pb-drawer-activity__spin" aria-hidden />
+            <div className="pb-drawer-activity__text">
+              {currentSummary ?? "Working…"}
+            </div>
+            <span className="pb-drawer-activity__toggle">
+              <ChevronUp
+                size={11}
+                className={cn(
+                  "pb-drawer-activity__chev",
+                  showTrace && "pb-drawer-activity__chev--open",
+                )}
+                aria-hidden
+              />
+              {showTrace ? "Hide trace" : "Show trace"}
+            </span>
+          </button>
+          <button
+            type="button"
+            className="pb-drawer-activity-stop"
+            onClick={onStop}
+            disabled={busy}
+            data-testid="pb-drawer-stop-btn"
+            aria-label="Stop"
+            title="Stop"
+          >
+            <Square size={11} aria-hidden />
+            Stop
+          </button>
+        </div>
       ) : null}
 
       {showActivity && showTrace ? (
@@ -127,13 +161,22 @@ export function ChatFooter({
         </div>
       ) : null}
 
-      <div
-        className={cn(
-          "pb-drawer-chat-input-wrap",
-          showRefine && "pb-drawer-chat-input-wrap--complete",
-        )}
-      >
-        {showRefine ? <RefineCard onRefine={onRefine} disabled={busy} /> : null}
+      <div className="pb-drawer-chat-input-wrap">
+        {!showActivity ? (
+          <ChatActionPanel
+            task={task}
+            hasUnmetInputs={hasUnmetInputs}
+            pendingOutputs={pendingOutputs}
+            hasOutputs={hasOutputs}
+            busy={busy}
+            onStart={onStart}
+            onResume={onResume}
+            onRetry={onRetry}
+            onRefine={onRefine}
+            onProduceOutput={onProduceOutput}
+            onCompleteTask={onCompleteTask}
+          />
+        ) : null}
 
         <div className="pb-drawer-input-box">
           <textarea

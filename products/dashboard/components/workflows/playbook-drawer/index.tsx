@@ -36,7 +36,6 @@ import {
 import { HistorySection } from "./history-section";
 import { InputsSection } from "./inputs-section";
 import { OutputsSection } from "./outputs-section";
-import { StateCard, type StateCardKind } from "./state-card";
 import { StatusSection } from "./status-section";
 import { useTaskState } from "./hooks/use-task-state";
 
@@ -56,50 +55,6 @@ export interface PlaybookDrawerProps {
   outputGroups?: TemplateOutputGroup[];
   onClose: () => void;
   onTaskUpdate: (task: WorkflowTask) => void;
-}
-
-interface StateBanner {
-  kind: StateCardKind;
-  title: string;
-  body: string;
-}
-
-function bannerFor(task: WorkflowTask): StateBanner | null {
-  if (task.status === "not_started") {
-    return {
-      kind: "not_started",
-      title: "Ready to start",
-      body: "Kick off the agent to begin this playbook. You can also ask in chat below.",
-    };
-  }
-  if (task.status === "waiting") {
-    return {
-      kind: "waiting",
-      title: "Waiting on inputs",
-      body:
-        "This task can't start until the missing inputs are received. Mark them manually or wait for the upstream task to produce them.",
-    };
-  }
-  if (task.status === "paused") {
-    const reason = task.pausedReason?.trim();
-    return {
-      kind: "paused",
-      title: reason === "checkpoint" ? "Paused — checkpoint" : "Paused",
-      body: reason
-        ? reason === "checkpoint"
-          ? "Agent needs your sign-off before proceeding."
-          : `Paused: ${reason}`
-        : "This task is paused.",
-    };
-  }
-  if (task.status === "failed") {
-    return {
-      kind: "failed",
-      title: "Failed during execution",
-      body: "Agent stopped before producing all outputs. Inspect the run, fix the cause, then retry.",
-    };
-  }
-  return null;
 }
 
 export function PlaybookDrawer({
@@ -191,7 +146,6 @@ export function PlaybookDrawer({
     );
   }
 
-  const banner = bannerFor(activeTask);
   const isInputsDimmed = activeTask.status === "paused";
   const isOutputsDimmed =
     activeTask.status === "waiting" || activeTask.status === "paused";
@@ -232,6 +186,18 @@ export function PlaybookDrawer({
     if (!task) return;
     const id = task.id;
     runAction("playbook-drawer.status_change", () => setTaskStatusAction(id, next));
+  }
+  function handleStop() {
+    if (!task) return;
+    const id = task.id;
+    runAction("playbook-drawer.stop", () => setTaskStatusAction(id, "paused"));
+  }
+  function handleCompleteTask() {
+    if (!task) return;
+    const id = task.id;
+    runAction("playbook-drawer.complete", () =>
+      setTaskStatusAction(id, "complete"),
+    );
   }
   function handleOwnersChange(next: string[]) {
     if (!task) return;
@@ -295,54 +261,14 @@ export function PlaybookDrawer({
   const receivedById = new Map(inputStates.map((s) => [s.inputId, s.received]));
   const hasUnmetInputs = linkedDefIds.some((id) => receivedById.get(id) !== true);
 
-  // Action mapping from banner buttons.
-  const bannerActions = banner
-    ? banner.kind === "not_started"
-      ? [
-          {
-            label: "Start playbook",
-            primary: true,
-            onClick: handleStart,
-            testId: "pb-drawer-banner-start-btn",
-          },
-        ]
-      : banner.kind === "waiting"
-        ? hasUnmetInputs
-          ? [
-              {
-                label: "Open upstream task",
-                primary: true,
-                testId: "pb-drawer-banner-waiting-btn",
-              },
-            ]
-          : [
-              {
-                label: "Start playbook",
-                primary: true,
-                onClick: handleStart,
-                testId: "pb-drawer-banner-start-btn",
-              },
-            ]
-        : banner.kind === "paused"
-          ? [
-              {
-                label: "Resume",
-                primary: true,
-                onClick: handleResume,
-                testId: "pb-drawer-resume-btn",
-              },
-              { label: "View pause reason", primary: false },
-            ]
-          : [
-              {
-                label: "Retry",
-                primary: true,
-                onClick: handleRetry,
-                testId: "pb-drawer-retry-btn",
-              },
-              { label: "View error", primary: false },
-            ]
-    : [];
+  const outputDefs = drawerData.data?.playbookOutputs ?? [];
+  const outputStates = drawerData.data?.outputs ?? [];
+  const producedOutputIds = new Set(
+    outputStates.filter((o) => o.status === "produced").map((o) => o.outputId),
+  );
+  const pendingOutputs = outputDefs.filter(
+    (def) => !producedOutputIds.has(def.id),
+  );
 
   const busy = isPending || drawerData.loading;
 
@@ -407,15 +333,6 @@ export function PlaybookDrawer({
           />
         </div>
         <div className="pb-drawer-body" data-testid="pb-drawer-body">
-          {banner ? (
-            <StateCard
-              kind={banner.kind}
-              title={banner.title}
-              body={banner.body}
-              actions={bannerActions}
-            />
-          ) : null}
-
           <InputsSection
             inputDefs={activeTask.inputs}
             inputStates={inputStates}
@@ -428,8 +345,8 @@ export function PlaybookDrawer({
 
           <OutputsSection
             status={activeTask.status}
-            outputDefs={drawerData.data?.playbookOutputs ?? []}
-            outputStates={drawerData.data?.outputs ?? []}
+            outputDefs={outputDefs}
+            outputStates={outputStates}
             dimmed={isOutputsDimmed}
             busy={busy}
             loading={drawerData.data === null}
@@ -445,11 +362,19 @@ export function PlaybookDrawer({
           />
         </div>
         <ChatFooter
-          status={activeTask.status}
+          task={activeTask}
           events={taskEvents}
           busy={busy}
+          hasUnmetInputs={hasUnmetInputs}
+          pendingOutputs={pendingOutputs}
+          hasOutputs={outputDefs.length > 0}
           onStart={handleStart}
+          onResume={handleResume}
+          onRetry={handleRetry}
           onRefine={handleRefine}
+          onStop={handleStop}
+          onProduceOutput={handleProduce}
+          onCompleteTask={handleCompleteTask}
         />
       </aside>
     </>
