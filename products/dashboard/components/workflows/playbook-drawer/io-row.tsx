@@ -33,7 +33,7 @@ export interface IORowProps {
 const ACTION_LABEL: Record<IORowKind, Record<IORowState, string | null>> = {
   input: {
     received: null,
-    pending: "Mark received",
+    pending: "Done",
     failed: "Retry",
     bypass: "Bypassed",
   },
@@ -111,7 +111,7 @@ export function IORow({
             onClick={onAction}
             data-testid={testId ? `${testId}-action` : undefined}
           >
-            {kind === "output" && state === "pending" ? (
+            {state === "pending" ? (
               <Check size={11} strokeWidth={2.5} aria-hidden />
             ) : null}
             {actionLabel}
