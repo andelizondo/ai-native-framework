@@ -82,6 +82,7 @@ import { HeaderActionsMenu } from "./header-actions-menu";
 import { PlaybookDrawer } from "./playbook-drawer";
 import { TaskCard } from "./task-card";
 import { WiringOverlay } from "./wiring-overlay";
+import { WorkflowInstanceHeader } from "./workflow-instance-header";
 
 interface Props {
   instance: WorkflowInstanceDetail;
@@ -193,6 +194,8 @@ export function ProcessMatrix({
   );
   const [localTasks, setLocalTasks] = useState<WorkflowTask[]>(instance.tasks);
   const [lastSavedTasks, setLastSavedTasks] = useState<WorkflowTask[]>(instance.tasks);
+  const [draftLabel, setDraftLabel] = useState(instance.label);
+  const [savedLabel, setSavedLabel] = useState(instance.label);
   const [confirmDiscardOpen, setConfirmDiscardOpen] = useState(false);
   const [pendingNavigation, setPendingNavigation] = useState<(() => void) | null>(null);
   const [isPending, startTransition] = useTransition();
@@ -246,6 +249,16 @@ export function ProcessMatrix({
     setLocalTasks(instance.tasks);
     setLastSavedTasks(instance.tasks);
   }, [instance.tasks, editMode]);
+
+  useEffect(() => {
+    setSavedLabel((current) => {
+      if (current === instance.label) return current;
+      // Re-seed draft only when the user hasn't begun editing locally,
+      // otherwise we'd clobber in-flight edits.
+      setDraftLabel((draft) => (draft === current ? instance.label : draft));
+      return instance.label;
+    });
+  }, [instance.label]);
 
   // Auto-expand stages/skills as work flows. When a task's status flips or
   // an upstream output unblocks a downstream input, the formerly-dormant
@@ -301,8 +314,10 @@ export function ProcessMatrix({
   }, []);
 
   const isDirty = useMemo(
-    () => JSON.stringify(localTasks) !== JSON.stringify(lastSavedTasks),
-    [localTasks, lastSavedTasks],
+    () =>
+      draftLabel.trim() !== savedLabel ||
+      JSON.stringify(localTasks) !== JSON.stringify(lastSavedTasks),
+    [draftLabel, savedLabel, localTasks, lastSavedTasks],
   );
 
   const exitEditMode = useCallback(() => {
@@ -323,9 +338,10 @@ export function ProcessMatrix({
 
   const discardAndExit = useCallback(() => {
     setLocalTasks(lastSavedTasks);
+    setDraftLabel(savedLabel);
     setConfirmDiscardOpen(false);
     exitEditMode();
-  }, [exitEditMode, lastSavedTasks]);
+  }, [exitEditMode, lastSavedTasks, savedLabel]);
 
   const handleBlockedNavigation = useCallback((proceed: () => void) => {
     setPendingNavigation(() => proceed);
@@ -342,8 +358,9 @@ export function ProcessMatrix({
     if (!proceed) return;
     setLocalTasks(lastSavedTasks);
     setLastSavedTasks(lastSavedTasks);
+    setDraftLabel(savedLabel);
     proceed();
-  }, [lastSavedTasks, pendingNavigation]);
+  }, [lastSavedTasks, pendingNavigation, savedLabel]);
 
   const tasksByCell = useMemo(() => {
     const map = new Map<string, WorkflowTask>();
@@ -372,6 +389,13 @@ export function ProcessMatrix({
   const saveInstanceEdits = useCallback(() => {
     startTransition(async () => {
       try {
+        const trimmedLabel = draftLabel.trim();
+        if (trimmedLabel && trimmedLabel !== savedLabel) {
+          const result = await renameInstanceAction(instance.id, trimmedLabel);
+          setSavedLabel(result.instance.label);
+          setDraftLabel(result.instance.label);
+        }
+
         const savedById = new Map(lastSavedTasks.map((t) => [t.id, t]));
         const draftById = new Map(localTasks.map((t) => [t.id, t]));
 
@@ -461,10 +485,12 @@ export function ProcessMatrix({
       }
     });
   }, [
+    draftLabel,
     exitEditMode,
     instance.id,
     lastSavedTasks,
     localTasks,
+    savedLabel,
     toastError,
     toastSuccess,
   ]);
@@ -475,31 +501,18 @@ export function ProcessMatrix({
       crumbs: [
         { label: "Workflows" },
         { label: template?.label ?? "Workflow" },
-        { label: instance.label },
+        { label: savedLabel },
       ],
       editMode,
       isDirty,
       saveDisabled: !isDirty || isPending,
       savePending: isPending,
-      onSave: editMode ? saveInstanceEdits : undefined,
+      onSave: editMode || isDirty ? saveInstanceEdits : undefined,
       onCancelEdit: editMode ? handleCancelEdit : undefined,
       actions: (
         <HeaderActionsMenu
-          entityLabel={instance.label}
+          entityLabel={savedLabel}
           entityType="instance"
-          onRename={async (nextLabel) => {
-            try {
-              await renameInstanceAction(instance.id, nextLabel);
-              toastSuccess("Instance renamed");
-            } catch (err) {
-              toastError(
-                err instanceof Error && err.message
-                  ? err.message
-                  : "Could not rename the instance.",
-              );
-              throw err;
-            }
-          }}
           onDelete={async () => {
             try {
               await deleteInstanceAction(instance.id);
@@ -522,7 +535,7 @@ export function ProcessMatrix({
     editMode,
     handleCancelEdit,
     instance.id,
-    instance.label,
+    savedLabel,
     isDirty,
     isPending,
     saveInstanceEdits,
@@ -596,6 +609,13 @@ export function ProcessMatrix({
 
   return (
     <>
+      <WorkflowInstanceHeader
+        label={draftLabel}
+        onLabelChange={setDraftLabel}
+        taskCount={localTasks.length}
+        skillCount={skills.length}
+        stageCount={stages.length}
+      />
       <DndContext
         id={dndContextId}
         sensors={sensors}

@@ -89,7 +89,7 @@ describe("TopBar", () => {
     expect(replace).toHaveBeenCalledWith("/workflows/123?edit=1", { scroll: false });
   });
 
-  it("renders the template-editor breadcrumb input and save pill when configured", () => {
+  it("renders the template-editor breadcrumb and save pill when configured", () => {
     vi.mocked(usePathname).mockReturnValue("/workflows/templates/client-delivery/edit");
 
     function Harness() {
@@ -98,8 +98,6 @@ describe("TopBar", () => {
         setConfig({
           mode: "template-editor",
           crumbs: [{ label: "Workflows" }, { label: "Client Project Delivery" }],
-          label: "Client Project Delivery",
-          onLabelChange: vi.fn(),
           onSave: vi.fn(),
           saveDisabled: false,
         });
@@ -115,10 +113,8 @@ describe("TopBar", () => {
       </DashboardTopBarProvider>,
     );
 
-    expect(
-      screen.getByRole("textbox", { name: "Workflow template name" }),
-    ).toHaveValue("Client Project Delivery");
     expect(screen.getByText("Workflows")).toBeInTheDocument();
+    expect(screen.getByText("Client Project Delivery")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: /save/i })).toBeInTheDocument();
   });
 

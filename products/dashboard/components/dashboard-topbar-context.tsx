@@ -16,8 +16,6 @@ export interface DashboardTopBarCrumb {
 interface TemplateEditorTopBarConfig {
   mode: "template-editor";
   crumbs: DashboardTopBarCrumb[];
-  label: string;
-  onLabelChange: (value: string) => void;
   onSave: () => void;
   saveDisabled: boolean;
   savePending?: boolean;

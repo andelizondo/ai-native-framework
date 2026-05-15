@@ -1,12 +1,18 @@
+"use client";
+
+import { InlineEditableText } from "@/components/ui/inline-editable-text";
+
 interface WorkflowInstanceHeaderProps {
-  instanceLabel: string;
+  label: string;
+  onLabelChange: (next: string) => void;
   taskCount: number;
   skillCount: number;
   stageCount: number;
 }
 
 export function WorkflowInstanceHeader({
-  instanceLabel,
+  label,
+  onLabelChange,
   taskCount,
   skillCount,
   stageCount,
@@ -17,9 +23,14 @@ export function WorkflowInstanceHeader({
         <p className="font-mono text-[10px] uppercase tracking-[0.13em] text-t3">
           Workflow instance
         </p>
-        <h1 className="mt-1 text-[20px] font-bold tracking-tight text-t1">
-          {instanceLabel}
-        </h1>
+        <InlineEditableText
+          value={label}
+          onChange={onLabelChange}
+          ariaLabel="workflow instance name"
+          placeholder="Untitled instance"
+          className="mt-1 text-[20px] font-bold tracking-tight text-t1"
+          maxLength={120}
+        />
         <p className="mt-1 text-[13px] text-t2">
           {taskCount} {taskCount === 1 ? "playbook" : "playbooks"} · {skillCount}{" "}
           {skillCount === 1 ? "skill" : "skills"} · {stageCount}{" "}

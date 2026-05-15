@@ -32,7 +32,6 @@ import { CSS } from "@dnd-kit/utilities";
 import {
   deleteTemplateAction,
   listOutputsForTemplateAction,
-  renameTemplateAction,
   updateTemplateAction,
 } from "@/app/(dashboard)/workflows/actions";
 import { captureError } from "@/lib/monitoring";
@@ -44,6 +43,7 @@ import { AddStageModal } from "@/components/workflows/add-stage-modal";
 import { AddPlaybookModal } from "@/components/workflows/add-playbook-modal";
 import { HeaderActionsMenu } from "@/components/workflows/header-actions-menu";
 import { ConfirmModal } from "@/components/ui/confirm-modal";
+import { InlineEditableText } from "@/components/ui/inline-editable-text";
 import { useAnalytics } from "@/lib/analytics/events";
 import { emitEvent } from "@/lib/events";
 import { resolveSkillColor } from "@/lib/workflows/skill-colors";
@@ -524,10 +524,7 @@ export function TemplateEditorScreen({
   useEffect(() => {
     setConfig({
       mode: "template-editor",
-      crumbs: [{ label: "Workflows" }, { label: draft.label }],
-      label: draft.label,
-      onLabelChange: (value) =>
-        setDraft((current) => ({ ...current, label: value })),
+      crumbs: [{ label: "Workflows" }, { label: lastSaved.label }],
       onSave: saveTemplate,
       saveDisabled: !isDirty || pending,
       savePending: pending,
@@ -535,21 +532,6 @@ export function TemplateEditorScreen({
         <HeaderActionsMenu
           entityLabel={draft.label}
           entityType="template"
-          onRename={async (nextLabel) => {
-            try {
-              const result = await renameTemplateAction(draft.id, nextLabel);
-              setDraft((current) => ({ ...current, label: result.template.label }));
-              setLastSaved((current) => ({ ...current, label: result.template.label }));
-              toastSuccess("Template renamed");
-            } catch (err) {
-              toastError(
-                err instanceof Error && err.message
-                  ? err.message
-                  : "Could not rename the template.",
-              );
-              throw err;
-            }
-          }}
           onDelete={async () => {
             try {
               await deleteTemplateAction(draft.id);
@@ -580,7 +562,7 @@ export function TemplateEditorScreen({
     });
 
     return () => setConfig(null);
-  }, [draft.label, isDirty, pending, setConfig, toastSuccess, toastError]);
+  }, [draft.label, lastSaved.label, isDirty, pending, setConfig, toastSuccess, toastError]);
 
   return (
     <div className="flex h-full flex-col overflow-hidden">
@@ -610,7 +592,16 @@ export function TemplateEditorScreen({
               </div>
             </div>
             <div className="mt-1 flex items-center gap-2">
-              <h1 className="truncate text-[20px] font-bold tracking-tight text-t1">{draft.label}</h1>
+              <InlineEditableText
+                value={draft.label}
+                onChange={(next) =>
+                  setDraft((current) => ({ ...current, label: next }))
+                }
+                ariaLabel="workflow template name"
+                placeholder="Untitled template"
+                className="text-[20px] font-bold tracking-tight text-t1"
+                maxLength={120}
+              />
               <ColorDotPicker
                 color={draft.color}
                 ariaLabel="Change workflow template color"

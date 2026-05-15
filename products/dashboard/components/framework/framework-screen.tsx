@@ -48,6 +48,7 @@ import { FrameworkItemModal } from "@/components/framework/framework-item-modal"
 import { ItemAvatar } from "@/components/framework/item-avatar";
 import { PlaybookOutputsEditor } from "@/components/framework/playbook-outputs-editor";
 import { ConfirmModal } from "@/components/ui/confirm-modal";
+import { InlineEditableText } from "@/components/ui/inline-editable-text";
 import { useAnalytics } from "@/lib/analytics/events";
 import { useToast } from "@/lib/toast";
 import { useUnsavedChangesGuard } from "@/lib/use-unsaved-changes-guard";
@@ -71,7 +72,6 @@ type EditorViewMode = "markdown" | "plain-text";
 type FrameworkItemModalState =
   | null
   | {
-      mode: "create" | "rename";
       initialName: string;
       initialDescription: string;
     };
@@ -617,13 +617,6 @@ export function FrameworkScreen({
         actions: (
           <FrameworkHeaderActionsMenu
             entityName={type === "skill" ? "skill" : "playbook"}
-            onRename={() =>
-              setItemModalState({
-                mode: "rename",
-                initialName: draftItem.name,
-                initialDescription: draftItem.description,
-              })
-            }
             onDelete={() => setConfirmDeleteId(draftItem.id)}
           />
         ),
@@ -639,7 +632,6 @@ export function FrameworkScreen({
           type="button"
           onClick={() => {
             setItemModalState({
-              mode: "create",
               initialName: "",
               initialDescription: "",
             });
@@ -677,9 +669,17 @@ export function FrameworkScreen({
               />
               <div className="min-w-0">
                 <div className="flex items-center gap-2">
-                  <h1 className="truncate text-[22px] font-bold tracking-tight text-t1">
-                    {draftItem.name}
-                  </h1>
+                  <InlineEditableText
+                    value={draftItem.name}
+                    onChange={(next) =>
+                      setDraftItem((current) =>
+                        current ? { ...current, name: next } : current,
+                      )
+                    }
+                    ariaLabel={`${type === "skill" ? "skill" : "playbook"} name`}
+                    placeholder="Untitled"
+                    className="text-[22px] font-bold tracking-tight text-t1"
+                  />
                   <ColorDotPicker
                     color={resolveItemColor(draftItem)}
                     ariaLabel={`Change ${type} color`}
@@ -690,9 +690,18 @@ export function FrameworkScreen({
                     }
                   />
                 </div>
-                <p className="mt-1 max-w-3xl text-[13px] leading-6 text-t2">
-                  {draftItem.description}
-                </p>
+                <InlineEditableText
+                  value={draftItem.description}
+                  onChange={(next) =>
+                    setDraftItem((current) =>
+                      current ? { ...current, description: next } : current,
+                    )
+                  }
+                  ariaLabel={`${type === "skill" ? "skill" : "playbook"} description`}
+                  placeholder="Add a description"
+                  multiline
+                  className="mt-1 max-w-3xl text-[13px] leading-6 text-t2"
+                />
               </div>
             </div>
           ) : (
@@ -1090,27 +1099,13 @@ export function FrameworkScreen({
 
       {itemModalState ? (
         <FrameworkItemModal
-          title={
-            itemModalState.mode === "create"
-              ? `Create ${type === "skill" ? "skill" : "playbook"}`
-              : `Rename ${type === "skill" ? "skill" : "playbook"}`
-          }
-          description={
-            itemModalState.mode === "create"
-              ? `Pick an icon, color, and title for your new ${type === "skill" ? "skill" : "playbook"}.`
-              : `Update the ${type === "skill" ? "skill" : "playbook"} title and description.`
-          }
+          title={`Create ${type === "skill" ? "skill" : "playbook"}`}
+          description={`Pick an icon, color, and title for your new ${type === "skill" ? "skill" : "playbook"}.`}
           initialName={itemModalState.initialName}
           initialDescription={itemModalState.initialDescription}
           defaultIcon={defaultIcon}
-          initialIcon={
-            itemModalState.mode === "rename" ? draftItem?.icon ?? null : null
-          }
-          initialColor={
-            itemModalState.mode === "rename" ? draftItem?.color ?? null : null
-          }
-          showAvatarPickers={itemModalState.mode === "create"}
-          submitLabel={itemModalState.mode === "create" ? "Create" : "Apply"}
+          showAvatarPickers
+          submitLabel="Create"
           pending={pending}
           onClose={() => {
             if (!pending) {
@@ -1118,20 +1113,6 @@ export function FrameworkScreen({
             }
           }}
           onSubmit={({ name, description, icon, color }) => {
-            if (itemModalState.mode === "rename") {
-              setDraftItem((current) =>
-                current
-                  ? {
-                      ...current,
-                      name: name.trim(),
-                      description: description.trim(),
-                    }
-                  : current,
-              );
-              setItemModalState(null);
-              return;
-            }
-
             const draft = createDraftItem(type, name, description, icon, color);
             startTransition(async () => {
               try {
