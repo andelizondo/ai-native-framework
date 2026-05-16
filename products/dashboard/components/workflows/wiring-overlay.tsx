@@ -280,17 +280,16 @@ export function WiringOverlay({
         cy1 = upstreamAboveDownstream ? y1 + sag : y1 - sag;
         cy2 = upstreamAboveDownstream ? y2 - sag : y2 + sag;
       } else {
-        // Cards overlap on both axes (rare — same cell). Fall back to
-        // center-to-center with a horizontal bow so the curve at least
-        // renders as a visible arc rather than collapsing to a dot.
-        x1 = fromCenterX;
-        x2 = toCenterX;
-        y1 = fromCenterY;
-        y2 = toCenterY;
-        cx1 = x1 + 24;
-        cx2 = x2 + 24;
-        cy1 = y1;
-        cy2 = y2;
+        // Endpoints overlap on both axes — predictable when two tasks
+        // share a mini cell. The mini stack collapses to a single
+        // visible primary avatar, and the non-primary tasks render as
+        // `inset: 0` ghost anchors so they keep a `data-task-id` for
+        // wiring; that geometry makes the primary's rect sit fully
+        // inside each ghost's rect. Drawing a wire here produced a
+        // small horizontal bow that read as a stray squiggle beside
+        // the +N badge. Same-cell dependencies are implicit by
+        // sharing the cell, so skip the wire entirely.
+        continue;
       }
       const d = `M ${x1} ${y1} C ${cx1} ${cy1}, ${cx2} ${cy2}, ${x2} ${y2}`;
       const hovered =
