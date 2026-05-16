@@ -61,11 +61,12 @@ export function InlineEditableText({
   // once on focus so the cursor lands where the user clicked instead of
   // selecting the whole value.
   const pendingCaretRef = useRef<number | null>(null);
-  // Read-mode box size captured on click. Applied to the editor so its
-  // box matches the previous label exactly — no width growth as the user
-  // types (which would push siblings like the color dot), no height jump
-  // on entry.
-  const pendingRectRef = useRef<{ width: number; height: number } | null>(null);
+  // Read-mode height captured on click. Applied to multiline textareas
+  // so the initial height matches the read-mode block and doesn't jump
+  // on entry. Width is controlled by CSS (parent container) so the input
+  // grows and shrinks as the user types instead of scrolling inside a
+  // fixed pixel box.
+  const pendingRectRef = useRef<{ height: number } | null>(null);
 
   useEffect(() => {
     // Run only when transitioning into edit mode — focus once.
@@ -89,8 +90,6 @@ export function InlineEditableText({
       const initial = rect ? rect.height : 0;
       textareaRef.current.style.height = "auto";
       textareaRef.current.style.height = `${Math.max(initial, textareaRef.current.scrollHeight)}px`;
-    } else if (!multiline && inputRef.current && rect) {
-      inputRef.current.style.width = `${rect.width}px`;
     }
     // `draft` is intentionally excluded — we only want this on edit-mode entry.
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -100,7 +99,7 @@ export function InlineEditableText({
     if (event) {
       pendingCaretRef.current = caretOffsetFromPoint(event.clientX, event.clientY);
       const rect = event.currentTarget.getBoundingClientRect();
-      pendingRectRef.current = { width: rect.width, height: rect.height };
+      pendingRectRef.current = { height: rect.height };
     } else {
       pendingCaretRef.current = null;
       pendingRectRef.current = null;
@@ -177,11 +176,12 @@ export function InlineEditableText({
         maxLength={maxLength}
         aria-label={ariaLabel}
         placeholder={placeholder}
-        // `width` is locked at edit-mode entry via the inline style set
-        // in the focus effect, so typing doesn't push neighboring
-        // controls. Long text scrolls horizontally inside the input.
+        // Width follows the parent container (block w-full), so the input
+        // grows and shrinks as the user types instead of scrolling inside
+        // a fixed pixel box. Callers control how wide the field can get by
+        // constraining the wrapping parent (e.g. `min-w-0 flex-1`, `max-w-3xl`).
         className={cn(
-          "min-w-0 max-w-full bg-transparent border-0 p-0 outline-none",
+          "block w-full min-w-0 max-w-full bg-transparent border-0 p-0 outline-none",
           editUnderline,
           className,
         )}
@@ -223,7 +223,7 @@ export function InlineEditableText({
       onClick={(event) => beginEdit(event)}
       aria-label={`Edit ${ariaLabel}`}
       className={cn(
-        "block text-left bg-transparent border-0 p-0 cursor-text min-w-0 max-w-full truncate",
+        "block w-full text-left bg-transparent border-0 p-0 cursor-text min-w-0 max-w-full truncate",
         !value && "text-t3",
         className,
       )}

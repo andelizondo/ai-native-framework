@@ -22,6 +22,7 @@ import {
   Link2,
   List,
   ListOrdered,
+  PanelRight,
   Pencil,
   Plus,
   Search,
@@ -45,7 +46,7 @@ import { CompactEmojiPicker } from "@/components/framework/compact-emoji-picker"
 import { FrameworkHeaderActionsMenu } from "@/components/framework/framework-header-actions-menu";
 import { FrameworkItemModal } from "@/components/framework/framework-item-modal";
 import { ItemAvatar } from "@/components/framework/item-avatar";
-import { PlaybookOutputsEditor } from "@/components/framework/playbook-outputs-editor";
+import { PlaybookOutputsDock } from "@/components/framework/playbook-outputs-dock";
 import { ConfirmModal } from "@/components/ui/confirm-modal";
 import { InlineEditableText } from "@/components/ui/inline-editable-text";
 import { useAnalytics } from "@/lib/analytics/events";
@@ -162,6 +163,7 @@ export function FrameworkScreen({
   const [draftItem, setDraftItem] = useState<FrameworkItem | null>(null);
   const [lastSavedItem, setLastSavedItem] = useState<FrameworkItem | null>(null);
   const [editorView, setEditorView] = useState<EditorViewMode>("markdown");
+  const [outputsMobileOpen, setOutputsMobileOpen] = useState(false);
   const [itemModalState, setItemModalState] = useState<FrameworkItemModalState>(null);
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
   const [deletingItemId, setDeletingItemId] = useState<string | null>(null);
@@ -712,7 +714,8 @@ export function FrameworkScreen({
 
       <div className="flex min-h-0 flex-1 overflow-hidden bg-bg-2">
         {draftItem ? (
-          <div className="flex h-full min-h-0 min-w-0 flex-1 flex-col">
+          <div className="flex h-full min-h-0 min-w-0 flex-1 flex-row">
+            <div className="flex min-w-0 flex-1 flex-col">
             <div className="flex shrink-0 items-center justify-between gap-3 border-b border-border bg-bg px-6 py-3">
               <div className="flex min-w-0 items-center gap-2">
                 {type === "playbook" ? (
@@ -741,6 +744,19 @@ export function FrameworkScreen({
               </div>
 
               <div className="flex items-center gap-2">
+                {type === "playbook" ? (
+                  <button
+                    type="button"
+                    onClick={() => setOutputsMobileOpen(true)}
+                    aria-label="Open outputs panel"
+                    title="Outputs"
+                    data-testid="framework-outputs-toggle"
+                    className="flex h-8 items-center gap-1.5 rounded-md border border-border bg-bg px-2.5 text-[12px] font-medium text-t2 transition hover:bg-bg-3 hover:text-t1 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent lg:hidden"
+                  >
+                    <PanelRight className="h-3.5 w-3.5" />
+                    Outputs
+                  </button>
+                ) : null}
                 <div
                   className="inline-flex h-8 w-fit items-center rounded-lg border border-border bg-bg-2 p-0.5"
                   role="tablist"
@@ -879,9 +895,6 @@ export function FrameworkScreen({
                           {draftItem.content || "_No content yet._"}
                         </ReactMarkdown>
                         </div>
-                        {type === "playbook" ? (
-                          <PlaybookOutputsEditor playbookId={draftItem.id} />
-                        ) : null}
                       </div>
                     </div>
                   ) : (
@@ -957,6 +970,14 @@ export function FrameworkScreen({
                 </div>
               </div>
             </div>
+            </div>
+            {type === "playbook" ? (
+              <PlaybookOutputsDock
+                playbookId={draftItem.id}
+                mobileOpen={outputsMobileOpen}
+                onMobileClose={() => setOutputsMobileOpen(false)}
+              />
+            ) : null}
           </div>
         ) : (
           <div className="flex h-full min-h-0 flex-1 flex-col overflow-hidden">

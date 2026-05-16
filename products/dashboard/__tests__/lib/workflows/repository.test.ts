@@ -786,7 +786,7 @@ describe("workflow repository", () => {
 
   // The in-memory fake doesn't enforce the (playbook_id, name) UNIQUE
   // constraint. We cover the friendly-error path for unique-name conflicts
-  // in the playbook-outputs-editor component test instead.
+  // in the playbook-outputs-dock component test instead.
   describe("playbook outputs", () => {
     beforeEach(() => {
       store.playbook_outputs = [

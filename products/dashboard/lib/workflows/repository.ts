@@ -1576,11 +1576,22 @@ export function createWorkflowRepository(
         .map((id, index) => ({ id, position: index }));
       if (updates.length === 0) return;
 
-      // Apply in a single round-trip: per-row UPDATEs would be N round-trips,
-      // so we use upsert(onConflict: id) which writes all positions at once.
-      const { error } = await client
-        .from("playbook_outputs")
-        .upsert(updates, { onConflict: "id" });
+      // Per-row UPDATEs touch only the `position` column. An earlier upsert
+      // approach tripped NOT NULL constraints on `name`/`playbook_id`
+      // because PostgREST evaluates upserts as INSERT…ON CONFLICT, which
+      // requires every NOT NULL column on the INSERT branch. N is small
+      // (a handful of outputs per playbook) so we parallelize with
+      // Promise.all to keep latency flat.
+      const results = await Promise.all(
+        updates.map(({ id, position }) =>
+          client
+            .from("playbook_outputs")
+            .update({ position })
+            .eq("id", id)
+            .eq("playbook_id", playbookId),
+        ),
+      );
+      const error = results.find((r) => r.error)?.error;
       if (error) {
         throw new WorkflowRepositoryError("reorderPlaybookOutputs failed", error);
       }

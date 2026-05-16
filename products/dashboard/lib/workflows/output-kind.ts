@@ -13,7 +13,7 @@ export const OUTPUT_KIND_AVATAR: Record<PlaybookOutputKind, OutputKindAvatar> = 
   file: { emoji: "📎", color: "#3b82f6" },
   media: { emoji: "🎬", color: "#a855f7" },
   link: { emoji: "🔗", color: "#06b6d4" },
-  api: { emoji: "🔌", color: "#10b981" },
+  api: { emoji: "🔌", color: "#ec4899" },
   manual: { emoji: "✏️", color: "#f59e0b" },
 };
 
