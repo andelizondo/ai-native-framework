@@ -1387,12 +1387,23 @@
   border: 1px solid var(--border-hi);
   z-index: 2;
 }
-/* Hidden anchors for non-primary tasks — they occupy the primary's
- * footprint so the wiring overlay can still measure them, but they
- * do not paint and do not intercept pointer events. */
+/* Hidden anchors for non-primary tasks. Pinned to the primary's
+ * 40×40 footprint at the mini-stack center so the wiring overlay's
+ * `getBoundingClientRect()` returns the avatar's rect (not the full
+ * cell rect). Without this, when a sibling card promoted to full
+ * grew the row tall, `inset: 0` made the ghost the full row's
+ * height, so wires targeting a ghost terminated at the cell edge —
+ * visually drifting away from the avatar. The mini-stack itself is
+ * `align-items: center; justify-content: center; height: 100%`, so
+ * a 40×40 box centered with `top/left 50% + translate(-50%, -50%)`
+ * lands exactly on the primary's footprint. */
 .mx-mini-stack-ghost {
   position: absolute;
-  inset: 0;
+  top: 50%;
+  left: 50%;
+  width: 40px;
+  height: 40px;
+  transform: translate(-50%, -50%);
   visibility: hidden;
   pointer-events: none;
 }
