@@ -824,21 +824,21 @@
 }
 
 /* ── Demote (collapse-to-compact) button ──
- * Absolutely positioned in the top-right of a promoted full card. Only
- * rendered when the parent passes `onDemote`, which happens exclusively
- * for the promoted sibling in a multi-card cell — so the affordance
- * naturally never appears on a 1-card cell or on a compact card.
- * Hover-only on the card itself so it doesn't compete with the title
- * or status pill at rest. */
+ * Absolutely positioned in the top-right of any full card that exposes
+ * `onDemote`. Right edge sits on the same 12px column as the info
+ * badges and the per-card actions in the rows below, so the three
+ * affordances read as a single right-edge stack rather than drifting
+ * across columns. Hover-only on the card itself so it doesn't compete
+ * with the title at rest. */
 .tc-demote-btn {
   position: absolute;
-  top: 6px;
-  right: 6px;
+  top: 8px;
+  right: 12px;
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 18px;
-  height: 18px;
+  width: 22px;
+  height: 22px;
   padding: 0;
   border: 1px solid transparent;
   border-radius: 9999px;
