@@ -87,6 +87,62 @@ export function TaskCard({
   const owners = task.owners ?? [];
   const showActions = editMode && Boolean(onRemove);
   const isCompact = variant === "compact";
+
+  // Info badges — note / checkpoint / failure / completion. Centralised
+  // here so the compact variant can swap the status pill for these
+  // icons when any exist (a row of 22px hover-tooltipped chips carries
+  // more actionable signal than a generic "Failed" pill at compact
+  // scale). The full variant renders the same list in its status row.
+  const infoBadgeNodes: React.ReactNode[] = [];
+  if (task.notes) {
+    infoBadgeNodes.push(
+      <InfoBadge
+        key="note"
+        tone="note"
+        icon={StickyNote}
+        header="Note"
+        body={task.notes}
+        testId={`task-note-${task.id}`}
+      />,
+    );
+  }
+  if (task.checkpoint) {
+    infoBadgeNodes.push(
+      <InfoBadge
+        key="warning"
+        tone="warning"
+        icon={AlertTriangle}
+        header="Warning"
+        body="This task requires a checkpoint approval before it can complete."
+        testId={`task-checkpoint-${task.id}`}
+      />,
+    );
+  }
+  if (!templateView && task.status === "failed") {
+    infoBadgeNodes.push(
+      <InfoBadge
+        key="error"
+        tone="error"
+        icon={CircleAlert}
+        header="Error"
+        body={task.substatus || "This task failed and needs attention."}
+        testId={`task-error-${task.id}`}
+      />,
+    );
+  }
+  if (!templateView && task.status === "complete") {
+    infoBadgeNodes.push(
+      <InfoBadge
+        key="success"
+        tone="success"
+        icon={Check}
+        header="Completed"
+        body={formatCompletionTimestamp(task.updatedAt)}
+        testId={`task-complete-${task.id}`}
+      />,
+    );
+  }
+  const hasInfoBadges = infoBadgeNodes.length > 0;
   const ariaLabel = isCompact
     ? onClick
       ? `Expand playbook card: ${title}`
@@ -144,12 +200,21 @@ export function TaskCard({
           <div className="tc-compact-title" title={title}>
             {title}
           </div>
-          <div
-            className={cn("s-pill", statusClass, "tc-compact-status")}
-            data-testid={`task-status-${task.id}`}
-          >
-            <span className="s-text">{statusLabel}</span>
-          </div>
+          {hasInfoBadges ? (
+            <div
+              className="tc-info-badges tc-compact-info-badges"
+              data-testid={`task-info-badges-${task.id}`}
+            >
+              {infoBadgeNodes}
+            </div>
+          ) : (
+            <div
+              className={cn("s-pill", statusClass, "tc-compact-status")}
+              data-testid={`task-status-${task.id}`}
+            >
+              <span className="s-text">{statusLabel}</span>
+            </div>
+          )}
           {showActions && onRemove ? (
             <div className="tc-compact-actions mx-entity-actions mx-entity-actions-group">
               <button
@@ -179,6 +244,7 @@ export function TaskCard({
           ioState={ioState}
           showActions={showActions}
           onRemove={onRemove}
+          infoBadgeNodes={infoBadgeNodes}
         />
       )}
     </div>
@@ -196,6 +262,7 @@ interface FullTaskCardBodyProps {
   ioState?: TaskIOSummary;
   showActions: boolean;
   onRemove?: () => void;
+  infoBadgeNodes: React.ReactNode[];
 }
 
 function FullTaskCardBody({
@@ -209,6 +276,7 @@ function FullTaskCardBody({
   ioState,
   showActions,
   onRemove,
+  infoBadgeNodes,
 }: FullTaskCardBodyProps) {
   return (
     <>
@@ -228,44 +296,7 @@ function FullTaskCardBody({
             <EmptyOwnerAvatar taskId={task.id} />
           )}
         </div>
-        <div className="tc-info-badges">
-          {task.notes ? (
-            <InfoBadge
-              tone="note"
-              icon={StickyNote}
-              header="Note"
-              body={task.notes}
-              testId={`task-note-${task.id}`}
-            />
-          ) : null}
-          {task.checkpoint ? (
-            <InfoBadge
-              tone="warning"
-              icon={AlertTriangle}
-              header="Warning"
-              body="This task requires a checkpoint approval before it can complete."
-              testId={`task-checkpoint-${task.id}`}
-            />
-          ) : null}
-          {!templateView && task.status === "failed" ? (
-            <InfoBadge
-              tone="error"
-              icon={CircleAlert}
-              header="Error"
-              body={task.substatus || "This task failed and needs attention."}
-              testId={`task-error-${task.id}`}
-            />
-          ) : null}
-          {!templateView && task.status === "complete" ? (
-            <InfoBadge
-              tone="success"
-              icon={Check}
-              header="Completed"
-              body={formatCompletionTimestamp(task.updatedAt)}
-              testId={`task-complete-${task.id}`}
-            />
-          ) : null}
-        </div>
+        <div className="tc-info-badges">{infoBadgeNodes}</div>
       </div>
       <div className="tc-bottom">
         <div

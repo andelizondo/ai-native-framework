@@ -816,6 +816,22 @@
 .task-card.task-card-compact:focus-within .tc-compact-actions {
   opacity: 1;
 }
+/* Info badges in compact mode — replace the status pill spot when the
+ * task has any note / checkpoint / failure / completion signal. Slightly
+ * smaller chips (18px instead of 22px) so a row of 2–3 badges still
+ * fits inside the 52px card alongside the title. */
+.tc-compact-info-badges {
+  flex-shrink: 0;
+  gap: 3px;
+}
+.tc-compact-info-badges .tc-info-badge-icon {
+  width: 18px;
+  height: 18px;
+}
+.tc-compact-info-badges .tc-info-badge-icon > svg {
+  width: 10px;
+  height: 10px;
+}
 
 /* ── Demote (collapse-to-compact) button ──
  * Absolutely positioned in the top-right of a promoted full card. Only
