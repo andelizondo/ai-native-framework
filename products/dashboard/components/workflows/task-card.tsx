@@ -6,6 +6,7 @@ import {
   AlertTriangle,
   Check,
   ChevronsDownUp,
+  ChevronsUpDown,
   CircleAlert,
   StickyNote,
   Trash2,
@@ -208,6 +209,20 @@ export function TaskCard({
               {infoBadgeNodes}
             </div>
           ) : null}
+          {onClick ? (
+            <button
+              type="button"
+              className="tc-expand-btn"
+              aria-label={`Expand playbook card: ${title}`}
+              title="Expand card"
+              onClick={(event) => {
+                event.stopPropagation();
+                onClick();
+              }}
+            >
+              <ChevronsUpDown aria-hidden size={11} strokeWidth={2.1} />
+            </button>
+          ) : null}
         </>
       ) : (
         <FullTaskCardBody
@@ -257,7 +272,9 @@ function FullTaskCardBody({
 }: FullTaskCardBodyProps) {
   return (
     <>
-      <div className="tc-title">{title}</div>
+      <div className="tc-title">
+        <span>{title}</span>
+      </div>
       <div className="tc-status-row">
         <div
           className="tc-owners"

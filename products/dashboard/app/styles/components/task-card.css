@@ -248,10 +248,27 @@
   opacity: 1;
 }
 .tc-title {
+  /* Flex container reserves the 2-line area but vertically centers
+   * whatever the inner span renders. Short (1-line) titles sit at the
+   * vertical middle of the area so the absolutely-positioned demote
+   * chevron at `top: 12px` lines up with the text. Long (2-line)
+   * titles fill the area edge-to-edge so the visual is the same as
+   * before for those. */
+  display: flex;
+  align-items: center;
+  /* Reserve two lines of vertical space so single-line titles don't
+   * pull the status pill upward — keeps the pill on a stable baseline. */
+  min-height: calc(1.3em * 2);
+  max-height: calc(1.3em * 2);
   font-size: 11.5px;
   font-weight: 600;
   color: var(--t1);
   line-height: 1.3;
+  /* Reserve the right-edge corner for the absolutely-positioned demote
+   * chevron so the title doesn't run under it on long playbook names. */
+  padding-right: 28px;
+}
+.tc-title > span {
   display: -webkit-box;
   -webkit-line-clamp: 2;
   -webkit-box-orient: vertical;
@@ -259,13 +276,7 @@
   overflow: hidden;
   text-overflow: ellipsis;
   word-break: break-word;
-  /* Reserve two lines of vertical space so single-line titles don't pull
-   * the status pill upward — keeps the pill on a stable baseline. */
-  min-height: calc(1.3em * 2);
-  /* Cap at exactly two lines too, so `flex-direction: column` on the card
-   * can't stretch the box and let `-webkit-line-clamp`'d lines leak below
-   * the ellipsis. */
-  max-height: calc(1.3em * 2);
+  width: 100%;
 }
 /* Output pip rail (PR 4 / AEL-62). Renders inline next to the status pill
  * in the card's bottom row, or in the drawer's status section. One pip per
@@ -784,7 +795,10 @@
  * cell's 136px default without growing the row. */
 .task-card.task-card-compact {
   height: 52px;
-  padding: 8px 10px 8px 14px;
+  /* Right padding matches the full card (12px) so the expand chevron in
+   * compact mode sits on the same vertical column as the demote chevron
+   * + info badges + delete button in the full card. */
+  padding: 8px 12px 8px 14px;
   flex-direction: row;
   align-items: center;
   gap: 8px;
@@ -832,7 +846,10 @@
  * with the title at rest. */
 .tc-demote-btn {
   position: absolute;
-  top: 8px;
+  /* Card padding-top (8px) + half the 2-line title box (~15px) − half
+   * the button height (11px) ≈ 12px. Lands the button on the vertical
+   * center of the title area, matching the flex-centered title text. */
+  top: 12px;
   right: 12px;
   display: inline-flex;
   align-items: center;
@@ -840,8 +857,8 @@
   width: 22px;
   height: 22px;
   padding: 0;
-  border: 1px solid transparent;
-  border-radius: 9999px;
+  border: 1px solid var(--border);
+  border-radius: 4px;
   background: var(--bg-2);
   color: var(--t3);
   cursor: pointer;
@@ -870,6 +887,39 @@
 .tc-demote-btn:focus-visible {
   opacity: 1;
   transform: translateY(0);
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+
+/* Compact-card expand chevron. Always visible (not hover-only) since
+ * it's the primary affordance on a compact card; lives at the right
+ * end of the flex row so info badges (if any) sit immediately to its
+ * left. Same square / 4px-radius chrome as the demote chevron and the
+ * matrix collapse buttons, just inline-positioned. */
+.tc-expand-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  width: 22px;
+  height: 22px;
+  padding: 0;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  background: var(--bg-2);
+  color: var(--t3);
+  cursor: pointer;
+  transition:
+    color 0.15s,
+    background 0.15s,
+    border-color 0.15s;
+}
+.tc-expand-btn:hover {
+  color: var(--t1);
+  background: var(--bg-3);
+  border-color: var(--border-hi);
+}
+.tc-expand-btn:focus-visible {
   outline: 2px solid var(--accent);
   outline-offset: 1px;
 }
