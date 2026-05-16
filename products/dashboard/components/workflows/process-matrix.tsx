@@ -901,7 +901,7 @@ export function ProcessMatrix({
                         emoji={frameworkSkill?.icon ?? "•"}
                         color={skillColor}
                         label={skill.label}
-                        size="md"
+                        size="lg"
                       />
                       {labelHidden ? (
                         <FloatingHoverTooltip
@@ -1463,7 +1463,7 @@ function MiniTaskCell({
             ) : undefined
           }
           label={title}
-          size="md"
+          size="lg"
         />
         <FloatingHoverTooltip
           name={title}

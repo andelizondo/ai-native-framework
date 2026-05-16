@@ -1022,7 +1022,7 @@
 }
 
 .mx-stage-hd-collapsed {
-  width: 48px;
+  width: 56px;
   padding: 8px 4px 8px 4px;
   cursor: pointer;
 }
@@ -1109,9 +1109,9 @@
 
 .mx-body-row-collapsed .mx-task-cell,
 .mx-body-row-collapsed .mx-role-cell {
-  height: 48px;
+  height: 56px;
   /* Override the default `min-height: 136px` so collapsed rows can
-   * actually shrink to the 48px header strip. */
+   * actually shrink to the 56px header strip. */
   min-height: 0;
 }
 .mx-body-row-collapsed .mx-role-cell {
@@ -1148,13 +1148,13 @@
   align-items: center;
   justify-content: center;
 }
-/* Column-collapsed body cells: shrink to match the 48px header width.
+/* Column-collapsed body cells: shrink to match the 56px header width.
  * `.mx-task-cell-narrow` is stamped from React on every body cell whose
  * stage column is collapsed. Cells in non-collapsed columns keep their
  * normal 192px width even when the row is row-collapsed (mini display
  * doesn't imply narrow column). */
 .mx-task-cell-narrow {
-  width: 48px;
+  width: 56px;
   padding: 4px 2px;
 }
 
@@ -1170,7 +1170,7 @@
   cursor: pointer;
   position: relative;
 }
-/* Status halo. Sits behind the 32px ItemAvatar and glows in the task's
+/* Status halo. Sits behind the 40px ItemAvatar and glows in the task's
  * status color; absent for `not_started` (no `--status-color` set). The
  * `data-pulse` flag on `pending_approval` swaps in a slow pulsing variant
  * so a checkpoint that needs attention reads even at the mini scale. */
@@ -1179,8 +1179,8 @@
   position: absolute;
   top: 50%;
   left: 50%;
-  width: 32px;
-  height: 32px;
+  width: 40px;
+  height: 40px;
   border-radius: 9999px;
   transform: translate(-50%, -50%);
   pointer-events: none;
@@ -1206,14 +1206,14 @@
     animation: none;
   }
 }
-/* Avatar-sized anchor inside the mini cell. Sized exactly to the md
- * avatar (32px) so the FloatingHoverTooltip — which anchors to its
+/* Avatar-sized anchor inside the mini cell. Sized exactly to the lg
+ * avatar (40px) so the FloatingHoverTooltip — which anchors to its
  * parent element — floats above the avatar rather than the full cell. */
 .mx-mini-cell-anchor {
   position: relative;
   display: inline-flex;
-  width: 32px;
-  height: 32px;
+  width: 40px;
+  height: 40px;
 }
 /* "In progress" wave on the mini avatar — mirrors the active task card's
  * shimmer (`ainative-card-wave`, defined in task-card.css). The alpha is
@@ -1340,11 +1340,11 @@
   height: 100%;
 }
 .mx-mini-stack .mx-mini-cell-btn {
-  width: 32px;
-  height: 32px;
+  width: 40px;
+  height: 40px;
   flex-shrink: 0;
 }
-/* Primary avatar wrapper. Sized explicitly to the 32px avatar so the
+/* Primary avatar wrapper. Sized explicitly to the 40px avatar so the
  * wiring overlay's `getBoundingClientRect()` reports the avatar's
  * footprint (and not the inline-flex parent's content-derived size,
  * which subtly varied across browser versions when the absolutely-
@@ -1355,8 +1355,8 @@
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 32px;
-  height: 32px;
+  width: 40px;
+  height: 40px;
 }
 /* Count badge: "+N" pill anchored to the primary avatar's top-right.
  * Sits above the avatar's status halo so the count stays legible.
@@ -1428,8 +1428,8 @@
   }
 }
 .mx-mini-stack-panel-item {
-  width: 32px;
-  height: 32px;
+  width: 40px;
+  height: 40px;
   display: inline-flex;
   align-items: center;
   justify-content: center;
