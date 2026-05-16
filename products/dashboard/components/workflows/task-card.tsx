@@ -5,6 +5,8 @@ import { createPortal } from "react-dom";
 import {
   AlertTriangle,
   Check,
+  ChevronsDownUp,
+  ChevronsUpDown,
   CircleAlert,
   StickyNote,
   Trash2,
@@ -53,6 +55,16 @@ export interface TaskCardProps {
    *  unmet-linked-input glyph. Omit (e.g. on the template editor) to
    *  suppress both affordances. */
   ioState?: TaskIOSummary;
+  /** When set, the card is currently the "promoted" sibling in a
+   *  multi-card cell — render a small collapse affordance in the top
+   *  corner so the user can demote it back to a compact card without
+   *  opening the drawer. */
+  onDemote?: () => void;
+  /** Layout variant. `"full"` (default) is the 120px three-row layout.
+   *  `"compact"` is the 52px one-row layout used when a cell holds
+   *  multiple tasks. The root element is the same in both cases so the
+   *  height / padding / flex-direction transitions animate the morph. */
+  variant?: "full" | "compact";
 }
 
 export function TaskCard({
@@ -66,6 +78,8 @@ export function TaskCard({
   templateView = false,
   onStatusChange,
   ioState,
+  onDemote,
+  variant = "full",
 }: TaskCardProps) {
   const statusClass = TASK_STATUS_PILL_CLASS[task.status];
   const statusLabel = TASK_STATUS_LABEL[task.status];
@@ -73,17 +87,83 @@ export function TaskCard({
   const title = playbook?.name ?? (task.playbookId ? "Playbook removed" : "No playbook");
   const owners = task.owners ?? [];
   const showActions = editMode && Boolean(onRemove);
+  const isCompact = variant === "compact";
+
+  // Info badges — note / checkpoint / failure / completion. Centralised
+  // here so the compact variant can swap the status pill for these
+  // icons when any exist (a row of 22px hover-tooltipped chips carries
+  // more actionable signal than a generic "Failed" pill at compact
+  // scale). The full variant renders the same list in its status row.
+  const infoBadgeNodes: React.ReactNode[] = [];
+  if (task.notes) {
+    infoBadgeNodes.push(
+      <InfoBadge
+        key="note"
+        tone="note"
+        icon={StickyNote}
+        header="Note"
+        body={task.notes}
+        testId={`task-note-${task.id}`}
+      />,
+    );
+  }
+  if (task.checkpoint) {
+    infoBadgeNodes.push(
+      <InfoBadge
+        key="warning"
+        tone="warning"
+        icon={AlertTriangle}
+        header="Warning"
+        body="This task requires a checkpoint approval before it can complete."
+        testId={`task-checkpoint-${task.id}`}
+      />,
+    );
+  }
+  if (!templateView && task.status === "failed") {
+    infoBadgeNodes.push(
+      <InfoBadge
+        key="error"
+        tone="error"
+        icon={CircleAlert}
+        header="Error"
+        body={task.substatus || "This task failed and needs attention."}
+        testId={`task-error-${task.id}`}
+      />,
+    );
+  }
+  if (!templateView && task.status === "complete") {
+    infoBadgeNodes.push(
+      <InfoBadge
+        key="success"
+        tone="success"
+        icon={Check}
+        header="Completed"
+        body={formatCompletionTimestamp(task.updatedAt)}
+        testId={`task-complete-${task.id}`}
+      />,
+    );
+  }
+  const hasInfoBadges = infoBadgeNodes.length > 0;
+  const ariaLabel = isCompact
+    ? onClick
+      ? `Expand playbook card: ${title}`
+      : undefined
+    : onClick
+      ? `Open playbook: ${title}`
+      : undefined;
 
   return (
     <div
       data-testid={`task-card-${task.id}`}
       data-bar={barState}
       data-status={task.status}
+      data-variant={variant}
       className={cn(
         "task-card",
         statusClass,
         barState,
         templateView && "task-card-default",
+        isCompact && "task-card-compact",
         onClick && "cursor-pointer",
       )}
       style={{ "--role-color": skillColor } as React.CSSProperties}
@@ -100,9 +180,101 @@ export function TaskCard({
             }
           : undefined
       }
-      aria-label={onClick ? `Open playbook: ${title}` : undefined}
+      aria-label={ariaLabel}
     >
-      <div className="tc-title">{title}</div>
+      {!isCompact && onDemote ? (
+        <button
+          type="button"
+          className="tc-demote-btn"
+          aria-label={`Collapse playbook card: ${title}`}
+          title="Collapse card"
+          onClick={(event) => {
+            event.stopPropagation();
+            onDemote();
+          }}
+        >
+          <ChevronsDownUp aria-hidden size={11} strokeWidth={2.1} />
+        </button>
+      ) : null}
+      {isCompact ? (
+        <>
+          <div className="tc-compact-title" title={title}>
+            {title}
+          </div>
+          {hasInfoBadges ? (
+            <div
+              className="tc-info-badges tc-compact-info-badges"
+              data-testid={`task-info-badges-${task.id}`}
+            >
+              {infoBadgeNodes}
+            </div>
+          ) : null}
+          {onClick ? (
+            <button
+              type="button"
+              className="tc-expand-btn"
+              aria-label={`Expand playbook card: ${title}`}
+              title="Expand card"
+              onClick={(event) => {
+                event.stopPropagation();
+                onClick();
+              }}
+            >
+              <ChevronsUpDown aria-hidden size={11} strokeWidth={2.1} />
+            </button>
+          ) : null}
+        </>
+      ) : (
+        <FullTaskCardBody
+          task={task}
+          title={title}
+          owners={owners}
+          templateView={templateView}
+          onStatusChange={onStatusChange}
+          statusClass={statusClass}
+          statusLabel={statusLabel}
+          ioState={ioState}
+          showActions={showActions}
+          onRemove={onRemove}
+          infoBadgeNodes={infoBadgeNodes}
+        />
+      )}
+    </div>
+  );
+}
+
+interface FullTaskCardBodyProps {
+  task: WorkflowTask;
+  title: string;
+  owners: string[];
+  templateView: boolean;
+  onStatusChange?: (next: WorkflowTaskStatus) => void;
+  statusClass: string;
+  statusLabel: string;
+  ioState?: TaskIOSummary;
+  showActions: boolean;
+  onRemove?: () => void;
+  infoBadgeNodes: React.ReactNode[];
+}
+
+function FullTaskCardBody({
+  task,
+  title,
+  owners,
+  templateView,
+  onStatusChange,
+  statusClass,
+  statusLabel,
+  ioState,
+  showActions,
+  onRemove,
+  infoBadgeNodes,
+}: FullTaskCardBodyProps) {
+  return (
+    <>
+      <div className="tc-title">
+        <span>{title}</span>
+      </div>
       <div className="tc-status-row">
         <div
           className="tc-owners"
@@ -118,44 +290,7 @@ export function TaskCard({
             <EmptyOwnerAvatar taskId={task.id} />
           )}
         </div>
-        <div className="tc-info-badges">
-          {task.notes ? (
-            <InfoBadge
-              tone="note"
-              icon={StickyNote}
-              header="Note"
-              body={task.notes}
-              testId={`task-note-${task.id}`}
-            />
-          ) : null}
-          {task.checkpoint ? (
-            <InfoBadge
-              tone="warning"
-              icon={AlertTriangle}
-              header="Warning"
-              body="This task requires a checkpoint approval before it can complete."
-              testId={`task-checkpoint-${task.id}`}
-            />
-          ) : null}
-          {!templateView && task.status === "failed" ? (
-            <InfoBadge
-              tone="error"
-              icon={CircleAlert}
-              header="Error"
-              body={task.substatus || "This task failed and needs attention."}
-              testId={`task-error-${task.id}`}
-            />
-          ) : null}
-          {!templateView && task.status === "complete" ? (
-            <InfoBadge
-              tone="success"
-              icon={Check}
-              header="Completed"
-              body={formatCompletionTimestamp(task.updatedAt)}
-              testId={`task-complete-${task.id}`}
-            />
-          ) : null}
-        </div>
+        <div className="tc-info-badges">{infoBadgeNodes}</div>
       </div>
       <div className="tc-bottom">
         <div
@@ -182,11 +317,17 @@ export function TaskCard({
           )}
         </div>
         <div className="tc-bottom-right">
-          <PipRail
-            outputs={ioState?.outputs ?? []}
-            testIdPrefix={`task-pip-${task.id}`}
-            railTestId={`task-pip-rail-${task.id}`}
-          />
+          {/* Output pip rail is a runtime affordance — each pip flips
+           * green/red as `task_outputs` rows land. Templates have no
+           * runtime, so every pip would render as a static "pending"
+           * dot, which reads as noise. Suppress in template view. */}
+          {templateView ? null : (
+            <PipRail
+              outputs={ioState?.outputs ?? []}
+              testIdPrefix={`task-pip-${task.id}`}
+              railTestId={`task-pip-rail-${task.id}`}
+            />
+          )}
           {showActions && onRemove ? (
             <div className="tc-actions mx-entity-actions mx-entity-actions-group">
               <button
@@ -205,7 +346,7 @@ export function TaskCard({
           ) : null}
         </div>
       </div>
-    </div>
+    </>
   );
 }
 

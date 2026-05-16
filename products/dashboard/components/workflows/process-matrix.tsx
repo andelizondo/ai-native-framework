@@ -178,6 +178,45 @@ export function ProcessMatrix({
   const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null);
   const [dragTaskId, setDragTaskId] = useState<string | null>(null);
   const [hoveredTaskId, setHoveredTaskId] = useState<string | null>(null);
+  // Per-task expand / collapse overrides. The default sizing rule is
+  // "compact when the cell has 2+ tasks, full otherwise" — but the user
+  // can collapse a single-card cell to free vertical space, or expand a
+  // multi-card cell's compact siblings to inspect them. The two sets are
+  // mutually exclusive (adding to one removes from the other) so the
+  // toggle handlers stay symmetric. Not persisted: an instance reload
+  // resets the view to the default rule.
+  const [expandedTaskIds, setExpandedTaskIds] = useState<Set<string>>(
+    () => new Set(),
+  );
+  const [collapsedTaskIds, setCollapsedTaskIds] = useState<Set<string>>(
+    () => new Set(),
+  );
+  const expandTask = useCallback((taskId: string) => {
+    setExpandedTaskIds((prev) => {
+      const next = new Set(prev);
+      next.add(taskId);
+      return next;
+    });
+    setCollapsedTaskIds((prev) => {
+      if (!prev.has(taskId)) return prev;
+      const next = new Set(prev);
+      next.delete(taskId);
+      return next;
+    });
+  }, []);
+  const collapseTask = useCallback((taskId: string) => {
+    setCollapsedTaskIds((prev) => {
+      const next = new Set(prev);
+      next.add(taskId);
+      return next;
+    });
+    setExpandedTaskIds((prev) => {
+      if (!prev.has(taskId)) return prev;
+      const next = new Set(prev);
+      next.delete(taskId);
+      return next;
+    });
+  }, []);
   const matrixWrapRef = useRef<HTMLDivElement | null>(null);
   const [addTaskFor, setAddTaskFor] = useState<{
     mode: "create" | "edit";
@@ -367,10 +406,23 @@ export function ProcessMatrix({
     proceed();
   }, [lastSavedTasks, pendingNavigation, savedLabel]);
 
+  // A cell can hold N tasks (typically 0–1, sometimes 2–3). Order is
+  // stable by `createdAt` ascending so the stack doesn't reshuffle
+  // across optimistic updates, and the compact-vs-full layout choice
+  // is deterministic per task position.
   const tasksByCell = useMemo(() => {
-    const map = new Map<string, WorkflowTask>();
+    const map = new Map<string, WorkflowTask[]>();
     for (const task of localTasks) {
-      map.set(`${task.skillId}::${task.stageId}`, task);
+      const key = `${task.skillId}::${task.stageId}`;
+      const bucket = map.get(key);
+      if (bucket) bucket.push(task);
+      else map.set(key, [task]);
+    }
+    for (const bucket of map.values()) {
+      bucket.sort((a, b) => {
+        if (a.createdAt !== b.createdAt) return a.createdAt < b.createdAt ? -1 : 1;
+        return a.id < b.id ? -1 : 1;
+      });
     }
     return map;
   }, [localTasks]);
@@ -582,10 +634,8 @@ export function ProcessMatrix({
       const dragged = localTasks.find((t) => t.id === draggedId);
       if (!dragged) return;
       if (dragged.skillId === targetSkillId && dragged.stageId === targetStageId) return;
-      const occupied = localTasks.some(
-        (t) => t.skillId === targetSkillId && t.stageId === targetStageId,
-      );
-      if (occupied) return;
+      // Multi-card cells: drops onto an already-occupied cell are allowed
+      // and the card joins the stack. The old `occupied` guard is gone.
       // Constrain skill-row moves to the playbook's allowed skills.
       const playbook = dragged.playbookId ? playbookById.get(dragged.playbookId) : null;
       if (
@@ -809,7 +859,8 @@ export function ProcessMatrix({
                 (item) => item.id === skill.id,
               );
               const isSkillCollapsed = collapsedSkillIds.has(skill.id);
-              const labelHidden = collapsed || isSkillCollapsed;
+              const labelHidden = collapsed;
+              const ownersHidden = collapsed || isSkillCollapsed;
               // Derive the row's owner stack from the cards currently in
               // this skill row (deduped, order-preserved). Owners live on
               // each task now, so the same playbook can carry different
@@ -873,7 +924,7 @@ export function ProcessMatrix({
                         emoji={frameworkSkill?.icon ?? "•"}
                         color={skillColor}
                         label={skill.label}
-                        size={labelHidden ? "xs" : "sm"}
+                        size="lg"
                       />
                       {labelHidden ? (
                         <FloatingHoverTooltip
@@ -893,16 +944,18 @@ export function ProcessMatrix({
                         data-testid={`matrix-skill-label-${skill.id}`}
                       >
                         <div className="mx-role-name">{skill.label}</div>
-                        <div
-                          className={cn(
-                            "mx-role-owner",
-                            rowOwners.length > 0 && "mx-role-owner-plain",
-                          )}
-                        >
-                          {rowOwners.length > 0
-                            ? rowOwners.join(", ")
-                            : "No owner"}
-                        </div>
+                        {!ownersHidden ? (
+                          <div
+                            className={cn(
+                              "mx-role-owner",
+                              rowOwners.length > 0 && "mx-role-owner-plain",
+                            )}
+                          >
+                            {rowOwners.length > 0
+                              ? rowOwners.join(", ")
+                              : "No owner"}
+                          </div>
+                        ) : null}
                       </div>
                     ) : null}
                     {(
@@ -945,17 +998,28 @@ export function ProcessMatrix({
                   </div>
 
                   {stages.map((stage) => {
-                    const task = tasksByCell.get(`${skill.id}::${stage.id}`);
-                    const playbook = task?.playbookId ? playbookById.get(task.playbookId) ?? null : null;
+                    const cellTasks =
+                      tasksByCell.get(`${skill.id}::${stage.id}`) ?? [];
                     const isStageCollapsed = collapsedStageIds.has(stage.id);
                     const isMini = isStageCollapsed || isSkillCollapsed;
+                    const multiCard = cellTasks.length >= 2;
+                    // Row-collapsed single-task cell with a wide column: render
+                    // the compact TaskCard (avatar + playbook name) in place of
+                    // the bare-avatar MiniStackCellContent. Skipped when the
+                    // column is also narrow (no room) or the cell has 2+ tasks
+                    // (compacts stacked would overflow the avatar-height row).
+                    const useCompactAsMini =
+                      isMini &&
+                      isSkillCollapsed &&
+                      !isStageCollapsed &&
+                      cellTasks.length === 1;
 
                     return (
                       <DroppableTaskCell
                         key={`${skill.id}-${stage.id}`}
                         skillId={skill.id}
                         stageId={stage.id}
-                        hasTask={Boolean(task)}
+                        hasTask={cellTasks.length > 0}
                         editMode={editMode && !isMini}
                         dragActive={Boolean(dragTaskId)}
                         dropAllowed={
@@ -965,93 +1029,137 @@ export function ProcessMatrix({
                         mini={isMini}
                         stageCollapsed={isStageCollapsed}
                       >
-                        {task ? (
-                          isMini ? (
-                            <div
-                              data-task-id={task.id}
-                              data-mini="true"
-                              onMouseEnter={() => setHoveredTaskId(task.id)}
-                              onMouseLeave={() =>
-                                setHoveredTaskId((current) =>
-                                  current === task.id ? null : current,
-                                )
-                              }
-                            >
-                              <MiniTaskCell
-                                task={task}
-                                playbook={playbook}
-                                skillColor={skillColor}
-                                onClick={
-                                  editMode
-                                    ? undefined
-                                    : () => {
-                                        // Mini cells live in collapsed rows or
-                                        // columns. Clicking the avatar expands
-                                        // them back to full size first; the
-                                        // user has to click again on the full
-                                        // card to open the drawer. Avoids the
-                                        // surprise of a drawer popping over a
-                                        // collapsed row/column.
-                                        if (isSkillCollapsed) {
-                                          toggleSkillCollapsed(skill.id);
-                                        }
-                                        if (isStageCollapsed) {
-                                          toggleStageCollapsed(stage.id);
-                                        }
-                                      }
+                        {cellTasks.length > 0 ? (
+                          isMini && !useCompactAsMini ? (
+                            <MiniStackCellContent
+                              tasks={cellTasks}
+                              playbookById={playbookById}
+                              skillColor={skillColor}
+                              onHoverTask={setHoveredTaskId}
+                              onPickTask={() => {
+                                // Mini cells live in collapsed rows or
+                                // columns. Picking any task from the mini
+                                // stack expands them back to their
+                                // compact/full layout first; a second click
+                                // on the expanded card opens the drawer (or
+                                // the edit modal in edit mode). Avoids a
+                                // drawer/modal popping over a collapsed
+                                // row/column.
+                                if (isSkillCollapsed) {
+                                  toggleSkillCollapsed(skill.id);
                                 }
-                              />
-                            </div>
+                                if (isStageCollapsed) {
+                                  toggleStageCollapsed(stage.id);
+                                }
+                              }}
+                            />
                           ) : (
-                            <DraggableTaskCard
-                              taskId={task.id}
-                              disabled={!editMode}
-                              isActive={dragTaskId === task.id}
-                              dataTaskId={task.id}
-                              onHoverStart={() => setHoveredTaskId(task.id)}
-                              onHoverEnd={() =>
-                                setHoveredTaskId((current) =>
-                                  current === task.id ? null : current,
-                                )
-                              }
+                            <div
+                              className={cn(
+                                "mx-cell-stack",
+                                multiCard && "mx-cell-stack-multi",
+                              )}
                             >
-                              <TaskCard
-                                task={task}
-                                playbook={playbook}
-                                skillColor={skillColor}
-                                barState={barClass(task, canStart(task, localTasks))}
-                                editMode={editMode}
-                                ioState={ioByTaskId.get(task.id)}
-                                onClick={
-                                  editMode
-                                    ? () =>
-                                        setAddTaskFor({
-                                          mode: "edit",
-                                          taskId: task.id,
-                                          skillId: skill.id,
-                                          skillLabel: skill.label,
-                                          stageId: stage.id,
-                                          stageName: stage.label,
-                                          initial: {
-                                            playbookId: task.playbookId ?? null,
-                                            notes: task.notes ?? "",
-                                            owners: task.owners ?? [],
-                                            inputs: task.inputs ?? [],
-                                            outputs: task.outputs ?? [],
-                                          },
-                                        })
-                                    : () => setSelectedTaskId(task.id)
-                                }
-                                onStatusChange={
-                                  editMode
-                                    ? undefined
-                                    : (next) => handleStatusChange(task.id, next)
-                                }
-                                onRemove={
-                                  editMode ? () => setConfirmDeleteTask(task) : undefined
-                                }
-                              />
-                            </DraggableTaskCard>
+                              {cellTasks.map((task) => {
+                                const playbook = task.playbookId
+                                  ? playbookById.get(task.playbookId) ?? null
+                                  : null;
+                                const renderCompact =
+                                  useCompactAsMini ||
+                                  collapsedTaskIds.has(task.id) ||
+                                  (!expandedTaskIds.has(task.id) && multiCard);
+                                return (
+                                  <DraggableTaskCard
+                                    key={task.id}
+                                    taskId={task.id}
+                                    disabled={!editMode || useCompactAsMini}
+                                    isActive={dragTaskId === task.id}
+                                    dataTaskId={task.id}
+                                    onHoverStart={() => setHoveredTaskId(task.id)}
+                                    onHoverEnd={() =>
+                                      setHoveredTaskId((current) =>
+                                        current === task.id ? null : current,
+                                      )
+                                    }
+                                  >
+                                    <TaskCard
+                                      task={task}
+                                      playbook={playbook}
+                                      skillColor={skillColor}
+                                      barState={barClass(
+                                        task,
+                                        canStart(task, localTasks),
+                                      )}
+                                      editMode={editMode && !useCompactAsMini}
+                                      ioState={ioByTaskId.get(task.id)}
+                                      variant={renderCompact ? "compact" : "full"}
+                                      onClick={
+                                        useCompactAsMini
+                                          ? () => toggleSkillCollapsed(skill.id)
+                                          : renderCompact
+                                            ? () => expandTask(task.id)
+                                            : editMode
+                                              ? () =>
+                                                  setAddTaskFor({
+                                                    mode: "edit",
+                                                    taskId: task.id,
+                                                    skillId: skill.id,
+                                                    skillLabel: skill.label,
+                                                    stageId: stage.id,
+                                                    stageName: stage.label,
+                                                    initial: {
+                                                      playbookId:
+                                                        task.playbookId ?? null,
+                                                      notes: task.notes ?? "",
+                                                      owners: task.owners ?? [],
+                                                      inputs: task.inputs ?? [],
+                                                      outputs: task.outputs ?? [],
+                                                    },
+                                                  })
+                                              : () => setSelectedTaskId(task.id)
+                                      }
+                                      onStatusChange={
+                                        renderCompact || editMode
+                                          ? undefined
+                                          : (next) =>
+                                              handleStatusChange(task.id, next)
+                                      }
+                                      onRemove={
+                                        editMode && !useCompactAsMini
+                                          ? () => setConfirmDeleteTask(task)
+                                          : undefined
+                                      }
+                                      onDemote={
+                                        renderCompact
+                                          ? undefined
+                                          : () => collapseTask(task.id)
+                                      }
+                                    />
+                                  </DraggableTaskCard>
+                                );
+                              })}
+                              {editMode && !useCompactAsMini ? (
+                                <button
+                                  type="button"
+                                  className="mx-add-more-btn"
+                                  data-testid={`matrix-add-more-${skill.id}-${stage.id}`}
+                                  aria-label={`Add another playbook for ${skill.label} in ${stage.label}`}
+                                  onClick={(event) => {
+                                    event.stopPropagation();
+                                    setAddTaskFor({
+                                      mode: "create",
+                                      skillId: skill.id,
+                                      skillLabel: skill.label,
+                                      stageId: stage.id,
+                                      stageName: stage.label,
+                                    });
+                                  }}
+                                >
+                                  <Plus aria-hidden className="h-3 w-3" />
+                                  <span>Add another</span>
+                                </button>
+                              ) : null}
+                            </div>
                           )
                         ) : editMode && !isMini ? (
                           <div
@@ -1089,7 +1197,7 @@ export function ProcessMatrix({
             hoveredTaskId={hoveredTaskId}
             outputGroups={outputGroups}
             taskIO={instance.taskIO}
-            collapseKey={`${collapsed ? "1" : "0"}|${[...collapsedStageIds].sort().join(",")}|${[...collapsedSkillIds].sort().join(",")}`}
+            collapseKey={`${collapsed ? "1" : "0"}|${[...collapsedStageIds].sort().join(",")}|${[...collapsedSkillIds].sort().join(",")}|${[...expandedTaskIds].sort().join(",")}|${[...collapsedTaskIds].sort().join(",")}`}
           />
         </div>
       </div>
@@ -1289,9 +1397,12 @@ function DroppableTaskCell({
   stageCollapsed?: boolean;
   children: React.ReactNode;
 }) {
+  // `hasTask` no longer disables the droppable — multi-card cells accept
+  // drops on top of existing cards. `dropAllowed` (skill compatibility)
+  // and `editMode` still gate it.
   const { setNodeRef, isOver } = useDroppable({
     id: `cell::${skillId}::${stageId}`,
-    disabled: !editMode || hasTask || !dropAllowed,
+    disabled: !editMode || !dropAllowed,
   });
 
   return (
@@ -1306,8 +1417,8 @@ function DroppableTaskCell({
         mini && "mx-task-cell-mini",
         stageCollapsed && "mx-task-cell-narrow",
         hasTask && "has-task",
-        editMode && dragActive && !hasTask && dropAllowed && isOver && "drag-over-cell",
-        editMode && dragActive && !hasTask && !dropAllowed && "drag-disallowed-cell",
+        editMode && dragActive && dropAllowed && isOver && "drag-over-cell",
+        editMode && dragActive && !dropAllowed && "drag-disallowed-cell",
       )}
     >
       {children}
@@ -1386,7 +1497,7 @@ function MiniTaskCell({
             ) : undefined
           }
           label={title}
-          size="xs"
+          size="lg"
         />
         <FloatingHoverTooltip
           name={title}
@@ -1396,6 +1507,164 @@ function MiniTaskCell({
         />
       </span>
     </button>
+  );
+}
+
+/**
+ * Mini-stack cell: one or more tasks rendered inside a collapsed row /
+ * column. With a single task this is just a `MiniTaskCell` (the existing
+ * 22px avatar). With 2+ tasks we show ONE primary avatar plus a `+N`
+ * count badge so the cell never overflows — and on hover we float a
+ * vertical panel of all avatars so the user can see and click each
+ * individual task. Hidden sibling anchors keep the wiring overlay
+ * happy: every task in the cell still has a measurable `data-task-id`
+ * element, they just collapse to the primary's position so wiring
+ * curves converge cleanly into the cell.
+ */
+function MiniStackCellContent({
+  tasks,
+  playbookById,
+  skillColor,
+  onHoverTask,
+  onPickTask,
+}: {
+  tasks: WorkflowTask[];
+  playbookById: Map<string, FrameworkItem>;
+  skillColor: string;
+  onHoverTask: (taskId: string | null) => void;
+  /** Called when the user clicks an avatar — picks that task. Pass
+   *  `undefined` to disable clicks (edit mode). */
+  onPickTask?: (taskId: string) => void;
+}) {
+  const primary = tasks[0]!;
+  const siblings = tasks.slice(1);
+  const isMulti = tasks.length > 1;
+  const anchorRef = useRef<HTMLDivElement | null>(null);
+  const [panelPos, setPanelPos] = useState<{ top: number; left: number } | null>(
+    null,
+  );
+  const [panelOpen, setPanelOpen] = useState(false);
+  const closeTimerRef = useRef<number | null>(null);
+
+  const cancelClose = useCallback(() => {
+    if (closeTimerRef.current !== null) {
+      window.clearTimeout(closeTimerRef.current);
+      closeTimerRef.current = null;
+    }
+  }, []);
+  // Small grace period so moving the cursor from the anchor to the
+  // portaled panel doesn't drop the hover state mid-traversal.
+  const scheduleClose = useCallback(() => {
+    cancelClose();
+    closeTimerRef.current = window.setTimeout(() => setPanelOpen(false), 100);
+  }, [cancelClose]);
+  useEffect(() => () => cancelClose(), [cancelClose]);
+
+  const openPanel = useCallback(() => {
+    cancelClose();
+    if (!isMulti) return;
+    const anchor = anchorRef.current;
+    if (!anchor) return;
+    const rect = anchor.getBoundingClientRect();
+    setPanelPos({
+      top: rect.top + rect.height / 2,
+      left: rect.right + 6,
+    });
+    setPanelOpen(true);
+  }, [cancelClose, isMulti]);
+
+  const primaryPlaybook = primary.playbookId
+    ? playbookById.get(primary.playbookId) ?? null
+    : null;
+
+  return (
+    <div
+      ref={anchorRef}
+      className={cn("mx-mini-stack", isMulti && "mx-mini-stack-multi")}
+      onMouseEnter={() => {
+        onHoverTask(primary.id);
+        openPanel();
+      }}
+      onMouseLeave={() => {
+        onHoverTask(null);
+        scheduleClose();
+      }}
+    >
+      <div
+        data-task-id={primary.id}
+        data-mini="true"
+        className="mx-mini-stack-primary"
+      >
+        <MiniTaskCell
+          task={primary}
+          playbook={primaryPlaybook}
+          skillColor={skillColor}
+          onClick={onPickTask ? () => onPickTask(primary.id) : undefined}
+        />
+        {isMulti ? (
+          <span
+            className="mx-mini-stack-badge"
+            aria-label={`${tasks.length} playbooks in this cell`}
+          >
+            +{siblings.length}
+          </span>
+        ) : null}
+      </div>
+      {/* Hidden anchors for the non-primary tasks. They occupy the
+       *  primary's footprint (visibility: hidden, no layout shift) but
+       *  keep their `data-task-id` so the wiring overlay can resolve
+       *  endpoints for every task in the cell. */}
+      {siblings.map((task) => (
+        <span
+          key={task.id}
+          data-task-id={task.id}
+          data-mini="true"
+          aria-hidden
+          className="mx-mini-stack-ghost"
+        />
+      ))}
+      {panelOpen && panelPos && typeof document !== "undefined"
+        ? createPortal(
+            <div
+              role="menu"
+              aria-label="Playbooks in this cell"
+              className="mx-mini-stack-panel"
+              style={{ top: panelPos.top, left: panelPos.left }}
+              onMouseEnter={cancelClose}
+              onMouseLeave={scheduleClose}
+            >
+              {tasks.map((task) => {
+                const pb = task.playbookId
+                  ? playbookById.get(task.playbookId) ?? null
+                  : null;
+                return (
+                  <div
+                    key={task.id}
+                    className="mx-mini-stack-panel-item"
+                    onMouseEnter={() => onHoverTask(task.id)}
+                    onMouseLeave={() => onHoverTask(null)}
+                  >
+                    <MiniTaskCell
+                      task={task}
+                      playbook={pb}
+                      skillColor={skillColor}
+                      onClick={
+                        onPickTask
+                          ? () => {
+                              setPanelOpen(false);
+                              onPickTask(task.id);
+                            }
+                          : undefined
+                      }
+                    />
+                  </div>
+                );
+              })}
+            </div>,
+            document.body,
+          )
+        : null}
+    </div>
   );
 }
 

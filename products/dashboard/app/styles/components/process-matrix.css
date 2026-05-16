@@ -497,15 +497,18 @@
   display: flex;
   align-items: center;
   gap: 7px;
-  /* Locked height keeps the row stable while task cards are dragged in/out.
-   * Card height = 120px + cell padding (7×2) + breathing → 136px. */
-  height: 136px;
+  /* Floor matches a 1-card row (120px card + 7×2 cell padding + breathing
+   * → 136px). When the row grows because a body cell promotes / stacks
+   * 3+ cards, the row's flex layout stretches every sibling — including
+   * this role cell — to match. `min-height` is the floor; `height: auto`
+   * (the default) lets the cell follow the row's content-driven height. */
+  min-height: 136px;
   overflow: visible;
   /* Match the cell transition timing so role + body cells collapse together
    * (otherwise the row header lags and a 1-frame gap shows mid-collapse). */
   transition:
     width 0.22s cubic-bezier(0.16, 1, 0.3, 1),
-    height 0.22s cubic-bezier(0.16, 1, 0.3, 1),
+    min-height 0.22s cubic-bezier(0.16, 1, 0.3, 1),
     padding 0.22s cubic-bezier(0.16, 1, 0.3, 1);
 }
 .mx-role-cell:hover,
@@ -624,18 +627,21 @@
   flex-shrink: 0;
   padding: 7px;
   border-right: 1px solid var(--border-2);
-  /* Locked height matches `.mx-role-cell` so the row stays a stable
-   * rectangle while task cards drag in/out. The card itself is 120px
-   * (set in task-card.css); cell padding 7×2 = 14, plus 2px breathing →
-   * 136px. */
-  height: 136px;
+  /* `min-height` (not `height`) so a cell with 3+ stacked compact cards
+   * — or one with promoted full cards alongside compacts — can grow
+   * vertically. The row's flex layout stretches every cell in the row
+   * to the tallest sibling, so one busy cell pulls its row taller in
+   * lockstep. Default 136px matches `.mx-role-cell` so the common 0-
+   * and 1-card cases sit on the same rectangle as before. */
+  min-height: 136px;
   background: var(--bg);
-  /* Animate height + width + padding so row/column collapse/expand reads
-   * as a smooth fold rather than an instant snap. Hover background keeps
-   * its faster timing so it doesn't lag behind the cursor. */
+  /* Animate min-height + width + padding so row/column collapse/expand
+   * and stack growth read as a smooth fold rather than an instant snap.
+   * Hover background keeps its faster timing so it doesn't lag behind
+   * the cursor. */
   transition:
     background 0.14s,
-    height 0.22s cubic-bezier(0.16, 1, 0.3, 1),
+    min-height 0.22s cubic-bezier(0.16, 1, 0.3, 1),
     width 0.22s cubic-bezier(0.16, 1, 0.3, 1),
     padding 0.22s cubic-bezier(0.16, 1, 0.3, 1);
 }
@@ -1016,7 +1022,7 @@
 }
 
 .mx-stage-hd-collapsed {
-  width: 36px;
+  width: 56px;
   padding: 8px 4px 8px 4px;
   cursor: pointer;
 }
@@ -1103,14 +1109,16 @@
 
 .mx-body-row-collapsed .mx-task-cell,
 .mx-body-row-collapsed .mx-role-cell {
-  height: 36px;
+  height: 48px;
+  /* Override the default `min-height: 136px` so collapsed rows can
+   * actually shrink to hug the 40px avatar (4px top/bottom padding). */
+  min-height: 0;
 }
 .mx-body-row-collapsed .mx-role-cell {
-  padding-top: 6px;
-  padding-bottom: 6px;
+  padding-top: 4px;
+  padding-bottom: 4px;
   padding-right: 6px;
 }
-.mx-body-row-collapsed .mx-role-name,
 .mx-body-row-collapsed .mx-role-owner {
   display: none;
 }
@@ -1134,18 +1142,22 @@
  * inside an expanded (140px) row keeps the cell tall and the avatar
  * floats vertically centered. */
 .mx-task-cell-mini {
-  padding: 4px;
+  /* Vertical padding stays tight so a 40px avatar / compact card fits
+   * inside the 48px collapsed row strip; horizontal padding matches the
+   * default cell's 7px so a compact-as-mini card has the same left/right
+   * margin as a card rendered in an expanded row of the same column. */
+  padding: 4px 7px;
   display: flex;
   align-items: center;
   justify-content: center;
 }
-/* Column-collapsed body cells: shrink to match the 36px header width.
+/* Column-collapsed body cells: shrink to match the 56px header width.
  * `.mx-task-cell-narrow` is stamped from React on every body cell whose
  * stage column is collapsed. Cells in non-collapsed columns keep their
  * normal 192px width even when the row is row-collapsed (mini display
  * doesn't imply narrow column). */
 .mx-task-cell-narrow {
-  width: 36px;
+  width: 56px;
   padding: 4px 2px;
 }
 
@@ -1161,7 +1173,7 @@
   cursor: pointer;
   position: relative;
 }
-/* Status halo. Sits behind the 22px ItemAvatar and glows in the task's
+/* Status halo. Sits behind the 40px ItemAvatar and glows in the task's
  * status color; absent for `not_started` (no `--status-color` set). The
  * `data-pulse` flag on `pending_approval` swaps in a slow pulsing variant
  * so a checkpoint that needs attention reads even at the mini scale. */
@@ -1170,8 +1182,8 @@
   position: absolute;
   top: 50%;
   left: 50%;
-  width: 22px;
-  height: 22px;
+  width: 40px;
+  height: 40px;
   border-radius: 9999px;
   transform: translate(-50%, -50%);
   pointer-events: none;
@@ -1197,14 +1209,14 @@
     animation: none;
   }
 }
-/* Avatar-sized anchor inside the mini cell. Sized exactly to the xs
- * avatar (22px) so the FloatingHoverTooltip — which anchors to its
+/* Avatar-sized anchor inside the mini cell. Sized exactly to the lg
+ * avatar (40px) so the FloatingHoverTooltip — which anchors to its
  * parent element — floats above the avatar rather than the full cell. */
 .mx-mini-cell-anchor {
   position: relative;
   display: inline-flex;
-  width: 22px;
-  height: 22px;
+  width: 40px;
+  height: 40px;
 }
 /* "In progress" wave on the mini avatar — mirrors the active task card's
  * shimmer (`ainative-card-wave`, defined in task-card.css). The alpha is
@@ -1242,3 +1254,207 @@
   outline-offset: -2px;
 }
 
+/* ── Multi-card cells ──
+ * A cell can host N tasks (typically 0–1, sometimes 2–3). One task →
+ * full TaskCard, unchanged. Two or more → compact stack: each card is
+ * the one-row `.task-card-compact` variant (see task-card.css). The
+ * stack is a vertical flex so it fills the cell from top to bottom,
+ * and any card the user "promotes" (click) renders as a full TaskCard
+ * in-place, growing the cell (and therefore the row) as needed. */
+.mx-cell-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  /* Stretch in both axes so a compact-as-mini card (rendered through
+   * this stack inside an `mx-task-cell-mini` row with `justify-content:
+   * center`) still fills the cell's full inner width, matching the
+   * width of an expanded-row card in the same column. */
+  width: 100%;
+  height: 100%;
+  min-height: 100%;
+}
+/* When a stack has 2+ cards we want the row to *not* jump from 1→2
+ * cards: two compacts (52px each) + 8px gap = 112px, plus the cell's
+ * 7+7 padding = 126px, which fits inside the 136px default. The
+ * `min-height: 0` on the stack is needed inside the flex parent so
+ * children measure naturally instead of inheriting `100%`. */
+.mx-cell-stack-multi {
+  min-height: 0;
+}
+
+/* ── Add another playbook ──
+ * Hover-reveal pill anchored at the bottom of an occupied cell in
+ * edit mode. Mirrors the empty-cell "+" treatment but as a wider,
+ * one-line affordance so it doesn't compete visually with a card. */
+.mx-add-more-btn {
+  align-self: stretch;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  height: 22px;
+  margin-top: auto;
+  padding: 0 8px;
+  border: 1px dashed transparent;
+  border-radius: 7px;
+  background: transparent;
+  color: var(--t3);
+  font-size: 10.5px;
+  font-weight: 500;
+  cursor: pointer;
+  opacity: 0;
+  transform: translateY(4px);
+  transition:
+    opacity 0.18s cubic-bezier(0.16, 1, 0.3, 1),
+    transform 0.18s cubic-bezier(0.16, 1, 0.3, 1),
+    border-color 0.18s,
+    color 0.18s,
+    background 0.18s;
+}
+.mx-task-cell:hover .mx-add-more-btn,
+.mx-task-cell:focus-within .mx-add-more-btn {
+  opacity: 1;
+  transform: translateY(0);
+}
+.mx-add-more-btn:hover {
+  color: var(--accent);
+  border-color: var(--border-hi);
+  background: rgba(129, 140, 248, 0.06);
+}
+.mx-add-more-btn:focus-visible {
+  opacity: 1;
+  transform: translateY(0);
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+/* During a drag, suppress the "+" affordance so it doesn't fight with
+ * the drop target's hover-reveal cues. */
+.matrix-wrap[data-dragging="true"] .mx-add-more-btn {
+  opacity: 0;
+  pointer-events: none;
+}
+
+/* ── Mini stack (collapsed row / column) ──
+ * A single primary avatar always renders, even when the cell holds N
+ * tasks. With 2+ tasks the primary gets a `+N` badge so the cell never
+ * grows / overflows, and a hover panel (portaled) fans out the full
+ * list of avatars beside the cell. */
+.mx-mini-stack {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  height: 100%;
+}
+.mx-mini-stack .mx-mini-cell-btn {
+  width: 40px;
+  height: 40px;
+  flex-shrink: 0;
+}
+/* Primary avatar wrapper. Sized explicitly to the 40px avatar so the
+ * wiring overlay's `getBoundingClientRect()` reports the avatar's
+ * footprint (and not the inline-flex parent's content-derived size,
+ * which subtly varied across browser versions when the absolutely-
+ * positioned `+N` badge was the only other child). Wires now anchor
+ * dead-center on the avatar's edges. */
+.mx-mini-stack-primary {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+}
+/* Count badge: "+N" pill anchored to the primary avatar's top-right.
+ * Sits above the avatar's status halo so the count stays legible.
+ * Intentionally quiet — a neutral surface chip rather than the bright
+ * accent, since the badge is metadata, not a primary affordance.
+ * Flex centering + `line-height: 1` ensures the digits sit exactly on
+ * the badge's optical center (avoiding the slight low-baseline drift
+ * line-height: 13px caused with 8.5px text). */
+.mx-mini-stack-badge {
+  position: absolute;
+  top: -3px;
+  right: -7px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 14px;
+  height: 14px;
+  padding: 0 4px;
+  border-radius: 9999px;
+  background: var(--bg-3);
+  color: var(--t2);
+  font-size: 9px;
+  font-weight: 600;
+  line-height: 1;
+  text-decoration: none;
+  white-space: nowrap;
+  pointer-events: none;
+  border: 1px solid var(--border-hi);
+  z-index: 2;
+}
+/* Hidden anchors for non-primary tasks. Pinned to the primary's
+ * 40×40 footprint at the mini-stack center so the wiring overlay's
+ * `getBoundingClientRect()` returns the avatar's rect (not the full
+ * cell rect). Without this, when a sibling card promoted to full
+ * grew the row tall, `inset: 0` made the ghost the full row's
+ * height, so wires targeting a ghost terminated at the cell edge —
+ * visually drifting away from the avatar. The mini-stack itself is
+ * `align-items: center; justify-content: center; height: 100%`, so
+ * a 40×40 box centered with `top/left 50% + translate(-50%, -50%)`
+ * lands exactly on the primary's footprint. */
+.mx-mini-stack-ghost {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 40px;
+  height: 40px;
+  transform: translate(-50%, -50%);
+  visibility: hidden;
+  pointer-events: none;
+}
+/* Hover panel: vertical strip of clickable avatars portaled to the
+ * document body so it floats above the matrix scroll wrap (which has
+ * overflow: auto and would otherwise clip the panel). Positioned with
+ * inline `top` / `left` from React using the anchor's getBoundingClientRect. */
+.mx-mini-stack-panel {
+  position: fixed;
+  z-index: 70;
+  /* `top` is anchored to the primary's vertical center; translate up by
+   * half the panel height so the panel floats centered on the avatar. */
+  transform: translateY(-50%);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  padding: 6px;
+  border-radius: 8px;
+  border: 1px solid var(--border-hi);
+  background: var(--bg-2);
+  box-shadow: var(--shadow-canvas, var(--shadow));
+  animation: mx-mini-stack-panel-in 0.14s ease-out;
+}
+@keyframes mx-mini-stack-panel-in {
+  from {
+    opacity: 0;
+    transform: translate(-4px, -50%);
+  }
+  to {
+    opacity: 1;
+    transform: translate(0, -50%);
+  }
+}
+.mx-mini-stack-panel-item {
+  width: 40px;
+  height: 40px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+@media (prefers-reduced-motion: reduce) {
+  .mx-mini-stack-panel {
+    animation: none;
+  }
+}

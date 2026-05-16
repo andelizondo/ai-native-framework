@@ -335,6 +335,58 @@ export function TemplateEditorScreen({
   const [dragTaskId, setDragTaskId] = useState<string | null>(null);
   const [hoveredTaskId, setHoveredTaskId] = useState<string | null>(null);
   const matrixRef = useRef<HTMLDivElement | null>(null);
+  // Per-task expand / collapse overrides — mirrors the instance matrix.
+  // Default sizing is "compact when cell has 2+ tasks, full otherwise";
+  // either set overrides that default for the listed task ids. The two
+  // sets stay mutually exclusive (adding to one removes from the other).
+  // Reset only when the user reloads the template; survives draft edits.
+  const [expandedTaskIds, setExpandedTaskIds] = useState<Set<string>>(
+    () => new Set(),
+  );
+  const [collapsedTaskIds, setCollapsedTaskIds] = useState<Set<string>>(
+    () => new Set(),
+  );
+  const expandTask = useCallback((taskId: string) => {
+    setExpandedTaskIds((prev) => {
+      const next = new Set(prev);
+      next.add(taskId);
+      return next;
+    });
+    setCollapsedTaskIds((prev) => {
+      if (!prev.has(taskId)) return prev;
+      const next = new Set(prev);
+      next.delete(taskId);
+      return next;
+    });
+  }, []);
+  const collapseTask = useCallback((taskId: string) => {
+    setCollapsedTaskIds((prev) => {
+      const next = new Set(prev);
+      next.add(taskId);
+      return next;
+    });
+    setExpandedTaskIds((prev) => {
+      if (!prev.has(taskId)) return prev;
+      const next = new Set(prev);
+      next.delete(taskId);
+      return next;
+    });
+  }, []);
+
+  // Group template tasks by their (skillId, stageId) cell so the matrix
+  // can render multiple cards per cell. Array order follows insertion
+  // order in `draft.taskTemplates` — templates have no createdAt, and
+  // preserving array order keeps the stack stable across edits.
+  const taskTemplatesByCell = useMemo(() => {
+    const map = new Map<string, WorkflowTaskTemplate[]>();
+    for (const task of draft.taskTemplates) {
+      const key = `${task.skillId}::${task.stageId}`;
+      const bucket = map.get(key);
+      if (bucket) bucket.push(task);
+      else map.set(key, [task]);
+    }
+    return map;
+  }, [draft.taskTemplates]);
 
   // Synthetic WorkflowTask[] for the wiring overlay. The overlay reads only
   // `id`, `inputs[]`, and `playbookId` to derive edges; in templates every
@@ -406,12 +458,16 @@ export function TemplateEditorScreen({
       if (!targetSkillId || !targetStageId) return;
       const taskId = activeId.slice("task::".length);
       setDraft((current) => {
-        const occupied = current.taskTemplates.some(
-          (t) => t.skillId === targetSkillId && t.stageId === targetStageId,
-        );
-        if (occupied) return current;
         const dragged = current.taskTemplates.find((t) => t.id === taskId);
         if (!dragged) return current;
+        // Multi-card cells: dropping onto an occupied cell joins the
+        // stack rather than being blocked, matching the instance matrix.
+        if (
+          dragged.skillId === targetSkillId &&
+          dragged.stageId === targetStageId
+        ) {
+          return current;
+        }
         if (dragged.skillId !== targetSkillId && dragged.playbookId) {
           const playbook = playbookById.get(dragged.playbookId);
           if (playbook && !(playbook.allowedSkillIds ?? []).includes(targetSkillId)) {
@@ -881,96 +937,138 @@ export function TemplateEditorScreen({
                       </div>
 
                       {draft.stages.map((stage) => {
-                const templateTask = draft.taskTemplates.find(
-                  (task) => task.skillId === skill.id && task.stageId === stage.id,
-                );
-                const task = templateTask ? templateTaskToCard(templateTask) : null;
-                const playbook = templateTask?.playbookId
-                  ? playbookById.get(templateTask.playbookId) ?? null
-                  : null;
+                const cellTemplateTasks =
+                  taskTemplatesByCell.get(`${skill.id}::${stage.id}`) ?? [];
+                const multiCard = cellTemplateTasks.length >= 2;
 
                 return (
                   <DroppableTemplateCell
                     key={`${skill.id}-${stage.id}`}
                     skillId={skill.id}
                     stageId={stage.id}
-                    hasTask={Boolean(task)}
+                    hasTask={cellTemplateTasks.length > 0}
                     dragActive={Boolean(dragTaskId)}
                     dropAllowed={
                       dragAllowedSkillIds === null ||
                       dragAllowedSkillIds.has(skill.id)
                     }
                   >
-                    {task && templateTask ? (
-                      <DraggableTemplateTask
-                        taskId={`task::${templateTask.id ?? task.id}`}
-                        isActive={dragTaskId === `task::${templateTask.id ?? task.id}`}
-                        dataTaskId={templateTask.id ?? task.id}
-                        onHoverStart={() =>
-                          setHoveredTaskId(templateTask.id ?? task.id)
-                        }
-                        onHoverEnd={() =>
-                          setHoveredTaskId((current) =>
-                            current === (templateTask.id ?? task.id) ? null : current,
-                          )
-                        }
+                    {cellTemplateTasks.length > 0 ? (
+                      <div
+                        className={cn(
+                          "mx-cell-stack",
+                          multiCard && "mx-cell-stack-multi",
+                        )}
                       >
-                        <TaskCard
-                          task={task}
-                          playbook={playbook}
-                          skillColor={resolveSkillColor(skill.id, skillOptions)}
-                          barState="bar-ready"
-                          editMode
-                          templateView
-                          ioState={{
-                            taskId: task.id,
-                            outputs: (
-                              outputGroups.find(
-                                (g) => g.playbookId === templateTask.playbookId,
-                              )?.outputs ?? []
-                            ).map((o) => ({
-                              id: o.id,
-                              position: o.position,
-                              status: "pending",
-                              name: o.name,
-                            })),
-                            hasUnmetLinkedInput: false,
-                          }}
-                          onClick={() =>
+                        {cellTemplateTasks.map((templateTask) => {
+                          const task = templateTaskToCard(templateTask);
+                          const playbook = templateTask.playbookId
+                            ? playbookById.get(templateTask.playbookId) ?? null
+                            : null;
+                          const taskId = templateTask.id ?? task.id;
+                          const renderCompact =
+                            collapsedTaskIds.has(taskId) ||
+                            (!expandedTaskIds.has(taskId) && multiCard);
+                          return (
+                            <DraggableTemplateTask
+                              key={taskId}
+                              taskId={`task::${taskId}`}
+                              isActive={dragTaskId === `task::${taskId}`}
+                              dataTaskId={taskId}
+                              onHoverStart={() => setHoveredTaskId(taskId)}
+                              onHoverEnd={() =>
+                                setHoveredTaskId((current) =>
+                                  current === taskId ? null : current,
+                                )
+                              }
+                            >
+                              <TaskCard
+                                task={task}
+                                playbook={playbook}
+                                skillColor={resolveSkillColor(skill.id, skillOptions)}
+                                barState="bar-ready"
+                                editMode
+                                templateView
+                                variant={renderCompact ? "compact" : "full"}
+                                ioState={{
+                                  taskId: task.id,
+                                  outputs: (
+                                    outputGroups.find(
+                                      (g) => g.playbookId === templateTask.playbookId,
+                                    )?.outputs ?? []
+                                  ).map((o) => ({
+                                    id: o.id,
+                                    position: o.position,
+                                    status: "pending",
+                                    name: o.name,
+                                  })),
+                                  hasUnmetLinkedInput: false,
+                                }}
+                                onClick={
+                                  renderCompact
+                                    ? () => expandTask(taskId)
+                                    : () =>
+                                        setAddTaskFor({
+                                          mode: "edit",
+                                          taskId: templateTask.id,
+                                          skillId: skill.id,
+                                          skillLabel: skill.label,
+                                          stageId: stage.id,
+                                          stageName: stage.label,
+                                          initial: {
+                                            playbookId: templateTask.playbookId ?? null,
+                                            notes: templateTask.notes ?? "",
+                                            owners: templateTask.owners ?? [],
+                                            inputs: templateTask.inputs ?? [],
+                                            outputs: templateTask.outputs ?? [],
+                                          },
+                                        })
+                                }
+                                onRemove={() =>
+                                  setConfirmState({
+                                    title: `Delete playbook?`,
+                                    description:
+                                      "This playbook and its default configuration will be removed from the template.",
+                                    onConfirm: () => {
+                                      setDraft((current) => ({
+                                        ...current,
+                                        taskTemplates: current.taskTemplates.filter(
+                                          (item) => item.id !== templateTask.id,
+                                        ),
+                                      }));
+                                      setConfirmState(null);
+                                    },
+                                  })
+                                }
+                                onDemote={
+                                  renderCompact
+                                    ? undefined
+                                    : () => collapseTask(taskId)
+                                }
+                              />
+                            </DraggableTemplateTask>
+                          );
+                        })}
+                        <button
+                          type="button"
+                          className="mx-add-more-btn"
+                          data-testid={`matrix-add-more-${skill.id}-${stage.id}`}
+                          aria-label={`Add another playbook for ${skill.label} in ${stage.label}`}
+                          onClick={(event) => {
+                            event.stopPropagation();
                             setAddTaskFor({
-                              mode: "edit",
-                              taskId: templateTask.id,
+                              mode: "create",
                               skillId: skill.id,
                               skillLabel: skill.label,
                               stageId: stage.id,
                               stageName: stage.label,
-                              initial: {
-                                playbookId: templateTask.playbookId ?? null,
-                                notes: templateTask.notes ?? "",
-                                owners: templateTask.owners ?? [],
-                                inputs: templateTask.inputs ?? [],
-                                outputs: templateTask.outputs ?? [],
-                              },
-                            })
-                          }
-                          onRemove={() =>
-                            setConfirmState({
-                              title: `Delete playbook?`,
-                              description:
-                                "This playbook and its default configuration will be removed from the template.",
-                              onConfirm: () => {
-                                setDraft((current) => ({
-                                  ...current,
-                                  taskTemplates: current.taskTemplates.filter(
-                                    (item) => item.id !== templateTask.id,
-                                  ),
-                                }));
-                                setConfirmState(null);
-                              },
-                            })
-                          }
-                        />
-                      </DraggableTemplateTask>
+                            });
+                          }}
+                        >
+                          <Plus aria-hidden className="h-3 w-3" />
+                          <span>Add another</span>
+                        </button>
+                      </div>
                     ) : (
                       <div
                         className="mx-empty-cell"
@@ -1007,6 +1105,7 @@ export function TemplateEditorScreen({
             tasks={derivedWiringTasks}
             hoveredTaskId={hoveredTaskId}
             outputGroups={outputGroups}
+            collapseKey={`${[...expandedTaskIds].sort().join(",")}|${[...collapsedTaskIds].sort().join(",")}`}
           />
         </div>
         </DndContext>
@@ -1199,9 +1298,12 @@ function DroppableTemplateCell({
   dropAllowed: boolean;
   children: React.ReactNode;
 }) {
+  // `hasTask` no longer disables the droppable — multi-card cells accept
+  // drops on top of existing cards. `dropAllowed` (skill compatibility)
+  // still gates it.
   const { setNodeRef, isOver } = useDroppable({
     id: `cell::${skillId}::${stageId}`,
-    disabled: hasTask || !dropAllowed,
+    disabled: !dropAllowed,
   });
 
   return (
@@ -1210,8 +1312,8 @@ function DroppableTemplateCell({
       className={cn(
         "mx-task-cell",
         hasTask && "has-task",
-        dragActive && !hasTask && dropAllowed && isOver && "drag-over-cell",
-        dragActive && !hasTask && !dropAllowed && "drag-disallowed-cell",
+        dragActive && dropAllowed && isOver && "drag-over-cell",
+        dragActive && !dropAllowed && "drag-disallowed-cell",
       )}
     >
       {children}

@@ -58,9 +58,10 @@ vi.mock("@/app/(dashboard)/framework/actions", () => ({
   listPlaybookOutputsAction: vi.fn(async () => []),
 }));
 
-vi.mock("@/lib/monitoring", () => ({
-  captureError: mockCaptureError,
-}));
+vi.mock("@/lib/monitoring", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/lib/monitoring")>();
+  return { ...actual, captureError: mockCaptureError };
+});
 
 const mockRouter = { replace: vi.fn(), push: vi.fn() };
 const mockSearchParams = new URLSearchParams("edit=1");
@@ -275,7 +276,7 @@ describe("ProcessMatrix", () => {
     expect(within(cell).getByTestId("task-mini-k-1")).toBeInTheDocument();
   });
 
-  it("collapses an individual skill row and renders mini cells across the row", async () => {
+  it("collapses an individual skill row to compact cards, keeping the skill name visible", async () => {
     const inst = instance([
       task({ id: "k-1", skillId: "sales-ops", stageId: "pre-sales", status: "in_progress" }),
       task({ id: "k-2", skillId: "sales-ops", stageId: "validation", status: "complete" }),
@@ -291,12 +292,22 @@ describe("ProcessMatrix", () => {
 
     const row = screen.getByTestId("matrix-skill-row-sales-ops");
     expect(row).toHaveAttribute("data-collapsed", "true");
+    // Per-row collapse keeps the skill name visible (only the owners
+    // line is suppressed) so the row header still reads at a glance.
     expect(
-      screen.queryByTestId("matrix-skill-label-sales-ops"),
-    ).not.toBeInTheDocument();
-    expect(screen.getByTestId("task-mini-k-1")).toBeInTheDocument();
+      screen.getByTestId("matrix-skill-label-sales-ops"),
+    ).toBeInTheDocument();
+    // Single-task cell in a normal-width column swaps from the bare-
+    // avatar mini stack to a compact TaskCard with the playbook name —
+    // the collapsed row stays scannable without expanding it.
+    const cardK1 = screen.getByTestId("task-card-k-1");
+    expect(cardK1).toBeInTheDocument();
+    expect(cardK1).toHaveAttribute("data-variant", "compact");
+    // k-2 sits in the `validation` column, which the active-flow seed
+    // auto-collapses (no active task lives there), so the cell is
+    // narrow and the bare-avatar mini stack stays the right rendering.
     expect(screen.getByTestId("task-mini-k-2")).toBeInTheDocument();
-    // Other rows remain expanded.
+    // Other rows are unaffected by toggling sales-ops.
     expect(screen.getByTestId("task-card-k-3")).toBeInTheDocument();
   });
 
@@ -341,6 +352,121 @@ describe("ProcessMatrix", () => {
     expect(screen.getByRole("dialog", { name: "Add playbook" })).toBeInTheDocument();
     // No allowed playbooks → empty state. Use a stub task instead by mocking
     // out the playbook list path: skip until we have a populated picker.
+  });
+
+  it("renders two compact cards when a cell holds two tasks", () => {
+    const inst = instance([
+      task({ id: "k-1", playbookId: "pb-a", createdAt: "2026-04-19T12:00:00Z" }),
+      task({ id: "k-2", playbookId: "pb-b", createdAt: "2026-04-19T13:00:00Z" }),
+    ]);
+
+    renderWithTopBarProvider(<ProcessMatrix instance={inst} template={TEMPLATE} />);
+
+    // Both cards render — vertically stacked — and start in the compact
+    // variant (the previous single-task lookup would have hidden one).
+    expect(screen.getByTestId("task-card-k-1")).toHaveAttribute(
+      "data-variant",
+      "compact",
+    );
+    expect(screen.getByTestId("task-card-k-2")).toHaveAttribute(
+      "data-variant",
+      "compact",
+    );
+  });
+
+  it("promotes a compact card to full when clicked, then opens the drawer on a second click", async () => {
+    const inst = instance([
+      task({ id: "k-1", playbookId: "pb-a", createdAt: "2026-04-19T12:00:00Z" }),
+      task({ id: "k-2", playbookId: "pb-b", createdAt: "2026-04-19T13:00:00Z" }),
+    ]);
+    const user = userEvent.setup();
+
+    renderWithTopBarProvider(<ProcessMatrix instance={inst} template={TEMPLATE} />);
+
+    await user.click(screen.getByTestId("task-card-k-1"));
+
+    // After promotion the same DOM element switches `data-variant` —
+    // the root stays mounted so CSS can animate the height morph.
+    expect(screen.getByTestId("task-card-k-1")).toHaveAttribute(
+      "data-variant",
+      "full",
+    );
+    expect(screen.getByTestId("task-card-k-2")).toHaveAttribute(
+      "data-variant",
+      "compact",
+    );
+
+    // Second click on the promoted full card opens the playbook drawer.
+    await user.click(screen.getByTestId("task-card-k-1"));
+    expect(screen.getByRole("dialog")).toBeInTheDocument();
+  });
+
+  it("collapses a promoted card back to compact when the demote button is clicked", async () => {
+    const inst = instance([
+      task({ id: "k-1", playbookId: "pb-a", createdAt: "2026-04-19T12:00:00Z" }),
+      task({ id: "k-2", playbookId: "pb-b", createdAt: "2026-04-19T13:00:00Z" }),
+    ]);
+    const user = userEvent.setup();
+
+    renderWithTopBarProvider(<ProcessMatrix instance={inst} template={TEMPLATE} />);
+
+    await user.click(screen.getByTestId("task-card-k-1"));
+    expect(screen.getByTestId("task-card-k-1")).toHaveAttribute(
+      "data-variant",
+      "full",
+    );
+
+    await user.click(screen.getByLabelText(/Collapse playbook card:/));
+    expect(screen.getByTestId("task-card-k-1")).toHaveAttribute(
+      "data-variant",
+      "compact",
+    );
+  });
+
+  it("exposes a hover-reveal 'Add another' affordance in occupied cells in edit mode", async () => {
+    const inst = instance([
+      task({ id: "k-1", playbookId: "pb-a", createdAt: "2026-04-19T12:00:00Z" }),
+    ]);
+    const user = userEvent.setup();
+
+    renderWithTopBarProvider(<ProcessMatrix instance={inst} template={TEMPLATE} editMode />);
+
+    // The "Add another" affordance lives inside the occupied cell — it is
+    // CSS-hidden until the cell is hovered, but it is in the DOM and
+    // accessible by its testid, and clicking it should open the
+    // create-task drawer for the same (skill, stage) pair.
+    const addMore = screen.getByTestId("matrix-add-more-sales-ops-pre-sales");
+    await user.click(addMore);
+
+    expect(
+      screen.getByRole("dialog", { name: "Add playbook" }),
+    ).toBeInTheDocument();
+  });
+
+  it("collapses a multi-task mini cell to a single primary avatar with a +N badge", async () => {
+    const inst = instance([
+      task({ id: "k-1", playbookId: "pb-a", createdAt: "2026-04-19T12:00:00Z" }),
+      task({ id: "k-2", playbookId: "pb-b", createdAt: "2026-04-19T13:00:00Z" }),
+    ]);
+    const user = userEvent.setup();
+
+    renderWithTopBarProvider(<ProcessMatrix instance={inst} template={TEMPLATE} />);
+
+    await user.click(screen.getByTestId("matrix-skill-toggle-sales-ops"));
+
+    // Only the primary avatar is visible — the second task collapses
+    // into a hidden anchor (for wiring) and into the +N badge.
+    expect(screen.getByTestId("task-mini-k-1")).toBeInTheDocument();
+    expect(screen.queryByTestId("task-mini-k-2")).not.toBeInTheDocument();
+    expect(
+      screen.getByLabelText("2 playbooks in this cell"),
+    ).toHaveTextContent("+1");
+
+    // Hidden ghost anchor for k-2 is in the DOM so the wiring overlay
+    // can still measure an endpoint for it.
+    expect(
+      document.querySelector('[data-task-id="k-2"][data-mini="true"]'),
+    ).not.toBeNull();
   });
 
   it("removes a task after confirm", async () => {
