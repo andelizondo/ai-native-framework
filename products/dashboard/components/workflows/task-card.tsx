@@ -316,11 +316,17 @@ function FullTaskCardBody({
           )}
         </div>
         <div className="tc-bottom-right">
-          <PipRail
-            outputs={ioState?.outputs ?? []}
-            testIdPrefix={`task-pip-${task.id}`}
-            railTestId={`task-pip-rail-${task.id}`}
-          />
+          {/* Output pip rail is a runtime affordance — each pip flips
+           * green/red as `task_outputs` rows land. Templates have no
+           * runtime, so every pip would render as a static "pending"
+           * dot, which reads as noise. Suppress in template view. */}
+          {templateView ? null : (
+            <PipRail
+              outputs={ioState?.outputs ?? []}
+              testIdPrefix={`task-pip-${task.id}`}
+              railTestId={`task-pip-rail-${task.id}`}
+            />
+          )}
           {showActions && onRemove ? (
             <div className="tc-actions mx-entity-actions mx-entity-actions-group">
               <button
