@@ -791,14 +791,16 @@
  * status-tint treatment as the full card so a compact card and a full
  * card in the same cell read as the same family of state; the layout
  * differs: avatar + truncated title + status pill in a single row.
- * Designed so two compacts (52px each, 8px gap) fit inside the matrix
- * cell's 136px default without growing the row. */
+ * Default height matches the 40px `lg` avatar so a row-collapsed cell
+ * can render a single compact card in place of a bare avatar without
+ * growing taller. Two compacts (40px each + 8px gap = 88px) still fit
+ * inside the matrix cell's 136px default. */
 .task-card.task-card-compact {
-  height: 52px;
+  height: 40px;
   /* Right padding matches the full card (12px) so the expand chevron in
    * compact mode sits on the same vertical column as the demote chevron
    * + info badges + delete button in the full card. */
-  padding: 8px 12px 8px 14px;
+  padding: 0 12px 0 14px;
   flex-direction: row;
   align-items: center;
   gap: 8px;
@@ -823,7 +825,7 @@
 /* Info badges in compact mode — replace the status pill spot when the
  * task has any note / checkpoint / failure / completion signal. Slightly
  * smaller chips (18px instead of 22px) so a row of 2–3 badges still
- * fits inside the 52px card alongside the title. */
+ * fits inside the 40px card alongside the title. */
 .tc-compact-info-badges {
   flex-shrink: 0;
   gap: 3px;

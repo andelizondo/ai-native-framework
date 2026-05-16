@@ -1003,6 +1003,16 @@ export function ProcessMatrix({
                     const isStageCollapsed = collapsedStageIds.has(stage.id);
                     const isMini = isStageCollapsed || isSkillCollapsed;
                     const multiCard = cellTasks.length >= 2;
+                    // Row-collapsed single-task cell with a wide column: render
+                    // the compact TaskCard (avatar + playbook name) in place of
+                    // the bare-avatar MiniStackCellContent. Skipped when the
+                    // column is also narrow (no room) or the cell has 2+ tasks
+                    // (compacts stacked would overflow the avatar-height row).
+                    const useCompactAsMini =
+                      isMini &&
+                      isSkillCollapsed &&
+                      !isStageCollapsed &&
+                      cellTasks.length === 1;
 
                     return (
                       <DroppableTaskCell
@@ -1020,7 +1030,7 @@ export function ProcessMatrix({
                         stageCollapsed={isStageCollapsed}
                       >
                         {cellTasks.length > 0 ? (
-                          isMini ? (
+                          isMini && !useCompactAsMini ? (
                             <MiniStackCellContent
                               tasks={cellTasks}
                               playbookById={playbookById}
@@ -1055,13 +1065,14 @@ export function ProcessMatrix({
                                   ? playbookById.get(task.playbookId) ?? null
                                   : null;
                                 const renderCompact =
+                                  useCompactAsMini ||
                                   collapsedTaskIds.has(task.id) ||
                                   (!expandedTaskIds.has(task.id) && multiCard);
                                 return (
                                   <DraggableTaskCard
                                     key={task.id}
                                     taskId={task.id}
-                                    disabled={!editMode}
+                                    disabled={!editMode || useCompactAsMini}
                                     isActive={dragTaskId === task.id}
                                     dataTaskId={task.id}
                                     onHoverStart={() => setHoveredTaskId(task.id)}
@@ -1079,31 +1090,33 @@ export function ProcessMatrix({
                                         task,
                                         canStart(task, localTasks),
                                       )}
-                                      editMode={editMode}
+                                      editMode={editMode && !useCompactAsMini}
                                       ioState={ioByTaskId.get(task.id)}
                                       variant={renderCompact ? "compact" : "full"}
                                       onClick={
-                                        renderCompact
-                                          ? () => expandTask(task.id)
-                                          : editMode
-                                            ? () =>
-                                                setAddTaskFor({
-                                                  mode: "edit",
-                                                  taskId: task.id,
-                                                  skillId: skill.id,
-                                                  skillLabel: skill.label,
-                                                  stageId: stage.id,
-                                                  stageName: stage.label,
-                                                  initial: {
-                                                    playbookId:
-                                                      task.playbookId ?? null,
-                                                    notes: task.notes ?? "",
-                                                    owners: task.owners ?? [],
-                                                    inputs: task.inputs ?? [],
-                                                    outputs: task.outputs ?? [],
-                                                  },
-                                                })
-                                            : () => setSelectedTaskId(task.id)
+                                        useCompactAsMini
+                                          ? () => toggleSkillCollapsed(skill.id)
+                                          : renderCompact
+                                            ? () => expandTask(task.id)
+                                            : editMode
+                                              ? () =>
+                                                  setAddTaskFor({
+                                                    mode: "edit",
+                                                    taskId: task.id,
+                                                    skillId: skill.id,
+                                                    skillLabel: skill.label,
+                                                    stageId: stage.id,
+                                                    stageName: stage.label,
+                                                    initial: {
+                                                      playbookId:
+                                                        task.playbookId ?? null,
+                                                      notes: task.notes ?? "",
+                                                      owners: task.owners ?? [],
+                                                      inputs: task.inputs ?? [],
+                                                      outputs: task.outputs ?? [],
+                                                    },
+                                                  })
+                                              : () => setSelectedTaskId(task.id)
                                       }
                                       onStatusChange={
                                         renderCompact || editMode
@@ -1112,7 +1125,7 @@ export function ProcessMatrix({
                                               handleStatusChange(task.id, next)
                                       }
                                       onRemove={
-                                        editMode
+                                        editMode && !useCompactAsMini
                                           ? () => setConfirmDeleteTask(task)
                                           : undefined
                                       }
@@ -1125,7 +1138,7 @@ export function ProcessMatrix({
                                   </DraggableTaskCard>
                                 );
                               })}
-                              {editMode ? (
+                              {editMode && !useCompactAsMini ? (
                                 <button
                                   type="button"
                                   className="mx-add-more-btn"

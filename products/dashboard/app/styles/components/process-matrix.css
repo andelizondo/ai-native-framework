@@ -1109,14 +1109,14 @@
 
 .mx-body-row-collapsed .mx-task-cell,
 .mx-body-row-collapsed .mx-role-cell {
-  height: 56px;
+  height: 48px;
   /* Override the default `min-height: 136px` so collapsed rows can
-   * actually shrink to the 56px header strip. */
+   * actually shrink to hug the 40px avatar (4px top/bottom padding). */
   min-height: 0;
 }
 .mx-body-row-collapsed .mx-role-cell {
-  padding-top: 6px;
-  padding-bottom: 6px;
+  padding-top: 4px;
+  padding-bottom: 4px;
   padding-right: 6px;
 }
 .mx-body-row-collapsed .mx-role-owner {
@@ -1142,7 +1142,11 @@
  * inside an expanded (140px) row keeps the cell tall and the avatar
  * floats vertically centered. */
 .mx-task-cell-mini {
-  padding: 4px;
+  /* Vertical padding stays tight so a 40px avatar / compact card fits
+   * inside the 48px collapsed row strip; horizontal padding matches the
+   * default cell's 7px so a compact-as-mini card has the same left/right
+   * margin as a card rendered in an expanded row of the same column. */
+  padding: 4px 7px;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -1261,6 +1265,11 @@
   display: flex;
   flex-direction: column;
   gap: 8px;
+  /* Stretch in both axes so a compact-as-mini card (rendered through
+   * this stack inside an `mx-task-cell-mini` row with `justify-content:
+   * center`) still fills the cell's full inner width, matching the
+   * width of an expanded-row card in the same column. */
+  width: 100%;
   height: 100%;
   min-height: 100%;
 }
