@@ -2,7 +2,7 @@ import { screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import { PlaybookOutputsDock } from "@/components/framework/playbook-outputs-dock";
+import { PlaybookOutputsDock } from "@/components/framework/playbook-metadata-dock";
 import { renderWithToast } from "@/tests/test-utils";
 import type { PlaybookOutput } from "@/lib/workflows/types";
 

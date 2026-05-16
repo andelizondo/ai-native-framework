@@ -53,9 +53,7 @@ export function deriveStatus(args: DeriveStatusArgs): WorkflowTaskStatus {
 
   if (persisted === "in_progress") return "in_progress";
 
-  const linkedDefIds = new Set(
-    inputDefs.filter((i) => i.linkMode === "linked").map((i) => i.id),
-  );
+  const linkedDefIds = new Set(inputDefs.map((i) => i.id));
   if (linkedDefIds.size > 0) {
     const receivedById = new Map(inputs.map((i) => [i.inputId, i.received]));
     const allReceived = Array.from(linkedDefIds).every(

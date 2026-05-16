@@ -142,7 +142,6 @@ export function WiringOverlay({
     const seen = new Map<string, WiringPair>();
     for (const task of tasks) {
       for (const input of task.inputs ?? []) {
-        if (input.linkMode !== "linked") continue;
         let upstream = input.upstreamTaskRef;
         if (!upstream && input.upstreamOutputId) {
           const pb = outputToPlaybookId.get(input.upstreamOutputId);

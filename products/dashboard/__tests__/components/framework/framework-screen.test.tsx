@@ -15,6 +15,11 @@ vi.mock("@/app/(dashboard)/framework/actions", () => ({
   deletePlaybookOutputAction: vi.fn(),
   reorderPlaybookOutputsAction: vi.fn(),
   countTaskOutputsForPlaybookOutputAction: vi.fn().mockResolvedValue(0),
+  listPlaybookInputsAction: vi.fn().mockResolvedValue([]),
+  createPlaybookInputAction: vi.fn(),
+  deletePlaybookInputAction: vi.fn(),
+  reorderPlaybookInputsAction: vi.fn(),
+  listOutputGroupsForOtherPlaybooksAction: vi.fn().mockResolvedValue([]),
 }));
 
 vi.mock("@/components/dashboard-topbar-context", () => ({

@@ -234,10 +234,8 @@ describe("workflow repository", () => {
               inputs: [
                 {
                   id: "in-1",
-                  name: "After PD",
-                  linkMode: "linked",
                   upstreamTaskRef: "presales-qualification",
-                  upstreamOutputId: null,
+                  upstreamOutputId: "out-after-pd",
                 },
               ],
             },
@@ -342,10 +340,8 @@ describe("workflow repository", () => {
       expect(second.inputs).toEqual([
         {
           id: "in-1",
-          name: "After PD",
-          linkMode: "linked",
           upstreamTaskRef: "presales-qualification",
-          upstreamOutputId: null,
+          upstreamOutputId: "out-after-pd",
         },
       ]);
       expect(second.checkpoint).toBe(true);
@@ -498,8 +494,6 @@ describe("workflow repository", () => {
             inputs: [
               {
                 id: "in-1",
-                name: "After PD",
-                linkMode: "linked",
                 upstreamTaskRef: "tt-a",
                 upstreamOutputId: "po-1",
               },
@@ -518,8 +512,6 @@ describe("workflow repository", () => {
       expect(downstream?.inputs).toEqual([
         {
           id: "in-1",
-          name: "After PD",
-          linkMode: "linked",
           upstreamTaskRef: upstream?.id,
           upstreamOutputId: "po-1",
         },
@@ -559,12 +551,11 @@ describe("workflow repository", () => {
       expect(fetched).toBeNull();
     });
 
-    it("forward-maps legacy trigger-shaped JSONB to linked inputs on read", async () => {
-      // PR 2 / AEL-60 renamed the column to `inputs` and PR 1's runtime
-      // wrote canonical WorkflowInput JSONB. Defensively, rows authored
-      // before PR 1 may still carry the legacy trigger shape — the
-      // normalizeInputs shim maps them forward. Only `task` / `after_task`
-      // map to a `linked` input; everything else is dropped.
+    it("drops legacy trigger-shaped JSONB rows that lack an upstreamOutputId", async () => {
+      // Inputs must reference an upstream `playbook_outputs.id`. The
+      // 20260516 migration prunes rows that don't carry one; the
+      // normalizeInputs defensive belt below filters anything the
+      // migration didn't reach.
       store.workflow_tasks.push({
         id: "legacy-task",
         instance_id: "inst-x",
@@ -594,15 +585,7 @@ describe("workflow repository", () => {
       const fetched = await repo.getTask("legacy-task");
 
       expect(fetched).not.toBeNull();
-      expect(fetched!.inputs).toEqual([
-        {
-          id: "linked:presales-qualification",
-          name: "After PD",
-          linkMode: "linked",
-          upstreamTaskRef: "presales-qualification",
-          upstreamOutputId: null,
-        },
-      ]);
+      expect(fetched!.inputs).toEqual([]);
     });
   });
 
@@ -992,6 +975,172 @@ describe("workflow repository", () => {
       const repo = createWorkflowRepository(makeFakeClient(store));
       expect(await repo.countTaskOutputsForPlaybookOutput("po-1")).toBe(2);
       expect(await repo.countTaskOutputsForPlaybookOutput("po-2")).toBe(0);
+    });
+  });
+
+  describe("playbook inputs", () => {
+    beforeEach(() => {
+      // Seed two upstream outputs (`po-1`, `po-2`) and wire `pb-presales`
+      // to both via `playbook_inputs`. The hydration join pulls the
+      // upstream output + playbook name onto each row.
+      store.playbook_outputs = [
+        {
+          id: "po-1",
+          playbook_id: "pb-presales",
+          name: "report",
+          description: null,
+          kind: "file",
+          api_check: null,
+          position: 0,
+          created_at: "2026-04-19T12:00:00Z",
+        },
+        {
+          id: "po-2",
+          playbook_id: "pb-presales",
+          name: "deck",
+          description: null,
+          kind: "media",
+          api_check: null,
+          position: 1,
+          created_at: "2026-04-19T12:00:00Z",
+        },
+      ];
+      store.playbook_inputs = [
+        {
+          id: "pi-1",
+          playbook_id: "pb-presales",
+          upstream_output_id: "po-1",
+          position: 0,
+          created_at: "2026-04-19T12:00:00Z",
+        },
+        {
+          id: "pi-2",
+          playbook_id: "pb-presales",
+          upstream_output_id: "po-2",
+          position: 1,
+          created_at: "2026-04-19T12:00:00Z",
+        },
+      ];
+      store.framework_items.push({
+        id: "pb-marketing",
+        type: "playbook",
+        name: "marketing-brief",
+        description: "",
+        icon: null,
+        color: null,
+        content: "",
+        created_at: "2026-04-19T12:00:00Z",
+        updated_at: "2026-04-19T12:00:00Z",
+      });
+    });
+
+    it("listPlaybookInputs hydrates upstream output + playbook fields", async () => {
+      const repo = createWorkflowRepository(makeFakeClient(store));
+      const inputs = await repo.listPlaybookInputs("pb-presales");
+      expect(inputs.map((i) => i.upstreamOutputId)).toEqual(["po-1", "po-2"]);
+      expect(inputs[0].upstreamOutputName).toBe("report");
+      expect(inputs[0].upstreamPlaybookId).toBe("pb-presales");
+      expect(inputs[0].upstreamPlaybookName).toBe("presales-qualification");
+      expect(inputs[1].upstreamOutputName).toBe("deck");
+    });
+
+    it("createPlaybookInput auto-positions to (max + 1) when omitted", async () => {
+      // Need a third upstream that isn't already wired. Seed po-3 on a
+      // different playbook so the unique constraint isn't tripped.
+      store.playbook_outputs.push({
+        id: "po-3",
+        playbook_id: "pb-marketing",
+        name: "outreach-list",
+        description: null,
+        kind: "file",
+        api_check: null,
+        position: 0,
+        created_at: "2026-04-19T12:00:00Z",
+      });
+      const repo = createWorkflowRepository(makeFakeClient(store));
+      const created = await repo.createPlaybookInput({
+        playbookId: "pb-presales",
+        upstreamOutputId: "po-3",
+      });
+      expect(created.position).toBe(2);
+      expect(created.upstreamOutputId).toBe("po-3");
+      expect(created.upstreamPlaybookId).toBe("pb-marketing");
+      expect(store.playbook_inputs).toHaveLength(3);
+    });
+
+    it("createPlaybookInput on a playbook with no inputs starts at position 0", async () => {
+      store.playbook_inputs = [];
+      const repo = createWorkflowRepository(makeFakeClient(store));
+      const created = await repo.createPlaybookInput({
+        playbookId: "pb-presales",
+        upstreamOutputId: "po-1",
+      });
+      expect(created.position).toBe(0);
+    });
+
+    it("deletePlaybookInput removes the row", async () => {
+      const repo = createWorkflowRepository(makeFakeClient(store));
+      await repo.deletePlaybookInput("pi-2");
+      expect(store.playbook_inputs.map((r) => r.id)).toEqual(["pi-1"]);
+    });
+
+    it("reorderPlaybookInputs writes positions in declaration order", async () => {
+      const repo = createWorkflowRepository(makeFakeClient(store));
+      await repo.reorderPlaybookInputs("pb-presales", ["pi-2", "pi-1"]);
+      const reread = await repo.listPlaybookInputs("pb-presales");
+      expect(reread.map((i) => i.id)).toEqual(["pi-2", "pi-1"]);
+      expect(reread[0].position).toBe(0);
+      expect(reread[1].position).toBe(1);
+    });
+
+    it("reorderPlaybookInputs tolerates ids that no longer exist", async () => {
+      const repo = createWorkflowRepository(makeFakeClient(store));
+      await repo.reorderPlaybookInputs("pb-presales", ["pi-2", "pi-deleted", "pi-1"]);
+      const reread = await repo.listPlaybookInputs("pb-presales");
+      expect(reread.map((i) => i.id)).toEqual(["pi-2", "pi-1"]);
+      expect(store.playbook_inputs).toHaveLength(2);
+    });
+  });
+
+  describe("listOutputGroupsForOtherPlaybooks", () => {
+    it("returns outputs grouped per playbook excluding the current one", async () => {
+      store.framework_items.push({
+        id: "pb-marketing",
+        type: "playbook",
+        name: "marketing-brief",
+        description: "",
+        icon: null,
+        color: null,
+        content: "",
+        created_at: "2026-04-19T12:00:00Z",
+        updated_at: "2026-04-19T12:00:00Z",
+      });
+      store.playbook_outputs = [
+        {
+          id: "po-1",
+          playbook_id: "pb-presales",
+          name: "report",
+          description: null,
+          kind: "file",
+          api_check: null,
+          position: 0,
+          created_at: "2026-04-19T12:00:00Z",
+        },
+        {
+          id: "po-3",
+          playbook_id: "pb-marketing",
+          name: "outreach",
+          description: null,
+          kind: "file",
+          api_check: null,
+          position: 0,
+          created_at: "2026-04-19T12:00:00Z",
+        },
+      ];
+      const repo = createWorkflowRepository(makeFakeClient(store));
+      const groups = await repo.listOutputGroupsForOtherPlaybooks("pb-presales");
+      expect(groups.map((g) => g.playbookId)).toEqual(["pb-marketing"]);
+      expect(groups[0].outputs.map((o) => o.name)).toEqual(["outreach"]);
     });
   });
 });

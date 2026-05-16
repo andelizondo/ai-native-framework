@@ -5,6 +5,7 @@ import type {
   FrameworkItem,
   FrameworkItemType,
   OutputArtifact,
+  PlaybookInput,
   PlaybookOutput,
   PlaybookOutputKind,
   TaskIOSummary,
@@ -79,6 +80,14 @@ interface PlaybookOutputRow {
   description: string | null;
   kind: PlaybookOutputKind | null;
   api_check: unknown;
+  position: number;
+  created_at: string;
+}
+
+interface PlaybookInputRow {
+  id: string;
+  playbook_id: string;
+  upstream_output_id: string;
   position: number;
   created_at: string;
 }
@@ -167,76 +176,32 @@ function migrateSkills(raw: unknown): WorkflowSkill[] {
   return toJsonArray<unknown>(raw).map(migrateSkill);
 }
 
-const VALID_LINK_MODES = new Set(["linked", "manual", "bypass"]);
-
 /**
- * Read the `inputs` JSONB column directly (PR 2 / AEL-60). Defensively
- * tolerates rows authored before the column rename: if a row still carries
- * the old trigger shape (`type: 'task' | 'after_task'`), map it forward
- * into a `linked` input on read. New rows are always written in the
- * canonical `WorkflowInput` shape via `inputsToJsonb`.
+ * Read the `inputs` JSONB column. Every entry must carry an
+ * `upstreamOutputId`; rows missing one are filtered out. The 20260516
+ * migration prunes pre-existing JSONB so this filter is a defensive belt
+ * for any rows the migration didn't reach (e.g. running in tests with
+ * unmigrated fixtures).
  */
 function normalizeInputs(raw: unknown): WorkflowInput[] {
   return toJsonArray<Record<string, unknown>>(raw)
     .map((item): WorkflowInput | null => {
       if (item == null) return null;
-
-      // Legacy trigger shape — best-effort forward map. New rows never hit
-      // this branch because writes go through inputsToJsonb.
-      if (typeof item.type === "string" && !item.linkMode) {
-        if (item.type !== "task" && item.type !== "after_task") return null;
-        const ref =
-          typeof item.taskRef === "string" && item.taskRef.trim()
-            ? item.taskRef.trim()
-            : typeof item.taskId === "string" && item.taskId.trim()
-              ? item.taskId.trim()
-              : undefined;
-        const id =
-          typeof item.id === "string" && item.id.trim()
-            ? item.id.trim()
-            : `linked:${ref ?? "unknown"}`;
-        const name =
-          typeof item.label === "string" && item.label.trim()
-            ? item.label.trim()
-            : ref ?? "Linked input";
-        return {
-          id,
-          name,
-          linkMode: "linked" as const,
-          upstreamTaskRef: ref,
-          upstreamOutputId: null,
-        } satisfies WorkflowInput;
-      }
-
-      const linkMode =
-        typeof item.linkMode === "string" && VALID_LINK_MODES.has(item.linkMode)
-          ? (item.linkMode as WorkflowInput["linkMode"])
-          : "linked";
       const id = typeof item.id === "string" && item.id.trim() ? item.id.trim() : null;
       if (!id) return null;
-      const name =
-        typeof item.name === "string" && item.name.trim()
-          ? item.name.trim()
-          : id;
-      const upstreamTaskRef =
-        typeof item.upstreamTaskRef === "string" && item.upstreamTaskRef.trim()
-          ? item.upstreamTaskRef.trim()
-          : undefined;
       const upstreamOutputId =
         typeof item.upstreamOutputId === "string" && item.upstreamOutputId.trim()
           ? item.upstreamOutputId.trim()
           : null;
-      const description =
-        typeof item.description === "string" && item.description.trim()
-          ? item.description.trim()
+      if (!upstreamOutputId) return null;
+      const upstreamTaskRef =
+        typeof item.upstreamTaskRef === "string" && item.upstreamTaskRef.trim()
+          ? item.upstreamTaskRef.trim()
           : undefined;
       return {
         id,
-        name,
-        description,
-        linkMode,
-        upstreamTaskRef,
         upstreamOutputId,
+        upstreamTaskRef,
       } satisfies WorkflowInput;
     })
     .filter((value): value is WorkflowInput => value !== null);
@@ -245,11 +210,8 @@ function normalizeInputs(raw: unknown): WorkflowInput[] {
 function inputsToJsonb(inputs: WorkflowInput[]): unknown[] {
   return inputs.map((input) => ({
     id: input.id,
-    name: input.name,
-    description: input.description ?? null,
-    linkMode: input.linkMode,
+    upstreamOutputId: input.upstreamOutputId,
     upstreamTaskRef: input.upstreamTaskRef ?? null,
-    upstreamOutputId: input.upstreamOutputId ?? null,
   }));
 }
 
@@ -396,6 +358,95 @@ function mapPlaybookOutput(row: PlaybookOutputRow): PlaybookOutput {
   };
 }
 
+interface PlaybookInputHydration {
+  upstreamOutputName: string;
+  upstreamOutputKind: PlaybookOutputKind | null;
+  upstreamPlaybookId: string;
+  upstreamPlaybookName: string;
+}
+
+function mapPlaybookInput(
+  row: PlaybookInputRow,
+  hydration: PlaybookInputHydration,
+): PlaybookInput {
+  return {
+    id: row.id,
+    playbookId: row.playbook_id,
+    upstreamOutputId: row.upstream_output_id,
+    position: row.position,
+    createdAt: row.created_at,
+    upstreamOutputName: hydration.upstreamOutputName,
+    upstreamOutputKind: hydration.upstreamOutputKind,
+    upstreamPlaybookId: hydration.upstreamPlaybookId,
+    upstreamPlaybookName: hydration.upstreamPlaybookName,
+  };
+}
+
+/** Two-step join: fetch the upstream `playbook_outputs` rows referenced by
+ *  the given input rows, then the upstream `framework_items` for each
+ *  output's playbook. Rows whose upstream output has been deleted are
+ *  dropped (the FK is `on delete cascade` so this is defensive — covers
+ *  the race window between fetch and cascade fire). */
+async function hydratePlaybookInputs(
+  client: SupabaseClient,
+  rows: PlaybookInputRow[],
+): Promise<PlaybookInput[]> {
+  if (rows.length === 0) return [];
+  const outputIds = Array.from(new Set(rows.map((r) => r.upstream_output_id)));
+  const { data: outputRows, error: outErr } = await client
+    .from("playbook_outputs")
+    .select("id,playbook_id,name,kind")
+    .in("id", outputIds);
+  if (outErr) {
+    throw new WorkflowRepositoryError("hydratePlaybookInputs outputs lookup failed", outErr);
+  }
+  const outputById = new Map<
+    string,
+    { id: string; playbookId: string; name: string; kind: PlaybookOutputKind | null }
+  >();
+  for (const r of (outputRows ?? []) as {
+    id: string;
+    playbook_id: string;
+    name: string;
+    kind: PlaybookOutputKind | null;
+  }[]) {
+    outputById.set(r.id, {
+      id: r.id,
+      playbookId: r.playbook_id,
+      name: r.name,
+      kind: r.kind,
+    });
+  }
+  const upstreamPlaybookIds = Array.from(
+    new Set(
+      Array.from(outputById.values()).map((o) => o.playbookId),
+    ),
+  );
+  const { data: itemRows, error: itemErr } = await client
+    .from("framework_items")
+    .select("id,name")
+    .in("id", upstreamPlaybookIds);
+  if (itemErr) {
+    throw new WorkflowRepositoryError("hydratePlaybookInputs playbook lookup failed", itemErr);
+  }
+  const playbookNameById = new Map<string, string>();
+  for (const r of (itemRows ?? []) as { id: string; name: string }[]) {
+    playbookNameById.set(r.id, r.name);
+  }
+  return rows
+    .map((row): PlaybookInput | null => {
+      const upstream = outputById.get(row.upstream_output_id);
+      if (!upstream) return null;
+      return mapPlaybookInput(row, {
+        upstreamOutputName: upstream.name,
+        upstreamOutputKind: upstream.kind,
+        upstreamPlaybookId: upstream.playbookId,
+        upstreamPlaybookName: playbookNameById.get(upstream.playbookId) ?? "Unknown playbook",
+      });
+    })
+    .filter((value): value is PlaybookInput => value !== null);
+}
+
 function mapTaskOutput(row: TaskOutputRow): TaskOutput {
   return {
     id: row.id,
@@ -487,7 +538,10 @@ function templatePatchToRow(
   return row;
 }
 
-export type WorkflowRepositoryErrorCode = "unique_name" | "stale_output_ref";
+export type WorkflowRepositoryErrorCode =
+  | "unique_name"
+  | "unique_upstream"
+  | "stale_output_ref";
 
 export class WorkflowRepositoryError extends Error {
   readonly cause?: unknown;
@@ -659,7 +713,7 @@ async function loadInstanceTaskIO(
       });
     const received = receivedInputsByTask.get(task.id) ?? new Set<string>();
     const hasUnmetLinkedInput = task.inputs.some(
-      (input) => input.linkMode === "linked" && !received.has(input.id),
+      (input) => !received.has(input.id),
     );
     return { taskId: task.id, outputs, hasUnmetLinkedInput };
   });
@@ -938,7 +992,6 @@ export function createWorkflowRepository(
           let changed = false;
           const remapped = normalized.map((input) => {
             if (
-              input.linkMode === "linked" &&
               input.upstreamTaskRef &&
               templateIdToInstanceId.has(input.upstreamTaskRef)
             ) {
@@ -1595,6 +1648,168 @@ export function createWorkflowRepository(
       if (error) {
         throw new WorkflowRepositoryError("reorderPlaybookOutputs failed", error);
       }
+    },
+
+    async listPlaybookInputs(playbookId: string): Promise<PlaybookInput[]> {
+      const { data, error } = await client
+        .from("playbook_inputs")
+        .select("*")
+        .eq("playbook_id", playbookId)
+        .order("position", { ascending: true });
+      if (error) {
+        throw new WorkflowRepositoryError("listPlaybookInputs failed", error);
+      }
+      const rows = (data ?? []) as PlaybookInputRow[];
+      return hydratePlaybookInputs(client, rows);
+    },
+
+    async createPlaybookInput(input: {
+      playbookId: string;
+      upstreamOutputId: string;
+      position?: number;
+    }): Promise<PlaybookInput> {
+      let position = input.position;
+      if (position === undefined) {
+        const { data: existing, error: posErr } = await client
+          .from("playbook_inputs")
+          .select("position")
+          .eq("playbook_id", input.playbookId)
+          .order("position", { ascending: false })
+          .limit(1);
+        if (posErr) {
+          throw new WorkflowRepositoryError(
+            "createPlaybookInput position lookup failed",
+            posErr,
+          );
+        }
+        const maxRow = (existing ?? [])[0] as { position?: number } | undefined;
+        position = (maxRow?.position ?? -1) + 1;
+      }
+
+      const { data, error } = await client
+        .from("playbook_inputs")
+        .insert({
+          playbook_id: input.playbookId,
+          upstream_output_id: input.upstreamOutputId,
+          position,
+        })
+        .select("*")
+        .single();
+
+      if (error) {
+        if (isUniqueViolation(error)) {
+          throw new WorkflowRepositoryError(
+            "createPlaybookInput upstream already wired",
+            error,
+            { code: "unique_upstream" },
+          );
+        }
+        throw new WorkflowRepositoryError("createPlaybookInput failed", error);
+      }
+      const row = unwrap("createPlaybookInput", data, null) as PlaybookInputRow;
+      const hydrated = await hydratePlaybookInputs(client, [row]);
+      return hydrated[0];
+    },
+
+    async deletePlaybookInput(id: string): Promise<void> {
+      const { error } = await client.from("playbook_inputs").delete().eq("id", id);
+      if (error) {
+        throw new WorkflowRepositoryError("deletePlaybookInput failed", error);
+      }
+    },
+
+    async reorderPlaybookInputs(
+      playbookId: string,
+      orderedIds: string[],
+    ): Promise<void> {
+      if (orderedIds.length === 0) return;
+
+      const { data: existing, error: fetchErr } = await client
+        .from("playbook_inputs")
+        .select("id")
+        .eq("playbook_id", playbookId)
+        .in("id", orderedIds);
+      if (fetchErr) {
+        throw new WorkflowRepositoryError("reorderPlaybookInputs fetch failed", fetchErr);
+      }
+      const valid = new Set((existing ?? []).map((row: { id: string }) => row.id));
+      const updates = orderedIds
+        .filter((id) => valid.has(id))
+        .map((id, index) => ({ id, position: index }));
+      if (updates.length === 0) return;
+
+      // Per-row UPDATEs touch only `position` — same NOT-NULL reason as
+      // reorderPlaybookOutputs (PostgREST evaluates upserts as INSERT…ON
+      // CONFLICT and would trip name/playbook_id NOT NULL).
+      const results = await Promise.all(
+        updates.map(({ id, position }) =>
+          client
+            .from("playbook_inputs")
+            .update({ position })
+            .eq("id", id)
+            .eq("playbook_id", playbookId),
+        ),
+      );
+      const error = results.find((r) => r.error)?.error;
+      if (error) {
+        throw new WorkflowRepositoryError("reorderPlaybookInputs failed", error);
+      }
+    },
+
+    async listOutputGroupsForOtherPlaybooks(
+      currentPlaybookId: string,
+    ): Promise<TemplateOutputGroup[]> {
+      const { data: outputRows, error: outErr } = await client
+        .from("playbook_outputs")
+        .select("*")
+        .order("playbook_id", { ascending: true })
+        .order("position", { ascending: true });
+      if (outErr) {
+        throw new WorkflowRepositoryError(
+          "listOutputGroupsForOtherPlaybooks outputs lookup failed",
+          outErr,
+        );
+      }
+      const byPlaybook = new Map<string, PlaybookOutput[]>();
+      for (const row of (outputRows ?? []) as PlaybookOutputRow[]) {
+        if (row.playbook_id === currentPlaybookId) continue;
+        const bucket = byPlaybook.get(row.playbook_id) ?? [];
+        bucket.push(mapPlaybookOutput(row));
+        byPlaybook.set(row.playbook_id, bucket);
+      }
+      const playbookIds = Array.from(byPlaybook.keys());
+      if (playbookIds.length === 0) return [];
+
+      const { data: itemRows, error: itemErr } = await client
+        .from("framework_items")
+        .select("id,name")
+        .in("id", playbookIds)
+        .eq("type", "playbook");
+      if (itemErr) {
+        throw new WorkflowRepositoryError(
+          "listOutputGroupsForOtherPlaybooks playbooks lookup failed",
+          itemErr,
+        );
+      }
+      const nameById = new Map<string, string>();
+      for (const row of (itemRows ?? []) as { id: string; name: string }[]) {
+        nameById.set(row.id, row.name);
+      }
+
+      return playbookIds
+        .filter((id) => nameById.has(id))
+        .map((id) => ({
+          playbookId: id,
+          playbookName: nameById.get(id) as string,
+          outputs: (byPlaybook.get(id) ?? []).sort(
+            (a, b) => a.position - b.position,
+          ),
+        }))
+        .sort((a, b) =>
+          a.playbookName.localeCompare(b.playbookName, undefined, {
+            sensitivity: "base",
+          }),
+        );
     },
 
     async countTaskOutputsForPlaybookOutput(outputId: string): Promise<number> {

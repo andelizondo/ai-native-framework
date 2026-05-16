@@ -75,10 +75,8 @@ describe("WiringOverlay", () => {
     makeTask("task-b", [
       {
         id: "in-1",
-        name: "After A",
-        linkMode: "linked",
         upstreamTaskRef: "task-a",
-        upstreamOutputId: null,
+        upstreamOutputId: "out-a",
       },
     ]),
   ];
@@ -136,15 +134,11 @@ describe("WiringOverlay", () => {
       makeTask("task-b", [
         {
           id: "in-1",
-          name: "FO Document",
-          linkMode: "linked",
           upstreamTaskRef: "task-a",
           upstreamOutputId: "out-fo",
         },
         {
           id: "in-2",
-          name: "TO Document",
-          linkMode: "linked",
           upstreamTaskRef: "task-a",
           upstreamOutputId: "out-to",
         },
@@ -171,10 +165,8 @@ describe("WiringOverlay", () => {
       makeTask("task-b", [
         {
           id: "in-1",
-          name: "Dangling",
-          linkMode: "linked",
           upstreamTaskRef: "task-zzz",
-          upstreamOutputId: null,
+          upstreamOutputId: "out-zzz",
         },
       ]),
     ];

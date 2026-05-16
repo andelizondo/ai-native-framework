@@ -80,6 +80,13 @@ interface AddPlaybookDrawerProps {
    *  wrapper around `listPlaybookOutputsAction`; if omitted, the Outputs
    *  section just renders empty until the user saves and reopens. */
   loadPlaybookOutputs?: (playbookId: string) => Promise<PlaybookOutput[]>;
+  /** Lazy-fetch the playbook definition's inputs to seed the snapshot when
+   *  a new playbook is selected in create mode. Each declared input is
+   *  already wired to an upstream `playbook_outputs.id`; the drawer
+   *  snapshots that wiring into a `WorkflowInput`. */
+  loadPlaybookInputs?: (
+    playbookId: string,
+  ) => Promise<{ id: string; upstreamOutputId: string }[]>;
   onClose: () => void;
   onSubmit: (input: {
     playbookId: string;
@@ -109,6 +116,7 @@ export function AddPlaybookDrawer({
   outputGroups = [],
   onRefetchOutputs,
   loadPlaybookOutputs,
+  loadPlaybookInputs,
   onClose,
   onSubmit,
 }: AddPlaybookDrawerProps) {
@@ -202,6 +210,51 @@ export function AddPlaybookDrawer({
       cancelled = true;
     };
     // mode + loadPlaybookOutputs are stable for the lifetime of the drawer.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedId]);
+
+  // Snapshot the selected playbook's declared inputs in create mode.
+  // Each declared input is already wired to an upstream output, so we
+  // just copy the `upstreamOutputId` into a fresh `WorkflowInput` and
+  // pick up the matching template-level task ref (if the upstream
+  // playbook is also on this template) for the matrix wiring overlay.
+  useEffect(() => {
+    if (mode !== "create") return;
+    if (!selectedId || !loadPlaybookInputs) {
+      setInputs([]);
+      return;
+    }
+    let cancelled = false;
+    setInputs([]);
+    loadPlaybookInputs(selectedId)
+      .then((defs) => {
+        if (cancelled) return;
+        const seeded: WorkflowInput[] = defs.map((def) => {
+          const derivedRef = upstreamTaskOptions.find((opt) => {
+            return (
+              opt.playbookId &&
+              outputGroups
+                .find((g) => g.playbookId === opt.playbookId)
+                ?.outputs.some((o) => o.id === def.upstreamOutputId)
+            );
+          })?.id;
+          return {
+            id: createInputId(),
+            upstreamOutputId: def.upstreamOutputId,
+            upstreamTaskRef: derivedRef,
+          };
+        });
+        setInputs(seeded);
+      })
+      .catch(() => {
+        if (cancelled) return;
+        setInputs([]);
+      });
+    return () => {
+      cancelled = true;
+    };
+    // Snapshot once per playbook selection. Re-running on catalog changes
+    // would clobber the user's in-flight edits.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedId]);
 
@@ -346,8 +399,10 @@ export function AddPlaybookDrawer({
           onSubmit={(event) => {
             event.preventDefault();
             if (!canSubmit) return;
-            // Drop incomplete (unwired) input rows on submit — they would
-            // otherwise persist as a name-less linked input pointing nowhere.
+            // Every input must be wired to an upstream output by this
+            // point. The draft picker only produces rows once an upstream
+            // is picked; this filter is a defensive belt against stale
+            // legacy data that might have leaked through.
             const wiredInputs = inputs.filter((i) => Boolean(i.upstreamOutputId));
             // Re-stamp positions from array order so the persisted snapshot
             // reflects any reorder edits the user made.
@@ -556,11 +611,9 @@ export function AddPlaybookDrawer({
                   {!inputsCollapsed ? (
                   <ul className="space-y-2">
                       {inputs.map((input, index) => {
-                        const wiredGroup = input.upstreamOutputId
-                          ? outputGroups.find((g) =>
-                              g.outputs.some((o) => o.id === input.upstreamOutputId),
-                            )
-                          : null;
+                        const wiredGroup = outputGroups.find((g) =>
+                          g.outputs.some((o) => o.id === input.upstreamOutputId),
+                        );
                         const wiredOutput = wiredGroup?.outputs.find(
                           (o) => o.id === input.upstreamOutputId,
                         );
@@ -622,15 +675,6 @@ export function AddPlaybookDrawer({
                           testId="add-input-row"
                           onChange={(next: PlaybookOutputPickerValue | null) => {
                             if (next === null) return;
-                            const group = outputGroups.find(
-                              (g) => g.playbookId === next.playbookId,
-                            );
-                            const output = group?.outputs.find(
-                              (o) => o.id === next.outputId,
-                            );
-                            const derivedName = group && output
-                              ? `${group.playbookName} / ${output.name}`
-                              : "";
                             const derivedRef = upstreamTaskOptions.find(
                               (opt) => opt.playbookId === next.playbookId,
                             )?.id;
@@ -638,8 +682,6 @@ export function AddPlaybookDrawer({
                               ...current,
                               {
                                 id: createInputId(),
-                                name: derivedName,
-                                linkMode: "linked",
                                 upstreamTaskRef: derivedRef,
                                 upstreamOutputId: next.outputId,
                               },
