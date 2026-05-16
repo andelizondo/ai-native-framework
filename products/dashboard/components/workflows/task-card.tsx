@@ -207,14 +207,7 @@ export function TaskCard({
             >
               {infoBadgeNodes}
             </div>
-          ) : (
-            <div
-              className={cn("s-pill", statusClass, "tc-compact-status")}
-              data-testid={`task-status-${task.id}`}
-            >
-              <span className="s-text">{statusLabel}</span>
-            </div>
-          )}
+          ) : null}
           {showActions && onRemove ? (
             <div className="tc-compact-actions mx-entity-actions mx-entity-actions-group">
               <button
