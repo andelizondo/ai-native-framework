@@ -575,9 +575,9 @@ function PlaybookOutputsSection({
               {Array.from({ length: 3 }, (_, i) => (
                 <li
                   key={i}
-                  className="animate-pulse rounded-lg border border-border bg-bg-3 p-2.5"
+                  className="flex min-h-[56px] animate-pulse items-center rounded-lg border border-border bg-bg-3 p-2.5"
                 >
-                  <div className="flex items-center gap-2">
+                  <div className="flex w-full items-center gap-2">
                     <div className="h-6 w-6 shrink-0 rounded-full bg-bg-4" />
                     <div className="min-w-0 flex-1 space-y-1.5">
                       <div className="h-2.5 w-2/3 rounded bg-bg-4" />
@@ -630,7 +630,7 @@ function PlaybookOutputsSection({
                 type="button"
                 onClick={handleAdd}
                 data-testid="playbook-outputs-add"
-                className="mt-2 flex w-full items-center justify-center gap-1.5 rounded-lg border border-dashed border-border bg-transparent px-3 py-2.5 text-[12px] font-medium text-t3 transition hover:border-border-hi hover:bg-bg-2 hover:text-t1 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
+                className="mt-2 flex min-h-[56px] w-full items-center justify-center gap-1.5 rounded-lg border border-dashed border-border bg-transparent px-3 py-2.5 text-[12px] font-medium text-t3 transition hover:border-border-hi hover:bg-bg-2 hover:text-t1 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
               >
                 <Plus className="h-3.5 w-3.5" aria-hidden />
                 Add output
@@ -862,9 +862,9 @@ function PlaybookInputsSection({
               {Array.from({ length: 2 }, (_, i) => (
                 <li
                   key={i}
-                  className="animate-pulse rounded-lg border border-border bg-bg-3 p-2.5"
+                  className="flex min-h-[56px] animate-pulse items-center rounded-lg border border-border bg-bg-3 p-2.5"
                 >
-                  <div className="flex items-center gap-2">
+                  <div className="flex w-full items-center gap-2">
                     <div className="h-6 w-6 shrink-0 rounded-full bg-bg-4" />
                     <div className="min-w-0 flex-1 space-y-1.5">
                       <div className="h-2.5 w-2/3 rounded bg-bg-4" />
@@ -990,11 +990,11 @@ function SortableInputRow({
       data-testid={`playbook-input-row-${row.id}`}
       style={style}
       className={cn(
-        "rounded-lg border border-border bg-bg-3 px-2.5 py-2 transition-colors hover:border-border-hi",
+        "flex min-h-[56px] items-center rounded-lg border border-border bg-bg-3 px-2.5 py-2 transition-colors hover:border-border-hi",
         isDragging && "shadow-lg",
       )}
     >
-      <div className="flex items-center gap-2">
+      <div className="flex w-full items-center gap-2">
         <button
           type="button"
           ref={setActivatorNodeRef as unknown as React.Ref<HTMLButtonElement>}
@@ -1089,12 +1089,12 @@ function SortableOutputRow({
       data-testid={`playbook-output-row-${row.id}`}
       style={style}
       className={cn(
-        "group/output rounded-lg border border-border bg-bg-3 px-2.5 py-2 transition-colors hover:border-border-hi",
+        "group/output flex min-h-[56px] items-center rounded-lg border border-border bg-bg-3 px-2.5 py-2 transition-colors hover:border-border-hi",
         dirty && "border-border-hi bg-bg-4",
         isDragging && "shadow-lg",
       )}
     >
-      <div className="flex items-center gap-2">
+      <div className="flex w-full items-center gap-2">
         <button
           type="button"
           ref={setActivatorNodeRef as unknown as React.Ref<HTMLButtonElement>}

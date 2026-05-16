@@ -132,6 +132,7 @@ export function AddPlaybookDrawer({
     initial?.outputs ? initial.outputs.map((o) => ({ ...o })) : [],
   );
   const [outputsLoading, setOutputsLoading] = useState(false);
+  const [inputsLoading, setInputsLoading] = useState(false);
   const [query, setQuery] = useState("");
   /** User override for the Inputs collapse header. Defaults to `null`
    *  (expanded). Switching to "collapsed" lets the user hide the editor. */
@@ -222,10 +223,16 @@ export function AddPlaybookDrawer({
     if (mode !== "create") return;
     if (!selectedId || !loadPlaybookInputs) {
       setInputs([]);
+      setInputsLoading(false);
       return;
     }
     let cancelled = false;
+    // Clear immediately and flag loading so the section can show a "Loading
+    // inputs…" placeholder. Without this the section flips from N old rows
+    // straight to M new rows once the fetch resolves and the picker below
+    // jumps with the row count change.
     setInputs([]);
+    setInputsLoading(true);
     loadPlaybookInputs(selectedId)
       .then((defs) => {
         if (cancelled) return;
@@ -249,6 +256,10 @@ export function AddPlaybookDrawer({
       .catch(() => {
         if (cancelled) return;
         setInputs([]);
+      })
+      .finally(() => {
+        if (cancelled) return;
+        setInputsLoading(false);
       });
     return () => {
       cancelled = true;
@@ -623,7 +634,7 @@ export function AddPlaybookDrawer({
                         return (
                           <li
                             key={input.id}
-                            className="flex items-center gap-2.5 rounded-lg border border-border bg-bg-3 px-2.5 py-2"
+                            className="flex min-h-[56px] items-center gap-2.5 rounded-lg border border-border bg-bg-3 px-2.5 py-2"
                             data-testid={`input-row-${index}`}
                           >
                             {wiredPlaybook ? (
@@ -659,6 +670,14 @@ export function AddPlaybookDrawer({
                         );
                       })}
                       <li>
+                        {inputsLoading ? (
+                          <div
+                            className="flex min-h-[56px] w-full items-center justify-center rounded-md border border-dashed border-border bg-transparent px-4 py-3 text-[12px] font-medium text-t3"
+                            data-testid="add-playbook-drawer-inputs-loading"
+                          >
+                            Loading inputs…
+                          </div>
+                        ) : (
                         <PlaybookOutputPicker
                           value={null}
                           available={availableForDraft}
@@ -688,6 +707,7 @@ export function AddPlaybookDrawer({
                             ]);
                           }}
                         />
+                        )}
                       </li>
                     </ul>
                   ) : null}
@@ -849,7 +869,7 @@ function OutputsEditorSection({
             <ul className="space-y-2">
               {outputs.length === 0 ? (
                 <li
-                  className="rounded-lg border border-dashed border-border bg-bg-3 px-3 py-4 text-center text-[12px] text-t3"
+                  className="flex min-h-[56px] items-center justify-center rounded-lg border border-dashed border-border bg-bg-3 px-3 py-2 text-center text-[12px] text-t3"
                   data-testid="add-playbook-drawer-outputs-empty"
                 >
                   {emptyMessage}
@@ -903,7 +923,7 @@ function SortableOutputRow({ output, index, onRemove }: SortableOutputRowProps) 
       data-testid={`output-row-${index}`}
       style={style}
       className={cn(
-        "flex items-center gap-2 rounded-lg border border-border bg-bg-3 px-2 py-2",
+        "flex min-h-[56px] items-center gap-2 rounded-lg border border-border bg-bg-3 px-2 py-2",
         isDragging && "shadow-lg",
       )}
     >

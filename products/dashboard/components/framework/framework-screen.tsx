@@ -15,6 +15,7 @@ import {
   Code,
   ArrowDownAZ,
   ArrowUpAZ,
+  ChevronDown,
   Heading1,
   Heading2,
   Download,
@@ -194,7 +195,10 @@ export function FrameworkScreen({
   const [searchQuery, setSearchQuery] = useState("");
   const [filterIds, setFilterIds] = useState<string[]>([]);
   const [sortDirection, setSortDirection] = useState<"asc" | "desc">("asc");
-  const [groupBy, setGroupBy] = useState<PlaybookGroupBy>("none");
+  const [groupBy, setGroupBy] = useState<PlaybookGroupBy>(
+    type === "playbook" ? "skill" : "none",
+  );
+  const [collapsedGroups, setCollapsedGroups] = useState<Set<string>>(new Set());
   const [pending, startTransition] = useTransition();
   const editorTextareaRef = useRef<HTMLTextAreaElement | null>(null);
   const importInputRef = useRef<HTMLInputElement | null>(null);
@@ -410,6 +414,21 @@ export function FrameworkScreen({
       // Persistence is best-effort; ignore quota / disabled-storage errors.
     }
   }, [groupBy, type]);
+
+  // Switching grouping dimension drops the collapsed-set — group ids from
+  // the previous dimension are meaningless under the new one.
+  useEffect(() => {
+    setCollapsedGroups(new Set());
+  }, [groupBy]);
+
+  const toggleGroupCollapsed = useCallback((groupId: string) => {
+    setCollapsedGroups((current) => {
+      const next = new Set(current);
+      if (next.has(groupId)) next.delete(groupId);
+      else next.add(groupId);
+      return next;
+    });
+  }, []);
 
   useLayoutEffect(() => {
     if (editorView !== "plain-text") {
@@ -1258,57 +1277,91 @@ export function FrameworkScreen({
                   {visibleItems.length > 0 ? (
                     groupBy !== "none" && type === "playbook" ? (
                       <div
-                        className="flex flex-col gap-6"
+                        className="flex flex-col gap-3"
                         data-testid={`framework-grid-${type}`}
                       >
-                        {groupedItems.map((group) => (
-                          <section
-                            key={group.id}
-                            data-testid={`framework-group-${group.id}`}
-                          >
-                            <header className="mb-3 flex items-center gap-2.5">
-                              <ItemAvatar
-                                emoji={group.emoji ?? undefined}
-                                initials={group.emoji ? null : group.label.slice(0, 2)}
-                                color={group.color}
-                                label={group.label}
-                                size="sm"
-                              />
-                              <h3 className="text-[13px] font-semibold tracking-[-0.01em] text-t1">
-                                {group.label}
-                              </h3>
-                              <span className="rounded-full bg-bg-2 px-2 py-0.5 font-mono text-[10px] uppercase tracking-[0.1em] text-t3">
-                                {group.items.length}
-                              </span>
-                            </header>
-                            <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
-                              {group.items.map((item) => (
-                                <button
-                                  key={item.id}
-                                  type="button"
-                                  onClick={() => beginEdit(item)}
-                                  data-testid={`framework-card-${item.id}`}
-                                  className="group flex min-h-[92px] items-center gap-3 rounded-[16px] border border-border bg-bg px-4 py-4 text-left transition-[background-color,border-color,transform,box-shadow] duration-150 hover:border-border-hi hover:bg-bg hover:shadow-[0_14px_34px_rgba(15,23,42,0.08)] focus-visible:-translate-y-[1px] focus-visible:border-border-hi focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
+                        {groupedItems.map((group) => {
+                          const collapsed = collapsedGroups.has(group.id);
+                          const headerId = `framework-group-header-${group.id}`;
+                          const panelId = `framework-group-panel-${group.id}`;
+                          return (
+                            <section
+                              key={group.id}
+                              data-testid={`framework-group-${group.id}`}
+                              className="rounded-[14px] border border-border bg-bg-2/40"
+                            >
+                              <button
+                                id={headerId}
+                                type="button"
+                                onClick={() => toggleGroupCollapsed(group.id)}
+                                aria-expanded={!collapsed}
+                                aria-controls={panelId}
+                                data-testid={`framework-group-toggle-${group.id}`}
+                                className={cn(
+                                  "flex w-full items-center gap-2.5 px-3.5 py-2.5 text-left transition-colors hover:bg-bg-2/80 focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-accent",
+                                  collapsed ? "rounded-[14px]" : "rounded-t-[14px]",
+                                )}
+                              >
+                                <ChevronDown
+                                  aria-hidden
+                                  className={cn(
+                                    "h-3.5 w-3.5 shrink-0 text-t3 transition-transform duration-150",
+                                    collapsed && "-rotate-90",
+                                  )}
+                                />
+                                <ItemAvatar
+                                  emoji={group.emoji ?? undefined}
+                                  initials={group.emoji ? null : group.label.slice(0, 2)}
+                                  color={group.color}
+                                  label={group.label}
+                                  size="sm"
+                                />
+                                <h3 className="min-w-0 flex-1 truncate text-[13.5px] font-semibold tracking-[-0.01em] text-t1">
+                                  {group.label}
+                                </h3>
+                                <span
+                                  aria-label={`${group.items.length} ${group.items.length === 1 ? "playbook" : "playbooks"}`}
+                                  className="shrink-0 rounded-md bg-bg px-1.5 py-0.5 font-mono text-[10.5px] tabular-nums text-t2 ring-1 ring-inset ring-border"
                                 >
-                                  <ItemAvatar
-                                    emoji={item.icon || "📄"}
-                                    color={resolveItemColor(item)}
-                                    label={item.name}
-                                    size="md"
-                                  />
-                                  <div className="min-w-0 flex-1">
-                                    <h2 className="overflow-hidden whitespace-nowrap text-[16px] leading-[1.15] font-semibold tracking-[-0.02em] text-t1 text-ellipsis">
-                                      {item.name}
-                                    </h2>
-                                    <p className="mt-1 overflow-hidden whitespace-nowrap text-[12.5px] leading-[1.35rem] text-t2 text-ellipsis">
-                                      {item.description}
-                                    </p>
-                                  </div>
-                                </button>
-                              ))}
-                            </div>
-                          </section>
-                        ))}
+                                  {group.items.length}
+                                </span>
+                              </button>
+                              {collapsed ? null : (
+                                <div
+                                  id={panelId}
+                                  role="region"
+                                  aria-labelledby={headerId}
+                                  className="grid gap-2.5 border-t border-border bg-bg p-3 sm:grid-cols-2 xl:grid-cols-3 rounded-b-[14px]"
+                                >
+                                  {group.items.map((item) => (
+                                    <button
+                                      key={item.id}
+                                      type="button"
+                                      onClick={() => beginEdit(item)}
+                                      data-testid={`framework-card-${item.id}`}
+                                      className="group flex min-h-[84px] items-center gap-3 rounded-[12px] border border-border bg-bg-2/60 px-3.5 py-3.5 text-left transition-[background-color,border-color,transform,box-shadow] duration-150 hover:border-border-hi hover:bg-bg hover:shadow-[0_10px_24px_rgba(15,23,42,0.08)] focus-visible:-translate-y-[1px] focus-visible:border-border-hi focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
+                                    >
+                                      <ItemAvatar
+                                        emoji={item.icon || "📄"}
+                                        color={resolveItemColor(item)}
+                                        label={item.name}
+                                        size="md"
+                                      />
+                                      <div className="min-w-0 flex-1">
+                                        <h2 className="overflow-hidden whitespace-nowrap text-[15px] leading-[1.15] font-semibold tracking-[-0.02em] text-t1 text-ellipsis">
+                                          {item.name}
+                                        </h2>
+                                        <p className="mt-0.5 overflow-hidden whitespace-nowrap text-[12.5px] leading-[1.35rem] text-t2 text-ellipsis">
+                                          {item.description}
+                                        </p>
+                                      </div>
+                                    </button>
+                                  ))}
+                                </div>
+                              )}
+                            </section>
+                          );
+                        })}
                       </div>
                     ) : (
                       <div
