@@ -859,7 +859,8 @@ export function ProcessMatrix({
                 (item) => item.id === skill.id,
               );
               const isSkillCollapsed = collapsedSkillIds.has(skill.id);
-              const labelHidden = collapsed || isSkillCollapsed;
+              const labelHidden = collapsed;
+              const ownersHidden = collapsed || isSkillCollapsed;
               // Derive the row's owner stack from the cards currently in
               // this skill row (deduped, order-preserved). Owners live on
               // each task now, so the same playbook can carry different
@@ -943,16 +944,18 @@ export function ProcessMatrix({
                         data-testid={`matrix-skill-label-${skill.id}`}
                       >
                         <div className="mx-role-name">{skill.label}</div>
-                        <div
-                          className={cn(
-                            "mx-role-owner",
-                            rowOwners.length > 0 && "mx-role-owner-plain",
-                          )}
-                        >
-                          {rowOwners.length > 0
-                            ? rowOwners.join(", ")
-                            : "No owner"}
-                        </div>
+                        {!ownersHidden ? (
+                          <div
+                            className={cn(
+                              "mx-role-owner",
+                              rowOwners.length > 0 && "mx-role-owner-plain",
+                            )}
+                          >
+                            {rowOwners.length > 0
+                              ? rowOwners.join(", ")
+                              : "No owner"}
+                          </div>
+                        ) : null}
                       </div>
                     ) : null}
                     {(
@@ -1023,25 +1026,22 @@ export function ProcessMatrix({
                               playbookById={playbookById}
                               skillColor={skillColor}
                               onHoverTask={setHoveredTaskId}
-                              onPickTask={
-                                editMode
-                                  ? undefined
-                                  : () => {
-                                      // Mini cells live in collapsed rows or
-                                      // columns. Picking any task from the
-                                      // mini stack expands them back to their
-                                      // compact/full layout first; a second
-                                      // click on the expanded card opens the
-                                      // drawer. Avoids a drawer popping over
-                                      // a collapsed row/column.
-                                      if (isSkillCollapsed) {
-                                        toggleSkillCollapsed(skill.id);
-                                      }
-                                      if (isStageCollapsed) {
-                                        toggleStageCollapsed(stage.id);
-                                      }
-                                    }
-                              }
+                              onPickTask={() => {
+                                // Mini cells live in collapsed rows or
+                                // columns. Picking any task from the mini
+                                // stack expands them back to their
+                                // compact/full layout first; a second click
+                                // on the expanded card opens the drawer (or
+                                // the edit modal in edit mode). Avoids a
+                                // drawer/modal popping over a collapsed
+                                // row/column.
+                                if (isSkillCollapsed) {
+                                  toggleSkillCollapsed(skill.id);
+                                }
+                                if (isStageCollapsed) {
+                                  toggleStageCollapsed(stage.id);
+                                }
+                              }}
                             />
                           ) : (
                             <div

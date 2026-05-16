@@ -1119,7 +1119,6 @@
   padding-bottom: 6px;
   padding-right: 6px;
 }
-.mx-body-row-collapsed .mx-role-name,
 .mx-body-row-collapsed .mx-role-owner {
   display: none;
 }
