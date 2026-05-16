@@ -15,10 +15,12 @@ import {
   Code,
   ArrowDownAZ,
   ArrowUpAZ,
+  ChevronDown,
   Heading1,
   Heading2,
   Download,
   Eye,
+  Layers,
   Link2,
   List,
   ListOrdered,
@@ -53,7 +55,11 @@ import { useAnalytics } from "@/lib/analytics/events";
 import { useToast } from "@/lib/toast";
 import { useUnsavedChangesGuard } from "@/lib/use-unsaved-changes-guard";
 import { resolveItemColor } from "@/lib/workflows/skill-colors";
-import type { FrameworkItem, FrameworkItemType } from "@/lib/workflows/types";
+import type {
+  FrameworkItem,
+  FrameworkItemType,
+  WorkflowTemplate,
+} from "@/lib/workflows/types";
 import { cn } from "@/lib/utils";
 
 interface FrameworkScreenProps {
@@ -65,6 +71,24 @@ interface FrameworkScreenProps {
   /** All Playbooks. Required when `type === "skill"` so the editor can
    * render the inverse "Allowed playbooks" multi-select. */
   availablePlaybooks?: FrameworkItem[];
+  /** All workflow templates. Used by the Playbooks page to support the
+   *  "Group by Workflow" view (bucket per template that references the
+   *  playbook). Unused on the Skills page. */
+  availableTemplates?: WorkflowTemplate[];
+}
+
+type PlaybookGroupBy = "none" | "skill" | "workflow";
+const PLAYBOOK_GROUP_BY_KEY = "framework.playbooks.groupBy";
+const PLAYBOOK_GROUP_BY_VALUES: PlaybookGroupBy[] = ["none", "skill", "workflow"];
+
+interface PlaybookGroup {
+  id: string;
+  label: string;
+  color: string;
+  emoji?: string | null;
+  items: FrameworkItem[];
+  /** Render below all named groups (Unassigned / Unused buckets). */
+  fallback?: boolean;
 }
 
 type EditorViewMode = "markdown" | "plain-text";
@@ -154,6 +178,7 @@ export function FrameworkScreen({
   type,
   availableSkills = [],
   availablePlaybooks = [],
+  availableTemplates = [],
 }: FrameworkScreenProps) {
   const { setConfig } = useDashboardTopBar();
   const { capture } = useAnalytics();
@@ -170,6 +195,10 @@ export function FrameworkScreen({
   const [searchQuery, setSearchQuery] = useState("");
   const [filterIds, setFilterIds] = useState<string[]>([]);
   const [sortDirection, setSortDirection] = useState<"asc" | "desc">("asc");
+  const [groupBy, setGroupBy] = useState<PlaybookGroupBy>(
+    type === "playbook" ? "skill" : "none",
+  );
+  const [collapsedGroups, setCollapsedGroups] = useState<Set<string>>(new Set());
   const [pending, startTransition] = useTransition();
   const editorTextareaRef = useRef<HTMLTextAreaElement | null>(null);
   const importInputRef = useRef<HTMLInputElement | null>(null);
@@ -219,6 +248,121 @@ export function FrameworkScreen({
       (left, right) => direction * left.name.localeCompare(right.name),
     );
   }, [filteredItems, sortDirection]);
+
+  // Index of templates that reference each playbook id, derived from
+  // `taskTemplates[].playbookId`. Used by the "Group by Workflow" view.
+  const templatesByPlaybookId = useMemo(() => {
+    if (type !== "playbook") return new Map<string, WorkflowTemplate[]>();
+    const index = new Map<string, WorkflowTemplate[]>();
+    for (const template of availableTemplates) {
+      const seen = new Set<string>();
+      for (const task of template.taskTemplates) {
+        if (!task.playbookId || seen.has(task.playbookId)) continue;
+        seen.add(task.playbookId);
+        const bucket = index.get(task.playbookId);
+        if (bucket) bucket.push(template);
+        else index.set(task.playbookId, [template]);
+      }
+    }
+    return index;
+  }, [availableTemplates, type]);
+
+  const skillsById = useMemo(() => {
+    const index = new Map<string, FrameworkItem>();
+    for (const skill of availableSkills) index.set(skill.id, skill);
+    return index;
+  }, [availableSkills]);
+
+  // When grouping is active, produce stacked sections in place of the flat
+  // grid. Items are non-exclusive: a playbook with two allowed skills appears
+  // under both. Empty groups never render — the "Unassigned"/"Unused" buckets
+  // only appear when at least one playbook would land in them.
+  const groupedItems = useMemo<PlaybookGroup[]>(() => {
+    if (type !== "playbook" || groupBy === "none") return [];
+
+    const groups = new Map<string, PlaybookGroup>();
+
+    const addToGroup = (
+      key: string,
+      seed: () => Omit<PlaybookGroup, "items">,
+      item: FrameworkItem,
+    ) => {
+      const existing = groups.get(key);
+      if (existing) {
+        existing.items.push(item);
+        return;
+      }
+      groups.set(key, { ...seed(), items: [item] });
+    };
+
+    if (groupBy === "skill") {
+      for (const item of visibleItems) {
+        const ids = item.allowedSkillIds ?? [];
+        if (ids.length === 0) {
+          addToGroup(
+            "__unassigned__",
+            () => ({
+              id: "__unassigned__",
+              label: "Unassigned",
+              color: "var(--border-hi)",
+              emoji: "—",
+              fallback: true,
+            }),
+            item,
+          );
+          continue;
+        }
+        for (const id of ids) {
+          const skill = skillsById.get(id);
+          addToGroup(
+            id,
+            () => ({
+              id,
+              label: skill?.name ?? "Unknown skill",
+              color: skill ? resolveItemColor(skill) : "var(--border-hi)",
+              emoji: skill?.icon ?? "🤖",
+            }),
+            item,
+          );
+        }
+      }
+    } else {
+      for (const item of visibleItems) {
+        const templates = templatesByPlaybookId.get(item.id) ?? [];
+        if (templates.length === 0) {
+          addToGroup(
+            "__unused__",
+            () => ({
+              id: "__unused__",
+              label: "Unused",
+              color: "var(--border-hi)",
+              emoji: "—",
+              fallback: true,
+            }),
+            item,
+          );
+          continue;
+        }
+        for (const template of templates) {
+          addToGroup(
+            template.id,
+            () => ({
+              id: template.id,
+              label: template.label,
+              color: template.color || "var(--border-hi)",
+            }),
+            item,
+          );
+        }
+      }
+    }
+
+    return [...groups.values()].sort((left, right) => {
+      if (left.fallback && !right.fallback) return 1;
+      if (!left.fallback && right.fallback) return -1;
+      return left.label.localeCompare(right.label);
+    });
+  }, [groupBy, skillsById, templatesByPlaybookId, type, visibleItems]);
   const isDirty =
     draftItem !== null &&
     (lastSavedItem === null || !areFrameworkItemsEqual(draftItem, lastSavedItem));
@@ -246,6 +390,45 @@ export function FrameworkScreen({
   useEffect(() => {
     setItems(initialItems);
   }, [initialItems]);
+
+  // Hydrate `groupBy` from localStorage on mount (playbooks only). The default
+  // ("none") means the page renders identically to the pre-grouping behavior
+  // when a user has never opened the control before.
+  useEffect(() => {
+    if (type !== "playbook" || typeof window === "undefined") return;
+    try {
+      const stored = window.localStorage.getItem(PLAYBOOK_GROUP_BY_KEY);
+      if (stored && (PLAYBOOK_GROUP_BY_VALUES as string[]).includes(stored)) {
+        setGroupBy(stored as PlaybookGroupBy);
+      }
+    } catch {
+      // localStorage can throw in private modes; fall back silently to default.
+    }
+  }, [type]);
+
+  useEffect(() => {
+    if (type !== "playbook" || typeof window === "undefined") return;
+    try {
+      window.localStorage.setItem(PLAYBOOK_GROUP_BY_KEY, groupBy);
+    } catch {
+      // Persistence is best-effort; ignore quota / disabled-storage errors.
+    }
+  }, [groupBy, type]);
+
+  // Switching grouping dimension drops the collapsed-set — group ids from
+  // the previous dimension are meaningless under the new one.
+  useEffect(() => {
+    setCollapsedGroups(new Set());
+  }, [groupBy]);
+
+  const toggleGroupCollapsed = useCallback((groupId: string) => {
+    setCollapsedGroups((current) => {
+      const next = new Set(current);
+      if (next.has(groupId)) next.delete(groupId);
+      else next.add(groupId);
+      return next;
+    });
+  }, []);
 
   useLayoutEffect(() => {
     if (editorView !== "plain-text") {
@@ -1033,6 +1216,43 @@ export function FrameworkScreen({
                           }
                           onChange={setFilterIds}
                         />
+                        {type === "playbook" ? (
+                          <div
+                            className="inline-flex h-8 items-center rounded-md border border-border bg-bg p-0.5"
+                            role="tablist"
+                            aria-label="Group playbooks by"
+                            data-testid="framework-group-by"
+                          >
+                            <Layers
+                              aria-hidden
+                              className="ml-1.5 mr-1 h-3.5 w-3.5 text-t3"
+                            />
+                            {(
+                              [
+                                ["none", "None"],
+                                ["skill", "Skill"],
+                                ["workflow", "Workflow"],
+                              ] as const
+                            ).map(([value, label]) => (
+                              <button
+                                key={value}
+                                type="button"
+                                role="tab"
+                                aria-selected={groupBy === value}
+                                onClick={() => setGroupBy(value)}
+                                data-testid={`framework-group-by-${value}`}
+                                className={cn(
+                                  "flex h-full items-center rounded-[5px] px-2 text-[12px] font-medium transition focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent",
+                                  groupBy === value
+                                    ? "bg-bg-3 text-t1"
+                                    : "text-t2 hover:bg-bg-2 hover:text-t1",
+                                )}
+                              >
+                                {label}
+                              </button>
+                            ))}
+                          </div>
+                        ) : null}
                         <button
                           type="button"
                           onClick={() =>
@@ -1055,35 +1275,125 @@ export function FrameworkScreen({
 
                   <div className="p-3 md:p-4">
                   {visibleItems.length > 0 ? (
-                    <div
-                      className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3"
-                      data-testid={`framework-grid-${type}`}
-                    >
-                      {visibleItems.map((item) => (
-                        <button
-                          key={item.id}
-                          type="button"
-                          onClick={() => beginEdit(item)}
-                          data-testid={`framework-card-${item.id}`}
-                          className="group flex min-h-[92px] items-center gap-3 rounded-[16px] border border-border bg-bg px-4 py-4 text-left transition-[background-color,border-color,transform,box-shadow] duration-150 hover:border-border-hi hover:bg-bg hover:shadow-[0_14px_34px_rgba(15,23,42,0.08)] focus-visible:-translate-y-[1px] focus-visible:border-border-hi focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
-                        >
-                          <ItemAvatar
-                            emoji={item.icon || (type === "skill" ? "🤖" : "📄")}
-                            color={resolveItemColor(item)}
-                            label={item.name}
-                            size="md"
-                          />
-                          <div className="min-w-0 flex-1">
-                            <h2 className="overflow-hidden whitespace-nowrap text-[16px] leading-[1.15] font-semibold tracking-[-0.02em] text-t1 text-ellipsis">
-                              {item.name}
-                            </h2>
-                            <p className="mt-1 overflow-hidden whitespace-nowrap text-[12.5px] leading-[1.35rem] text-t2 text-ellipsis">
-                              {item.description}
-                            </p>
-                          </div>
-                        </button>
-                      ))}
-                    </div>
+                    groupBy !== "none" && type === "playbook" ? (
+                      <div
+                        className="flex flex-col gap-3"
+                        data-testid={`framework-grid-${type}`}
+                      >
+                        {groupedItems.map((group) => {
+                          const collapsed = collapsedGroups.has(group.id);
+                          const headerId = `framework-group-header-${group.id}`;
+                          const panelId = `framework-group-panel-${group.id}`;
+                          return (
+                            <section
+                              key={group.id}
+                              data-testid={`framework-group-${group.id}`}
+                              className="rounded-[14px] border border-border bg-bg-2/40"
+                            >
+                              <button
+                                id={headerId}
+                                type="button"
+                                onClick={() => toggleGroupCollapsed(group.id)}
+                                aria-expanded={!collapsed}
+                                aria-controls={panelId}
+                                data-testid={`framework-group-toggle-${group.id}`}
+                                className={cn(
+                                  "flex w-full items-center gap-2.5 px-3.5 py-2.5 text-left transition-colors hover:bg-bg-2/80 focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-accent",
+                                  collapsed ? "rounded-[14px]" : "rounded-t-[14px]",
+                                )}
+                              >
+                                <ChevronDown
+                                  aria-hidden
+                                  className={cn(
+                                    "h-3.5 w-3.5 shrink-0 text-t3 transition-transform duration-150",
+                                    collapsed && "-rotate-90",
+                                  )}
+                                />
+                                <ItemAvatar
+                                  emoji={group.emoji ?? undefined}
+                                  initials={group.emoji ? null : group.label.slice(0, 2)}
+                                  color={group.color}
+                                  label={group.label}
+                                  size="sm"
+                                />
+                                <h3 className="min-w-0 flex-1 truncate text-[13.5px] font-semibold tracking-[-0.01em] text-t1">
+                                  {group.label}
+                                </h3>
+                                <span
+                                  aria-label={`${group.items.length} ${group.items.length === 1 ? "playbook" : "playbooks"}`}
+                                  className="shrink-0 rounded-md bg-bg px-1.5 py-0.5 font-mono text-[10.5px] tabular-nums text-t2 ring-1 ring-inset ring-border"
+                                >
+                                  {group.items.length}
+                                </span>
+                              </button>
+                              {collapsed ? null : (
+                                <div
+                                  id={panelId}
+                                  role="region"
+                                  aria-labelledby={headerId}
+                                  className="grid gap-2.5 border-t border-border bg-bg p-3 sm:grid-cols-2 xl:grid-cols-3 rounded-b-[14px]"
+                                >
+                                  {group.items.map((item) => (
+                                    <button
+                                      key={item.id}
+                                      type="button"
+                                      onClick={() => beginEdit(item)}
+                                      data-testid={`framework-card-${item.id}`}
+                                      className="group flex min-h-[84px] items-center gap-3 rounded-[12px] border border-border bg-bg-2/60 px-3.5 py-3.5 text-left transition-[background-color,border-color,transform,box-shadow] duration-150 hover:border-border-hi hover:bg-bg hover:shadow-[0_10px_24px_rgba(15,23,42,0.08)] focus-visible:-translate-y-[1px] focus-visible:border-border-hi focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
+                                    >
+                                      <ItemAvatar
+                                        emoji={item.icon || "📄"}
+                                        color={resolveItemColor(item)}
+                                        label={item.name}
+                                        size="md"
+                                      />
+                                      <div className="min-w-0 flex-1">
+                                        <h2 className="overflow-hidden whitespace-nowrap text-[15px] leading-[1.15] font-semibold tracking-[-0.02em] text-t1 text-ellipsis">
+                                          {item.name}
+                                        </h2>
+                                        <p className="mt-0.5 overflow-hidden whitespace-nowrap text-[12.5px] leading-[1.35rem] text-t2 text-ellipsis">
+                                          {item.description}
+                                        </p>
+                                      </div>
+                                    </button>
+                                  ))}
+                                </div>
+                              )}
+                            </section>
+                          );
+                        })}
+                      </div>
+                    ) : (
+                      <div
+                        className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3"
+                        data-testid={`framework-grid-${type}`}
+                      >
+                        {visibleItems.map((item) => (
+                          <button
+                            key={item.id}
+                            type="button"
+                            onClick={() => beginEdit(item)}
+                            data-testid={`framework-card-${item.id}`}
+                            className="group flex min-h-[92px] items-center gap-3 rounded-[16px] border border-border bg-bg px-4 py-4 text-left transition-[background-color,border-color,transform,box-shadow] duration-150 hover:border-border-hi hover:bg-bg hover:shadow-[0_14px_34px_rgba(15,23,42,0.08)] focus-visible:-translate-y-[1px] focus-visible:border-border-hi focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
+                          >
+                            <ItemAvatar
+                              emoji={item.icon || (type === "skill" ? "🤖" : "📄")}
+                              color={resolveItemColor(item)}
+                              label={item.name}
+                              size="md"
+                            />
+                            <div className="min-w-0 flex-1">
+                              <h2 className="overflow-hidden whitespace-nowrap text-[16px] leading-[1.15] font-semibold tracking-[-0.02em] text-t1 text-ellipsis">
+                                {item.name}
+                              </h2>
+                              <p className="mt-1 overflow-hidden whitespace-nowrap text-[12.5px] leading-[1.35rem] text-t2 text-ellipsis">
+                                {item.description}
+                              </p>
+                            </div>
+                          </button>
+                        ))}
+                      </div>
+                    )
                   ) : (
                     <div
                       className="flex min-h-full min-w-0 items-center justify-center rounded-[18px] border border-dashed border-border-hi bg-bg-2/72 px-6 py-10 text-center"

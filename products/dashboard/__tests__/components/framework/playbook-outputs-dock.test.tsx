@@ -89,7 +89,10 @@ describe("PlaybookOutputsDock", () => {
 
     await user.click(screen.getByTestId("playbook-outputs-add"));
 
-    const newRow = screen.getAllByRole("listitem").at(-1)!;
+    const outputRows = screen
+      .getAllByRole("listitem")
+      .filter((el) => el.dataset.testid?.startsWith("playbook-output-row-"));
+    const newRow = outputRows.at(-1)!;
     // Type the name into the inline-editable field.
     await user.click(within(newRow).getByRole("button", { name: /edit output name/i }));
     const nameInput = within(newRow).getByLabelText("Output name") as HTMLInputElement;
@@ -189,13 +192,19 @@ describe("PlaybookOutputsDock", () => {
     );
 
     await user.click(screen.getByTestId("playbook-outputs-add"));
-    const rows = screen.getAllByRole("listitem");
+    const rows = screen
+      .getAllByRole("listitem")
+      .filter((el) => el.dataset.testid?.startsWith("playbook-output-row-"));
     const pendingRow = rows.at(-1)!;
     await user.click(
       within(pendingRow).getByRole("button", { name: /delete output/i }),
     );
 
     expect(deleteMock).not.toHaveBeenCalled();
-    expect(screen.getAllByRole("listitem")).toHaveLength(1);
+    expect(
+      screen
+        .getAllByRole("listitem")
+        .filter((el) => el.dataset.testid?.startsWith("playbook-output-row-")),
+    ).toHaveLength(1);
   });
 });
