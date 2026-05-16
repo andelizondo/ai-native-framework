@@ -57,25 +57,21 @@ export interface WorkflowSkill {
   owners: string[];
 }
 
-export type InputLinkMode = "linked" | "manual" | "bypass";
-
 /**
- * A task's data-flow dependency. Replaces the previous `WorkflowTrigger` /
- * `WorkflowGate` split: only the data-flow trigger types (`task`,
- * `after_task`) survived the redesign — they become `linked` inputs. The
- * remaining trigger/gate vocabulary was removed.
+ * A task's data-flow dependency. Every input is a reference to an upstream
+ * `playbook_outputs.id`; there are no manual/bypass modes at definition
+ * time. (Per-instance bypassing is still possible via the runtime
+ * `bypassInput` server action, which flips `task_inputs.received=true`
+ * with `received_from=null` — that's an instance state, not a definition.)
  *
- * `upstreamOutputId` is wired up by PR 2 (AEL-60) once `playbook_outputs`
- * exists; until then it is always `null` for `linked` inputs and unused
- * for `manual` / `bypass`.
+ * `upstreamTaskRef` carries the *task id* of the upstream producer when
+ * snapshotting into a template/instance, so the matrix wiring overlay can
+ * draw the right arrows without re-resolving from upstream_output_id.
  */
 export interface WorkflowInput {
   id: string;
-  name: string;
-  description?: string;
-  linkMode: InputLinkMode;
+  upstreamOutputId: string;
   upstreamTaskRef?: string;
-  upstreamOutputId?: string | null;
 }
 
 export interface WorkflowTaskTemplate {
@@ -156,6 +152,29 @@ export interface PlaybookOutput {
   apiCheck?: Record<string, unknown> | null;
   position: number;
   createdAt: string;
+}
+
+/**
+ * Definition-level input declared on a Playbook. Always a reference to an
+ * upstream output on *another* playbook — there is no free-form mode at
+ * the playbook level. Snapshotted into `workflow_tasks.inputs[].upstreamOutputId`
+ * when the playbook is attached to a template/instance.
+ *
+ * The repo hydrates display fields (`upstreamOutputName`, `upstreamPlaybookId`,
+ * `upstreamPlaybookName`, `upstreamOutputKind`) on read so the dock and
+ * drawer can render the "Playbook / Output" chip without joining a second
+ * time.
+ */
+export interface PlaybookInput {
+  id: string;
+  playbookId: string;
+  upstreamOutputId: string;
+  position: number;
+  createdAt: string;
+  upstreamOutputName: string;
+  upstreamOutputKind: PlaybookOutputKind | null;
+  upstreamPlaybookId: string;
+  upstreamPlaybookName: string;
 }
 
 /**
@@ -432,6 +451,39 @@ export interface WorkflowRepository {
   /** Count `task_outputs` rows referencing this output (used to surface
    *  cascade-delete impact in the confirm modal). */
   countTaskOutputsForPlaybookOutput(outputId: string): Promise<number>;
+  /** List declared inputs for a Playbook, sorted by `position` ascending.
+   *  Each row is hydrated with the upstream output's display fields
+   *  (`upstreamOutputName`, `upstreamOutputKind`, `upstreamPlaybookId`,
+   *  `upstreamPlaybookName`) so the dock can render the "Playbook /
+   *  Output" chip without a second join. */
+  listPlaybookInputs(playbookId: string): Promise<PlaybookInput[]>;
+  /** Wire a playbook to an upstream output of another playbook. If
+   *  `position` is omitted, the row is appended after the highest existing
+   *  position for the same playbook. Throws `WorkflowRepositoryError` with
+   *  `code: 'unique_upstream'` when the (playbook_id, upstream_output_id)
+   *  pair already exists. */
+  createPlaybookInput(input: {
+    playbookId: string;
+    upstreamOutputId: string;
+    position?: number;
+  }): Promise<PlaybookInput>;
+  deletePlaybookInput(id: string): Promise<void>;
+  /** Persist `position` for the given ids in declaration order. Tolerates
+   *  ids that no longer exist (e.g. deleted between fetch and reorder).
+   *  Uses per-row UPDATEs to avoid the NOT-NULL serialization bug that
+   *  bit reorderPlaybookOutputs (see PR #234 commit body). */
+  reorderPlaybookInputs(
+    playbookId: string,
+    orderedIds: string[],
+  ): Promise<void>;
+  /** Outputs grouped per playbook for every playbook *other than* the
+   *  given one. Drives the dock's input-wiring picker on the playbook edit
+   *  page (the user is wiring this playbook to outputs from other ones).
+   *  Outputs are sorted by `position` asc; playbooks with zero outputs are
+   *  omitted (nothing to wire to). */
+  listOutputGroupsForOtherPlaybooks(
+    currentPlaybookId: string,
+  ): Promise<TemplateOutputGroup[]>;
   pauseTask(
     taskId: string,
     reason: string,

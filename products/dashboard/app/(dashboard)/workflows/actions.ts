@@ -620,9 +620,7 @@ export async function startTaskAction(
   if (drawer.task.status === "complete" || drawer.task.status === "failed") {
     throw new Error("startTaskAction: task already terminal");
   }
-  const linkedDefIds = new Set(
-    drawer.task.inputs.filter((i) => i.linkMode === "linked").map((i) => i.id),
-  );
+  const linkedDefIds = new Set(drawer.task.inputs.map((i) => i.id));
   if (linkedDefIds.size > 0) {
     const receivedById = new Map(
       drawer.inputs.map((i) => [i.inputId, i.received]),
@@ -834,42 +832,33 @@ function normalizeTemplateSkills(
     .filter((skill) => skill.id && skill.label);
 }
 
-const MAX_INPUT_NAME_LENGTH = 80;
-const MAX_INPUT_DESCRIPTION_LENGTH = 240;
 const MAX_INPUT_REF_LENGTH = 120;
 
 function normalizeTemplateInputs(inputs: unknown): WorkflowInput[] {
   if (!Array.isArray(inputs)) return [];
   const seenIds = new Set<string>();
   const normalized: WorkflowInput[] = [];
-  for (const raw of inputs as WorkflowInput[]) {
+  for (const raw of inputs as Partial<WorkflowInput>[]) {
     if (!raw || typeof raw !== "object") continue;
     const id = normalizeTaskField(raw.id ?? "", "input.id", MAX_INPUT_REF_LENGTH);
     if (!id || seenIds.has(id)) continue;
-    seenIds.add(id);
-    const linkMode =
-      raw.linkMode === "manual" || raw.linkMode === "bypass" ? raw.linkMode : "linked";
-    const name =
-      normalizeTaskField(raw.name ?? "", "input.name", MAX_INPUT_NAME_LENGTH) || id;
-    const description =
-      typeof raw.description === "string" && raw.description.trim()
-        ? raw.description.trim().slice(0, MAX_INPUT_DESCRIPTION_LENGTH)
-        : undefined;
-    const upstreamTaskRef =
-      typeof raw.upstreamTaskRef === "string" && raw.upstreamTaskRef.trim()
-        ? raw.upstreamTaskRef.trim().slice(0, MAX_INPUT_REF_LENGTH)
-        : undefined;
     const upstreamOutputId =
       typeof raw.upstreamOutputId === "string" && raw.upstreamOutputId.trim()
         ? raw.upstreamOutputId.trim().slice(0, MAX_INPUT_REF_LENGTH)
         : null;
+    // Inputs must reference an upstream output. Rows without one are
+    // dropped here (defensive belt against legacy clients that still
+    // submit free-form rows).
+    if (!upstreamOutputId) continue;
+    seenIds.add(id);
+    const upstreamTaskRef =
+      typeof raw.upstreamTaskRef === "string" && raw.upstreamTaskRef.trim()
+        ? raw.upstreamTaskRef.trim().slice(0, MAX_INPUT_REF_LENGTH)
+        : undefined;
     normalized.push({
       id,
-      name,
-      description,
-      linkMode,
-      upstreamTaskRef,
       upstreamOutputId,
+      upstreamTaskRef,
     });
   }
   return normalized;

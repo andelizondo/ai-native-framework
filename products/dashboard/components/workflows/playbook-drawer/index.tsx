@@ -255,9 +255,7 @@ export function PlaybookDrawer({
   }
 
   const inputStates = drawerData.data?.inputs ?? [];
-  const linkedDefIds = activeTask.inputs
-    .filter((i) => i.linkMode === "linked")
-    .map((i) => i.id);
+  const linkedDefIds = activeTask.inputs.map((i) => i.id);
   const receivedById = new Map(inputStates.map((s) => [s.inputId, s.received]));
   const hasUnmetInputs = linkedDefIds.some((id) => receivedById.get(id) !== true);
 

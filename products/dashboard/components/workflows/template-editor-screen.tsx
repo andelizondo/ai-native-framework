@@ -41,7 +41,10 @@ import { useUnsavedChangesGuard } from "@/lib/use-unsaved-changes-guard";
 import { AddSkillModal } from "@/components/workflows/add-skill-modal";
 import { AddStageModal } from "@/components/workflows/add-stage-modal";
 import { AddPlaybookDrawer } from "@/components/workflows/add-playbook-drawer";
-import { listPlaybookOutputsAction } from "@/app/(dashboard)/framework/actions";
+import {
+  listPlaybookInputsAction,
+  listPlaybookOutputsAction,
+} from "@/app/(dashboard)/framework/actions";
 import { HeaderActionsMenu } from "@/components/workflows/header-actions-menu";
 import { ConfirmModal } from "@/components/ui/confirm-modal";
 import { InlineEditableText } from "@/components/ui/inline-editable-text";
@@ -1176,6 +1179,7 @@ export function TemplateEditorScreen({
           outputGroups={outputGroups}
           onRefetchOutputs={refetchOutputGroups}
           loadPlaybookOutputs={listPlaybookOutputsAction}
+          loadPlaybookInputs={listPlaybookInputsAction}
           onClose={() => setAddTaskFor(null)}
           onSubmit={(input) => {
             setDraft((current) => {

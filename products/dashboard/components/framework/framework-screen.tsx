@@ -46,7 +46,7 @@ import { CompactEmojiPicker } from "@/components/framework/compact-emoji-picker"
 import { FrameworkHeaderActionsMenu } from "@/components/framework/framework-header-actions-menu";
 import { FrameworkItemModal } from "@/components/framework/framework-item-modal";
 import { ItemAvatar } from "@/components/framework/item-avatar";
-import { PlaybookOutputsDock } from "@/components/framework/playbook-outputs-dock";
+import { PlaybookMetadataDock } from "@/components/framework/playbook-metadata-dock";
 import { ConfirmModal } from "@/components/ui/confirm-modal";
 import { InlineEditableText } from "@/components/ui/inline-editable-text";
 import { useAnalytics } from "@/lib/analytics/events";
@@ -748,13 +748,13 @@ export function FrameworkScreen({
                   <button
                     type="button"
                     onClick={() => setOutputsMobileOpen(true)}
-                    aria-label="Open outputs panel"
-                    title="Outputs"
+                    aria-label="Open metadata panel"
+                    title="Metadata"
                     data-testid="framework-outputs-toggle"
                     className="flex h-8 items-center gap-1.5 rounded-md border border-border bg-bg px-2.5 text-[12px] font-medium text-t2 transition hover:bg-bg-3 hover:text-t1 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent lg:hidden"
                   >
                     <PanelRight className="h-3.5 w-3.5" />
-                    Outputs
+                    Metadata
                   </button>
                 ) : null}
                 <div
@@ -972,8 +972,9 @@ export function FrameworkScreen({
             </div>
             </div>
             {type === "playbook" ? (
-              <PlaybookOutputsDock
+              <PlaybookMetadataDock
                 playbookId={draftItem.id}
+                playbooks={typedItems}
                 mobileOpen={outputsMobileOpen}
                 onMobileClose={() => setOutputsMobileOpen(false)}
               />

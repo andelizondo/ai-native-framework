@@ -73,7 +73,10 @@ import type {
   WorkflowTaskStatus,
   WorkflowTemplate,
 } from "@/lib/workflows/types";
-import { listPlaybookOutputsAction } from "@/app/(dashboard)/framework/actions";
+import {
+  listPlaybookInputsAction,
+  listPlaybookOutputsAction,
+} from "@/app/(dashboard)/framework/actions";
 import {
   TASK_STATUS_LABEL,
   TASK_STATUS_PILL_CLASS,
@@ -1244,6 +1247,7 @@ export function ProcessMatrix({
             })}
           outputGroups={outputGroups}
           loadPlaybookOutputs={listPlaybookOutputsAction}
+          loadPlaybookInputs={listPlaybookInputsAction}
           onClose={() => setAddTaskFor(null)}
           onSubmit={(input) => {
             const target = addTaskFor;

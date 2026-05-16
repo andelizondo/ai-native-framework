@@ -9,10 +9,7 @@ import type {
 } from "@/lib/workflows/types";
 
 function linked(id: string): WorkflowInput {
-  return { id, name: id, linkMode: "linked" };
-}
-function manual(id: string): WorkflowInput {
-  return { id, name: id, linkMode: "manual" };
+  return { id, upstreamOutputId: `out-${id}` };
 }
 function inputState(inputId: string, received: boolean): TaskInputState {
   return { id: `ti-${inputId}`, taskId: "t-1", inputId, received };
@@ -100,19 +97,10 @@ describe("deriveStatus", () => {
   it("waiting when any linked input is unreceived", () => {
     expect(
       call({
-        inputDefs: [linked("a"), linked("b"), manual("c")],
+        inputDefs: [linked("a"), linked("b")],
         inputs: [inputState("a", true), inputState("b", false)],
       }),
     ).toBe("waiting");
-  });
-
-  it("manual inputs do not gate readiness", () => {
-    expect(
-      call({
-        inputDefs: [manual("c")],
-        inputs: [inputState("c", false)],
-      }),
-    ).toBe("not_started");
   });
 
   it("not_started when nothing else matches", () => {

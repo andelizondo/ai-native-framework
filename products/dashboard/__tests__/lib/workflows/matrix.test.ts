@@ -31,10 +31,8 @@ function task(
 function linked(ref: string | undefined, name = "linked"): WorkflowInput {
   return {
     id: `linked:${ref ?? name}`,
-    name,
-    linkMode: "linked",
+    upstreamOutputId: `out-${ref ?? name}`,
     upstreamTaskRef: ref,
-    upstreamOutputId: null,
   };
 }
 
@@ -44,13 +42,8 @@ describe("canStart", () => {
     expect(canStart(a, [a])).toBe(true);
   });
 
-  it("returns true when there are no linked inputs", () => {
-    const t = task("t", {
-      inputs: [
-        { id: "m-1", name: "Manual", linkMode: "manual" },
-        { id: "b-1", name: "Bypass", linkMode: "bypass" },
-      ],
-    });
+  it("returns true when there are no inputs", () => {
+    const t = task("t", { inputs: [] });
     expect(canStart(t, [t])).toBe(true);
   });
 
@@ -61,17 +54,6 @@ describe("canStart", () => {
 
     const completed = { ...upstream, status: "complete" as const };
     expect(canStart(downstream, [completed, downstream])).toBe(true);
-  });
-
-  it("manual inputs never block even when listed alongside linked ones", () => {
-    const upstream = task("up", { playbookId: "p", status: "complete" });
-    const t = task("t", {
-      inputs: [
-        linked("p"),
-        { id: "m", name: "Marketing approval", linkMode: "manual" },
-      ],
-    });
-    expect(canStart(t, [upstream, t])).toBe(true);
   });
 
   it("falls back to matching by task id when ref is the upstream's id", () => {

@@ -113,8 +113,6 @@ describe("AddPlaybookDrawer — inputs editor", () => {
     const submitted = onSubmit.mock.calls[0][0] as { inputs: WorkflowInput[] };
     expect(submitted.inputs).toHaveLength(1);
     expect(submitted.inputs[0]).toMatchObject({
-      name: "Presales / report",
-      linkMode: "linked",
       upstreamOutputId: "po-1",
       upstreamTaskRef: "task-a",
     });
@@ -125,8 +123,6 @@ describe("AddPlaybookDrawer — inputs editor", () => {
     const wired: WorkflowInput[] = [
       {
         id: "in-1",
-        name: "Presales / report",
-        linkMode: "linked",
         upstreamTaskRef: "task-a",
         upstreamOutputId: "po-1",
       },
@@ -152,8 +148,6 @@ describe("AddPlaybookDrawer — inputs editor", () => {
     const wired: WorkflowInput[] = [
       {
         id: "in-1",
-        name: "Presales / report",
-        linkMode: "linked",
         upstreamTaskRef: "task-a",
         upstreamOutputId: "po-1",
       },

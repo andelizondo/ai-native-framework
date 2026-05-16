@@ -107,10 +107,7 @@ function makeTask(status: WorkflowTaskStatus, overrides: Partial<WorkflowTask> =
     status,
     substatus: "",
     checkpoint: false,
-    inputs: [
-      { id: "in-1", name: "Discovery brief", linkMode: "linked" },
-      { id: "in-2", name: "Notes", linkMode: "manual" },
-    ],
+    inputs: [{ id: "in-1", upstreamOutputId: "out-brief" }],
     outputs: [],
     playbookId: "pb-1",
     owners: ["Andres"],
