@@ -335,18 +335,40 @@ export function TemplateEditorScreen({
   const [dragTaskId, setDragTaskId] = useState<string | null>(null);
   const [hoveredTaskId, setHoveredTaskId] = useState<string | null>(null);
   const matrixRef = useRef<HTMLDivElement | null>(null);
-  // Per-task "promoted" flag for compact cards in multi-card cells —
-  // mirrors the instance matrix' behavior so a clicked compact card
-  // expands to full in-place. Reset only when the user reloads the
-  // template; survives normal draft edits.
-  const [promotedTaskIds, setPromotedTaskIds] = useState<Set<string>>(
+  // Per-task expand / collapse overrides — mirrors the instance matrix.
+  // Default sizing is "compact when cell has 2+ tasks, full otherwise";
+  // either set overrides that default for the listed task ids. The two
+  // sets stay mutually exclusive (adding to one removes from the other).
+  // Reset only when the user reloads the template; survives draft edits.
+  const [expandedTaskIds, setExpandedTaskIds] = useState<Set<string>>(
     () => new Set(),
   );
-  const togglePromoted = useCallback((taskId: string) => {
-    setPromotedTaskIds((prev) => {
+  const [collapsedTaskIds, setCollapsedTaskIds] = useState<Set<string>>(
+    () => new Set(),
+  );
+  const expandTask = useCallback((taskId: string) => {
+    setExpandedTaskIds((prev) => {
       const next = new Set(prev);
-      if (next.has(taskId)) next.delete(taskId);
-      else next.add(taskId);
+      next.add(taskId);
+      return next;
+    });
+    setCollapsedTaskIds((prev) => {
+      if (!prev.has(taskId)) return prev;
+      const next = new Set(prev);
+      next.delete(taskId);
+      return next;
+    });
+  }, []);
+  const collapseTask = useCallback((taskId: string) => {
+    setCollapsedTaskIds((prev) => {
+      const next = new Set(prev);
+      next.add(taskId);
+      return next;
+    });
+    setExpandedTaskIds((prev) => {
+      if (!prev.has(taskId)) return prev;
+      const next = new Set(prev);
+      next.delete(taskId);
       return next;
     });
   }, []);
@@ -945,7 +967,8 @@ export function TemplateEditorScreen({
                             : null;
                           const taskId = templateTask.id ?? task.id;
                           const renderCompact =
-                            multiCard && !promotedTaskIds.has(taskId);
+                            collapsedTaskIds.has(taskId) ||
+                            (!expandedTaskIds.has(taskId) && multiCard);
                           return (
                             <DraggableTemplateTask
                               key={taskId}
@@ -983,7 +1006,7 @@ export function TemplateEditorScreen({
                                 }}
                                 onClick={
                                   renderCompact
-                                    ? () => togglePromoted(taskId)
+                                    ? () => expandTask(taskId)
                                     : () =>
                                         setAddTaskFor({
                                           mode: "edit",
@@ -1018,11 +1041,9 @@ export function TemplateEditorScreen({
                                   })
                                 }
                                 onDemote={
-                                  !renderCompact &&
-                                  multiCard &&
-                                  promotedTaskIds.has(taskId)
-                                    ? () => togglePromoted(taskId)
-                                    : undefined
+                                  renderCompact
+                                    ? undefined
+                                    : () => collapseTask(taskId)
                                 }
                               />
                             </DraggableTemplateTask>

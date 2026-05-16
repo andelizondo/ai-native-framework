@@ -208,22 +208,6 @@ export function TaskCard({
               {infoBadgeNodes}
             </div>
           ) : null}
-          {showActions && onRemove ? (
-            <div className="tc-compact-actions mx-entity-actions mx-entity-actions-group">
-              <button
-                type="button"
-                className="mx-entity-action mx-entity-action-danger"
-                aria-label={`Remove playbook: ${title}`}
-                title={`Delete ${title}`}
-                onClick={(event) => {
-                  event.stopPropagation();
-                  onRemove();
-                }}
-              >
-                <Trash2 aria-hidden size={11} strokeWidth={2.1} />
-              </button>
-            </div>
-          ) : null}
         </>
       ) : (
         <FullTaskCardBody

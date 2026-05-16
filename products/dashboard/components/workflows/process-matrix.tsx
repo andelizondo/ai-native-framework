@@ -178,20 +178,42 @@ export function ProcessMatrix({
   const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null);
   const [dragTaskId, setDragTaskId] = useState<string | null>(null);
   const [hoveredTaskId, setHoveredTaskId] = useState<string | null>(null);
-  // Per-task "promoted" flag for compact cards in multi-card cells. When a
-  // user clicks a compact card it expands to the full TaskCard in-place;
-  // clicking the demote affordance on the full card collapses it back.
-  // Multiple cards in the same cell can be promoted simultaneously — the
-  // row simply grows. Not persisted: an instance reload resets the view
-  // to the "compact-when-2+" default.
-  const [promotedTaskIds, setPromotedTaskIds] = useState<Set<string>>(
+  // Per-task expand / collapse overrides. The default sizing rule is
+  // "compact when the cell has 2+ tasks, full otherwise" — but the user
+  // can collapse a single-card cell to free vertical space, or expand a
+  // multi-card cell's compact siblings to inspect them. The two sets are
+  // mutually exclusive (adding to one removes from the other) so the
+  // toggle handlers stay symmetric. Not persisted: an instance reload
+  // resets the view to the default rule.
+  const [expandedTaskIds, setExpandedTaskIds] = useState<Set<string>>(
     () => new Set(),
   );
-  const togglePromoted = useCallback((taskId: string) => {
-    setPromotedTaskIds((prev) => {
+  const [collapsedTaskIds, setCollapsedTaskIds] = useState<Set<string>>(
+    () => new Set(),
+  );
+  const expandTask = useCallback((taskId: string) => {
+    setExpandedTaskIds((prev) => {
       const next = new Set(prev);
-      if (next.has(taskId)) next.delete(taskId);
-      else next.add(taskId);
+      next.add(taskId);
+      return next;
+    });
+    setCollapsedTaskIds((prev) => {
+      if (!prev.has(taskId)) return prev;
+      const next = new Set(prev);
+      next.delete(taskId);
+      return next;
+    });
+  }, []);
+  const collapseTask = useCallback((taskId: string) => {
+    setCollapsedTaskIds((prev) => {
+      const next = new Set(prev);
+      next.add(taskId);
+      return next;
+    });
+    setExpandedTaskIds((prev) => {
+      if (!prev.has(taskId)) return prev;
+      const next = new Set(prev);
+      next.delete(taskId);
       return next;
     });
   }, []);
@@ -1033,7 +1055,8 @@ export function ProcessMatrix({
                                   ? playbookById.get(task.playbookId) ?? null
                                   : null;
                                 const renderCompact =
-                                  multiCard && !promotedTaskIds.has(task.id);
+                                  collapsedTaskIds.has(task.id) ||
+                                  (!expandedTaskIds.has(task.id) && multiCard);
                                 return (
                                   <DraggableTaskCard
                                     key={task.id}
@@ -1061,7 +1084,7 @@ export function ProcessMatrix({
                                       variant={renderCompact ? "compact" : "full"}
                                       onClick={
                                         renderCompact
-                                          ? () => togglePromoted(task.id)
+                                          ? () => expandTask(task.id)
                                           : editMode
                                             ? () =>
                                                 setAddTaskFor({
@@ -1094,11 +1117,9 @@ export function ProcessMatrix({
                                           : undefined
                                       }
                                       onDemote={
-                                        !renderCompact &&
-                                        multiCard &&
-                                        promotedTaskIds.has(task.id)
-                                          ? () => togglePromoted(task.id)
-                                          : undefined
+                                        renderCompact
+                                          ? undefined
+                                          : () => collapseTask(task.id)
                                       }
                                     />
                                   </DraggableTaskCard>

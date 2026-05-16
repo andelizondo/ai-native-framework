@@ -806,16 +806,6 @@
 .tc-compact-status {
   flex-shrink: 0;
 }
-.tc-compact-actions {
-  flex-shrink: 0;
-  margin-left: -4px;
-  opacity: 0;
-  transition: opacity 0.15s;
-}
-.task-card.task-card-compact:hover .tc-compact-actions,
-.task-card.task-card-compact:focus-within .tc-compact-actions {
-  opacity: 1;
-}
 /* Info badges in compact mode — replace the status pill spot when the
  * task has any note / checkpoint / failure / completion signal. Slightly
  * smaller chips (18px instead of 22px) so a row of 2–3 badges still
