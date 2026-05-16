@@ -276,7 +276,7 @@ describe("ProcessMatrix", () => {
     expect(within(cell).getByTestId("task-mini-k-1")).toBeInTheDocument();
   });
 
-  it("collapses an individual skill row and renders mini cells across the row", async () => {
+  it("collapses an individual skill row to compact cards, keeping the skill name visible", async () => {
     const inst = instance([
       task({ id: "k-1", skillId: "sales-ops", stageId: "pre-sales", status: "in_progress" }),
       task({ id: "k-2", skillId: "sales-ops", stageId: "validation", status: "complete" }),
@@ -292,12 +292,22 @@ describe("ProcessMatrix", () => {
 
     const row = screen.getByTestId("matrix-skill-row-sales-ops");
     expect(row).toHaveAttribute("data-collapsed", "true");
+    // Per-row collapse keeps the skill name visible (only the owners
+    // line is suppressed) so the row header still reads at a glance.
     expect(
-      screen.queryByTestId("matrix-skill-label-sales-ops"),
-    ).not.toBeInTheDocument();
-    expect(screen.getByTestId("task-mini-k-1")).toBeInTheDocument();
+      screen.getByTestId("matrix-skill-label-sales-ops"),
+    ).toBeInTheDocument();
+    // Single-task cell in a normal-width column swaps from the bare-
+    // avatar mini stack to a compact TaskCard with the playbook name —
+    // the collapsed row stays scannable without expanding it.
+    const cardK1 = screen.getByTestId("task-card-k-1");
+    expect(cardK1).toBeInTheDocument();
+    expect(cardK1).toHaveAttribute("data-variant", "compact");
+    // k-2 sits in the `validation` column, which the active-flow seed
+    // auto-collapses (no active task lives there), so the cell is
+    // narrow and the bare-avatar mini stack stays the right rendering.
     expect(screen.getByTestId("task-mini-k-2")).toBeInTheDocument();
-    // Other rows remain expanded.
+    // Other rows are unaffected by toggling sales-ops.
     expect(screen.getByTestId("task-card-k-3")).toBeInTheDocument();
   });
 
