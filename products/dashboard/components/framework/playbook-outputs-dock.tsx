@@ -1,7 +1,7 @@
 "use client";
 
-import { useCallback, useEffect, useId, useMemo, useRef, useState, useTransition } from "react";
-import { ChevronDown, GripVertical, Plus, Trash2 } from "lucide-react";
+import { useCallback, useEffect, useMemo, useRef, useState, useTransition } from "react";
+import { ChevronDown, ChevronRight, GripVertical, Plus, Save, Trash2, Undo2, X } from "lucide-react";
 import {
   DndContext,
   KeyboardSensor,
@@ -32,50 +32,49 @@ import { ConfirmModal } from "@/components/ui/confirm-modal";
 import { InlineEditableText } from "@/components/ui/inline-editable-text";
 import { ItemAvatar } from "@/components/framework/item-avatar";
 import { useToast } from "@/lib/toast";
+import { OUTPUT_KIND_AVATAR, outputKindAvatar } from "@/lib/workflows/output-kind";
 import type { PlaybookOutput, PlaybookOutputKind } from "@/lib/workflows/types";
 import { cn } from "@/lib/utils";
 
-/** Visual encoding per output kind: emoji + ring color the picker uses
- *  in place of a text dropdown. Mirrors the drawer's avatar palette so
- *  the same kind reads the same way across both surfaces. */
-const KIND_OPTIONS: ReadonlyArray<{
+/** Picker options. Colors + emoji come from the shared palette
+ *  (`OUTPUT_KIND_AVATAR`) so the dock matches the workflow drawer's
+ *  avatar treatment one-to-one. Labels are dock-local. */
+const KIND_PICKER_OPTIONS: ReadonlyArray<{
   value: PlaybookOutputKind;
   label: string;
-  emoji: string;
-  color: string;
 }> = [
-  { value: "file", label: "File", emoji: "📎", color: "var(--pill-active-d)" },
-  { value: "media", label: "Media", emoji: "🎬", color: "var(--pill-active-d)" },
-  { value: "link", label: "Link", emoji: "🔗", color: "var(--pill-active-d)" },
-  { value: "api", label: "API", emoji: "🔌", color: "var(--pill-complete-d)" },
-  { value: "manual", label: "Manual", emoji: "✏️", color: "var(--t3)" },
+  { value: "file", label: "File" },
+  { value: "media", label: "Media" },
+  { value: "link", label: "Link" },
+  { value: "api", label: "API" },
+  { value: "manual", label: "Manual" },
 ];
 
-function kindOption(kind: PlaybookOutputKind) {
-  return KIND_OPTIONS.find((opt) => opt.value === kind) ?? KIND_OPTIONS[0];
+function kindLabel(kind: PlaybookOutputKind): string {
+  return KIND_PICKER_OPTIONS.find((opt) => opt.value === kind)?.label ?? "Manual";
 }
 
 const NAME_MAX = 80;
 
 interface DraftRow {
-  /** Stable client id; equals the server id once persisted. */
   id: string;
-  /** True until the row has been persisted (post-create). New rows live in
-   *  client-only state so the user can fill in name/kind before the first
-   *  server round-trip. */
   isPending: boolean;
   name: string;
   description: string;
   kind: PlaybookOutputKind;
   apiCheck: string;
-  /** Server-side persisted snapshot, used to detect dirty state and surface
-   *  unique-name errors only after a real change. */
   saved: PlaybookOutput | null;
 }
 
-interface PlaybookOutputsEditorProps {
+export interface PlaybookOutputsDockProps {
   playbookId: string;
   initialOutputs?: PlaybookOutput[];
+  /** When true on `<lg` screens, the dock slides in as an overlay drawer.
+   *  At `lg+` the dock is always rendered as a persistent right column and
+   *  this prop is ignored. */
+  mobileOpen?: boolean;
+  /** Backdrop click / Escape handler for the mobile overlay. */
+  onMobileClose?: () => void;
 }
 
 function fromServer(output: PlaybookOutput): DraftRow {
@@ -110,7 +109,9 @@ function isDirty(row: DraftRow): boolean {
   );
 }
 
-function parseApiCheck(value: string): { ok: true; value: Record<string, unknown> | null } | { ok: false; error: string } {
+function parseApiCheck(
+  value: string,
+): { ok: true; value: Record<string, unknown> | null } | { ok: false; error: string } {
   const trimmed = value.trim();
   if (!trimmed) return { ok: true, value: null };
   try {
@@ -136,11 +137,12 @@ function isUniqueNameConflict(
   );
 }
 
-export function PlaybookOutputsEditor({
+export function PlaybookOutputsDock({
   playbookId,
   initialOutputs,
-}: PlaybookOutputsEditorProps) {
-  const headingId = useId();
+  mobileOpen = false,
+  onMobileClose,
+}: PlaybookOutputsDockProps) {
   const { success: toastSuccess, error: toastError } = useToast();
   const [rows, setRows] = useState<DraftRow[]>(
     () => (initialOutputs ?? []).map(fromServer),
@@ -148,9 +150,9 @@ export function PlaybookOutputsEditor({
   const [loaded, setLoaded] = useState(initialOutputs !== undefined);
   const [rowErrors, setRowErrors] = useState<Record<string, string | undefined>>({});
   const [savingIds, setSavingIds] = useState<Set<string>>(new Set());
+  const [collapsed, setCollapsed] = useState(false);
   const [, startTransition] = useTransition();
 
-  // Confirm-delete state
   const [pendingDelete, setPendingDelete] = useState<{
     id: string;
     isPending: boolean;
@@ -170,15 +172,23 @@ export function PlaybookOutputsEditor({
       })
       .catch((err) => {
         if (!active) return;
-        toastError(
-          err instanceof Error ? err.message : "Could not load outputs",
-        );
+        toastError(err instanceof Error ? err.message : "Could not load outputs");
         setLoaded(true);
       });
     return () => {
       active = false;
     };
   }, [playbookId, initialOutputs, toastError]);
+
+  // Close mobile overlay on Escape.
+  useEffect(() => {
+    if (!mobileOpen || !onMobileClose) return;
+    function handleKey(event: KeyboardEvent) {
+      if (event.key === "Escape") onMobileClose?.();
+    }
+    document.addEventListener("keydown", handleKey);
+    return () => document.removeEventListener("keydown", handleKey);
+  }, [mobileOpen, onMobileClose]);
 
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 4 } }),
@@ -187,14 +197,11 @@ export function PlaybookOutputsEditor({
 
   const sortableIds = useMemo(() => rows.map((r) => r.id), [rows]);
 
-  const setRow = useCallback(
-    (id: string, patch: Partial<DraftRow>) => {
-      setRows((current) =>
-        current.map((row) => (row.id === id ? { ...row, ...patch } : row)),
-      );
-    },
-    [],
-  );
+  const setRow = useCallback((id: string, patch: Partial<DraftRow>) => {
+    setRows((current) =>
+      current.map((row) => (row.id === id ? { ...row, ...patch } : row)),
+    );
+  }, []);
 
   const setRowError = useCallback((id: string, message: string | undefined) => {
     setRowErrors((current) => {
@@ -229,6 +236,8 @@ export function PlaybookOutputsEditor({
         saved: null,
       },
     ]);
+    // Auto-expand when adding so the new row is visible.
+    setCollapsed(false);
   }, []);
 
   const handleSaveRow = useCallback(
@@ -253,10 +262,6 @@ export function PlaybookOutputsEditor({
       if (!parsedApi.ok) {
         setRowError(id, parsedApi.error);
         return;
-      }
-      if (row.kind === "api" && !parsedApi.value) {
-        // Allowed — api_check is optional even for api kind. Keep behavior
-        // permissive and let the founder fill it in later.
       }
 
       setRowError(id, undefined);
@@ -306,7 +311,6 @@ export function PlaybookOutputsEditor({
       const row = rows.find((r) => r.id === id);
       if (!row) return;
       if (row.isPending) {
-        // Pending rows have no server state — drop locally.
         setRows((current) => current.filter((r) => r.id !== id));
         setRowError(id, undefined);
         return;
@@ -323,7 +327,6 @@ export function PlaybookOutputsEditor({
           current && current.id === id ? { ...current, impactCount: count } : current,
         );
       } catch {
-        // Non-fatal — show confirm without the count.
         setPendingDelete((current) =>
           current && current.id === id ? { ...current, impactCount: 0 } : current,
         );
@@ -368,7 +371,6 @@ export function PlaybookOutputsEditor({
 
       startTransition(() => {
         reorderPlaybookOutputsAction(playbookId, persistedIds).catch((err) => {
-          // Roll back on failure so the UI matches the database.
           setRows(previous);
           toastError(err instanceof Error ? err.message : "Reorder failed");
         });
@@ -377,93 +379,147 @@ export function PlaybookOutputsEditor({
     [rows, playbookId, toastError],
   );
 
-  return (
-    <section
-      data-testid="playbook-outputs-editor"
-      aria-labelledby={headingId}
-      className="mt-10 border-t border-border pt-7"
-    >
-      <h2
-        id={headingId}
-        className="mb-4 text-[15px] font-semibold tracking-[-0.01em] text-t1"
-      >
-        Outputs
-      </h2>
+  const total = rows.length;
 
-      {!loaded ? (
-        <ul
-          aria-label="Loading outputs"
-          data-testid="playbook-outputs-skeleton"
-          className="flex flex-col gap-2.5"
-        >
-          {Array.from({ length: 3 }, (_, i) => (
-            <li
-              key={i}
-              className="animate-pulse rounded-md border border-border bg-bg p-3"
+  return (
+    <>
+      <div
+        className={cn(
+          "fixed inset-0 z-40 bg-[var(--overlay)] backdrop-blur-[2px] transition-opacity duration-200 lg:hidden",
+          mobileOpen ? "opacity-100" : "pointer-events-none opacity-0",
+        )}
+        aria-hidden
+        onClick={onMobileClose}
+      />
+      <aside
+        data-testid="playbook-outputs-editor"
+        aria-label="Playbook outputs"
+        className={cn(
+          "fixed inset-y-0 right-0 z-50 flex w-[92vw] max-w-[460px] flex-col border-l border-border bg-bg shadow-[var(--shadow-canvas)] transition-transform duration-300 ease-[cubic-bezier(0.4,0,0.2,1)]",
+          mobileOpen ? "translate-x-0" : "translate-x-full",
+          "lg:static lg:z-auto lg:w-[420px] lg:shrink-0 lg:translate-x-0 lg:shadow-none lg:transition-none",
+        )}
+      >
+        <header className="flex shrink-0 items-center justify-between gap-2 border-b border-border bg-bg px-4 py-3">
+          <div className="flex h-8 items-center">
+            <p className="text-[13px] font-semibold tracking-tight text-t1">
+              Metadata
+            </p>
+          </div>
+          {onMobileClose ? (
+            <button
+              type="button"
+              onClick={onMobileClose}
+              aria-label="Close outputs panel"
+              className="inline-flex h-7 w-7 items-center justify-center rounded-md text-t3 transition hover:bg-bg-2 hover:text-t1 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent lg:hidden"
             >
-              <div className="flex items-start gap-2">
-                <div className="mt-1 h-7 w-6 rounded bg-bg-2" />
-                <div className="min-w-0 flex-1 space-y-2">
-                  <div className="flex items-center gap-2">
-                    <div className="h-3 flex-1 rounded bg-bg-2" />
-                    <div className="h-3 w-14 rounded bg-bg-2" />
-                  </div>
-                  <div className="h-2.5 w-3/4 rounded bg-bg-2" />
-                </div>
-              </div>
-            </li>
-          ))}
-        </ul>
-      ) : (
-        <div className="flex flex-col gap-2.5">
-          {rows.length > 0 ? (
-            <DndContext
-              sensors={sensors}
-              collisionDetection={closestCenter}
-              onDragEnd={handleDragEnd}
-            >
-              <SortableContext
-                items={sortableIds}
-                strategy={verticalListSortingStrategy}
+              <X className="h-3.5 w-3.5" />
+            </button>
+          ) : null}
+        </header>
+
+        <div className="min-h-0 flex-1 overflow-y-auto px-4 py-4">
+          <section
+            className={cn("pb-drawer-sec", "pb-drawer-outputs")}
+            data-collapsed={collapsed}
+          >
+            <div className="pb-drawer-sec__head">
+              <button
+                type="button"
+                className="pb-drawer-sec__toggle"
+                onClick={() => setCollapsed((prev) => !prev)}
+                aria-expanded={!collapsed}
               >
-                <ul className="flex flex-col gap-2.5">
-                  {rows.map((row) => (
-                    <SortableOutputRow
-                      key={row.id}
-                      row={row}
-                      error={rowErrors[row.id]}
-                      saving={savingIds.has(row.id)}
-                      dirty={isDirty(row)}
-                      onChange={(patch) => setRow(row.id, patch)}
-                      onSave={() => handleSaveRow(row.id)}
-                      onDelete={() => openDeleteConfirm(row.id)}
-                      onDiscard={() => {
-                        if (row.saved) {
-                          setRows((current) =>
-                            current.map((r) =>
-                              r.id === row.id ? fromServer(row.saved!) : r,
-                            ),
-                          );
-                        }
-                        setRowError(row.id, undefined);
-                      }}
-                    />
+                <ChevronRight
+                  size={12}
+                  className={cn(
+                    "pb-drawer-sec__chev",
+                    !collapsed && "pb-drawer-sec__chev--open",
+                  )}
+                  aria-hidden
+                />
+                <span className="pb-drawer-sec__lbl">
+                  Outputs <span className="pb-drawer-sec__count">{total}</span>
+                </span>
+              </button>
+            </div>
+
+            {!collapsed ? (
+              !loaded ? (
+                <ul
+                  aria-label="Loading outputs"
+                  data-testid="playbook-outputs-skeleton"
+                  className="mt-2 flex flex-col gap-2"
+                >
+                  {Array.from({ length: 3 }, (_, i) => (
+                    <li
+                      key={i}
+                      className="animate-pulse rounded-lg border border-border bg-bg-3 p-2.5"
+                    >
+                      <div className="flex items-center gap-2">
+                        <div className="h-6 w-6 shrink-0 rounded-full bg-bg-4" />
+                        <div className="min-w-0 flex-1 space-y-1.5">
+                          <div className="h-2.5 w-2/3 rounded bg-bg-4" />
+                          <div className="h-2 w-1/2 rounded bg-bg-4" />
+                        </div>
+                      </div>
+                    </li>
                   ))}
                 </ul>
-              </SortableContext>
-            </DndContext>
-          ) : null}
-          <button
-            type="button"
-            onClick={handleAdd}
-            data-testid="playbook-outputs-add"
-            className="group/add inline-flex items-center justify-center gap-1.5 rounded-md border border-dashed border-border bg-transparent px-4 py-3 text-[12px] font-medium text-t3 transition hover:border-border-hi hover:bg-bg-2 hover:text-t1 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
-          >
-            <Plus className="h-3.5 w-3.5 transition group-hover/add:text-accent" />
-            Add output
-          </button>
+              ) : (
+                <>
+                  {rows.length > 0 ? (
+                    <DndContext
+                      sensors={sensors}
+                      collisionDetection={closestCenter}
+                      onDragEnd={handleDragEnd}
+                    >
+                      <SortableContext
+                        items={sortableIds}
+                        strategy={verticalListSortingStrategy}
+                      >
+                        <ul className="mt-2 flex flex-col gap-2">
+                          {rows.map((row) => (
+                            <SortableOutputRow
+                              key={row.id}
+                              row={row}
+                              error={rowErrors[row.id]}
+                              saving={savingIds.has(row.id)}
+                              dirty={isDirty(row)}
+                              onChange={(patch) => setRow(row.id, patch)}
+                              onSave={() => handleSaveRow(row.id)}
+                              onDelete={() => openDeleteConfirm(row.id)}
+                              onDiscard={() => {
+                                if (row.saved) {
+                                  setRows((current) =>
+                                    current.map((r) =>
+                                      r.id === row.id ? fromServer(row.saved!) : r,
+                                    ),
+                                  );
+                                }
+                                setRowError(row.id, undefined);
+                              }}
+                            />
+                          ))}
+                        </ul>
+                      </SortableContext>
+                    </DndContext>
+                  ) : null}
+                  <button
+                    type="button"
+                    onClick={handleAdd}
+                    data-testid="playbook-outputs-add"
+                    className="mt-2 flex w-full items-center justify-center gap-1.5 rounded-lg border border-dashed border-border bg-transparent px-3 py-2.5 text-[12px] font-medium text-t3 transition hover:border-border-hi hover:bg-bg-2 hover:text-t1 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
+                  >
+                    <Plus className="h-3.5 w-3.5" aria-hidden />
+                    Add output
+                  </button>
+                </>
+              )
+            ) : null}
+          </section>
         </div>
-      )}
+      </aside>
 
       {pendingDelete ? (
         <ConfirmModal
@@ -471,7 +527,9 @@ export function PlaybookOutputsEditor({
           description={
             <div className="space-y-2">
               <p>
-                This will permanently delete <span className="font-medium text-t1">{pendingDelete.name}</span> from this playbook&rsquo;s definition.
+                This will permanently delete{" "}
+                <span className="font-medium text-t1">{pendingDelete.name}</span>{" "}
+                from this playbook&rsquo;s definition.
               </p>
               <p className="text-t3">
                 Tasks already created from this playbook keep their own copy of
@@ -481,9 +539,13 @@ export function PlaybookOutputsEditor({
                 <p className="text-t3">Checking impact…</p>
               ) : pendingDelete.impactCount > 0 ? (
                 <p data-testid="playbook-outputs-delete-impact" className="text-t2">
-                  {pendingDelete.impactCount} produced task output {pendingDelete.impactCount === 1 ? "row" : "rows"} will keep its history.
+                  {pendingDelete.impactCount} produced task output{" "}
+                  {pendingDelete.impactCount === 1 ? "row" : "rows"} will keep its
+                  history.
                 </p>
-              ) : null}
+              ) : (
+                <p className="text-t3">Not referenced by any task yet.</p>
+              )}
             </div>
           }
           confirmLabel="Delete"
@@ -492,7 +554,7 @@ export function PlaybookOutputsEditor({
           onCancel={() => setPendingDelete(null)}
         />
       ) : null}
-    </section>
+    </>
   );
 }
 
@@ -535,6 +597,7 @@ function SortableOutputRow({
 
   const showApiCheck = row.kind === "api";
   const canDiscard = !row.isPending && dirty;
+  const showActions = dirty || row.isPending;
 
   return (
     <li
@@ -542,12 +605,12 @@ function SortableOutputRow({
       data-testid={`playbook-output-row-${row.id}`}
       style={style}
       className={cn(
-        "rounded-md border border-border bg-bg px-3 py-2.5 transition-colors",
-        dirty && "border-border-hi bg-bg-2/60",
+        "group/output rounded-lg border border-border bg-bg-3 px-2.5 py-2 transition-colors hover:border-border-hi",
+        dirty && "border-border-hi bg-bg-4",
         isDragging && "shadow-lg",
       )}
     >
-      <div className="flex items-center gap-3">
+      <div className="flex items-center gap-2">
         <button
           type="button"
           ref={setActivatorNodeRef as unknown as React.Ref<HTMLButtonElement>}
@@ -555,9 +618,9 @@ function SortableOutputRow({
           data-testid={`playbook-output-drag-${row.id}`}
           {...(attributes as unknown as Record<string, unknown>)}
           {...(listeners as unknown as Record<string, unknown>)}
-          className="flex h-7 w-5 cursor-grab items-center justify-center rounded text-t3 hover:bg-bg-3 hover:text-t2 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
+          className="flex h-6 w-4 shrink-0 cursor-grab items-center justify-center rounded text-t3/70 transition hover:text-t2 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
         >
-          <GripVertical className="h-4 w-4" />
+          <GripVertical className="h-3.5 w-3.5" />
         </button>
 
         <KindAvatarPicker
@@ -573,23 +636,23 @@ function SortableOutputRow({
             ariaLabel="Output name"
             placeholder="Output name"
             maxLength={NAME_MAX}
-            className="block text-[14px] font-semibold tracking-tight text-t1"
+            className="block w-full text-[13px] font-semibold tracking-tight text-t1"
           />
           <InlineEditableText
             value={row.description}
             onChange={(next) => onChange({ description: next })}
             ariaLabel="Output description"
             placeholder="Add a description"
-            multiline
-            className="mt-0.5 text-[12px] leading-5 text-t2"
+            className="mt-0.5 block w-full text-[11.5px] leading-5 text-t2"
           />
+
           {showApiCheck ? (
             <details
-              className="group mt-2 rounded-md border border-border bg-bg-2"
+              className="group mt-2 rounded-md border border-border bg-bg-3"
               data-testid={`playbook-output-api-check-wrap-${row.id}`}
             >
-              <summary className="flex cursor-pointer list-none items-center gap-1 px-2.5 py-1.5 text-[11px] font-medium uppercase tracking-[0.08em] text-t2 [&::-webkit-details-marker]:hidden">
-                <ChevronDown className="h-3.5 w-3.5 transition group-open:rotate-180" />
+              <summary className="flex cursor-pointer list-none items-center gap-1 px-2 py-1.5 text-[10.5px] font-medium uppercase tracking-[0.08em] text-t2 [&::-webkit-details-marker]:hidden">
+                <ChevronDown className="h-3 w-3 transition group-open:rotate-180" />
                 api_check
               </summary>
               <textarea
@@ -599,15 +662,16 @@ function SortableOutputRow({
                 rows={4}
                 aria-label="api_check JSON"
                 data-testid={`playbook-output-api-check-${row.id}`}
-                className="block w-full resize-y rounded-b-md border-0 border-t border-border bg-bg px-2.5 py-2 font-mono text-[11px] text-t1 placeholder:text-t3 focus:outline-none"
+                className="block w-full resize-y rounded-b-md border-0 border-t border-border bg-bg px-2 py-1.5 font-mono text-[10.5px] text-t1 placeholder:text-t3 focus:outline-none"
                 spellCheck={false}
               />
             </details>
           ) : null}
+
           {error ? (
             <p
               data-testid={`playbook-output-error-${row.id}`}
-              className="mt-1 text-[12px] text-rose-400"
+              className="mt-1 text-[11px] text-rose-400"
               role="alert"
             >
               {error}
@@ -615,44 +679,44 @@ function SortableOutputRow({
           ) : null}
         </div>
 
-        <div className="flex shrink-0 items-center gap-1.5">
+        <div className="mx-entity-actions mx-entity-actions-group shrink-0 bg-bg-4! border-border-hi!">
+          {showActions && canDiscard ? (
+            <button
+              type="button"
+              onClick={onDiscard}
+              disabled={saving}
+              aria-label="Discard changes"
+              title="Discard changes"
+              data-testid={`playbook-output-cancel-${row.id}`}
+              className="mx-entity-action"
+            >
+              <Undo2 size={11} strokeWidth={2.1} aria-hidden />
+            </button>
+          ) : null}
+          {showActions ? (
+            <button
+              type="button"
+              onClick={onSave}
+              disabled={saving}
+              aria-label="Save"
+              title="Save"
+              data-testid={`playbook-output-save-${row.id}`}
+              className="mx-entity-action mx-entity-action-success"
+            >
+              <Save size={11} strokeWidth={2.1} aria-hidden />
+              <span className="sr-only">{saving ? "Saving…" : "Save"}</span>
+            </button>
+          ) : null}
           <button
             type="button"
             onClick={onDelete}
             aria-label="Delete output"
             title="Delete output"
             data-testid={`playbook-output-delete-${row.id}`}
-            className="flex h-7 w-7 items-center justify-center rounded-md border border-border bg-bg-2 text-t3 transition hover:border-border-hi hover:bg-bg-3 hover:text-rose-400 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
+            className="mx-entity-action mx-entity-action-danger"
           >
-            <Trash2 className="h-3.5 w-3.5" />
+            <Trash2 size={11} strokeWidth={2.1} aria-hidden />
           </button>
-          {canDiscard ? (
-            <button
-              type="button"
-              onClick={onDiscard}
-              disabled={saving}
-              data-testid={`playbook-output-cancel-${row.id}`}
-              className="flex h-7 cursor-pointer items-center gap-1.5 rounded-md border border-border bg-bg-2 px-2.5 text-[11.5px] font-medium text-t2 transition hover:border-border-hi hover:bg-bg-3 hover:text-t1 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent disabled:cursor-not-allowed disabled:opacity-50"
-            >
-              Discard
-            </button>
-          ) : null}
-          {dirty || row.isPending ? (
-            <button
-              type="button"
-              onClick={onSave}
-              disabled={saving}
-              data-testid={`playbook-output-save-${row.id}`}
-              className={cn(
-                "flex h-7 items-center gap-1.5 rounded-md px-2.5 text-[11.5px] font-semibold transition focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent",
-                saving
-                  ? "cursor-not-allowed border border-border bg-bg-2 text-t3 opacity-70"
-                  : "border border-[#10b981] bg-[#10b981] text-white shadow-[0_0_0_1px_rgba(16,185,129,0.16),0_8px_22px_rgba(16,185,129,0.24)] hover:bg-[#22c55e]",
-              )}
-            >
-              {saving ? "Saving…" : row.isPending ? "Add" : "Save"}
-            </button>
-          ) : null}
         </div>
       </div>
     </li>
@@ -668,7 +732,8 @@ interface KindAvatarPickerProps {
 function KindAvatarPicker({ rowId, value, onChange }: KindAvatarPickerProps) {
   const [open, setOpen] = useState(false);
   const rootRef = useRef<HTMLDivElement | null>(null);
-  const current = kindOption(value);
+  const currentAvatar = outputKindAvatar(value);
+  const currentLabel = kindLabel(value);
 
   useEffect(() => {
     if (!open) return;
@@ -692,7 +757,7 @@ function KindAvatarPicker({ rowId, value, onChange }: KindAvatarPickerProps) {
       <button
         type="button"
         onClick={() => setOpen((prev) => !prev)}
-        aria-label={`Output kind: ${current.label}. Change kind.`}
+        aria-label={`Output kind: ${currentLabel}. Change kind.`}
         aria-haspopup="listbox"
         aria-expanded={open}
         data-testid={`playbook-output-kind-${rowId}`}
@@ -700,20 +765,21 @@ function KindAvatarPicker({ rowId, value, onChange }: KindAvatarPickerProps) {
         className="rounded-full focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
       >
         <ItemAvatar
-          emoji={current.emoji}
-          color={current.color}
-          label={current.label}
-          size="md"
+          emoji={currentAvatar.emoji}
+          color={currentAvatar.color}
+          label={currentLabel}
+          size="sm"
         />
       </button>
       {open ? (
         <div
           role="listbox"
           aria-label="Output kind"
-          className="absolute left-0 top-full z-30 mt-2 w-44 overflow-hidden rounded-lg border border-border-hi bg-bg-2 shadow-[var(--shadow-canvas)]"
+          className="absolute left-0 top-full z-30 mt-2 w-40 overflow-hidden rounded-lg border border-border-hi bg-bg-2 shadow-[var(--shadow-canvas)]"
         >
-          {KIND_OPTIONS.map((opt) => {
+          {KIND_PICKER_OPTIONS.map((opt) => {
             const selected = opt.value === value;
+            const avatar = OUTPUT_KIND_AVATAR[opt.value];
             return (
               <button
                 key={opt.value}
@@ -726,13 +792,13 @@ function KindAvatarPicker({ rowId, value, onChange }: KindAvatarPickerProps) {
                 }}
                 data-testid={`playbook-output-kind-option-${rowId}-${opt.value}`}
                 className={cn(
-                  "flex w-full items-center gap-2.5 px-2.5 py-1.5 text-left text-[12.5px] transition",
+                  "flex w-full items-center gap-2.5 px-2.5 py-1.5 text-left text-[12px] transition",
                   selected ? "bg-primary-bg text-accent" : "text-t2 hover:bg-bg-3 hover:text-t1",
                 )}
               >
                 <ItemAvatar
-                  emoji={opt.emoji}
-                  color={opt.color}
+                  emoji={avatar.emoji}
+                  color={avatar.color}
                   label={opt.label}
                   size="sm"
                 />
