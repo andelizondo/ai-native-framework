@@ -1184,7 +1184,7 @@ export function ProcessMatrix({
             hoveredTaskId={hoveredTaskId}
             outputGroups={outputGroups}
             taskIO={instance.taskIO}
-            collapseKey={`${collapsed ? "1" : "0"}|${[...collapsedStageIds].sort().join(",")}|${[...collapsedSkillIds].sort().join(",")}`}
+            collapseKey={`${collapsed ? "1" : "0"}|${[...collapsedStageIds].sort().join(",")}|${[...collapsedSkillIds].sort().join(",")}|${[...expandedTaskIds].sort().join(",")}|${[...collapsedTaskIds].sort().join(",")}`}
           />
         </div>
       </div>

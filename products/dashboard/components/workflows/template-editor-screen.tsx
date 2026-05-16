@@ -1105,6 +1105,7 @@ export function TemplateEditorScreen({
             tasks={derivedWiringTasks}
             hoveredTaskId={hoveredTaskId}
             outputGroups={outputGroups}
+            collapseKey={`${[...expandedTaskIds].sort().join(",")}|${[...collapsedTaskIds].sort().join(",")}`}
           />
         </div>
         </DndContext>
