@@ -145,6 +145,54 @@ interfaces:
         outputs:
           item:
             type: object
+      get_instance_template_diff:
+        description: >
+          Compute the structural diff between an instance and its current
+          template. Drives the "Sync with template" drawer on a workflow
+          instance: which stages/skills/tasks were added, removed, or
+          changed since the instance was materialized. Pure read; the
+          actual diff function is `diffInstanceFromTemplate` in
+          `lib/workflows/template-sync.ts`.
+        inputs:
+          instance_id:
+            type: string
+            format: uuid
+        outputs:
+          diff:
+            type: object
+      apply_template_sync:
+        description: >
+          Apply the user-selected subset of an instance/template diff back
+          onto the instance. Server re-derives the diff and re-checks the
+          pristine rule (status='not_started' AND no produced outputs) on
+          every per-task field update, silently dropping selections that
+          are no longer applicable. Stages/skills are additive only — the
+          drawer never removes anything that exists on the instance.
+          Emits a `template_sync_applied` workflow event for the audit
+          trail and bumps `workflow_instances.template_synced_at`.
+        inputs:
+          instance_id:
+            type: string
+            format: uuid
+          selection:
+            type: object
+        outputs:
+          instance:
+            type: object
+      get_template_matrix:
+        description: >
+          Roll up instance task state grouped by the template's
+          `task_templates[]` entries (matched via
+          `workflow_tasks.template_task_id`). Drives the template-level
+          matrix overview at `/workflows/templates/[templateId]` — one
+          stacked status bar per cell across every instance of the
+          template.
+        inputs:
+          template_id:
+            type: string
+        outputs:
+          matrix:
+            type: object
 
 policies:
   human_in_the_loop:
