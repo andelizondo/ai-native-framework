@@ -126,6 +126,12 @@ export interface WorkflowTask {
    *  Per-task so two cards pointing at the same playbook can carry different
    *  owners (e.g. different sales people across instances). */
   owners: string[];
+  /** Lineage back to the `task_templates[].id` this task was materialized
+   *  from. Null on ad-hoc instance tasks created via createTask, and on
+   *  legacy rows authored before the lineage migration. Drives template-
+   *  level rollup (aggregateTasksByTemplateCell) and the template sync
+   *  diff. Optional in the type so older test fixtures stay valid. */
+  templateTaskId?: string | null;
   /** Why the task is paused (e.g. `'checkpoint'`, `'awaiting_input'`).
    *  Drives the drawer pause banner; null when status !== 'paused'. */
   pausedReason?: string | null;
@@ -262,6 +268,12 @@ export interface WorkflowInstance {
    *  template so edits to the template do not mutate existing instances. */
   stages: WorkflowStage[];
   skills: WorkflowSkill[];
+  /** Last time this instance was reconciled with its template via
+   *  applyTemplateSync (set to createdAt for fresh instances). Drives the
+   *  "Last synced" label in the sync drawer. Null on legacy rows that
+   *  predate the lineage migration and have never been touched by sync.
+   *  Optional in the type so older test fixtures stay valid. */
+  templateSyncedAt?: string | null;
   createdAt: string;
   updatedAt: string;
 }
@@ -351,6 +363,119 @@ export interface WorkflowEventInput {
   name: string;
   description?: string;
   payload?: Record<string, unknown>;
+}
+
+// ---------------------------------------------------------------------------
+// Template ↔ instance sync — diff shape returned by
+// `WorkflowRepository.getInstanceTemplateDiff`, and the selection shape the
+// sync drawer sends back to `applyTemplateSync`. The diff is computed by the
+// pure `diffInstanceFromTemplate` in `lib/workflows/template-sync.ts`.
+// ---------------------------------------------------------------------------
+
+export interface StageRename {
+  id: string;
+  from: WorkflowStage;
+  to: WorkflowStage;
+}
+
+export interface SkillRename {
+  id: string;
+  from: WorkflowSkill;
+  to: WorkflowSkill;
+}
+
+export interface InputDiff {
+  added: WorkflowInput[];
+  removed: WorkflowInput[];
+  changed: { id: string; from: WorkflowInput; to: WorkflowInput }[];
+}
+
+/**
+ * Per-task diff. `syncable === "yes"` iff the instance task is pristine —
+ * `status === "not_started"` AND no `task_outputs.status='produced'` rows.
+ * The repository re-checks this server-side before applying; the UI uses
+ * it to render the checkbox-vs-info-row split.
+ */
+export interface TaskFieldDiff {
+  instanceTaskId: string;
+  templateTaskId: string;
+  instanceStatus: WorkflowTaskStatus;
+  fields: {
+    notes?: { from: string; to: string };
+    playbookId?: { from: string | null; to: string | null };
+    checkpoint?: { from: boolean; to: boolean };
+    owners?: { from: string[]; to: string[] };
+    inputs?: InputDiff;
+  };
+  syncable: "yes" | "informational_only";
+  syncBlockedReason?: "task_not_pristine";
+}
+
+export interface InstanceTemplateDiff {
+  templateId: string;
+  instanceId: string;
+  templateSyncedAt: string | null;
+  stages: {
+    added: WorkflowStage[];
+    removedFromTemplate: WorkflowStage[];
+    renamed: StageRename[];
+  };
+  skills: {
+    added: WorkflowSkill[];
+    removedFromTemplate: WorkflowSkill[];
+    renamed: SkillRename[];
+  };
+  tasks: {
+    added: WorkflowTaskTemplate[];
+    removedFromTemplate: WorkflowTask[];
+    changed: TaskFieldDiff[];
+  };
+}
+
+/**
+ * Sent by the sync drawer to `applyTemplateSync`. Each list holds the ids of
+ * the diff entries the user ticked. The repository re-derives the diff
+ * server-side and only applies changes whose id appears here AND still
+ * satisfies the apply rules (e.g. a task that became non-pristine between
+ * the drawer fetch and the apply call is silently dropped from `taskChanges`).
+ */
+export interface TemplateSyncSelection {
+  stageIdsToAdd: string[];
+  skillIdsToAdd: string[];
+  stageIdsToRename: string[];
+  skillIdsToRename: string[];
+  taskTemplateIdsToAdd: string[];
+  /** Instance task ids whose changed fields should be overwritten from the
+   *  template. The repository ignores entries whose backing instance task is
+   *  no longer pristine. */
+  instanceTaskIdsToUpdate: string[];
+}
+
+/**
+ * Returned by `WorkflowRepository.getTemplateMatrix`. One entry per
+ * `task_templates[]` on the template, with status counts and per-instance
+ * detail rolled up across every instance of that template.
+ */
+export interface TemplateCellAggregate {
+  templateTaskId: string;
+  skillId: string;
+  stageId: string;
+  playbookId: string | null;
+  statusCounts: Record<WorkflowTaskStatus, number>;
+  instances: {
+    instanceId: string;
+    instanceLabel: string;
+    taskId: string;
+    status: WorkflowTaskStatus;
+    hasUnmetLinkedInput: boolean;
+    owners: string[];
+  }[];
+}
+
+export interface TemplateMatrix {
+  template: WorkflowTemplate;
+  instances: WorkflowInstance[];
+  cells: TemplateCellAggregate[];
 }
 
 export interface WorkflowRepository {
@@ -490,6 +615,24 @@ export interface WorkflowRepository {
     pausedBy?: string | null,
   ): Promise<WorkflowTask>;
   resumeTask(taskId: string): Promise<WorkflowTask>;
+  /** Compute the diff between an instance and its template's current state.
+   *  Loads template, instance, tasks, and the per-task IO summary in one
+   *  pass; the diff itself is computed by the pure
+   *  `diffInstanceFromTemplate` helper. */
+  getInstanceTemplateDiff(instanceId: string): Promise<InstanceTemplateDiff>;
+  /** Apply the user-selected subset of a sync diff to the instance. Server
+   *  re-derives the diff and re-checks pristine-ness on each task update;
+   *  non-applicable selection entries are dropped silently. Returns the
+   *  refreshed instance detail so the matrix can re-render. */
+  applyTemplateSync(
+    instanceId: string,
+    selection: TemplateSyncSelection,
+  ): Promise<WorkflowInstanceDetail>;
+  /** Roll up status across every instance of a template, grouped by the
+   *  template's `task_templates[]` (matched via `template_task_id`).
+   *  Drives the template-level matrix overview at
+   *  `/workflows/templates/[templateId]`. */
+  getTemplateMatrix(templateId: string): Promise<TemplateMatrix | null>;
   getFrameworkItems(type?: FrameworkItemType): Promise<FrameworkItem[]>;
   upsertFrameworkItem(item: FrameworkItem): Promise<FrameworkItem>;
   deleteFrameworkItem(itemId: string): Promise<void>;

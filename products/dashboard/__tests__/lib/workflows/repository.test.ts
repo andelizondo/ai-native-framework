@@ -369,6 +369,27 @@ describe("workflow repository", () => {
       );
     });
 
+    it("populates template_task_id lineage on every materialized task", async () => {
+      const repo = createWorkflowRepository(makeFakeClient(store));
+      const instance = await repo.createInstance("client-delivery", "Acme Corp");
+
+      // Every task should carry the lineage back to the template task it
+      // was cloned from — drives the diff drawer + template-level rollup.
+      for (const task of instance.tasks) {
+        expect(typeof task.templateTaskId).toBe("string");
+        expect((task.templateTaskId ?? "").length).toBeGreaterThan(0);
+      }
+      // The fake store's template task_templates omit explicit ids, so
+      // mapTemplate falls back to the deterministic synthetic id —
+      // `${templateId}::${skillId}::${stageId}::${index}`. Same shape is
+      // round-tripped through to the instance task.
+      const ids = instance.tasks.map((t) => t.templateTaskId).sort();
+      expect(ids).toEqual([
+        "client-delivery::pm::validation::1",
+        "client-delivery::sales-ops::pre-sales::0",
+      ]);
+    });
+
     it("snapshots stages and skills so later template edits do not mutate the instance", async () => {
       const repo = createWorkflowRepository(makeFakeClient(store));
 

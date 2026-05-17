@@ -3,6 +3,7 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  aggregateTasksByTemplateCell,
   computeOverviewStats,
   computeTemplateHealth,
   percentComplete,
@@ -12,6 +13,7 @@ import {
   type OverviewSnapshot,
 } from "@/lib/workflows/aggregate";
 import type {
+  TaskIOSummary,
   WorkflowEvent,
   WorkflowInstance,
   WorkflowTask,
@@ -326,5 +328,98 @@ describe("pickRecentEvents", () => {
   it("returns an empty list for non-positive limits", () => {
     expect(pickRecentEvents(snapshot, 0)).toEqual([]);
     expect(pickRecentEvents(snapshot, -3)).toEqual([]);
+  });
+});
+
+describe("aggregateTasksByTemplateCell", () => {
+  it("rolls up status across instances per template cell, keyed by template_task_id", () => {
+    const tpl: WorkflowTemplate = {
+      ...template("delivery", "Client Delivery", "#6366f1"),
+      stages: [
+        { id: "stage-a", label: "Discover" },
+        { id: "stage-b", label: "Deliver" },
+      ],
+      skills: [
+        { id: "skill-x", label: "Sales", owners: [] },
+      ],
+      taskTemplates: [
+        {
+          id: "tt-1",
+          skillId: "skill-x",
+          stageId: "stage-a",
+          playbookId: "pb-discovery",
+          notes: "",
+          checkpoint: false,
+          inputs: [],
+          owners: [],
+        },
+        {
+          id: "tt-2",
+          skillId: "skill-x",
+          stageId: "stage-b",
+          playbookId: "pb-deliver",
+          notes: "",
+          checkpoint: false,
+          inputs: [],
+          owners: [],
+        },
+      ],
+    };
+    const inst1: WorkflowInstance = { ...instance("acme", "delivery"), createdAt: "2026-05-01T00:00:00Z" };
+    const inst2: WorkflowInstance = { ...instance("globex", "delivery"), createdAt: "2026-05-02T00:00:00Z" };
+    const inst3: WorkflowInstance = { ...instance("initech", "delivery"), createdAt: "2026-05-03T00:00:00Z" };
+
+    const tasks: WorkflowTask[] = [
+      // tt-1: 2 not_started, 1 in_progress
+      task("k-a1", "acme", "not_started", { templateTaskId: "tt-1" }),
+      task("k-g1", "globex", "in_progress", { templateTaskId: "tt-1" }),
+      task("k-i1", "initech", "not_started", { templateTaskId: "tt-1" }),
+      // tt-2: 1 complete (acme), nothing else
+      task("k-a2", "acme", "complete", { templateTaskId: "tt-2" }),
+      // ad-hoc task — must not skew the rollup
+      task("k-adhoc", "globex", "in_progress", { templateTaskId: undefined }),
+    ];
+    const io: TaskIOSummary[] = [
+      { taskId: "k-i1", outputs: [], hasUnmetLinkedInput: true },
+    ];
+
+    const cells = aggregateTasksByTemplateCell(tpl, [inst1, inst2, inst3], tasks, io);
+
+    expect(cells).toHaveLength(2);
+    const tt1 = cells.find((c) => c.templateTaskId === "tt-1")!;
+    expect(tt1.statusCounts.not_started).toBe(2);
+    expect(tt1.statusCounts.in_progress).toBe(1);
+    expect(tt1.statusCounts.complete).toBe(0);
+    expect(tt1.instances.map((i) => i.instanceId)).toEqual(["acme", "globex", "initech"]);
+    const initech = tt1.instances.find((i) => i.instanceId === "initech")!;
+    expect(initech.hasUnmetLinkedInput).toBe(true);
+
+    const tt2 = cells.find((c) => c.templateTaskId === "tt-2")!;
+    expect(tt2.statusCounts.complete).toBe(1);
+    expect(tt2.instances.map((i) => i.instanceId)).toEqual(["acme"]);
+  });
+
+  it("returns zeroed cells when the template has no instances yet", () => {
+    const tpl: WorkflowTemplate = {
+      ...template("delivery", "Client Delivery", "#6366f1"),
+      stages: [{ id: "stage-a", label: "Discover" }],
+      skills: [{ id: "skill-x", label: "Sales", owners: [] }],
+      taskTemplates: [
+        {
+          id: "tt-only",
+          skillId: "skill-x",
+          stageId: "stage-a",
+          playbookId: "pb-x",
+          notes: "",
+          checkpoint: false,
+          inputs: [],
+          owners: [],
+        },
+      ],
+    };
+    const cells = aggregateTasksByTemplateCell(tpl, [], [], []);
+    expect(cells).toHaveLength(1);
+    expect(cells[0]!.statusCounts.not_started).toBe(0);
+    expect(cells[0]!.instances).toEqual([]);
   });
 });

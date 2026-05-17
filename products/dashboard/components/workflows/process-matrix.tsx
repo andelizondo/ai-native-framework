@@ -87,6 +87,7 @@ import { AddPlaybookDrawer } from "./add-playbook-drawer";
 import { HeaderActionsMenu } from "./header-actions-menu";
 import { PlaybookDrawer } from "./playbook-drawer";
 import { TaskCard } from "./task-card";
+import { TemplateSyncButton } from "./template-sync-drawer";
 import { WiringOverlay } from "./wiring-overlay";
 import { WorkflowInstanceHeader } from "./workflow-instance-header";
 
@@ -581,23 +582,26 @@ export function ProcessMatrix({
       onSave: editMode || isDirty ? saveInstanceEdits : undefined,
       onCancelEdit: editMode ? handleCancelEdit : undefined,
       actions: (
-        <HeaderActionsMenu
-          entityLabel={savedLabel}
-          entityType="instance"
-          onDelete={async () => {
-            try {
-              await deleteInstanceAction(instance.id);
-              toastSuccess("Instance deleted");
-            } catch (err) {
-              toastError(
-                err instanceof Error && err.message
-                  ? err.message
-                  : "Could not delete the instance.",
-              );
-              throw err;
-            }
-          }}
-        />
+        <div className="flex items-center gap-1.5">
+          <TemplateSyncButton instanceId={instance.id} />
+          <HeaderActionsMenu
+            entityLabel={savedLabel}
+            entityType="instance"
+            onDelete={async () => {
+              try {
+                await deleteInstanceAction(instance.id);
+                toastSuccess("Instance deleted");
+              } catch (err) {
+                toastError(
+                  err instanceof Error && err.message
+                    ? err.message
+                    : "Could not delete the instance.",
+                );
+                throw err;
+              }
+            }}
+          />
+        </div>
       ),
     });
 

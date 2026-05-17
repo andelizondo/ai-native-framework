@@ -11,13 +11,16 @@ import {
 } from "@/lib/workflows/aggregate";
 import type {
   DrawerData,
+  InstanceTemplateDiff,
   OutputArtifact,
   PlaybookOutput,
   TaskInputState,
   TaskOutput,
   TemplateOutputGroup,
+  TemplateSyncSelection,
   WorkflowInput,
   WorkflowInstance,
+  WorkflowInstanceDetail,
   WorkflowTask,
   WorkflowTaskCreateInput,
   WorkflowTaskStatus,
@@ -1279,4 +1282,61 @@ export async function refinePlaybookAction(
 
   revalidatePath("/", "layout");
   return { task };
+}
+
+/**
+ * Read the diff between an instance and its template. Called by the sync
+ * drawer when it opens. Pure read — no revalidate.
+ */
+export async function getInstanceTemplateDiffAction(
+  instanceId: string,
+): Promise<{ diff: InstanceTemplateDiff }> {
+  const trimmedId = normalizeTaskField(instanceId, "instanceId", 80);
+  if (!trimmedId) {
+    throw new Error("getInstanceTemplateDiffAction: instanceId is required");
+  }
+  const repo = await getServerWorkflowRepository();
+  const diff = await repo.getInstanceTemplateDiff(trimmedId);
+  return { diff };
+}
+
+/**
+ * Apply the user-selected subset of a template→instance diff. Server
+ * re-derives the diff and re-checks pristine on every task update; non-
+ * applicable selection entries are silently dropped.
+ */
+export async function applyTemplateSyncAction(
+  instanceId: string,
+  selection: TemplateSyncSelection,
+): Promise<{ instance: WorkflowInstanceDetail }> {
+  const trimmedId = normalizeTaskField(instanceId, "instanceId", 80);
+  if (!trimmedId) {
+    throw new Error("applyTemplateSyncAction: instanceId is required");
+  }
+  if (!selection || typeof selection !== "object") {
+    throw new Error("applyTemplateSyncAction: selection is required");
+  }
+  // Defensive — coerce missing arrays to empty so partial selections don't
+  // crash applyTemplateSync downstream.
+  const safeSelection: TemplateSyncSelection = {
+    stageIdsToAdd: Array.isArray(selection.stageIdsToAdd) ? selection.stageIdsToAdd : [],
+    skillIdsToAdd: Array.isArray(selection.skillIdsToAdd) ? selection.skillIdsToAdd : [],
+    stageIdsToRename: Array.isArray(selection.stageIdsToRename) ? selection.stageIdsToRename : [],
+    skillIdsToRename: Array.isArray(selection.skillIdsToRename) ? selection.skillIdsToRename : [],
+    taskTemplateIdsToAdd: Array.isArray(selection.taskTemplateIdsToAdd)
+      ? selection.taskTemplateIdsToAdd
+      : [],
+    instanceTaskIdsToUpdate: Array.isArray(selection.instanceTaskIdsToUpdate)
+      ? selection.instanceTaskIdsToUpdate
+      : [],
+  };
+
+  const repo = await getServerWorkflowRepository();
+  const instance = await repo.applyTemplateSync(trimmedId, safeSelection);
+  revalidatePath("/", "layout");
+  revalidatePath(`/workflows/${trimmedId}`);
+  if (instance.templateId) {
+    revalidatePath(`/workflows/templates/${instance.templateId}`);
+  }
+  return { instance };
 }
