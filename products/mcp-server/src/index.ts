@@ -54,8 +54,11 @@ interface ExposedTool {
   readonly operation: string;
 }
 
-const PROPOSE_PREFIX = "propose.";
-const CONFIRM_PREFIX = "confirm.";
+// Tool names must match ^[a-zA-Z0-9_-]{1,64}$ to satisfy stricter MCP
+// clients (Claude Chat enforces this; Claude Code is more lenient). So
+// the propose/confirm pair uses an underscore separator, not a dot.
+const PROPOSE_PREFIX = "propose_";
+const CONFIRM_PREFIX = "confirm_";
 
 function buildExposedTools(): ExposedTool[] {
   const out: ExposedTool[] = [];
@@ -73,14 +76,14 @@ function buildExposedTools(): ExposedTool[] {
     // confirm_required: split into propose + confirm pair.
     out.push({
       name: `${PROPOSE_PREFIX}${t.name}`,
-      description: `Propose ${t.name}. Returns a proposal_token plus a human-readable diff for the user to review. Does NOT mutate. Call confirm.${t.name} with the returned token to commit. Original op: ${t.description}`,
+      description: `Propose ${t.name}. Returns a proposal_token plus a human-readable diff for the user to review. Does NOT mutate. Call confirm_${t.name} with the returned token to commit. Original op: ${t.description}`,
       inputSchema: t.inputSchema,
       kind: "propose",
       operation: t.operation,
     });
     out.push({
       name: `${CONFIRM_PREFIX}${t.name}`,
-      description: `Confirm and execute a previously proposed ${t.name}. Pass the proposal_token returned by propose.${t.name}.`,
+      description: `Confirm and execute a previously proposed ${t.name}. Pass the proposal_token returned by propose_${t.name}.`,
       inputSchema: {
         type: "object",
         properties: {

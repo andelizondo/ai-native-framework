@@ -10,7 +10,7 @@ Tool definitions are **generated**, not hand-maintained. `npm run generate` read
 
 For each generated tool:
 - `agent_safe` operations are registered as a single MCP tool with the operation's input schema.
-- `confirm_required` operations are split into two MCP tools: `propose.<name>` returns a signed token + human diff (no mutation), `confirm.<name>` takes the token and executes. The agent is expected to show the diff to the human before calling confirm.
+- `confirm_required` operations are split into two MCP tools: `propose_<name>` returns a signed token + human diff (no mutation), `confirm_<name>` takes the token and executes. The agent is expected to show the diff to the human before calling confirm.
 
 Add a new operation? Edit `interfaces.yaml`, run `npm run generate`, add a matching entry to `src/handlers.ts`. The smoke test (`npm test`) asserts the two sides agree.
 
@@ -91,7 +91,7 @@ For Claude Desktop on macOS, use the bundled deploy (see Setup above); tsx-from-
 ## Out of scope (v1)
 
 - Per-request PAT validation. Process-bound auth via env vars is the v1 contract.
-- Streaming / subscriptions. Agents poll via `workflows.list_instances` and friends.
+- Streaming / subscriptions. Agents poll via `workflows_list_instances` and friends.
 - Per-tool rate limiting. Defer until first real workload.
 
 See [docs/AGENT_INTEGRATION.md](../../docs/AGENT_INTEGRATION.md) for the broader design.

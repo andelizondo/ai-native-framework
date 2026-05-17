@@ -22,7 +22,7 @@ export interface GeneratedTool {
 export const GENERATED_TOOLS: readonly GeneratedTool[] = [
   {
     "operation": "get_templates",
-    "name": "workflows.list_templates",
+    "name": "workflows_list_templates",
     "description": "List all workflow templates ordered by label.",
     "category": "agent_safe",
     "idempotency": "required",
@@ -34,7 +34,7 @@ export const GENERATED_TOOLS: readonly GeneratedTool[] = [
   },
   {
     "operation": "get_instance",
-    "name": "workflows.get_instance",
+    "name": "workflows_get_instance",
     "description": "Fetch a single workflow instance by id, including its tasks and recent events.",
     "category": "agent_safe",
     "idempotency": "required",
@@ -54,7 +54,7 @@ export const GENERATED_TOOLS: readonly GeneratedTool[] = [
   },
   {
     "operation": "list_instances",
-    "name": "workflows.list_instances",
+    "name": "workflows_list_instances",
     "description": "List instances, optionally filtered by template id.",
     "category": "agent_safe",
     "idempotency": "required",
@@ -70,7 +70,7 @@ export const GENERATED_TOOLS: readonly GeneratedTool[] = [
   },
   {
     "operation": "create_instance",
-    "name": "workflows.create_instance",
+    "name": "workflows_create_instance",
     "description": "Create a new workflow instance from a template. Materializes one workflow_tasks row per entry in the template's task_templates JSON, copying default skills from the template.",
     "category": "confirm_required",
     "idempotency": "none",
@@ -93,7 +93,7 @@ export const GENERATED_TOOLS: readonly GeneratedTool[] = [
   },
   {
     "operation": "update_task",
-    "name": "workflows.update_task",
+    "name": "workflows_update_task",
     "description": "Patch a workflow task's mutable fields (status, substatus, playbook assignment, etc.).",
     "category": "agent_safe",
     "idempotency": "recommended",
@@ -117,7 +117,7 @@ export const GENERATED_TOOLS: readonly GeneratedTool[] = [
   },
   {
     "operation": "add_event",
-    "name": "workflows.add_event",
+    "name": "workflows_add_event",
     "description": "Append a workflow_event row scoped to a task (and its parent instance).",
     "category": "agent_safe",
     "idempotency": "recommended",
@@ -141,7 +141,7 @@ export const GENERATED_TOOLS: readonly GeneratedTool[] = [
   },
   {
     "operation": "get_framework_items",
-    "name": "framework.list_items",
+    "name": "framework_list_items",
     "description": "List Skills and Playbooks, optionally filtered by type.",
     "category": "agent_safe",
     "idempotency": "required",
@@ -161,7 +161,7 @@ export const GENERATED_TOOLS: readonly GeneratedTool[] = [
   },
   {
     "operation": "upsert_framework_item",
-    "name": "framework.upsert_item",
+    "name": "framework_upsert_item",
     "description": "Create or update a framework item (Skill or Playbook).",
     "category": "confirm_required",
     "idempotency": "none",
@@ -180,7 +180,7 @@ export const GENERATED_TOOLS: readonly GeneratedTool[] = [
   },
   {
     "operation": "get_instance_template_diff",
-    "name": "workflows.get_template_diff",
+    "name": "workflows_get_template_diff",
     "description": "Compute the structural diff between an instance and its current template. Drives the \"Sync with template\" drawer on a workflow instance: which stages/skills/tasks were added, removed, or changed since the instance was materialized. Pure read; the actual diff function is `diffInstanceFromTemplate` in `lib/workflows/template-sync.ts`.",
     "category": "agent_safe",
     "idempotency": "required",
@@ -200,7 +200,7 @@ export const GENERATED_TOOLS: readonly GeneratedTool[] = [
   },
   {
     "operation": "apply_template_sync",
-    "name": "workflows.apply_template_sync",
+    "name": "workflows_apply_template_sync",
     "description": "Apply the user-selected subset of an instance/template diff back onto the instance. Server re-derives the diff and re-checks the pristine rule (status='not_started' AND no produced outputs) on every per-task field update, silently dropping selections that are no longer applicable. Stages/skills are additive only — the drawer never removes anything that exists on the instance. Emits a `template_sync_applied` workflow event for the audit trail and bumps `workflow_instances.template_synced_at`.",
     "category": "confirm_required",
     "idempotency": "none",
@@ -224,7 +224,7 @@ export const GENERATED_TOOLS: readonly GeneratedTool[] = [
   },
   {
     "operation": "get_template_matrix",
-    "name": "workflows.get_template_matrix",
+    "name": "workflows_get_template_matrix",
     "description": "Roll up instance task state grouped by the template's `task_templates[]` entries (matched via `workflow_tasks.template_task_id`). Drives the template-level matrix overview at `/workflows/templates/[templateId]` — one stacked status bar per cell across every instance of the template.",
     "category": "agent_safe",
     "idempotency": "required",
@@ -243,7 +243,7 @@ export const GENERATED_TOOLS: readonly GeneratedTool[] = [
   },
   {
     "operation": "create_template",
-    "name": "workflows.create_template",
+    "name": "workflows_create_template",
     "description": "Create a new workflow template.",
     "category": "confirm_required",
     "idempotency": "none",
@@ -262,7 +262,7 @@ export const GENERATED_TOOLS: readonly GeneratedTool[] = [
   },
   {
     "operation": "update_template",
-    "name": "workflows.update_template",
+    "name": "workflows_update_template",
     "description": "Patch a workflow template's stages, skills, or task_templates JSON. Re-materialization of existing instances is governed by `apply_template_sync`, not this operation.",
     "category": "confirm_required",
     "idempotency": "none",
@@ -285,7 +285,7 @@ export const GENERATED_TOOLS: readonly GeneratedTool[] = [
   },
   {
     "operation": "rename_template",
-    "name": "workflows.rename_template",
+    "name": "workflows_rename_template",
     "description": "Rename a workflow template label.",
     "category": "agent_safe",
     "idempotency": "recommended",
@@ -308,7 +308,7 @@ export const GENERATED_TOOLS: readonly GeneratedTool[] = [
   },
   {
     "operation": "delete_template",
-    "name": "workflows.delete_template",
+    "name": "workflows_delete_template",
     "description": "Delete a workflow template.",
     "category": "confirm_required",
     "idempotency": "none",
@@ -327,7 +327,7 @@ export const GENERATED_TOOLS: readonly GeneratedTool[] = [
   },
   {
     "operation": "list_template_outputs",
-    "name": "workflows.list_template_outputs",
+    "name": "workflows_list_template_outputs",
     "description": "List the rolled-up output groups for a template (one group per downstream playbook that produces outputs referenced by the template's tasks).",
     "category": "agent_safe",
     "idempotency": "required",
@@ -346,7 +346,7 @@ export const GENERATED_TOOLS: readonly GeneratedTool[] = [
   },
   {
     "operation": "rename_instance",
-    "name": "workflows.rename_instance",
+    "name": "workflows_rename_instance",
     "description": "Rename a workflow instance label.",
     "category": "agent_safe",
     "idempotency": "recommended",
@@ -370,7 +370,7 @@ export const GENERATED_TOOLS: readonly GeneratedTool[] = [
   },
   {
     "operation": "delete_instance",
-    "name": "workflows.delete_instance",
+    "name": "workflows_delete_instance",
     "description": "Delete a workflow instance and all child tasks and events.",
     "category": "confirm_required",
     "idempotency": "none",
@@ -390,7 +390,7 @@ export const GENERATED_TOOLS: readonly GeneratedTool[] = [
   },
   {
     "operation": "create_task",
-    "name": "workflows.create_task",
+    "name": "workflows_create_task",
     "description": "Create a new task on a workflow instance.",
     "category": "confirm_required",
     "idempotency": "none",
@@ -414,7 +414,7 @@ export const GENERATED_TOOLS: readonly GeneratedTool[] = [
   },
   {
     "operation": "update_task_details",
-    "name": "workflows.update_task_details",
+    "name": "workflows_update_task_details",
     "description": "Patch a task's human-editable details (label, description, assigned playbook, skill). Distinct from `update_task` which is for status/substatus patches.",
     "category": "agent_safe",
     "idempotency": "recommended",
@@ -438,7 +438,7 @@ export const GENERATED_TOOLS: readonly GeneratedTool[] = [
   },
   {
     "operation": "delete_task",
-    "name": "workflows.delete_task",
+    "name": "workflows_delete_task",
     "description": "Delete a task from its instance.",
     "category": "confirm_required",
     "idempotency": "none",
@@ -458,7 +458,7 @@ export const GENERATED_TOOLS: readonly GeneratedTool[] = [
   },
   {
     "operation": "move_task",
-    "name": "workflows.move_task",
+    "name": "workflows_move_task",
     "description": "Move a task to a different stage or position within its instance.",
     "category": "agent_safe",
     "idempotency": "recommended",
@@ -482,7 +482,7 @@ export const GENERATED_TOOLS: readonly GeneratedTool[] = [
   },
   {
     "operation": "set_task_status",
-    "name": "workflows.set_task_status",
+    "name": "workflows_set_task_status",
     "description": "Set a task's status (named alias of `update_task` for the common case of status-only patches; preferred for agent use because the contract is narrower).",
     "category": "agent_safe",
     "idempotency": "recommended",
@@ -506,7 +506,7 @@ export const GENERATED_TOOLS: readonly GeneratedTool[] = [
   },
   {
     "operation": "start_task",
-    "name": "workflows.start_task",
+    "name": "workflows_start_task",
     "description": "Transition a task to in_progress and emit the corresponding event.",
     "category": "agent_safe",
     "idempotency": "recommended",
@@ -526,7 +526,7 @@ export const GENERATED_TOOLS: readonly GeneratedTool[] = [
   },
   {
     "operation": "pause_task",
-    "name": "workflows.pause_task",
+    "name": "workflows_pause_task",
     "description": "Pause a running task with a human-readable reason.",
     "category": "agent_safe",
     "idempotency": "recommended",
@@ -550,7 +550,7 @@ export const GENERATED_TOOLS: readonly GeneratedTool[] = [
   },
   {
     "operation": "resume_task",
-    "name": "workflows.resume_task",
+    "name": "workflows_resume_task",
     "description": "Resume a paused task.",
     "category": "agent_safe",
     "idempotency": "recommended",
@@ -570,7 +570,7 @@ export const GENERATED_TOOLS: readonly GeneratedTool[] = [
   },
   {
     "operation": "cancel_running_task",
-    "name": "workflows.cancel_running_task",
+    "name": "workflows_cancel_running_task",
     "description": "Cancel a task that is currently running.",
     "category": "confirm_required",
     "idempotency": "none",
@@ -593,7 +593,7 @@ export const GENERATED_TOOLS: readonly GeneratedTool[] = [
   },
   {
     "operation": "retry_blocked_task",
-    "name": "workflows.retry_blocked_task",
+    "name": "workflows_retry_blocked_task",
     "description": "Retry a task that previously failed or got stuck.",
     "category": "agent_safe",
     "idempotency": "recommended",
@@ -613,7 +613,7 @@ export const GENERATED_TOOLS: readonly GeneratedTool[] = [
   },
   {
     "operation": "get_task_drawer",
-    "name": "workflows.get_task_drawer",
+    "name": "workflows_get_task_drawer",
     "description": "Aggregate read for the task drawer: returns the task, its assigned playbook, ordered inputs and their current states, ordered outputs and current artifacts, and recent events. Convenience aggregate; equivalent to a sequence of finer reads.",
     "category": "agent_safe",
     "idempotency": "required",
@@ -633,7 +633,7 @@ export const GENERATED_TOOLS: readonly GeneratedTool[] = [
   },
   {
     "operation": "update_task_inputs",
-    "name": "workflows.update_task_inputs",
+    "name": "workflows_update_task_inputs",
     "description": "Update the input states for a task (e.g., toggle a required input from `awaiting` to `received`).",
     "category": "agent_safe",
     "idempotency": "recommended",
@@ -657,7 +657,7 @@ export const GENERATED_TOOLS: readonly GeneratedTool[] = [
   },
   {
     "operation": "mark_input_received",
-    "name": "workflows.mark_input_received",
+    "name": "workflows_mark_input_received",
     "description": "Mark a single task input as received.",
     "category": "agent_safe",
     "idempotency": "recommended",
@@ -681,7 +681,7 @@ export const GENERATED_TOOLS: readonly GeneratedTool[] = [
   },
   {
     "operation": "bypass_input",
-    "name": "workflows.bypass_input",
+    "name": "workflows_bypass_input",
     "description": "Bypass a task input that is normally required.",
     "category": "confirm_required",
     "idempotency": "none",
@@ -708,7 +708,7 @@ export const GENERATED_TOOLS: readonly GeneratedTool[] = [
   },
   {
     "operation": "produce_task_output",
-    "name": "workflows.produce_task_output",
+    "name": "workflows_produce_task_output",
     "description": "Record that a task has produced one of its declared outputs, optionally attaching an artifact (URL, file reference, etc.).",
     "category": "agent_safe",
     "idempotency": "recommended",
@@ -735,7 +735,7 @@ export const GENERATED_TOOLS: readonly GeneratedTool[] = [
   },
   {
     "operation": "list_pending_checkpoints",
-    "name": "workflows.list_pending_checkpoints",
+    "name": "workflows_list_pending_checkpoints",
     "description": "List checkpoints currently awaiting human resolution.",
     "category": "agent_safe",
     "idempotency": "required",
@@ -747,7 +747,7 @@ export const GENERATED_TOOLS: readonly GeneratedTool[] = [
   },
   {
     "operation": "resolve_checkpoint",
-    "name": "workflows.resolve_checkpoint",
+    "name": "workflows_resolve_checkpoint",
     "description": "Resolve a checkpoint from the Overview surface. On `approved`, the task transitions to `complete`; on `rejected`, to `failed`. Atomic conditional update: refuses if the task is no longer a pending checkpoint.",
     "category": "confirm_required",
     "idempotency": "none",
@@ -775,7 +775,7 @@ export const GENERATED_TOOLS: readonly GeneratedTool[] = [
   },
   {
     "operation": "approve_drawer_checkpoint",
-    "name": "workflows.approve_drawer_checkpoint",
+    "name": "workflows_approve_drawer_checkpoint",
     "description": "Approve a checkpoint from the task drawer. Semantically different from `resolve_checkpoint`: the agent CONTINUES the task (status -> in_progress) rather than marking it complete.",
     "category": "confirm_required",
     "idempotency": "none",
@@ -795,7 +795,7 @@ export const GENERATED_TOOLS: readonly GeneratedTool[] = [
   },
   {
     "operation": "reject_drawer_checkpoint",
-    "name": "workflows.reject_drawer_checkpoint",
+    "name": "workflows_reject_drawer_checkpoint",
     "description": "Reject a checkpoint from the task drawer.",
     "category": "confirm_required",
     "idempotency": "none",
@@ -818,7 +818,7 @@ export const GENERATED_TOOLS: readonly GeneratedTool[] = [
   },
   {
     "operation": "refine_playbook",
-    "name": "workflows.refine_playbook",
+    "name": "workflows_refine_playbook",
     "description": "Request a refinement pass on a task's assigned playbook. Current implementation emits `workflow.playbook_refine_requested` only; no agent runtime executes yet.",
     "category": "agent_safe",
     "idempotency": "recommended",
@@ -838,7 +838,7 @@ export const GENERATED_TOOLS: readonly GeneratedTool[] = [
   },
   {
     "operation": "delete_framework_item",
-    "name": "framework.delete_item",
+    "name": "framework_delete_item",
     "description": "Delete a framework item (Skill or Playbook).",
     "category": "confirm_required",
     "idempotency": "none",
@@ -857,7 +857,7 @@ export const GENERATED_TOOLS: readonly GeneratedTool[] = [
   },
   {
     "operation": "list_playbook_outputs",
-    "name": "framework.list_playbook_outputs",
+    "name": "framework_list_playbook_outputs",
     "description": "List declared outputs for a playbook.",
     "category": "agent_safe",
     "idempotency": "required",
@@ -876,7 +876,7 @@ export const GENERATED_TOOLS: readonly GeneratedTool[] = [
   },
   {
     "operation": "create_playbook_output",
-    "name": "framework.create_playbook_output",
+    "name": "framework_create_playbook_output",
     "description": "Declare a new output on a playbook.",
     "category": "confirm_required",
     "idempotency": "none",
@@ -899,7 +899,7 @@ export const GENERATED_TOOLS: readonly GeneratedTool[] = [
   },
   {
     "operation": "update_playbook_output",
-    "name": "framework.update_playbook_output",
+    "name": "framework_update_playbook_output",
     "description": "Patch a declared playbook output.",
     "category": "agent_safe",
     "idempotency": "recommended",
@@ -922,7 +922,7 @@ export const GENERATED_TOOLS: readonly GeneratedTool[] = [
   },
   {
     "operation": "delete_playbook_output",
-    "name": "framework.delete_playbook_output",
+    "name": "framework_delete_playbook_output",
     "description": "Delete a declared playbook output.",
     "category": "confirm_required",
     "idempotency": "none",
@@ -941,7 +941,7 @@ export const GENERATED_TOOLS: readonly GeneratedTool[] = [
   },
   {
     "operation": "count_task_outputs_for_playbook_output",
-    "name": "framework.count_task_outputs_for_playbook_output",
+    "name": "framework_count_task_outputs_for_playbook_output",
     "description": "Count task_outputs that reference a given playbook output; used by the UI to warn before deletion.",
     "category": "agent_safe",
     "idempotency": "required",
@@ -960,7 +960,7 @@ export const GENERATED_TOOLS: readonly GeneratedTool[] = [
   },
   {
     "operation": "list_playbook_inputs",
-    "name": "framework.list_playbook_inputs",
+    "name": "framework_list_playbook_inputs",
     "description": "List declared inputs for a playbook.",
     "category": "agent_safe",
     "idempotency": "required",
@@ -979,7 +979,7 @@ export const GENERATED_TOOLS: readonly GeneratedTool[] = [
   },
   {
     "operation": "create_playbook_input",
-    "name": "framework.create_playbook_input",
+    "name": "framework_create_playbook_input",
     "description": "Declare a new input on a playbook.",
     "category": "confirm_required",
     "idempotency": "none",
@@ -1002,7 +1002,7 @@ export const GENERATED_TOOLS: readonly GeneratedTool[] = [
   },
   {
     "operation": "delete_playbook_input",
-    "name": "framework.delete_playbook_input",
+    "name": "framework_delete_playbook_input",
     "description": "Delete a declared playbook input.",
     "category": "confirm_required",
     "idempotency": "none",
@@ -1021,7 +1021,7 @@ export const GENERATED_TOOLS: readonly GeneratedTool[] = [
   },
   {
     "operation": "list_cross_playbook_output_groups",
-    "name": "framework.list_cross_playbook_output_groups",
+    "name": "framework_list_cross_playbook_output_groups",
     "description": "List output groups from playbooks OTHER than the given playbook; used by the input editor to wire a playbook's input as a reference to another playbook's output.",
     "category": "agent_safe",
     "idempotency": "required",
