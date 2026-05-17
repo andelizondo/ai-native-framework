@@ -24,7 +24,7 @@ Each operation in `interfaces.yaml` declares an `agent_exposure` block with one 
 - `confirm_required` — net-new resources, deletions, or other stake-bearing actions. Exposed via a two-call propose/confirm protocol (below). Maps to `policies.human_in_the_loop.required_for`.
 - `ui_only` — visual / UX-only. Deliberately absent from agent tool lists. Examples: drag-to-reorder, color theme selection.
 
-`agent_exposure.tool_name` is the agent-facing identifier and is required for non-`ui_only` operations. Tool names use `domain.verb_noun` shape (e.g., `workflows.create_instance`) and are stable forever — deprecate and add a successor rather than rename, mirroring the event-naming rule.
+`agent_exposure.tool_name` is the agent-facing identifier and is required for non-`ui_only` operations. Tool names use `domain_verb_noun` shape (e.g., `workflows_create_instance`) — underscore separators only, to satisfy the MCP `^[a-zA-Z0-9_-]{1,64}$` name pattern that stricter clients enforce. Names are stable forever — deprecate and add a successor rather than rename, mirroring the event-naming rule.
 
 ## Confirmation protocol (`confirm_required`)
 

@@ -95,7 +95,7 @@ interfaces:
             type: array
         agent_exposure:
           category: agent_safe
-          tool_name: workflows.list_templates
+          tool_name: workflows_list_templates
           idempotency: required
       get_instance:
         description: "Fetch a single workflow instance by id, including its tasks and recent events."
@@ -108,7 +108,7 @@ interfaces:
             type: object
         agent_exposure:
           category: agent_safe
-          tool_name: workflows.get_instance
+          tool_name: workflows_get_instance
           idempotency: required
       list_instances:
         description: "List instances, optionally filtered by template id."
@@ -121,7 +121,7 @@ interfaces:
             type: array
         agent_exposure:
           category: agent_safe
-          tool_name: workflows.list_instances
+          tool_name: workflows_list_instances
           idempotency: required
       create_instance:
         description: >
@@ -138,7 +138,7 @@ interfaces:
             type: object
         agent_exposure:
           category: confirm_required
-          tool_name: workflows.create_instance
+          tool_name: workflows_create_instance
           idempotency: none
           notes: >
             Net-new resource creation; exposed via propose/confirm
@@ -156,7 +156,7 @@ interfaces:
             type: object
         agent_exposure:
           category: agent_safe
-          tool_name: workflows.update_task
+          tool_name: workflows_update_task
           idempotency: recommended
           notes: >
             Reversible patch; full history reconstructible from
@@ -176,7 +176,7 @@ interfaces:
             type: object
         agent_exposure:
           category: agent_safe
-          tool_name: workflows.add_event
+          tool_name: workflows_add_event
           idempotency: recommended
           notes: >
             Idempotent when `event.correlation_id` is supplied,
@@ -193,7 +193,7 @@ interfaces:
             type: array
         agent_exposure:
           category: agent_safe
-          tool_name: framework.list_items
+          tool_name: framework_list_items
           idempotency: required
       upsert_framework_item:
         description: "Create or update a framework item (Skill or Playbook)."
@@ -205,7 +205,7 @@ interfaces:
             type: object
         agent_exposure:
           category: confirm_required
-          tool_name: framework.upsert_item
+          tool_name: framework_upsert_item
           idempotency: none
           notes: >
             Mutates the framework library; can affect every workflow
@@ -227,7 +227,7 @@ interfaces:
             type: object
         agent_exposure:
           category: agent_safe
-          tool_name: workflows.get_template_diff
+          tool_name: workflows_get_template_diff
           idempotency: required
       apply_template_sync:
         description: >
@@ -250,7 +250,7 @@ interfaces:
             type: object
         agent_exposure:
           category: confirm_required
-          tool_name: workflows.apply_template_sync
+          tool_name: workflows_apply_template_sync
           idempotency: none
           notes: >
             Structural change to an existing instance; exposed via
@@ -272,7 +272,7 @@ interfaces:
             type: object
         agent_exposure:
           category: agent_safe
-          tool_name: workflows.get_template_matrix
+          tool_name: workflows_get_template_matrix
           idempotency: required
 
       # --- Templates (CRUD) ---
@@ -286,7 +286,7 @@ interfaces:
             type: object
         agent_exposure:
           category: confirm_required
-          tool_name: workflows.create_template
+          tool_name: workflows_create_template
           idempotency: none
       update_template:
         description: >
@@ -303,7 +303,7 @@ interfaces:
             type: object
         agent_exposure:
           category: confirm_required
-          tool_name: workflows.update_template
+          tool_name: workflows_update_template
           idempotency: none
           notes: >
             Affects every future instance of the template; reviewed
@@ -320,7 +320,7 @@ interfaces:
             type: object
         agent_exposure:
           category: agent_safe
-          tool_name: workflows.rename_template
+          tool_name: workflows_rename_template
           idempotency: recommended
       delete_template:
         description: "Delete a workflow template."
@@ -329,7 +329,7 @@ interfaces:
             type: string
         agent_exposure:
           category: confirm_required
-          tool_name: workflows.delete_template
+          tool_name: workflows_delete_template
           idempotency: none
       list_template_outputs:
         description: >
@@ -344,7 +344,7 @@ interfaces:
             type: array
         agent_exposure:
           category: agent_safe
-          tool_name: workflows.list_template_outputs
+          tool_name: workflows_list_template_outputs
           idempotency: required
 
       # --- Instances (CRUD) ---
@@ -361,7 +361,7 @@ interfaces:
             type: object
         agent_exposure:
           category: agent_safe
-          tool_name: workflows.rename_instance
+          tool_name: workflows_rename_instance
           idempotency: recommended
       delete_instance:
         description: "Delete a workflow instance and all child tasks and events."
@@ -371,7 +371,7 @@ interfaces:
             format: uuid
         agent_exposure:
           category: confirm_required
-          tool_name: workflows.delete_instance
+          tool_name: workflows_delete_instance
           idempotency: none
           notes: >
             Cascading delete; irreversible. Always confirm_required
@@ -391,7 +391,7 @@ interfaces:
             type: object
         agent_exposure:
           category: confirm_required
-          tool_name: workflows.create_task
+          tool_name: workflows_create_task
           idempotency: none
       update_task_details:
         description: >
@@ -409,7 +409,7 @@ interfaces:
             type: object
         agent_exposure:
           category: agent_safe
-          tool_name: workflows.update_task_details
+          tool_name: workflows_update_task_details
           idempotency: recommended
       delete_task:
         description: "Delete a task from its instance."
@@ -419,7 +419,7 @@ interfaces:
             format: uuid
         agent_exposure:
           category: confirm_required
-          tool_name: workflows.delete_task
+          tool_name: workflows_delete_task
           idempotency: none
       move_task:
         description: "Move a task to a different stage or position within its instance."
@@ -434,7 +434,7 @@ interfaces:
             type: object
         agent_exposure:
           category: agent_safe
-          tool_name: workflows.move_task
+          tool_name: workflows_move_task
           idempotency: recommended
       set_task_status:
         description: >
@@ -452,7 +452,7 @@ interfaces:
             type: object
         agent_exposure:
           category: agent_safe
-          tool_name: workflows.set_task_status
+          tool_name: workflows_set_task_status
           idempotency: recommended
       start_task:
         description: "Transition a task to in_progress and emit the corresponding event."
@@ -465,7 +465,7 @@ interfaces:
             type: object
         agent_exposure:
           category: agent_safe
-          tool_name: workflows.start_task
+          tool_name: workflows_start_task
           idempotency: recommended
       pause_task:
         description: "Pause a running task with a human-readable reason."
@@ -480,7 +480,7 @@ interfaces:
             type: object
         agent_exposure:
           category: agent_safe
-          tool_name: workflows.pause_task
+          tool_name: workflows_pause_task
           idempotency: recommended
       resume_task:
         description: "Resume a paused task."
@@ -493,7 +493,7 @@ interfaces:
             type: object
         agent_exposure:
           category: agent_safe
-          tool_name: workflows.resume_task
+          tool_name: workflows_resume_task
           idempotency: recommended
       cancel_running_task:
         description: "Cancel a task that is currently running."
@@ -509,7 +509,7 @@ interfaces:
             type: object
         agent_exposure:
           category: confirm_required
-          tool_name: workflows.cancel_running_task
+          tool_name: workflows_cancel_running_task
           idempotency: none
           notes: >
             Interrupts in-flight work; partial side effects may already
@@ -525,7 +525,7 @@ interfaces:
             type: object
         agent_exposure:
           category: agent_safe
-          tool_name: workflows.retry_blocked_task
+          tool_name: workflows_retry_blocked_task
           idempotency: recommended
 
       # --- Task IO (inputs/outputs lifecycle on an instance) ---
@@ -544,7 +544,7 @@ interfaces:
             type: object
         agent_exposure:
           category: agent_safe
-          tool_name: workflows.get_task_drawer
+          tool_name: workflows_get_task_drawer
           idempotency: required
       update_task_inputs:
         description: >
@@ -561,7 +561,7 @@ interfaces:
             type: object
         agent_exposure:
           category: agent_safe
-          tool_name: workflows.update_task_inputs
+          tool_name: workflows_update_task_inputs
           idempotency: recommended
       mark_input_received:
         description: "Mark a single task input as received."
@@ -576,7 +576,7 @@ interfaces:
             type: object
         agent_exposure:
           category: agent_safe
-          tool_name: workflows.mark_input_received
+          tool_name: workflows_mark_input_received
           idempotency: recommended
       bypass_input:
         description: "Bypass a task input that is normally required."
@@ -594,7 +594,7 @@ interfaces:
             type: object
         agent_exposure:
           category: confirm_required
-          tool_name: workflows.bypass_input
+          tool_name: workflows_bypass_input
           idempotency: none
           notes: >
             Skips a normally-required gate; affects downstream
@@ -617,7 +617,7 @@ interfaces:
             type: object
         agent_exposure:
           category: agent_safe
-          tool_name: workflows.produce_task_output
+          tool_name: workflows_produce_task_output
           idempotency: recommended
 
       # --- Checkpoints (human-in-the-loop pause points on a task) ---
@@ -628,7 +628,7 @@ interfaces:
             type: array
         agent_exposure:
           category: agent_safe
-          tool_name: workflows.list_pending_checkpoints
+          tool_name: workflows_list_pending_checkpoints
           idempotency: required
       resolve_checkpoint:
         description: >
@@ -648,7 +648,7 @@ interfaces:
             type: object
         agent_exposure:
           category: confirm_required
-          tool_name: workflows.resolve_checkpoint
+          tool_name: workflows_resolve_checkpoint
           idempotency: none
           notes: >
             Terminal transition (complete/failed); exposed via
@@ -667,7 +667,7 @@ interfaces:
             type: object
         agent_exposure:
           category: confirm_required
-          tool_name: workflows.approve_drawer_checkpoint
+          tool_name: workflows_approve_drawer_checkpoint
           idempotency: none
       reject_drawer_checkpoint:
         description: "Reject a checkpoint from the task drawer."
@@ -683,7 +683,7 @@ interfaces:
             type: object
         agent_exposure:
           category: confirm_required
-          tool_name: workflows.reject_drawer_checkpoint
+          tool_name: workflows_reject_drawer_checkpoint
           idempotency: none
 
       # --- Playbook refinement (stub; future agent-runtime affordance) ---
@@ -701,7 +701,7 @@ interfaces:
             type: object
         agent_exposure:
           category: agent_safe
-          tool_name: workflows.refine_playbook
+          tool_name: workflows_refine_playbook
           idempotency: recommended
 
       # --- Framework library (Skills + Playbooks) ---
@@ -712,7 +712,7 @@ interfaces:
             type: string
         agent_exposure:
           category: confirm_required
-          tool_name: framework.delete_item
+          tool_name: framework_delete_item
           idempotency: none
           notes: >
             May orphan task references; reviewed via propose/confirm.
@@ -728,7 +728,7 @@ interfaces:
             type: array
         agent_exposure:
           category: agent_safe
-          tool_name: framework.list_playbook_outputs
+          tool_name: framework_list_playbook_outputs
           idempotency: required
       create_playbook_output:
         description: "Declare a new output on a playbook."
@@ -742,7 +742,7 @@ interfaces:
             type: object
         agent_exposure:
           category: confirm_required
-          tool_name: framework.create_playbook_output
+          tool_name: framework_create_playbook_output
           idempotency: none
       update_playbook_output:
         description: "Patch a declared playbook output."
@@ -756,7 +756,7 @@ interfaces:
             type: object
         agent_exposure:
           category: agent_safe
-          tool_name: framework.update_playbook_output
+          tool_name: framework_update_playbook_output
           idempotency: recommended
       delete_playbook_output:
         description: "Delete a declared playbook output."
@@ -765,7 +765,7 @@ interfaces:
             type: string
         agent_exposure:
           category: confirm_required
-          tool_name: framework.delete_playbook_output
+          tool_name: framework_delete_playbook_output
           idempotency: none
       reorder_playbook_outputs:
         description: "Reorder declared outputs for a playbook (display-only)."
@@ -792,7 +792,7 @@ interfaces:
             type: integer
         agent_exposure:
           category: agent_safe
-          tool_name: framework.count_task_outputs_for_playbook_output
+          tool_name: framework_count_task_outputs_for_playbook_output
           idempotency: required
 
       # --- Playbook inputs (per-playbook input declarations) ---
@@ -806,7 +806,7 @@ interfaces:
             type: array
         agent_exposure:
           category: agent_safe
-          tool_name: framework.list_playbook_inputs
+          tool_name: framework_list_playbook_inputs
           idempotency: required
       create_playbook_input:
         description: "Declare a new input on a playbook."
@@ -820,7 +820,7 @@ interfaces:
             type: object
         agent_exposure:
           category: confirm_required
-          tool_name: framework.create_playbook_input
+          tool_name: framework_create_playbook_input
           idempotency: none
       delete_playbook_input:
         description: "Delete a declared playbook input."
@@ -829,7 +829,7 @@ interfaces:
             type: string
         agent_exposure:
           category: confirm_required
-          tool_name: framework.delete_playbook_input
+          tool_name: framework_delete_playbook_input
           idempotency: none
       reorder_playbook_inputs:
         description: "Reorder declared inputs for a playbook (display-only)."
@@ -854,7 +854,7 @@ interfaces:
             type: array
         agent_exposure:
           category: agent_safe
-          tool_name: framework.list_cross_playbook_output_groups
+          tool_name: framework_list_cross_playbook_output_groups
           idempotency: required
 
 policies:
