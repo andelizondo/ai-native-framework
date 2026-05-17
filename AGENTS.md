@@ -99,8 +99,9 @@ Escalate or stop when:
 - `spec/schema/` - canonical machine validation rules
 - `spec/examples/` - validated examples
 - `spec/policy/` - event and governance policy
-- `interfaces/interfaces.yaml` - logical tool interfaces
+- `interfaces/interfaces.yaml` - logical tool interfaces; per-operation `agent_exposure` blocks govern which operations are exposed to end-user agents and how
 - `docs/AI_NATIVE_FRAMEWORK.md` - long-form framework prose; opened explicitly as The Framework
+- `docs/AGENT_INTEGRATION.md` - how end-user product agents (MCP and future adapters) project a curated subset of interface operations; complements but does not replace `interfaces/interfaces.yaml`
 - `ai/PLAYBOOKS.md` - playbook discovery index
 - `ai/playbooks/` - canonical procedure bodies
 - `ai/SKILLS.md` - skill discovery index

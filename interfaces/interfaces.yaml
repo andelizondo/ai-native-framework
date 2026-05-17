@@ -10,6 +10,9 @@ interfaces:
     outputs:
       spec:
         type: object
+    agent_exposure:
+      category: ui_only
+      idempotency: required
 
   validate_spec:
     description: "Validate a spec instance against product-spec.schema.json."
@@ -21,6 +24,9 @@ interfaces:
         type: boolean
       errors:
         type: array
+    agent_exposure:
+      category: ui_only
+      idempotency: required
 
   emit_event:
     description: "Emit a structured domain event with envelope fields."
@@ -41,6 +47,13 @@ interfaces:
     outputs:
       accepted:
         type: boolean
+    agent_exposure:
+      category: ui_only
+      idempotency: recommended
+      notes: >
+        Agents do not emit raw events; events are emitted by the
+        repository as a side effect of mutating operations. Exposed
+        adapters set `emitted_by` from the resolved principal.
 
   record_error:
     description: "Send an error to the error tracking system."
@@ -49,6 +62,9 @@ interfaces:
         type: object
       fingerprint_tags:
         type: array
+    agent_exposure:
+      category: ui_only
+      idempotency: none
 
   capture_metric:
     description: "Capture product analytics event."
@@ -57,6 +73,9 @@ interfaces:
         type: string
       properties:
         type: object
+    agent_exposure:
+      category: ui_only
+      idempotency: none
 
   workflow_repository:
     description: >
@@ -74,6 +93,10 @@ interfaces:
         outputs:
           templates:
             type: array
+        agent_exposure:
+          category: agent_safe
+          tool_name: workflows.list_templates
+          idempotency: required
       get_instance:
         description: "Fetch a single workflow instance by id, including its tasks and recent events."
         inputs:
@@ -83,6 +106,10 @@ interfaces:
         outputs:
           instance:
             type: object
+        agent_exposure:
+          category: agent_safe
+          tool_name: workflows.get_instance
+          idempotency: required
       list_instances:
         description: "List instances, optionally filtered by template id."
         inputs:
@@ -92,6 +119,10 @@ interfaces:
         outputs:
           instances:
             type: array
+        agent_exposure:
+          category: agent_safe
+          tool_name: workflows.list_instances
+          idempotency: required
       create_instance:
         description: >
           Create a new workflow instance from a template. Materializes
@@ -105,6 +136,13 @@ interfaces:
         outputs:
           instance:
             type: object
+        agent_exposure:
+          category: confirm_required
+          tool_name: workflows.create_instance
+          idempotency: none
+          notes: >
+            Net-new resource creation; exposed via propose/confirm
+            per docs/AGENT_INTEGRATION.md.
       update_task:
         description: "Patch a workflow task's mutable fields (status, substatus, playbook assignment, etc.)."
         inputs:
@@ -116,6 +154,15 @@ interfaces:
         outputs:
           task:
             type: object
+        agent_exposure:
+          category: agent_safe
+          tool_name: workflows.update_task
+          idempotency: recommended
+          notes: >
+            Reversible patch; full history reconstructible from
+            workflow_events. Destructive patches (e.g., setting status
+            to a non-recoverable failed state) MAY be elevated to
+            confirm_required by the adapter implementation.
       add_event:
         description: "Append a workflow_event row scoped to a task (and its parent instance)."
         inputs:
@@ -127,6 +174,13 @@ interfaces:
         outputs:
           event:
             type: object
+        agent_exposure:
+          category: agent_safe
+          tool_name: workflows.add_event
+          idempotency: recommended
+          notes: >
+            Idempotent when `event.correlation_id` is supplied,
+            per spec/policy/event-taxonomy.yaml.
       get_framework_items:
         description: "List Skills and Playbooks, optionally filtered by type."
         inputs:
@@ -137,6 +191,10 @@ interfaces:
         outputs:
           items:
             type: array
+        agent_exposure:
+          category: agent_safe
+          tool_name: framework.list_items
+          idempotency: required
       upsert_framework_item:
         description: "Create or update a framework item (Skill or Playbook)."
         inputs:
@@ -145,6 +203,13 @@ interfaces:
         outputs:
           item:
             type: object
+        agent_exposure:
+          category: confirm_required
+          tool_name: framework.upsert_item
+          idempotency: none
+          notes: >
+            Mutates the framework library; can affect every workflow
+            that references the item. Exposed via propose/confirm.
       get_instance_template_diff:
         description: >
           Compute the structural diff between an instance and its current
@@ -160,6 +225,10 @@ interfaces:
         outputs:
           diff:
             type: object
+        agent_exposure:
+          category: agent_safe
+          tool_name: workflows.get_template_diff
+          idempotency: required
       apply_template_sync:
         description: >
           Apply the user-selected subset of an instance/template diff back
@@ -179,6 +248,14 @@ interfaces:
         outputs:
           instance:
             type: object
+        agent_exposure:
+          category: confirm_required
+          tool_name: workflows.apply_template_sync
+          idempotency: none
+          notes: >
+            Structural change to an existing instance; exposed via
+            propose/confirm so the agent surfaces the diff selection
+            for human approval before commit.
       get_template_matrix:
         description: >
           Roll up instance task state grouped by the template's
@@ -193,6 +270,592 @@ interfaces:
         outputs:
           matrix:
             type: object
+        agent_exposure:
+          category: agent_safe
+          tool_name: workflows.get_template_matrix
+          idempotency: required
+
+      # --- Templates (CRUD) ---
+      create_template:
+        description: "Create a new workflow template."
+        inputs:
+          label:
+            type: string
+        outputs:
+          template:
+            type: object
+        agent_exposure:
+          category: confirm_required
+          tool_name: workflows.create_template
+          idempotency: none
+      update_template:
+        description: >
+          Patch a workflow template's stages, skills, or task_templates JSON.
+          Re-materialization of existing instances is governed by
+          `apply_template_sync`, not this operation.
+        inputs:
+          template_id:
+            type: string
+          patch:
+            type: object
+        outputs:
+          template:
+            type: object
+        agent_exposure:
+          category: confirm_required
+          tool_name: workflows.update_template
+          idempotency: none
+          notes: >
+            Affects every future instance of the template; reviewed
+            via propose/confirm.
+      rename_template:
+        description: "Rename a workflow template label."
+        inputs:
+          template_id:
+            type: string
+          label:
+            type: string
+        outputs:
+          template:
+            type: object
+        agent_exposure:
+          category: agent_safe
+          tool_name: workflows.rename_template
+          idempotency: recommended
+      delete_template:
+        description: "Delete a workflow template."
+        inputs:
+          template_id:
+            type: string
+        agent_exposure:
+          category: confirm_required
+          tool_name: workflows.delete_template
+          idempotency: none
+      list_template_outputs:
+        description: >
+          List the rolled-up output groups for a template (one group per
+          downstream playbook that produces outputs referenced by the
+          template's tasks).
+        inputs:
+          template_id:
+            type: string
+        outputs:
+          groups:
+            type: array
+        agent_exposure:
+          category: agent_safe
+          tool_name: workflows.list_template_outputs
+          idempotency: required
+
+      # --- Instances (CRUD) ---
+      rename_instance:
+        description: "Rename a workflow instance label."
+        inputs:
+          instance_id:
+            type: string
+            format: uuid
+          label:
+            type: string
+        outputs:
+          instance:
+            type: object
+        agent_exposure:
+          category: agent_safe
+          tool_name: workflows.rename_instance
+          idempotency: recommended
+      delete_instance:
+        description: "Delete a workflow instance and all child tasks and events."
+        inputs:
+          instance_id:
+            type: string
+            format: uuid
+        agent_exposure:
+          category: confirm_required
+          tool_name: workflows.delete_instance
+          idempotency: none
+          notes: >
+            Cascading delete; irreversible. Always confirm_required
+            per policies.human_in_the_loop.
+
+      # --- Tasks (CRUD + lifecycle) ---
+      create_task:
+        description: "Create a new task on a workflow instance."
+        inputs:
+          instance_id:
+            type: string
+            format: uuid
+          task:
+            type: object
+        outputs:
+          task:
+            type: object
+        agent_exposure:
+          category: confirm_required
+          tool_name: workflows.create_task
+          idempotency: none
+      update_task_details:
+        description: >
+          Patch a task's human-editable details (label, description,
+          assigned playbook, skill). Distinct from `update_task` which is
+          for status/substatus patches.
+        inputs:
+          task_id:
+            type: string
+            format: uuid
+          details:
+            type: object
+        outputs:
+          task:
+            type: object
+        agent_exposure:
+          category: agent_safe
+          tool_name: workflows.update_task_details
+          idempotency: recommended
+      delete_task:
+        description: "Delete a task from its instance."
+        inputs:
+          task_id:
+            type: string
+            format: uuid
+        agent_exposure:
+          category: confirm_required
+          tool_name: workflows.delete_task
+          idempotency: none
+      move_task:
+        description: "Move a task to a different stage or position within its instance."
+        inputs:
+          task_id:
+            type: string
+            format: uuid
+          target:
+            type: object
+        outputs:
+          task:
+            type: object
+        agent_exposure:
+          category: agent_safe
+          tool_name: workflows.move_task
+          idempotency: recommended
+      set_task_status:
+        description: >
+          Set a task's status (named alias of `update_task` for the
+          common case of status-only patches; preferred for agent use
+          because the contract is narrower).
+        inputs:
+          task_id:
+            type: string
+            format: uuid
+          status:
+            type: string
+        outputs:
+          task:
+            type: object
+        agent_exposure:
+          category: agent_safe
+          tool_name: workflows.set_task_status
+          idempotency: recommended
+      start_task:
+        description: "Transition a task to in_progress and emit the corresponding event."
+        inputs:
+          task_id:
+            type: string
+            format: uuid
+        outputs:
+          task:
+            type: object
+        agent_exposure:
+          category: agent_safe
+          tool_name: workflows.start_task
+          idempotency: recommended
+      pause_task:
+        description: "Pause a running task with a human-readable reason."
+        inputs:
+          task_id:
+            type: string
+            format: uuid
+          reason:
+            type: string
+        outputs:
+          task:
+            type: object
+        agent_exposure:
+          category: agent_safe
+          tool_name: workflows.pause_task
+          idempotency: recommended
+      resume_task:
+        description: "Resume a paused task."
+        inputs:
+          task_id:
+            type: string
+            format: uuid
+        outputs:
+          task:
+            type: object
+        agent_exposure:
+          category: agent_safe
+          tool_name: workflows.resume_task
+          idempotency: recommended
+      cancel_running_task:
+        description: "Cancel a task that is currently running."
+        inputs:
+          task_id:
+            type: string
+            format: uuid
+          reason:
+            type: string
+            required: false
+        outputs:
+          task:
+            type: object
+        agent_exposure:
+          category: confirm_required
+          tool_name: workflows.cancel_running_task
+          idempotency: none
+          notes: >
+            Interrupts in-flight work; partial side effects may already
+            be visible. Exposed via propose/confirm.
+      retry_blocked_task:
+        description: "Retry a task that previously failed or got stuck."
+        inputs:
+          task_id:
+            type: string
+            format: uuid
+        outputs:
+          task:
+            type: object
+        agent_exposure:
+          category: agent_safe
+          tool_name: workflows.retry_blocked_task
+          idempotency: recommended
+
+      # --- Task IO (inputs/outputs lifecycle on an instance) ---
+      get_task_drawer:
+        description: >
+          Aggregate read for the task drawer: returns the task, its
+          assigned playbook, ordered inputs and their current states,
+          ordered outputs and current artifacts, and recent events.
+          Convenience aggregate; equivalent to a sequence of finer reads.
+        inputs:
+          task_id:
+            type: string
+            format: uuid
+        outputs:
+          drawer:
+            type: object
+        agent_exposure:
+          category: agent_safe
+          tool_name: workflows.get_task_drawer
+          idempotency: required
+      update_task_inputs:
+        description: >
+          Update the input states for a task (e.g., toggle a required
+          input from `awaiting` to `received`).
+        inputs:
+          task_id:
+            type: string
+            format: uuid
+          inputs:
+            type: array
+        outputs:
+          task:
+            type: object
+        agent_exposure:
+          category: agent_safe
+          tool_name: workflows.update_task_inputs
+          idempotency: recommended
+      mark_input_received:
+        description: "Mark a single task input as received."
+        inputs:
+          task_id:
+            type: string
+            format: uuid
+          input_id:
+            type: string
+        outputs:
+          input:
+            type: object
+        agent_exposure:
+          category: agent_safe
+          tool_name: workflows.mark_input_received
+          idempotency: recommended
+      bypass_input:
+        description: "Bypass a task input that is normally required."
+        inputs:
+          task_id:
+            type: string
+            format: uuid
+          input_id:
+            type: string
+          reason:
+            type: string
+            required: false
+        outputs:
+          input:
+            type: object
+        agent_exposure:
+          category: confirm_required
+          tool_name: workflows.bypass_input
+          idempotency: none
+          notes: >
+            Skips a normally-required gate; affects downstream
+            assumptions. Exposed via propose/confirm.
+      produce_task_output:
+        description: >
+          Record that a task has produced one of its declared outputs,
+          optionally attaching an artifact (URL, file reference, etc.).
+        inputs:
+          task_id:
+            type: string
+            format: uuid
+          output_id:
+            type: string
+          artifact:
+            type: object
+            required: false
+        outputs:
+          output:
+            type: object
+        agent_exposure:
+          category: agent_safe
+          tool_name: workflows.produce_task_output
+          idempotency: recommended
+
+      # --- Checkpoints (human-in-the-loop pause points on a task) ---
+      list_pending_checkpoints:
+        description: "List checkpoints currently awaiting human resolution."
+        outputs:
+          checkpoints:
+            type: array
+        agent_exposure:
+          category: agent_safe
+          tool_name: workflows.list_pending_checkpoints
+          idempotency: required
+      resolve_checkpoint:
+        description: >
+          Resolve a checkpoint from the Overview surface. On `approved`,
+          the task transitions to `complete`; on `rejected`, to `failed`.
+          Atomic conditional update: refuses if the task is no longer a
+          pending checkpoint.
+        inputs:
+          task_id:
+            type: string
+            format: uuid
+          resolution:
+            type: string
+            enum: [approved, rejected]
+        outputs:
+          task:
+            type: object
+        agent_exposure:
+          category: confirm_required
+          tool_name: workflows.resolve_checkpoint
+          idempotency: none
+          notes: >
+            Terminal transition (complete/failed); exposed via
+            propose/confirm with the checkpoint context in the diff.
+      approve_drawer_checkpoint:
+        description: >
+          Approve a checkpoint from the task drawer. Semantically
+          different from `resolve_checkpoint`: the agent CONTINUES the
+          task (status -> in_progress) rather than marking it complete.
+        inputs:
+          task_id:
+            type: string
+            format: uuid
+        outputs:
+          task:
+            type: object
+        agent_exposure:
+          category: confirm_required
+          tool_name: workflows.approve_drawer_checkpoint
+          idempotency: none
+      reject_drawer_checkpoint:
+        description: "Reject a checkpoint from the task drawer."
+        inputs:
+          task_id:
+            type: string
+            format: uuid
+          reason:
+            type: string
+            required: false
+        outputs:
+          task:
+            type: object
+        agent_exposure:
+          category: confirm_required
+          tool_name: workflows.reject_drawer_checkpoint
+          idempotency: none
+
+      # --- Playbook refinement (stub; future agent-runtime affordance) ---
+      refine_playbook:
+        description: >
+          Request a refinement pass on a task's assigned playbook.
+          Current implementation emits `workflow.playbook_refine_requested`
+          only; no agent runtime executes yet.
+        inputs:
+          task_id:
+            type: string
+            format: uuid
+        outputs:
+          task:
+            type: object
+        agent_exposure:
+          category: agent_safe
+          tool_name: workflows.refine_playbook
+          idempotency: recommended
+
+      # --- Framework library (Skills + Playbooks) ---
+      delete_framework_item:
+        description: "Delete a framework item (Skill or Playbook)."
+        inputs:
+          item_id:
+            type: string
+        agent_exposure:
+          category: confirm_required
+          tool_name: framework.delete_item
+          idempotency: none
+          notes: >
+            May orphan task references; reviewed via propose/confirm.
+
+      # --- Playbook outputs (per-playbook output declarations) ---
+      list_playbook_outputs:
+        description: "List declared outputs for a playbook."
+        inputs:
+          playbook_id:
+            type: string
+        outputs:
+          outputs:
+            type: array
+        agent_exposure:
+          category: agent_safe
+          tool_name: framework.list_playbook_outputs
+          idempotency: required
+      create_playbook_output:
+        description: "Declare a new output on a playbook."
+        inputs:
+          playbook_id:
+            type: string
+          output:
+            type: object
+        outputs:
+          output:
+            type: object
+        agent_exposure:
+          category: confirm_required
+          tool_name: framework.create_playbook_output
+          idempotency: none
+      update_playbook_output:
+        description: "Patch a declared playbook output."
+        inputs:
+          output_id:
+            type: string
+          patch:
+            type: object
+        outputs:
+          output:
+            type: object
+        agent_exposure:
+          category: agent_safe
+          tool_name: framework.update_playbook_output
+          idempotency: recommended
+      delete_playbook_output:
+        description: "Delete a declared playbook output."
+        inputs:
+          output_id:
+            type: string
+        agent_exposure:
+          category: confirm_required
+          tool_name: framework.delete_playbook_output
+          idempotency: none
+      reorder_playbook_outputs:
+        description: "Reorder declared outputs for a playbook (display-only)."
+        inputs:
+          playbook_id:
+            type: string
+          order:
+            type: array
+        agent_exposure:
+          category: ui_only
+          idempotency: required
+          notes: >
+            Display-order only; agents do not depend on output order
+            for correctness.
+      count_task_outputs_for_playbook_output:
+        description: >
+          Count task_outputs that reference a given playbook output;
+          used by the UI to warn before deletion.
+        inputs:
+          output_id:
+            type: string
+        outputs:
+          count:
+            type: integer
+        agent_exposure:
+          category: agent_safe
+          tool_name: framework.count_task_outputs_for_playbook_output
+          idempotency: required
+
+      # --- Playbook inputs (per-playbook input declarations) ---
+      list_playbook_inputs:
+        description: "List declared inputs for a playbook."
+        inputs:
+          playbook_id:
+            type: string
+        outputs:
+          inputs:
+            type: array
+        agent_exposure:
+          category: agent_safe
+          tool_name: framework.list_playbook_inputs
+          idempotency: required
+      create_playbook_input:
+        description: "Declare a new input on a playbook."
+        inputs:
+          playbook_id:
+            type: string
+          input:
+            type: object
+        outputs:
+          input:
+            type: object
+        agent_exposure:
+          category: confirm_required
+          tool_name: framework.create_playbook_input
+          idempotency: none
+      delete_playbook_input:
+        description: "Delete a declared playbook input."
+        inputs:
+          input_id:
+            type: string
+        agent_exposure:
+          category: confirm_required
+          tool_name: framework.delete_playbook_input
+          idempotency: none
+      reorder_playbook_inputs:
+        description: "Reorder declared inputs for a playbook (display-only)."
+        inputs:
+          playbook_id:
+            type: string
+          order:
+            type: array
+        agent_exposure:
+          category: ui_only
+          idempotency: required
+      list_cross_playbook_output_groups:
+        description: >
+          List output groups from playbooks OTHER than the given playbook;
+          used by the input editor to wire a playbook's input as a
+          reference to another playbook's output.
+        inputs:
+          playbook_id:
+            type: string
+        outputs:
+          groups:
+            type: array
+        agent_exposure:
+          category: agent_safe
+          tool_name: framework.list_cross_playbook_output_groups
+          idempotency: required
 
 policies:
   human_in_the_loop:
@@ -238,6 +901,28 @@ adapters:
     notes: >
       Introduce only with decision-log rationale per §8.2.
       Do not use V3 patterns without documented justification.
+
+  mcp_server:
+    description: >
+      Curated MCP (Model Context Protocol) adapter projecting
+      `workflow_repository` to third-party agent clients
+      (Claude Desktop, Cursor, custom). Implementation principles
+      and exposure categories are documented in
+      `docs/AGENT_INTEGRATION.md`.
+    status: planned
+    open_source: true
+    implements:
+      - workflow_repository
+    agent_exposure_source: interfaces.yaml
+    notes: >
+      Tool registrations are generated from the `agent_exposure`
+      blocks on each operation; there is no second source of truth.
+      Operations with `category: ui_only` are deliberately absent
+      from the MCP tool list. Operations with
+      `category: confirm_required` are exposed via a two-call
+      propose/confirm protocol per docs/AGENT_INTEGRATION.md.
+      MCP-driven mutations emit the same workflow_events as the UI,
+      with `emitted_by` set to the resolved principal.
 
   supabase_workflow_repository:
     description: >

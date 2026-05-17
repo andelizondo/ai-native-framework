@@ -14,6 +14,7 @@ The framework is designed for agents to execute structured work under explicit c
 - Playbooks for repository governance, pull-request automation, and agent runtime context
 - A repository-local agent surface: root [AGENTS.md](AGENTS.md) (first read for most agent tools), plus [ai/PLAYBOOKS.md](ai/PLAYBOOKS.md), [ai/playbooks/](ai/playbooks/), [ai/SKILLS.md](ai/SKILLS.md), [ai/skills/](ai/skills/), and [ai/MEMORY.md](ai/MEMORY.md)
 - Governed documentation standards: [Analytics Standard](docs/ANALYTICS_STANDARD.md), [Quality Standard](docs/QUALITY_STANDARD.md)
+- End-user agent integration surface: [Agent Integration](docs/AGENT_INTEGRATION.md) — how MCP (and future adapters) project a curated subset of [interfaces.yaml](interfaces/interfaces.yaml) operations to third-party agents
 
 ## Authority Ladder
 
