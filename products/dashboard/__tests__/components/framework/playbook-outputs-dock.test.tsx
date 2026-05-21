@@ -2,7 +2,7 @@ import { screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import { PlaybookOutputsEditor } from "@/components/framework/playbook-outputs-editor";
+import { PlaybookOutputsDock } from "@/components/framework/playbook-metadata-dock";
 import { renderWithToast } from "@/tests/test-utils";
 import type { PlaybookOutput } from "@/lib/workflows/types";
 
@@ -42,7 +42,7 @@ async function focusName(user: ReturnType<typeof userEvent.setup>, rowId: string
   return within(row).getByLabelText("Output name") as HTMLInputElement;
 }
 
-describe("PlaybookOutputsEditor", () => {
+describe("PlaybookOutputsDock", () => {
   beforeEach(() => {
     listMock.mockReset();
     createMock.mockReset();
@@ -54,7 +54,7 @@ describe("PlaybookOutputsEditor", () => {
 
   it("renders existing outputs from initialOutputs", () => {
     renderWithToast(
-      <PlaybookOutputsEditor
+      <PlaybookOutputsDock
         playbookId="pb-presales"
         initialOutputs={[
           fixture(),
@@ -71,7 +71,7 @@ describe("PlaybookOutputsEditor", () => {
   it("loads outputs on mount when initialOutputs is omitted", async () => {
     listMock.mockResolvedValueOnce([fixture()]);
 
-    renderWithToast(<PlaybookOutputsEditor playbookId="pb-presales" />);
+    renderWithToast(<PlaybookOutputsDock playbookId="pb-presales" />);
 
     await waitFor(() => expect(listMock).toHaveBeenCalledWith("pb-presales"));
     expect(await screen.findByText("report")).toBeInTheDocument();
@@ -84,12 +84,15 @@ describe("PlaybookOutputsEditor", () => {
     );
 
     renderWithToast(
-      <PlaybookOutputsEditor playbookId="pb-presales" initialOutputs={[fixture()]} />,
+      <PlaybookOutputsDock playbookId="pb-presales" initialOutputs={[fixture()]} />,
     );
 
     await user.click(screen.getByTestId("playbook-outputs-add"));
 
-    const newRow = screen.getAllByRole("listitem").at(-1)!;
+    const outputRows = screen
+      .getAllByRole("listitem")
+      .filter((el) => el.dataset.testid?.startsWith("playbook-output-row-"));
+    const newRow = outputRows.at(-1)!;
     // Type the name into the inline-editable field.
     await user.click(within(newRow).getByRole("button", { name: /edit output name/i }));
     const nameInput = within(newRow).getByLabelText("Output name") as HTMLInputElement;
@@ -104,7 +107,7 @@ describe("PlaybookOutputsEditor", () => {
       within(newRow).getByRole("option", { name: /manual/i }),
     );
 
-    await user.click(within(newRow).getByRole("button", { name: "Add" }));
+    await user.click(within(newRow).getByRole("button", { name: "Save" }));
 
     await waitFor(() =>
       expect(createMock).toHaveBeenCalledWith({
@@ -122,7 +125,7 @@ describe("PlaybookOutputsEditor", () => {
     updateMock.mockResolvedValueOnce(fixture({ name: "report-v2" }));
 
     renderWithToast(
-      <PlaybookOutputsEditor playbookId="pb-presales" initialOutputs={[fixture()]} />,
+      <PlaybookOutputsDock playbookId="pb-presales" initialOutputs={[fixture()]} />,
     );
 
     const nameInput = await focusName(user, "po-1");
@@ -146,7 +149,7 @@ describe("PlaybookOutputsEditor", () => {
     const user = userEvent.setup();
 
     renderWithToast(
-      <PlaybookOutputsEditor
+      <PlaybookOutputsDock
         playbookId="pb-presales"
         initialOutputs={[fixture(), fixture({ id: "po-2", name: "deck", position: 1 })]}
       />,
@@ -171,31 +174,37 @@ describe("PlaybookOutputsEditor", () => {
     countMock.mockResolvedValueOnce(3);
 
     renderWithToast(
-      <PlaybookOutputsEditor playbookId="pb-presales" initialOutputs={[fixture()]} />,
+      <PlaybookOutputsDock playbookId="pb-presales" initialOutputs={[fixture()]} />,
     );
 
     await user.click(screen.getByTestId("playbook-output-delete-po-1"));
 
     await waitFor(() => expect(countMock).toHaveBeenCalledWith("po-1"));
     const impact = await screen.findByTestId("playbook-outputs-delete-impact");
-    expect(impact).toHaveTextContent(/3 task output rows/i);
+    expect(impact).toHaveTextContent(/3 produced task output rows/i);
   });
 
   it("removes a pending (unsaved) row locally without calling delete", async () => {
     const user = userEvent.setup();
 
     renderWithToast(
-      <PlaybookOutputsEditor playbookId="pb-presales" initialOutputs={[fixture()]} />,
+      <PlaybookOutputsDock playbookId="pb-presales" initialOutputs={[fixture()]} />,
     );
 
     await user.click(screen.getByTestId("playbook-outputs-add"));
-    const rows = screen.getAllByRole("listitem");
+    const rows = screen
+      .getAllByRole("listitem")
+      .filter((el) => el.dataset.testid?.startsWith("playbook-output-row-"));
     const pendingRow = rows.at(-1)!;
     await user.click(
       within(pendingRow).getByRole("button", { name: /delete output/i }),
     );
 
     expect(deleteMock).not.toHaveBeenCalled();
-    expect(screen.getAllByRole("listitem")).toHaveLength(1);
+    expect(
+      screen
+        .getAllByRole("listitem")
+        .filter((el) => el.dataset.testid?.startsWith("playbook-output-row-")),
+    ).toHaveLength(1);
   });
 });

@@ -57,25 +57,21 @@ export interface WorkflowSkill {
   owners: string[];
 }
 
-export type InputLinkMode = "linked" | "manual" | "bypass";
-
 /**
- * A task's data-flow dependency. Replaces the previous `WorkflowTrigger` /
- * `WorkflowGate` split: only the data-flow trigger types (`task`,
- * `after_task`) survived the redesign — they become `linked` inputs. The
- * remaining trigger/gate vocabulary was removed.
+ * A task's data-flow dependency. Every input is a reference to an upstream
+ * `playbook_outputs.id`; there are no manual/bypass modes at definition
+ * time. (Per-instance bypassing is still possible via the runtime
+ * `bypassInput` server action, which flips `task_inputs.received=true`
+ * with `received_from=null` — that's an instance state, not a definition.)
  *
- * `upstreamOutputId` is wired up by PR 2 (AEL-60) once `playbook_outputs`
- * exists; until then it is always `null` for `linked` inputs and unused
- * for `manual` / `bypass`.
+ * `upstreamTaskRef` carries the *task id* of the upstream producer when
+ * snapshotting into a template/instance, so the matrix wiring overlay can
+ * draw the right arrows without re-resolving from upstream_output_id.
  */
 export interface WorkflowInput {
   id: string;
-  name: string;
-  description?: string;
-  linkMode: InputLinkMode;
+  upstreamOutputId: string;
   upstreamTaskRef?: string;
-  upstreamOutputId?: string | null;
 }
 
 export interface WorkflowTaskTemplate {
@@ -86,6 +82,12 @@ export interface WorkflowTaskTemplate {
   notes?: string;
   checkpoint?: boolean;
   inputs?: WorkflowInput[];
+  /** Snapshot of the playbook's outputs at attach time. Editing this list
+   *  (remove, reorder) does not propagate back to the playbook definition;
+   *  removing an output here just opts this template out of producing it.
+   *  Snapshot ids equal the source `playbook_outputs.id` so produce-flow
+   *  upserts on `(task_id, output_id)` continue to work. */
+  outputs?: PlaybookOutput[];
   owners?: string[];
 }
 
@@ -114,11 +116,22 @@ export interface WorkflowTask {
   substatus: string;
   checkpoint: boolean;
   inputs: WorkflowInput[];
+  /** Snapshot of the playbook's outputs at attach time — see
+   *  `WorkflowTaskTemplate.outputs` for the lifecycle. Always-present array
+   *  so callers don't have to null-check; backfill defaults to `[]` for any
+   *  legacy task with no `playbookId`. */
+  outputs: PlaybookOutput[];
   playbookId: string | null;
   /** Owner labels (people or AI agents) assigned to this specific card.
    *  Per-task so two cards pointing at the same playbook can carry different
    *  owners (e.g. different sales people across instances). */
   owners: string[];
+  /** Lineage back to the `task_templates[].id` this task was materialized
+   *  from. Null on ad-hoc instance tasks created via createTask, and on
+   *  legacy rows authored before the lineage migration. Drives template-
+   *  level rollup (aggregateTasksByTemplateCell) and the template sync
+   *  diff. Optional in the type so older test fixtures stay valid. */
+  templateTaskId?: string | null;
   /** Why the task is paused (e.g. `'checkpoint'`, `'awaiting_input'`).
    *  Drives the drawer pause banner; null when status !== 'paused'. */
   pausedReason?: string | null;
@@ -145,6 +158,29 @@ export interface PlaybookOutput {
   apiCheck?: Record<string, unknown> | null;
   position: number;
   createdAt: string;
+}
+
+/**
+ * Definition-level input declared on a Playbook. Always a reference to an
+ * upstream output on *another* playbook — there is no free-form mode at
+ * the playbook level. Snapshotted into `workflow_tasks.inputs[].upstreamOutputId`
+ * when the playbook is attached to a template/instance.
+ *
+ * The repo hydrates display fields (`upstreamOutputName`, `upstreamPlaybookId`,
+ * `upstreamPlaybookName`, `upstreamOutputKind`) on read so the dock and
+ * drawer can render the "Playbook / Output" chip without joining a second
+ * time.
+ */
+export interface PlaybookInput {
+  id: string;
+  playbookId: string;
+  upstreamOutputId: string;
+  position: number;
+  createdAt: string;
+  upstreamOutputName: string;
+  upstreamOutputKind: PlaybookOutputKind | null;
+  upstreamPlaybookId: string;
+  upstreamPlaybookName: string;
 }
 
 /**
@@ -209,6 +245,7 @@ export interface WorkflowTaskCreateInput {
   notes?: string;
   checkpoint?: boolean;
   inputs?: WorkflowInput[];
+  outputs?: PlaybookOutput[];
   owners?: string[];
 }
 
@@ -231,6 +268,12 @@ export interface WorkflowInstance {
    *  template so edits to the template do not mutate existing instances. */
   stages: WorkflowStage[];
   skills: WorkflowSkill[];
+  /** Last time this instance was reconciled with its template via
+   *  applyTemplateSync (set to createdAt for fresh instances). Drives the
+   *  "Last synced" label in the sync drawer. Null on legacy rows that
+   *  predate the lineage migration and have never been touched by sync.
+   *  Optional in the type so older test fixtures stay valid. */
+  templateSyncedAt?: string | null;
   createdAt: string;
   updatedAt: string;
 }
@@ -300,6 +343,7 @@ export interface WorkflowTaskPatch {
   substatus?: string;
   checkpoint?: boolean;
   inputs?: WorkflowInput[];
+  outputs?: PlaybookOutput[];
   playbookId?: string | null;
   owners?: string[];
   pausedReason?: string | null;
@@ -319,6 +363,119 @@ export interface WorkflowEventInput {
   name: string;
   description?: string;
   payload?: Record<string, unknown>;
+}
+
+// ---------------------------------------------------------------------------
+// Template ↔ instance sync — diff shape returned by
+// `WorkflowRepository.getInstanceTemplateDiff`, and the selection shape the
+// sync drawer sends back to `applyTemplateSync`. The diff is computed by the
+// pure `diffInstanceFromTemplate` in `lib/workflows/template-sync.ts`.
+// ---------------------------------------------------------------------------
+
+export interface StageRename {
+  id: string;
+  from: WorkflowStage;
+  to: WorkflowStage;
+}
+
+export interface SkillRename {
+  id: string;
+  from: WorkflowSkill;
+  to: WorkflowSkill;
+}
+
+export interface InputDiff {
+  added: WorkflowInput[];
+  removed: WorkflowInput[];
+  changed: { id: string; from: WorkflowInput; to: WorkflowInput }[];
+}
+
+/**
+ * Per-task diff. `syncable === "yes"` iff the instance task is pristine —
+ * `status === "not_started"` AND no `task_outputs.status='produced'` rows.
+ * The repository re-checks this server-side before applying; the UI uses
+ * it to render the checkbox-vs-info-row split.
+ */
+export interface TaskFieldDiff {
+  instanceTaskId: string;
+  templateTaskId: string;
+  instanceStatus: WorkflowTaskStatus;
+  fields: {
+    notes?: { from: string; to: string };
+    playbookId?: { from: string | null; to: string | null };
+    checkpoint?: { from: boolean; to: boolean };
+    owners?: { from: string[]; to: string[] };
+    inputs?: InputDiff;
+  };
+  syncable: "yes" | "informational_only";
+  syncBlockedReason?: "task_not_pristine";
+}
+
+export interface InstanceTemplateDiff {
+  templateId: string;
+  instanceId: string;
+  templateSyncedAt: string | null;
+  stages: {
+    added: WorkflowStage[];
+    removedFromTemplate: WorkflowStage[];
+    renamed: StageRename[];
+  };
+  skills: {
+    added: WorkflowSkill[];
+    removedFromTemplate: WorkflowSkill[];
+    renamed: SkillRename[];
+  };
+  tasks: {
+    added: WorkflowTaskTemplate[];
+    removedFromTemplate: WorkflowTask[];
+    changed: TaskFieldDiff[];
+  };
+}
+
+/**
+ * Sent by the sync drawer to `applyTemplateSync`. Each list holds the ids of
+ * the diff entries the user ticked. The repository re-derives the diff
+ * server-side and only applies changes whose id appears here AND still
+ * satisfies the apply rules (e.g. a task that became non-pristine between
+ * the drawer fetch and the apply call is silently dropped from `taskChanges`).
+ */
+export interface TemplateSyncSelection {
+  stageIdsToAdd: string[];
+  skillIdsToAdd: string[];
+  stageIdsToRename: string[];
+  skillIdsToRename: string[];
+  taskTemplateIdsToAdd: string[];
+  /** Instance task ids whose changed fields should be overwritten from the
+   *  template. The repository ignores entries whose backing instance task is
+   *  no longer pristine. */
+  instanceTaskIdsToUpdate: string[];
+}
+
+/**
+ * Returned by `WorkflowRepository.getTemplateMatrix`. One entry per
+ * `task_templates[]` on the template, with status counts and per-instance
+ * detail rolled up across every instance of that template.
+ */
+export interface TemplateCellAggregate {
+  templateTaskId: string;
+  skillId: string;
+  stageId: string;
+  playbookId: string | null;
+  statusCounts: Record<WorkflowTaskStatus, number>;
+  instances: {
+    instanceId: string;
+    instanceLabel: string;
+    taskId: string;
+    status: WorkflowTaskStatus;
+    hasUnmetLinkedInput: boolean;
+    owners: string[];
+  }[];
+}
+
+export interface TemplateMatrix {
+  template: WorkflowTemplate;
+  instances: WorkflowInstance[];
+  cells: TemplateCellAggregate[];
 }
 
 export interface WorkflowRepository {
@@ -419,12 +576,63 @@ export interface WorkflowRepository {
   /** Count `task_outputs` rows referencing this output (used to surface
    *  cascade-delete impact in the confirm modal). */
   countTaskOutputsForPlaybookOutput(outputId: string): Promise<number>;
+  /** List declared inputs for a Playbook, sorted by `position` ascending.
+   *  Each row is hydrated with the upstream output's display fields
+   *  (`upstreamOutputName`, `upstreamOutputKind`, `upstreamPlaybookId`,
+   *  `upstreamPlaybookName`) so the dock can render the "Playbook /
+   *  Output" chip without a second join. */
+  listPlaybookInputs(playbookId: string): Promise<PlaybookInput[]>;
+  /** Wire a playbook to an upstream output of another playbook. If
+   *  `position` is omitted, the row is appended after the highest existing
+   *  position for the same playbook. Throws `WorkflowRepositoryError` with
+   *  `code: 'unique_upstream'` when the (playbook_id, upstream_output_id)
+   *  pair already exists. */
+  createPlaybookInput(input: {
+    playbookId: string;
+    upstreamOutputId: string;
+    position?: number;
+  }): Promise<PlaybookInput>;
+  deletePlaybookInput(id: string): Promise<void>;
+  /** Persist `position` for the given ids in declaration order. Tolerates
+   *  ids that no longer exist (e.g. deleted between fetch and reorder).
+   *  Uses per-row UPDATEs to avoid the NOT-NULL serialization bug that
+   *  bit reorderPlaybookOutputs (see PR #234 commit body). */
+  reorderPlaybookInputs(
+    playbookId: string,
+    orderedIds: string[],
+  ): Promise<void>;
+  /** Outputs grouped per playbook for every playbook *other than* the
+   *  given one. Drives the dock's input-wiring picker on the playbook edit
+   *  page (the user is wiring this playbook to outputs from other ones).
+   *  Outputs are sorted by `position` asc; playbooks with zero outputs are
+   *  omitted (nothing to wire to). */
+  listOutputGroupsForOtherPlaybooks(
+    currentPlaybookId: string,
+  ): Promise<TemplateOutputGroup[]>;
   pauseTask(
     taskId: string,
     reason: string,
     pausedBy?: string | null,
   ): Promise<WorkflowTask>;
   resumeTask(taskId: string): Promise<WorkflowTask>;
+  /** Compute the diff between an instance and its template's current state.
+   *  Loads template, instance, tasks, and the per-task IO summary in one
+   *  pass; the diff itself is computed by the pure
+   *  `diffInstanceFromTemplate` helper. */
+  getInstanceTemplateDiff(instanceId: string): Promise<InstanceTemplateDiff>;
+  /** Apply the user-selected subset of a sync diff to the instance. Server
+   *  re-derives the diff and re-checks pristine-ness on each task update;
+   *  non-applicable selection entries are dropped silently. Returns the
+   *  refreshed instance detail so the matrix can re-render. */
+  applyTemplateSync(
+    instanceId: string,
+    selection: TemplateSyncSelection,
+  ): Promise<WorkflowInstanceDetail>;
+  /** Roll up status across every instance of a template, grouped by the
+   *  template's `task_templates[]` (matched via `template_task_id`).
+   *  Drives the template-level matrix overview at
+   *  `/workflows/templates/[templateId]`. */
+  getTemplateMatrix(templateId: string): Promise<TemplateMatrix | null>;
   getFrameworkItems(type?: FrameworkItemType): Promise<FrameworkItem[]>;
   upsertFrameworkItem(item: FrameworkItem): Promise<FrameworkItem>;
   deleteFrameworkItem(itemId: string): Promise<void>;

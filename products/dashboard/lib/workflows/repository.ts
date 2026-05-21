@@ -4,13 +4,18 @@ import type {
   DrawerData,
   FrameworkItem,
   FrameworkItemType,
+  InstanceTemplateDiff,
   OutputArtifact,
+  PlaybookInput,
   PlaybookOutput,
   PlaybookOutputKind,
   TaskIOSummary,
   TaskInputState,
   TaskOutput,
   TaskOutputStatus,
+  TemplateMatrix,
+  TemplateOutputGroup,
+  TemplateSyncSelection,
   WorkflowEvent,
   WorkflowEventInput,
   WorkflowInput,
@@ -19,6 +24,7 @@ import type {
   WorkflowCheckpointTransitionStatus,
   WorkflowRepository,
   WorkflowSkill,
+  WorkflowStage,
   WorkflowTask,
   WorkflowTaskCreateInput,
   WorkflowTaskPatch,
@@ -26,8 +32,13 @@ import type {
   WorkflowTaskTemplate,
   WorkflowTemplatePatch,
   WorkflowTemplate,
-  TemplateOutputGroup,
 } from "./types";
+
+import {
+  diffInstanceFromTemplate,
+  filterApplicableTaskUpdates,
+} from "./template-sync";
+import { aggregateTasksByTemplateCell } from "./aggregate";
 
 interface WorkflowTemplateRow {
   id: string;
@@ -48,6 +59,7 @@ interface WorkflowInstanceRow {
   status: WorkflowInstance["status"];
   stages: unknown;
   skills: unknown;
+  template_synced_at: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -62,8 +74,10 @@ interface WorkflowTaskRow {
   substatus: string;
   checkpoint: boolean;
   inputs: unknown;
+  outputs: unknown;
   playbook_id: string | null;
   owners: unknown;
+  template_task_id: string | null;
   paused_reason: string | null;
   paused_by: string | null;
   paused_at: string | null;
@@ -78,6 +92,14 @@ interface PlaybookOutputRow {
   description: string | null;
   kind: PlaybookOutputKind | null;
   api_check: unknown;
+  position: number;
+  created_at: string;
+}
+
+interface PlaybookInputRow {
+  id: string;
+  playbook_id: string;
+  upstream_output_id: string;
   position: number;
   created_at: string;
 }
@@ -166,76 +188,32 @@ function migrateSkills(raw: unknown): WorkflowSkill[] {
   return toJsonArray<unknown>(raw).map(migrateSkill);
 }
 
-const VALID_LINK_MODES = new Set(["linked", "manual", "bypass"]);
-
 /**
- * Read the `inputs` JSONB column directly (PR 2 / AEL-60). Defensively
- * tolerates rows authored before the column rename: if a row still carries
- * the old trigger shape (`type: 'task' | 'after_task'`), map it forward
- * into a `linked` input on read. New rows are always written in the
- * canonical `WorkflowInput` shape via `inputsToJsonb`.
+ * Read the `inputs` JSONB column. Every entry must carry an
+ * `upstreamOutputId`; rows missing one are filtered out. The 20260516
+ * migration prunes pre-existing JSONB so this filter is a defensive belt
+ * for any rows the migration didn't reach (e.g. running in tests with
+ * unmigrated fixtures).
  */
 function normalizeInputs(raw: unknown): WorkflowInput[] {
   return toJsonArray<Record<string, unknown>>(raw)
     .map((item): WorkflowInput | null => {
       if (item == null) return null;
-
-      // Legacy trigger shape — best-effort forward map. New rows never hit
-      // this branch because writes go through inputsToJsonb.
-      if (typeof item.type === "string" && !item.linkMode) {
-        if (item.type !== "task" && item.type !== "after_task") return null;
-        const ref =
-          typeof item.taskRef === "string" && item.taskRef.trim()
-            ? item.taskRef.trim()
-            : typeof item.taskId === "string" && item.taskId.trim()
-              ? item.taskId.trim()
-              : undefined;
-        const id =
-          typeof item.id === "string" && item.id.trim()
-            ? item.id.trim()
-            : `linked:${ref ?? "unknown"}`;
-        const name =
-          typeof item.label === "string" && item.label.trim()
-            ? item.label.trim()
-            : ref ?? "Linked input";
-        return {
-          id,
-          name,
-          linkMode: "linked" as const,
-          upstreamTaskRef: ref,
-          upstreamOutputId: null,
-        } satisfies WorkflowInput;
-      }
-
-      const linkMode =
-        typeof item.linkMode === "string" && VALID_LINK_MODES.has(item.linkMode)
-          ? (item.linkMode as WorkflowInput["linkMode"])
-          : "linked";
       const id = typeof item.id === "string" && item.id.trim() ? item.id.trim() : null;
       if (!id) return null;
-      const name =
-        typeof item.name === "string" && item.name.trim()
-          ? item.name.trim()
-          : id;
-      const upstreamTaskRef =
-        typeof item.upstreamTaskRef === "string" && item.upstreamTaskRef.trim()
-          ? item.upstreamTaskRef.trim()
-          : undefined;
       const upstreamOutputId =
         typeof item.upstreamOutputId === "string" && item.upstreamOutputId.trim()
           ? item.upstreamOutputId.trim()
           : null;
-      const description =
-        typeof item.description === "string" && item.description.trim()
-          ? item.description.trim()
+      if (!upstreamOutputId) return null;
+      const upstreamTaskRef =
+        typeof item.upstreamTaskRef === "string" && item.upstreamTaskRef.trim()
+          ? item.upstreamTaskRef.trim()
           : undefined;
       return {
         id,
-        name,
-        description,
-        linkMode,
-        upstreamTaskRef,
         upstreamOutputId,
+        upstreamTaskRef,
       } satisfies WorkflowInput;
     })
     .filter((value): value is WorkflowInput => value !== null);
@@ -244,11 +222,77 @@ function normalizeInputs(raw: unknown): WorkflowInput[] {
 function inputsToJsonb(inputs: WorkflowInput[]): unknown[] {
   return inputs.map((input) => ({
     id: input.id,
-    name: input.name,
-    description: input.description ?? null,
-    linkMode: input.linkMode,
+    upstreamOutputId: input.upstreamOutputId,
     upstreamTaskRef: input.upstreamTaskRef ?? null,
-    upstreamOutputId: input.upstreamOutputId ?? null,
+  }));
+}
+
+const VALID_OUTPUT_KINDS = new Set<PlaybookOutputKind>([
+  "file",
+  "media",
+  "link",
+  "manual",
+  "api",
+]);
+
+/** Read the per-task `outputs` JSONB column and coerce it into the canonical
+ *  `PlaybookOutput[]` shape. Tolerates rows authored before this column
+ *  existed (returns []) and rows that had stray extra keys. */
+function normalizeOutputsSnapshot(raw: unknown): PlaybookOutput[] {
+  return toJsonArray<Record<string, unknown>>(raw)
+    .map((item, index): PlaybookOutput | null => {
+      if (item == null || typeof item !== "object") return null;
+      const id = typeof item.id === "string" && item.id.trim() ? item.id.trim() : null;
+      if (!id) return null;
+      const playbookId =
+        typeof item.playbookId === "string" && item.playbookId.trim()
+          ? item.playbookId.trim()
+          : "";
+      const name = typeof item.name === "string" ? item.name : "";
+      const description =
+        typeof item.description === "string" ? item.description : null;
+      const kindCandidate = typeof item.kind === "string" ? item.kind : null;
+      const kind =
+        kindCandidate && VALID_OUTPUT_KINDS.has(kindCandidate as PlaybookOutputKind)
+          ? (kindCandidate as PlaybookOutputKind)
+          : null;
+      const apiCheck =
+        item.apiCheck && typeof item.apiCheck === "object" && !Array.isArray(item.apiCheck)
+          ? (item.apiCheck as Record<string, unknown>)
+          : null;
+      const position =
+        typeof item.position === "number" && Number.isFinite(item.position)
+          ? item.position
+          : index;
+      const createdAt =
+        typeof item.createdAt === "string" ? item.createdAt : new Date(0).toISOString();
+      return {
+        id,
+        playbookId,
+        name,
+        description,
+        kind,
+        apiCheck,
+        position,
+        createdAt,
+      };
+    })
+    .filter((value): value is PlaybookOutput => value !== null)
+    .sort((a, b) => a.position - b.position);
+}
+
+function outputsToJsonb(outputs: PlaybookOutput[]): unknown[] {
+  return outputs.map((output, index) => ({
+    id: output.id,
+    playbookId: output.playbookId,
+    name: output.name,
+    description: output.description ?? null,
+    kind: output.kind,
+    apiCheck: output.apiCheck ?? null,
+    // Re-stamp position from array order so reorder edits in the drawer
+    // persist without callers having to maintain `position` themselves.
+    position: index,
+    createdAt: output.createdAt,
   }));
 }
 
@@ -284,6 +328,7 @@ function mapInstance(row: WorkflowInstanceRow): WorkflowInstance {
     status: row.status,
     stages: toJsonArray(row.stages),
     skills: migrateSkills(row.skills),
+    templateSyncedAt: row.template_synced_at ?? null,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
   };
@@ -300,10 +345,12 @@ function mapTask(row: WorkflowTaskRow): WorkflowTask {
     substatus: row.substatus,
     checkpoint: row.checkpoint,
     inputs: normalizeInputs(row.inputs),
+    outputs: normalizeOutputsSnapshot(row.outputs),
     playbookId: row.playbook_id,
     owners: toJsonArray<unknown>(row.owners)
       .filter((value): value is string => typeof value === "string" && value.trim().length > 0)
       .map((value) => value.trim()),
+    templateTaskId: row.template_task_id ?? null,
     pausedReason: row.paused_reason,
     pausedBy: row.paused_by,
     pausedAt: row.paused_at,
@@ -323,6 +370,95 @@ function mapPlaybookOutput(row: PlaybookOutputRow): PlaybookOutput {
     position: row.position,
     createdAt: row.created_at,
   };
+}
+
+interface PlaybookInputHydration {
+  upstreamOutputName: string;
+  upstreamOutputKind: PlaybookOutputKind | null;
+  upstreamPlaybookId: string;
+  upstreamPlaybookName: string;
+}
+
+function mapPlaybookInput(
+  row: PlaybookInputRow,
+  hydration: PlaybookInputHydration,
+): PlaybookInput {
+  return {
+    id: row.id,
+    playbookId: row.playbook_id,
+    upstreamOutputId: row.upstream_output_id,
+    position: row.position,
+    createdAt: row.created_at,
+    upstreamOutputName: hydration.upstreamOutputName,
+    upstreamOutputKind: hydration.upstreamOutputKind,
+    upstreamPlaybookId: hydration.upstreamPlaybookId,
+    upstreamPlaybookName: hydration.upstreamPlaybookName,
+  };
+}
+
+/** Two-step join: fetch the upstream `playbook_outputs` rows referenced by
+ *  the given input rows, then the upstream `framework_items` for each
+ *  output's playbook. Rows whose upstream output has been deleted are
+ *  dropped (the FK is `on delete cascade` so this is defensive — covers
+ *  the race window between fetch and cascade fire). */
+async function hydratePlaybookInputs(
+  client: SupabaseClient,
+  rows: PlaybookInputRow[],
+): Promise<PlaybookInput[]> {
+  if (rows.length === 0) return [];
+  const outputIds = Array.from(new Set(rows.map((r) => r.upstream_output_id)));
+  const { data: outputRows, error: outErr } = await client
+    .from("playbook_outputs")
+    .select("id,playbook_id,name,kind")
+    .in("id", outputIds);
+  if (outErr) {
+    throw new WorkflowRepositoryError("hydratePlaybookInputs outputs lookup failed", outErr);
+  }
+  const outputById = new Map<
+    string,
+    { id: string; playbookId: string; name: string; kind: PlaybookOutputKind | null }
+  >();
+  for (const r of (outputRows ?? []) as {
+    id: string;
+    playbook_id: string;
+    name: string;
+    kind: PlaybookOutputKind | null;
+  }[]) {
+    outputById.set(r.id, {
+      id: r.id,
+      playbookId: r.playbook_id,
+      name: r.name,
+      kind: r.kind,
+    });
+  }
+  const upstreamPlaybookIds = Array.from(
+    new Set(
+      Array.from(outputById.values()).map((o) => o.playbookId),
+    ),
+  );
+  const { data: itemRows, error: itemErr } = await client
+    .from("framework_items")
+    .select("id,name")
+    .in("id", upstreamPlaybookIds);
+  if (itemErr) {
+    throw new WorkflowRepositoryError("hydratePlaybookInputs playbook lookup failed", itemErr);
+  }
+  const playbookNameById = new Map<string, string>();
+  for (const r of (itemRows ?? []) as { id: string; name: string }[]) {
+    playbookNameById.set(r.id, r.name);
+  }
+  return rows
+    .map((row): PlaybookInput | null => {
+      const upstream = outputById.get(row.upstream_output_id);
+      if (!upstream) return null;
+      return mapPlaybookInput(row, {
+        upstreamOutputName: upstream.name,
+        upstreamOutputKind: upstream.kind,
+        upstreamPlaybookId: upstream.playbookId,
+        upstreamPlaybookName: playbookNameById.get(upstream.playbookId) ?? "Unknown playbook",
+      });
+    })
+    .filter((value): value is PlaybookInput => value !== null);
 }
 
 function mapTaskOutput(row: TaskOutputRow): TaskOutput {
@@ -395,6 +531,7 @@ function patchToRow(patch: WorkflowTaskPatch): Record<string, unknown> {
   if (patch.substatus !== undefined) row.substatus = patch.substatus;
   if (patch.checkpoint !== undefined) row.checkpoint = patch.checkpoint;
   if (patch.inputs !== undefined) row.inputs = inputsToJsonb(patch.inputs);
+  if (patch.outputs !== undefined) row.outputs = outputsToJsonb(patch.outputs);
   if (patch.playbookId !== undefined) row.playbook_id = patch.playbookId;
   if (patch.owners !== undefined) row.owners = patch.owners;
   if (patch.pausedReason !== undefined) row.paused_reason = patch.pausedReason;
@@ -415,7 +552,10 @@ function templatePatchToRow(
   return row;
 }
 
-export type WorkflowRepositoryErrorCode = "unique_name" | "stale_output_ref";
+export type WorkflowRepositoryErrorCode =
+  | "unique_name"
+  | "unique_upstream"
+  | "stale_output_ref";
 
 export class WorkflowRepositoryError extends Error {
   readonly cause?: unknown;
@@ -511,16 +651,25 @@ async function loadInstanceTaskIO(
 ): Promise<TaskIOSummary[]> {
   if (tasks.length === 0) return [];
   const taskIds = tasks.map((t) => t.id);
-  const playbookIds = Array.from(
-    new Set(tasks.map((t) => t.playbookId).filter((id): id is string => Boolean(id))),
+
+  // Snapshots are the source of truth for which outputs each task carries.
+  // Only fall back to live `playbook_outputs` for tasks whose snapshot is
+  // empty AND that have a playbook attached — handles legacy rows authored
+  // before the snapshot column existed.
+  const fallbackPlaybookIds = Array.from(
+    new Set(
+      tasks
+        .filter((t) => t.outputs.length === 0 && Boolean(t.playbookId))
+        .map((t) => t.playbookId as string),
+    ),
   );
 
   const [pbOutputsRes, taskOutputsRes, taskInputsRes] = await Promise.all([
-    playbookIds.length > 0
+    fallbackPlaybookIds.length > 0
       ? client
           .from("playbook_outputs")
           .select("*")
-          .in("playbook_id", playbookIds)
+          .in("playbook_id", fallbackPlaybookIds)
           .order("position", { ascending: true })
       : Promise.resolve({ data: [], error: null } as const),
     client.from("task_outputs").select("*").in("task_id", taskIds),
@@ -537,11 +686,11 @@ async function loadInstanceTaskIO(
     throw new WorkflowRepositoryError("loadInstanceTaskIO task_inputs failed", taskInputsRes.error);
   }
 
-  const pbOutputsByPlaybook = new Map<string, PlaybookOutputRow[]>();
+  const fallbackByPlaybook = new Map<string, PlaybookOutput[]>();
   for (const row of (pbOutputsRes.data ?? []) as PlaybookOutputRow[]) {
-    const list = pbOutputsByPlaybook.get(row.playbook_id) ?? [];
-    list.push(row);
-    pbOutputsByPlaybook.set(row.playbook_id, list);
+    const list = fallbackByPlaybook.get(row.playbook_id) ?? [];
+    list.push(mapPlaybookOutput(row));
+    fallbackByPlaybook.set(row.playbook_id, list);
   }
 
   const taskOutputByTaskAndOutput = new Map<string, TaskOutputRow>();
@@ -558,10 +707,13 @@ async function loadInstanceTaskIO(
   }
 
   return tasks.map((task) => {
-    const pbOutputs = task.playbookId
-      ? (pbOutputsByPlaybook.get(task.playbookId) ?? [])
-      : [];
-    const outputs = pbOutputs
+    const taskOutputs =
+      task.outputs.length > 0
+        ? task.outputs
+        : task.playbookId
+          ? (fallbackByPlaybook.get(task.playbookId) ?? [])
+          : [];
+    const outputs = taskOutputs
       .slice()
       .sort((a, b) => a.position - b.position)
       .map((po) => {
@@ -575,10 +727,126 @@ async function loadInstanceTaskIO(
       });
     const received = receivedInputsByTask.get(task.id) ?? new Set<string>();
     const hasUnmetLinkedInput = task.inputs.some(
-      (input) => input.linkMode === "linked" && !received.has(input.id),
+      (input) => !received.has(input.id),
     );
     return { taskId: task.id, outputs, hasUnmetLinkedInput };
   });
+}
+
+/**
+ * One-shot loader used by both `getInstanceTemplateDiff` and
+ * `applyTemplateSync`. Pulls the template, instance, tasks, and per-task IO
+ * summary in parallel — same data the pure `diffInstanceFromTemplate`
+ * function expects. Kept separate from `getInstance` because we always need
+ * the template here (not optional) and we don't care about events.
+ */
+async function loadInstanceDetailForSync(
+  client: SupabaseClient,
+  instanceId: string,
+): Promise<{
+  template: WorkflowTemplate;
+  instance: WorkflowInstance;
+  tasks: WorkflowTask[];
+  taskIO: TaskIOSummary[];
+}> {
+  const { data: instanceRow, error: instErr } = await client
+    .from("workflow_instances")
+    .select("*")
+    .eq("id", instanceId)
+    .maybeSingle();
+  if (instErr) {
+    throw new WorkflowRepositoryError(
+      "loadInstanceDetailForSync instance lookup failed",
+      instErr,
+    );
+  }
+  if (!instanceRow) {
+    throw new WorkflowRepositoryError(
+      `loadInstanceDetailForSync: unknown instance_id "${instanceId}"`,
+    );
+  }
+  const instance = mapInstance(instanceRow as WorkflowInstanceRow);
+
+  const [{ data: tplRow, error: tplErr }, { data: taskRows, error: tasksErr }] =
+    await Promise.all([
+      client
+        .from("workflow_templates")
+        .select("*")
+        .eq("id", instance.templateId)
+        .maybeSingle(),
+      client
+        .from("workflow_tasks")
+        .select("*")
+        .eq("instance_id", instanceId)
+        .order("created_at", { ascending: true }),
+    ]);
+  if (tplErr) {
+    throw new WorkflowRepositoryError(
+      "loadInstanceDetailForSync template lookup failed",
+      tplErr,
+    );
+  }
+  if (!tplRow) {
+    throw new WorkflowRepositoryError(
+      `loadInstanceDetailForSync: template "${instance.templateId}" missing`,
+    );
+  }
+  if (tasksErr) {
+    throw new WorkflowRepositoryError(
+      "loadInstanceDetailForSync tasks lookup failed",
+      tasksErr,
+    );
+  }
+  const template = mapTemplate(tplRow as WorkflowTemplateRow);
+  const tasks = (taskRows ?? []).map((row) => mapTask(row as WorkflowTaskRow));
+  const taskIO = await loadInstanceTaskIO(client, tasks);
+  return { template, instance, tasks, taskIO };
+}
+
+/**
+ * Walk the given task rows, rewriting `inputs[].upstreamTaskRef` from any
+ * known *template* task id to the corresponding instance task id. Used by
+ * `applyTemplateSync` after newly-added cells and updated cells are
+ * persisted. Same shape as the post-insert remap in `createInstance`.
+ *
+ * Every `WorkflowInput` is now an upstream-output reference (no more
+ * link-mode discriminator); the remap simply translates the task pointer
+ * when one was snapshotted from the template.
+ */
+async function remapUpstreamRefs(
+  client: SupabaseClient,
+  rows: WorkflowTaskRow[],
+  templateIdToInstanceId: Map<string, string>,
+): Promise<void> {
+  if (rows.length === 0 || templateIdToInstanceId.size === 0) return;
+  for (const row of rows) {
+    const normalized = normalizeInputs(row.inputs);
+    let changed = false;
+    const remapped = normalized.map((input) => {
+      if (
+        input.upstreamTaskRef &&
+        templateIdToInstanceId.has(input.upstreamTaskRef)
+      ) {
+        const next = templateIdToInstanceId.get(input.upstreamTaskRef) as string;
+        if (next !== input.upstreamTaskRef) {
+          changed = true;
+          return { ...input, upstreamTaskRef: next };
+        }
+      }
+      return input;
+    });
+    if (!changed) continue;
+    const { error } = await client
+      .from("workflow_tasks")
+      .update({ inputs: inputsToJsonb(remapped) })
+      .eq("id", row.id);
+    if (error) {
+      throw new WorkflowRepositoryError(
+        "remapUpstreamRefs failed",
+        error,
+      );
+    }
+  }
 }
 
 function unwrap<T>(label: string, data: T | null, error: unknown): T {
@@ -594,7 +862,7 @@ function unwrap<T>(label: string, data: T | null, error: unknown): T {
 export function createWorkflowRepository(
   client: SupabaseClient,
 ): WorkflowRepository {
-  return {
+  const repo: WorkflowRepository = {
     async getTemplates(): Promise<WorkflowTemplate[]> {
       const { data, error } = await client
         .from("workflow_templates")
@@ -784,6 +1052,7 @@ export function createWorkflowRepository(
       }
       const template = mapTemplate(tplRow as WorkflowTemplateRow);
 
+      const createdAtIso = new Date().toISOString();
       const { data: insertedInstance, error: insertErr } = await client
         .from("workflow_instances")
         .insert({
@@ -792,6 +1061,8 @@ export function createWorkflowRepository(
           status: "active",
           stages: template.stages,
           skills: template.skills as unknown as WorkflowSkill[],
+          // Fresh instance is in sync with the template by construction.
+          template_synced_at: createdAtIso,
         })
         .select("*")
         .single();
@@ -812,8 +1083,10 @@ export function createWorkflowRepository(
             substatus: "",
             checkpoint: tpl.checkpoint ?? false,
             inputs: inputsToJsonb(tpl.inputs ?? []),
+            outputs: outputsToJsonb(tpl.outputs ?? []),
             playbook_id: tpl.playbookId ?? null,
             owners: tpl.owners ?? [],
+            template_task_id: tpl.id ?? null,
           }),
         );
 
@@ -833,18 +1106,17 @@ export function createWorkflowRepository(
         // Wiring refs in template JSONB point at *template* task ids; the
         // instance materializes with fresh task uuids, so any
         // `inputs[].upstreamTaskRef` set in the template needs to be
-        // re-pointed at the corresponding instance task. Match by
-        // (skill_id, stage_id) — unique within a template. The auto-satisfy
-        // trigger keys off `upstreamOutputId` so it works regardless, but
-        // any UI that resolves the upstream task by id (the wiring SVG,
-        // future graph views) depends on this remap.
+        // re-pointed at the corresponding instance task. We now key the
+        // remap on `template_task_id` directly (rename-proof; future-proof
+        // if the editor ever allows multiple cards per cell). The
+        // auto-satisfy trigger keys off `upstreamOutputId` so it works
+        // regardless, but any UI that resolves the upstream task by id
+        // (the wiring SVG, future graph views) depends on this remap.
         const templateIdToInstanceId = new Map<string, string>();
-        for (const tpl of template.taskTemplates) {
-          if (!tpl.id) continue;
-          const match = insertedRows.find(
-            (row) => row.skill_id === tpl.skillId && row.stage_id === tpl.stageId,
-          );
-          if (match) templateIdToInstanceId.set(tpl.id, match.id);
+        for (const row of insertedRows) {
+          if (row.template_task_id) {
+            templateIdToInstanceId.set(row.template_task_id, row.id);
+          }
         }
 
         const updates: { id: string; inputs: unknown[] }[] = [];
@@ -853,7 +1125,6 @@ export function createWorkflowRepository(
           let changed = false;
           const remapped = normalized.map((input) => {
             if (
-              input.linkMode === "linked" &&
               input.upstreamTaskRef &&
               templateIdToInstanceId.has(input.upstreamTaskRef)
             ) {
@@ -929,6 +1200,7 @@ export function createWorkflowRepository(
           substatus: "",
           checkpoint: input.checkpoint ?? false,
           inputs: inputsToJsonb(input.inputs ?? []),
+          outputs: outputsToJsonb(input.outputs ?? []),
           playbook_id: input.playbookId ?? null,
           owners: input.owners ?? [],
         })
@@ -1162,8 +1434,12 @@ export function createWorkflowRepository(
         throw new WorkflowRepositoryError("getDrawerData outputs failed", outputsRes.error);
       }
 
-      let playbookOutputs: PlaybookOutput[] = [];
-      if (task.playbookId) {
+      // Per-task snapshot is the source of truth. Fall back to the live
+      // playbook_outputs only when the snapshot is empty AND the task is
+      // wired to a playbook — covers any rows authored before the snapshot
+      // backfill (or manual SQL inserts that skip outputs).
+      let playbookOutputs: PlaybookOutput[] = task.outputs;
+      if (playbookOutputs.length === 0 && task.playbookId) {
         const { data: poRows, error: poErr } = await client
           .from("playbook_outputs")
           .select("*")
@@ -1266,45 +1542,62 @@ export function createWorkflowRepository(
       }
       if (!templateRow) return [];
 
-      const taskTemplates = toJsonArray<{ playbookId?: unknown }>(
-        (templateRow as { task_templates: unknown }).task_templates,
-      );
-      const playbookIds = Array.from(
-        new Set(
-          taskTemplates
-            .map((task) =>
-              typeof task.playbookId === "string" && task.playbookId.trim()
-                ? task.playbookId.trim()
-                : null,
-            )
-            .filter((value): value is string => value !== null),
-        ),
-      );
-      if (playbookIds.length === 0) return [];
+      const taskTemplates = toJsonArray<{
+        playbookId?: unknown;
+        outputs?: unknown;
+      }>((templateRow as { task_templates: unknown }).task_templates);
 
-      const [{ data: itemRows, error: itemErr }, { data: outputRows, error: outputErr }] =
-        await Promise.all([
-          client
-            .from("framework_items")
-            .select("id,name")
-            .in("id", playbookIds)
-            .eq("type", "playbook"),
-          client
-            .from("playbook_outputs")
-            .select("*")
-            .in("playbook_id", playbookIds)
-            .order("position", { ascending: true }),
-        ]);
+      // Per-template-task snapshots are the source of truth. Group by
+      // playbookId; if multiple tasks share a playbook (rare), union by id.
+      const snapshotByPlaybook = new Map<string, Map<string, PlaybookOutput>>();
+      const playbookIdsNeedingFallback = new Set<string>();
+      const allPlaybookIds = new Set<string>();
+      for (const task of taskTemplates) {
+        const playbookId =
+          typeof task.playbookId === "string" && task.playbookId.trim()
+            ? task.playbookId.trim()
+            : null;
+        if (!playbookId) continue;
+        allPlaybookIds.add(playbookId);
+        const snapshot = normalizeOutputsSnapshot(task.outputs);
+        if (snapshot.length === 0) {
+          playbookIdsNeedingFallback.add(playbookId);
+          continue;
+        }
+        const bucket = snapshotByPlaybook.get(playbookId) ?? new Map<string, PlaybookOutput>();
+        for (const output of snapshot) {
+          if (!bucket.has(output.id)) bucket.set(output.id, output);
+        }
+        snapshotByPlaybook.set(playbookId, bucket);
+      }
+      if (allPlaybookIds.size === 0) return [];
+      const playbookIds = Array.from(allPlaybookIds);
+      const fallbackIds = Array.from(playbookIdsNeedingFallback);
+
+      const [{ data: itemRows, error: itemErr }, fallbackRes] = await Promise.all([
+        client
+          .from("framework_items")
+          .select("id,name")
+          .in("id", playbookIds)
+          .eq("type", "playbook"),
+        fallbackIds.length > 0
+          ? client
+              .from("playbook_outputs")
+              .select("*")
+              .in("playbook_id", fallbackIds)
+              .order("position", { ascending: true })
+          : Promise.resolve({ data: [], error: null } as const),
+      ]);
       if (itemErr) {
         throw new WorkflowRepositoryError(
           "listOutputsForTemplate framework_items lookup failed",
           itemErr,
         );
       }
-      if (outputErr) {
+      if (fallbackRes.error) {
         throw new WorkflowRepositoryError(
           "listOutputsForTemplate playbook_outputs lookup failed",
-          outputErr,
+          fallbackRes.error,
         );
       }
 
@@ -1312,12 +1605,11 @@ export function createWorkflowRepository(
       for (const row of (itemRows ?? []) as { id: string; name: string }[]) {
         nameById.set(row.id, row.name);
       }
-      const outputsByPlaybook = new Map<string, PlaybookOutput[]>();
-      for (const row of (outputRows ?? []) as PlaybookOutputRow[]) {
-        const mapped = mapPlaybookOutput(row);
-        const list = outputsByPlaybook.get(row.playbook_id) ?? [];
-        list.push(mapped);
-        outputsByPlaybook.set(row.playbook_id, list);
+      for (const row of (fallbackRes.data ?? []) as PlaybookOutputRow[]) {
+        const bucket =
+          snapshotByPlaybook.get(row.playbook_id) ?? new Map<string, PlaybookOutput>();
+        bucket.set(row.id, mapPlaybookOutput(row));
+        snapshotByPlaybook.set(row.playbook_id, bucket);
       }
 
       return playbookIds
@@ -1325,7 +1617,9 @@ export function createWorkflowRepository(
         .map((id) => ({
           playbookId: id,
           playbookName: nameById.get(id) as string,
-          outputs: outputsByPlaybook.get(id) ?? [],
+          outputs: Array.from(snapshotByPlaybook.get(id)?.values() ?? []).sort(
+            (a, b) => a.position - b.position,
+          ),
         }))
         .sort((a, b) =>
           a.playbookName.localeCompare(b.playbookName, undefined, {
@@ -1468,14 +1762,187 @@ export function createWorkflowRepository(
         .map((id, index) => ({ id, position: index }));
       if (updates.length === 0) return;
 
-      // Apply in a single round-trip: per-row UPDATEs would be N round-trips,
-      // so we use upsert(onConflict: id) which writes all positions at once.
-      const { error } = await client
-        .from("playbook_outputs")
-        .upsert(updates, { onConflict: "id" });
+      // Per-row UPDATEs touch only the `position` column. An earlier upsert
+      // approach tripped NOT NULL constraints on `name`/`playbook_id`
+      // because PostgREST evaluates upserts as INSERT…ON CONFLICT, which
+      // requires every NOT NULL column on the INSERT branch. N is small
+      // (a handful of outputs per playbook) so we parallelize with
+      // Promise.all to keep latency flat.
+      const results = await Promise.all(
+        updates.map(({ id, position }) =>
+          client
+            .from("playbook_outputs")
+            .update({ position })
+            .eq("id", id)
+            .eq("playbook_id", playbookId),
+        ),
+      );
+      const error = results.find((r) => r.error)?.error;
       if (error) {
         throw new WorkflowRepositoryError("reorderPlaybookOutputs failed", error);
       }
+    },
+
+    async listPlaybookInputs(playbookId: string): Promise<PlaybookInput[]> {
+      const { data, error } = await client
+        .from("playbook_inputs")
+        .select("*")
+        .eq("playbook_id", playbookId)
+        .order("position", { ascending: true });
+      if (error) {
+        throw new WorkflowRepositoryError("listPlaybookInputs failed", error);
+      }
+      const rows = (data ?? []) as PlaybookInputRow[];
+      return hydratePlaybookInputs(client, rows);
+    },
+
+    async createPlaybookInput(input: {
+      playbookId: string;
+      upstreamOutputId: string;
+      position?: number;
+    }): Promise<PlaybookInput> {
+      let position = input.position;
+      if (position === undefined) {
+        const { data: existing, error: posErr } = await client
+          .from("playbook_inputs")
+          .select("position")
+          .eq("playbook_id", input.playbookId)
+          .order("position", { ascending: false })
+          .limit(1);
+        if (posErr) {
+          throw new WorkflowRepositoryError(
+            "createPlaybookInput position lookup failed",
+            posErr,
+          );
+        }
+        const maxRow = (existing ?? [])[0] as { position?: number } | undefined;
+        position = (maxRow?.position ?? -1) + 1;
+      }
+
+      const { data, error } = await client
+        .from("playbook_inputs")
+        .insert({
+          playbook_id: input.playbookId,
+          upstream_output_id: input.upstreamOutputId,
+          position,
+        })
+        .select("*")
+        .single();
+
+      if (error) {
+        if (isUniqueViolation(error)) {
+          throw new WorkflowRepositoryError(
+            "createPlaybookInput upstream already wired",
+            error,
+            { code: "unique_upstream" },
+          );
+        }
+        throw new WorkflowRepositoryError("createPlaybookInput failed", error);
+      }
+      const row = unwrap("createPlaybookInput", data, null) as PlaybookInputRow;
+      const hydrated = await hydratePlaybookInputs(client, [row]);
+      return hydrated[0];
+    },
+
+    async deletePlaybookInput(id: string): Promise<void> {
+      const { error } = await client.from("playbook_inputs").delete().eq("id", id);
+      if (error) {
+        throw new WorkflowRepositoryError("deletePlaybookInput failed", error);
+      }
+    },
+
+    async reorderPlaybookInputs(
+      playbookId: string,
+      orderedIds: string[],
+    ): Promise<void> {
+      if (orderedIds.length === 0) return;
+
+      const { data: existing, error: fetchErr } = await client
+        .from("playbook_inputs")
+        .select("id")
+        .eq("playbook_id", playbookId)
+        .in("id", orderedIds);
+      if (fetchErr) {
+        throw new WorkflowRepositoryError("reorderPlaybookInputs fetch failed", fetchErr);
+      }
+      const valid = new Set((existing ?? []).map((row: { id: string }) => row.id));
+      const updates = orderedIds
+        .filter((id) => valid.has(id))
+        .map((id, index) => ({ id, position: index }));
+      if (updates.length === 0) return;
+
+      // Per-row UPDATEs touch only `position` — same NOT-NULL reason as
+      // reorderPlaybookOutputs (PostgREST evaluates upserts as INSERT…ON
+      // CONFLICT and would trip name/playbook_id NOT NULL).
+      const results = await Promise.all(
+        updates.map(({ id, position }) =>
+          client
+            .from("playbook_inputs")
+            .update({ position })
+            .eq("id", id)
+            .eq("playbook_id", playbookId),
+        ),
+      );
+      const error = results.find((r) => r.error)?.error;
+      if (error) {
+        throw new WorkflowRepositoryError("reorderPlaybookInputs failed", error);
+      }
+    },
+
+    async listOutputGroupsForOtherPlaybooks(
+      currentPlaybookId: string,
+    ): Promise<TemplateOutputGroup[]> {
+      const { data: outputRows, error: outErr } = await client
+        .from("playbook_outputs")
+        .select("*")
+        .order("playbook_id", { ascending: true })
+        .order("position", { ascending: true });
+      if (outErr) {
+        throw new WorkflowRepositoryError(
+          "listOutputGroupsForOtherPlaybooks outputs lookup failed",
+          outErr,
+        );
+      }
+      const byPlaybook = new Map<string, PlaybookOutput[]>();
+      for (const row of (outputRows ?? []) as PlaybookOutputRow[]) {
+        if (row.playbook_id === currentPlaybookId) continue;
+        const bucket = byPlaybook.get(row.playbook_id) ?? [];
+        bucket.push(mapPlaybookOutput(row));
+        byPlaybook.set(row.playbook_id, bucket);
+      }
+      const playbookIds = Array.from(byPlaybook.keys());
+      if (playbookIds.length === 0) return [];
+
+      const { data: itemRows, error: itemErr } = await client
+        .from("framework_items")
+        .select("id,name")
+        .in("id", playbookIds)
+        .eq("type", "playbook");
+      if (itemErr) {
+        throw new WorkflowRepositoryError(
+          "listOutputGroupsForOtherPlaybooks playbooks lookup failed",
+          itemErr,
+        );
+      }
+      const nameById = new Map<string, string>();
+      for (const row of (itemRows ?? []) as { id: string; name: string }[]) {
+        nameById.set(row.id, row.name);
+      }
+
+      return playbookIds
+        .filter((id) => nameById.has(id))
+        .map((id) => ({
+          playbookId: id,
+          playbookName: nameById.get(id) as string,
+          outputs: (byPlaybook.get(id) ?? []).sort(
+            (a, b) => a.position - b.position,
+          ),
+        }))
+        .sort((a, b) =>
+          a.playbookName.localeCompare(b.playbookName, undefined, {
+            sensitivity: "base",
+          }),
+        );
     },
 
     async countTaskOutputsForPlaybookOutput(outputId: string): Promise<number> {
@@ -1537,6 +2004,370 @@ export function createWorkflowRepository(
         .single();
 
       return mapTask(unwrap("resumeTask", data, error) as WorkflowTaskRow);
+    },
+
+    async getInstanceTemplateDiff(instanceId: string): Promise<InstanceTemplateDiff> {
+      const detail = await loadInstanceDetailForSync(client, instanceId);
+      return diffInstanceFromTemplate(
+        detail.template,
+        detail.instance,
+        detail.tasks,
+        detail.taskIO,
+      );
+    },
+
+    async applyTemplateSync(
+      instanceId: string,
+      selection: TemplateSyncSelection,
+    ): Promise<WorkflowInstanceDetail> {
+      // Re-derive the diff server-side. The drawer's selection is just a
+      // list of ids it would *like* applied; we ignore anything not in the
+      // freshly computed diff (e.g. a stage already added by a concurrent
+      // tab) and re-run the pristine check on tasks (status may have moved
+      // off not_started between the drawer fetch and this call).
+      const detail = await loadInstanceDetailForSync(client, instanceId);
+      const diff = diffInstanceFromTemplate(
+        detail.template,
+        detail.instance,
+        detail.tasks,
+        detail.taskIO,
+      );
+
+      const applied: { kind: string; id: string }[] = [];
+
+      // --- Stages: add + rename ---
+      const stageIdsAddSet = new Set(selection.stageIdsToAdd);
+      const stageIdsRenameSet = new Set(selection.stageIdsToRename);
+      const stagesToAdd = diff.stages.added.filter((s) => stageIdsAddSet.has(s.id));
+      const stagesToRename = diff.stages.renamed.filter((s) =>
+        stageIdsRenameSet.has(s.id),
+      );
+      const nextStages: WorkflowStage[] = detail.instance.stages.map((s) => {
+        const rename = stagesToRename.find((r) => r.id === s.id);
+        if (rename) return { id: rename.to.id, label: rename.to.label, sub: rename.to.sub };
+        return { id: s.id, label: s.label, sub: s.sub };
+      });
+      for (const s of stagesToAdd) {
+        nextStages.push({ id: s.id, label: s.label, sub: s.sub });
+        applied.push({ kind: "stage_add", id: s.id });
+      }
+      for (const r of stagesToRename) applied.push({ kind: "stage_rename", id: r.id });
+
+      // --- Skills: add + rename ---
+      const skillIdsAddSet = new Set(selection.skillIdsToAdd);
+      const skillIdsRenameSet = new Set(selection.skillIdsToRename);
+      const skillsToAdd = diff.skills.added.filter((s) => skillIdsAddSet.has(s.id));
+      const skillsToRename = diff.skills.renamed.filter((s) =>
+        skillIdsRenameSet.has(s.id),
+      );
+      const nextSkills: WorkflowSkill[] = detail.instance.skills.map((s) => {
+        const rename = skillsToRename.find((r) => r.id === s.id);
+        if (rename) return { id: rename.to.id, label: rename.to.label, owners: s.owners };
+        return s;
+      });
+      for (const s of skillsToAdd) {
+        nextSkills.push({ id: s.id, label: s.label, owners: s.owners ?? [] });
+        applied.push({ kind: "skill_add", id: s.id });
+      }
+      for (const r of skillsToRename) applied.push({ kind: "skill_rename", id: r.id });
+
+      const stageOrSkillChanged =
+        stagesToAdd.length > 0 ||
+        stagesToRename.length > 0 ||
+        skillsToAdd.length > 0 ||
+        skillsToRename.length > 0;
+
+      if (stageOrSkillChanged) {
+        const { error: instUpdErr } = await client
+          .from("workflow_instances")
+          .update({ stages: nextStages, skills: nextSkills })
+          .eq("id", instanceId);
+        if (instUpdErr) {
+          throw new WorkflowRepositoryError(
+            "applyTemplateSync stages/skills update failed",
+            instUpdErr,
+          );
+        }
+      }
+
+      // --- Tasks: add new cells materialized from template_task_id ---
+      // Build the lineage→instance id map up front because new tasks may
+      // reference other tasks (existing or just-added) via
+      // `inputs[].upstreamTaskRef`.
+      const templateIdToInstanceId = new Map<string, string>();
+      for (const task of detail.tasks) {
+        if (task.templateTaskId) templateIdToInstanceId.set(task.templateTaskId, task.id);
+      }
+
+      const addIdsSet = new Set(selection.taskTemplateIdsToAdd);
+      const tasksToAdd = diff.tasks.added.filter(
+        (t) => t.id !== undefined && addIdsSet.has(t.id),
+      );
+
+      const newlyInsertedRows: WorkflowTaskRow[] = [];
+      if (tasksToAdd.length > 0) {
+        const rowsToInsert = tasksToAdd.map((tpl) => ({
+          instance_id: instanceId,
+          skill_id: tpl.skillId,
+          stage_id: tpl.stageId,
+          notes: tpl.notes ?? "",
+          status: "not_started" as const,
+          substatus: "",
+          checkpoint: tpl.checkpoint ?? false,
+          // Preserve template upstream refs verbatim; we remap them in a
+          // second pass once we know the new instance task ids.
+          inputs: inputsToJsonb(tpl.inputs ?? []),
+          // Per-task outputs snapshot, same shape createInstance uses
+          // (migration 20260515120000_workflow_task_outputs_snapshot.sql).
+          outputs: outputsToJsonb(tpl.outputs ?? []),
+          playbook_id: tpl.playbookId ?? null,
+          owners: tpl.owners ?? [],
+          template_task_id: tpl.id ?? null,
+        }));
+        const { data: insertedTasks, error: insertTasksErr } = await client
+          .from("workflow_tasks")
+          .insert(rowsToInsert)
+          .select("*");
+        if (insertTasksErr) {
+          throw new WorkflowRepositoryError(
+            "applyTemplateSync task insert failed",
+            insertTasksErr,
+          );
+        }
+        for (const row of (insertedTasks ?? []) as WorkflowTaskRow[]) {
+          newlyInsertedRows.push(row);
+          if (row.template_task_id) {
+            templateIdToInstanceId.set(row.template_task_id, row.id);
+          }
+          applied.push({ kind: "task_add", id: row.id });
+        }
+
+        // Materialize task_inputs rows so deriveStatus can flip them from
+        // waiting → not_started as upstream outputs land. Matches the
+        // backfill pattern in 20260507120000_playbook_outputs_and_status.sql.
+        const taskInputsRows: Record<string, unknown>[] = [];
+        for (const row of newlyInsertedRows) {
+          const inputs = normalizeInputs(row.inputs);
+          for (const input of inputs) {
+            taskInputsRows.push({
+              task_id: row.id,
+              input_id: input.id,
+              received: false,
+              received_at: null,
+              received_from: null,
+            });
+          }
+        }
+        if (taskInputsRows.length > 0) {
+          const { error: tiErr } = await client
+            .from("task_inputs")
+            .upsert(taskInputsRows, { onConflict: "task_id,input_id" });
+          if (tiErr) {
+            throw new WorkflowRepositoryError(
+              "applyTemplateSync task_inputs materialize failed",
+              tiErr,
+            );
+          }
+        }
+      }
+
+      // --- Tasks: update existing pristine cells ---
+      // Re-check the syncable flag against the freshly-computed diff. The
+      // selection may carry instance task ids that have since moved off
+      // not_started — those are dropped silently.
+      const applicableUpdateIds = filterApplicableTaskUpdates(selection, diff);
+      const updateIdSet = new Set(applicableUpdateIds);
+      const updatesToApply = diff.tasks.changed.filter((c) =>
+        updateIdSet.has(c.instanceTaskId),
+      );
+
+      for (const change of updatesToApply) {
+        const tpl = detail.template.taskTemplates.find((t) => t.id === change.templateTaskId);
+        if (!tpl) continue;
+        // Re-check pristine inside the conditional update to close the race
+        // between diff and apply.
+        const rowPatch: Record<string, unknown> = {};
+        if (change.fields.notes) rowPatch.notes = change.fields.notes.to;
+        if (change.fields.playbookId) rowPatch.playbook_id = change.fields.playbookId.to;
+        if (change.fields.checkpoint) {
+          rowPatch.checkpoint = change.fields.checkpoint.to;
+        }
+        if (change.fields.owners) rowPatch.owners = change.fields.owners.to;
+        if (change.fields.inputs) {
+          rowPatch.inputs = inputsToJsonb(tpl.inputs ?? []);
+        }
+        if (Object.keys(rowPatch).length === 0) continue;
+        const { data: updatedRow, error: taskUpdErr } = await client
+          .from("workflow_tasks")
+          .update(rowPatch)
+          .eq("id", change.instanceTaskId)
+          .eq("status", "not_started")
+          .select("*")
+          .maybeSingle();
+        if (taskUpdErr) {
+          throw new WorkflowRepositoryError(
+            "applyTemplateSync task update failed",
+            taskUpdErr,
+          );
+        }
+        // updatedRow is null iff the conditional update missed (the task
+        // was started between diff and apply). Drop silently — UI labels it
+        // informational on the next refresh.
+        if (!updatedRow) continue;
+        applied.push({ kind: "task_update", id: change.instanceTaskId });
+
+        // Reconcile task_inputs when the inputs array changed. The task is
+        // guaranteed pristine here (status=not_started, no produced
+        // outputs) so no `received_*` audit state can be lost: just wipe
+        // and re-seed from the template's input list.
+        if (change.fields.inputs) {
+          const { error: delErr } = await client
+            .from("task_inputs")
+            .delete()
+            .eq("task_id", change.instanceTaskId);
+          if (delErr) {
+            throw new WorkflowRepositoryError(
+              "applyTemplateSync task_inputs wipe failed",
+              delErr,
+            );
+          }
+          const tiInsert = (tpl.inputs ?? []).map((input) => ({
+            task_id: change.instanceTaskId,
+            input_id: input.id,
+            received: false,
+            received_at: null,
+            received_from: null,
+          }));
+          if (tiInsert.length > 0) {
+            const { error: insErr } = await client
+              .from("task_inputs")
+              .insert(tiInsert);
+            if (insErr) {
+              throw new WorkflowRepositoryError(
+                "applyTemplateSync task_inputs insert failed",
+                insErr,
+              );
+            }
+          }
+        }
+      }
+
+      // --- Remap upstreamTaskRef on newly inserted + updated rows ---
+      // After both adds and updates landed, any `inputs[].upstreamTaskRef`
+      // still pointing at a *template* task id needs to be re-pointed at
+      // the corresponding instance task id. Same pattern as createInstance.
+      const rowsNeedingRemap: WorkflowTaskRow[] = [];
+      rowsNeedingRemap.push(...newlyInsertedRows);
+      if (updatesToApply.length > 0) {
+        const { data: refreshed, error: refErr } = await client
+          .from("workflow_tasks")
+          .select("*")
+          .in("id", updatesToApply.map((c) => c.instanceTaskId));
+        if (refErr) {
+          throw new WorkflowRepositoryError(
+            "applyTemplateSync remap fetch failed",
+            refErr,
+          );
+        }
+        for (const row of (refreshed ?? []) as WorkflowTaskRow[]) {
+          rowsNeedingRemap.push(row);
+        }
+      }
+      await remapUpstreamRefs(client, rowsNeedingRemap, templateIdToInstanceId);
+
+      // --- Bump template_synced_at + emit an event ---
+      if (applied.length > 0) {
+        const syncedAt = new Date().toISOString();
+        const { error: stampErr } = await client
+          .from("workflow_instances")
+          .update({ template_synced_at: syncedAt })
+          .eq("id", instanceId);
+        if (stampErr) {
+          throw new WorkflowRepositoryError(
+            "applyTemplateSync stamp failed",
+            stampErr,
+          );
+        }
+        const { error: evErr } = await client
+          .from("workflow_events")
+          .insert({
+            instance_id: instanceId,
+            task_id: null,
+            name: "template_sync_applied",
+            description: `Applied ${applied.length} change${applied.length === 1 ? "" : "s"} from template`,
+            payload: { applied },
+          });
+        if (evErr) {
+          throw new WorkflowRepositoryError(
+            "applyTemplateSync event insert failed",
+            evErr,
+          );
+        }
+      }
+
+      const refreshed = await repo.getInstance(instanceId);
+      if (!refreshed) {
+        throw new WorkflowRepositoryError(
+          "applyTemplateSync: instance vanished after apply",
+        );
+      }
+      return refreshed;
+    },
+
+    async getTemplateMatrix(templateId: string): Promise<TemplateMatrix | null> {
+      const { data: tplRow, error: tplErr } = await client
+        .from("workflow_templates")
+        .select("*")
+        .eq("id", templateId)
+        .maybeSingle();
+      if (tplErr) {
+        throw new WorkflowRepositoryError("getTemplateMatrix template lookup failed", tplErr);
+      }
+      if (!tplRow) return null;
+      const template = mapTemplate(tplRow as WorkflowTemplateRow);
+
+      const { data: instanceRows, error: instErr } = await client
+        .from("workflow_instances")
+        .select("*")
+        .eq("template_id", templateId)
+        .order("created_at", { ascending: true });
+      if (instErr) {
+        throw new WorkflowRepositoryError(
+          "getTemplateMatrix instances lookup failed",
+          instErr,
+        );
+      }
+      const instances = (instanceRows ?? []).map((row) =>
+        mapInstance(row as WorkflowInstanceRow),
+      );
+
+      if (instances.length === 0) {
+        return {
+          template,
+          instances,
+          cells: aggregateTasksByTemplateCell(template, instances, [], []),
+        };
+      }
+
+      const instanceIds = instances.map((i) => i.id);
+      const { data: taskRows, error: taskErr } = await client
+        .from("workflow_tasks")
+        .select("*")
+        .in("instance_id", instanceIds);
+      if (taskErr) {
+        throw new WorkflowRepositoryError(
+          "getTemplateMatrix tasks lookup failed",
+          taskErr,
+        );
+      }
+      const tasks = (taskRows ?? []).map((row) => mapTask(row as WorkflowTaskRow));
+      const taskIO = await loadInstanceTaskIO(client, tasks);
+
+      return {
+        template,
+        instances,
+        cells: aggregateTasksByTemplateCell(template, instances, tasks, taskIO),
+      };
     },
 
     async getFrameworkItems(type?: FrameworkItemType): Promise<FrameworkItem[]> {
@@ -1741,4 +2572,5 @@ export function createWorkflowRepository(
       }
     },
   };
+  return repo;
 }

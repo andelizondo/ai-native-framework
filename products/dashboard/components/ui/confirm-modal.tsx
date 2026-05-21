@@ -2,6 +2,7 @@
 
 import type { ReactNode } from "react";
 import { useEffect, useId, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { Loader2 } from "lucide-react";
 
 interface ConfirmModalProps {
@@ -28,6 +29,11 @@ export function ConfirmModal({
   const cancelButtonRef = useRef<HTMLButtonElement>(null);
   const previousFocusRef = useRef<HTMLElement | null>(null);
   const [inFlight, setInFlight] = useState(false);
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
 
   useEffect(() => {
     previousFocusRef.current =
@@ -47,7 +53,12 @@ export function ConfirmModal({
     };
   }, [onCancel]);
 
-  return (
+  // Portal to document.body so `position: fixed` resolves against the
+  // viewport and isn't clipped by a `transform`/`filter` ancestor (e.g.
+  // the metadata dock's translate-x slide-in container).
+  if (!mounted) return null;
+
+  return createPortal(
     <div
       className="fixed inset-0 z-[70] flex items-center justify-center bg-(--overlay) p-4 backdrop-blur-[3px]"
       role="presentation"
@@ -97,6 +108,7 @@ export function ConfirmModal({
           </button>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body,
   );
 }

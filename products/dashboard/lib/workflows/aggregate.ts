@@ -1,7 +1,10 @@
 import type {
+  TaskIOSummary,
+  TemplateCellAggregate,
   WorkflowEvent,
   WorkflowInstance,
   WorkflowTask,
+  WorkflowTaskStatus,
   WorkflowTemplate,
 } from "./types";
 
@@ -226,4 +229,86 @@ export function pickActiveTasks(snapshot: OverviewSnapshot): ActiveTask[] {
       };
     })
     .filter((entry): entry is ActiveTask => entry !== null);
+}
+
+const EMPTY_STATUS_COUNTS = (): Record<WorkflowTaskStatus, number> => ({
+  not_started: 0,
+  waiting: 0,
+  paused: 0,
+  in_progress: 0,
+  running: 0,
+  complete: 0,
+  failed: 0,
+});
+
+/**
+ * Roll up instance task state grouped by the template's `task_templates[]`
+ * entries. Drives the template-level matrix overview at
+ * `/workflows/templates/[templateId]`, where each cell shows the status mix
+ * across every instance of the template.
+ *
+ * Tasks that have no `templateTaskId` (ad-hoc creations on an instance)
+ * are silently skipped — they have no template-level cell to roll up into.
+ * Tasks whose `templateTaskId` no longer matches any current template task
+ * (the template removed the cell after some instances had already
+ * materialized it) are also skipped here; they surface in the per-instance
+ * sync drawer instead.
+ *
+ * `taskIO` mirrors what `WorkflowInstanceDetail.taskIO` carries and is used
+ * to flag instances whose linked inputs are unmet — same source the
+ * per-instance matrix already uses for its glyphs.
+ */
+export function aggregateTasksByTemplateCell(
+  template: WorkflowTemplate,
+  instances: readonly WorkflowInstance[],
+  tasks: readonly WorkflowTask[],
+  taskIO: readonly TaskIOSummary[],
+): TemplateCellAggregate[] {
+  const instanceById = new Map(instances.map((i) => [i.id, i]));
+  const ioByTaskId = new Map(taskIO.map((io) => [io.taskId, io]));
+  const tasksByTemplateTaskId = new Map<string, WorkflowTask[]>();
+  for (const task of tasks) {
+    if (!task.templateTaskId) continue;
+    const bucket = tasksByTemplateTaskId.get(task.templateTaskId) ?? [];
+    bucket.push(task);
+    tasksByTemplateTaskId.set(task.templateTaskId, bucket);
+  }
+
+  return template.taskTemplates
+    .filter((tpl): tpl is typeof tpl & { id: string } =>
+      typeof tpl.id === "string" && tpl.id.length > 0,
+    )
+    .map((tpl) => {
+      const cellTasks = tasksByTemplateTaskId.get(tpl.id) ?? [];
+      const statusCounts = EMPTY_STATUS_COUNTS();
+      const instanceEntries: TemplateCellAggregate["instances"] = [];
+      for (const task of cellTasks) {
+        statusCounts[task.status] = (statusCounts[task.status] ?? 0) + 1;
+        const inst = instanceById.get(task.instanceId);
+        if (!inst) continue;
+        instanceEntries.push({
+          instanceId: inst.id,
+          instanceLabel: inst.label,
+          taskId: task.id,
+          status: task.status,
+          hasUnmetLinkedInput: ioByTaskId.get(task.id)?.hasUnmetLinkedInput ?? false,
+          owners: task.owners,
+        });
+      }
+      // Stable order: instance creation order (oldest first) matches how the
+      // overview already lists instances per template.
+      instanceEntries.sort((a, b) => {
+        const ai = instanceById.get(a.instanceId)?.createdAt ?? "";
+        const bi = instanceById.get(b.instanceId)?.createdAt ?? "";
+        return ai.localeCompare(bi);
+      });
+      return {
+        templateTaskId: tpl.id,
+        skillId: tpl.skillId,
+        stageId: tpl.stageId,
+        playbookId: tpl.playbookId ?? null,
+        statusCounts,
+        instances: instanceEntries,
+      };
+    });
 }

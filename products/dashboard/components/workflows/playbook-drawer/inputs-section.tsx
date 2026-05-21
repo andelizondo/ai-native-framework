@@ -38,9 +38,8 @@ interface OutputLookup {
   >;
 }
 
-function stateFor(input: WorkflowInput, taskState: TaskInputState | undefined): IORowState {
+function stateFor(_input: WorkflowInput, taskState: TaskInputState | undefined): IORowState {
   if (taskState?.received) return "received";
-  if (input.linkMode === "bypass") return "bypass";
   return "pending";
 }
 
@@ -75,7 +74,7 @@ export function InputsSection({
     () => new Map(playbookOptions.map((pb) => [pb.id, pb])),
     [playbookOptions],
   );
-  const linkedDefs = inputDefs.filter((i) => i.linkMode === "linked");
+  const linkedDefs = inputDefs;
   const totalLinked = linkedDefs.length;
   const receivedLinked = linkedDefs.filter(
     (i) => stateById.get(i.id)?.received === true,
@@ -155,18 +154,15 @@ export function InputsSection({
             inputDefs.map((input) => {
                 const taskState = stateById.get(input.id);
                 const state = stateFor(input, taskState);
-                const linkedMatch =
-                  input.linkMode === "linked" && input.upstreamOutputId
-                    ? lookup.byOutputId.get(input.upstreamOutputId)
-                    : undefined;
+                const linkedMatch = input.upstreamOutputId
+                  ? lookup.byOutputId.get(input.upstreamOutputId)
+                  : undefined;
                 const upstreamPlaybook = linkedMatch
                   ? playbookById.get(linkedMatch.playbookId)
                   : undefined;
                 const primaryLabel = linkedMatch
                   ? linkedMatch.playbookName
-                  : input.name && !input.name.startsWith("inp-")
-                    ? input.name
-                    : "Input";
+                  : "Input";
                 const secondaryLabel = linkedMatch?.outputName;
                 const avatar = upstreamPlaybook
                   ? {

@@ -4,12 +4,30 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import {
   ChevronRight,
+  GripVertical,
   Plus,
   Search,
   SearchX,
   Trash2,
   X,
 } from "lucide-react";
+import {
+  DndContext,
+  KeyboardSensor,
+  PointerSensor,
+  closestCenter,
+  useSensor,
+  useSensors,
+  type DragEndEvent,
+} from "@dnd-kit/core";
+import {
+  SortableContext,
+  arrayMove,
+  sortableKeyboardCoordinates,
+  useSortable,
+  verticalListSortingStrategy,
+} from "@dnd-kit/sortable";
+import { CSS } from "@dnd-kit/utilities";
 
 import { cn } from "@/lib/utils";
 import { ItemAvatar } from "@/components/framework/item-avatar";
@@ -19,8 +37,10 @@ import {
   PlaybookOutputPicker,
   type PlaybookOutputPickerValue,
 } from "@/components/workflows/playbook-output-picker";
+import { outputKindAvatar, outputKindLabel } from "@/lib/workflows/output-kind";
 import type {
   FrameworkItem,
+  PlaybookOutput,
   TemplateOutputGroup,
   WorkflowInput,
 } from "@/lib/workflows/types";
@@ -42,6 +62,11 @@ interface AddPlaybookDrawerProps {
     notes?: string;
     owners?: readonly string[];
     inputs?: readonly WorkflowInput[];
+    /** Per-task snapshot of the playbook's outputs. In edit mode this is
+     *  the source of truth — the drawer never re-fetches the definition.
+     *  In create mode this is unused; the drawer snapshots from the
+     *  selected playbook on demand. */
+    outputs?: readonly PlaybookOutput[];
   };
   /** Other tasks in the same template — populates the upstream-task select. */
   upstreamTaskOptions?: { id: string; label: string; playbookId?: string | null }[];
@@ -50,12 +75,25 @@ interface AddPlaybookDrawerProps {
   /** Called by the picker when it wants the parent to refetch (e.g. a
    *  stale-ref save error has fired and the user is reopening the drawer). */
   onRefetchOutputs?: () => void | Promise<void>;
+  /** Lazy-fetch the playbook definition's outputs to seed the snapshot when
+   *  a new playbook is selected in create mode. Both call sites pass a thin
+   *  wrapper around `listPlaybookOutputsAction`; if omitted, the Outputs
+   *  section just renders empty until the user saves and reopens. */
+  loadPlaybookOutputs?: (playbookId: string) => Promise<PlaybookOutput[]>;
+  /** Lazy-fetch the playbook definition's inputs to seed the snapshot when
+   *  a new playbook is selected in create mode. Each declared input is
+   *  already wired to an upstream `playbook_outputs.id`; the drawer
+   *  snapshots that wiring into a `WorkflowInput`. */
+  loadPlaybookInputs?: (
+    playbookId: string,
+  ) => Promise<{ id: string; upstreamOutputId: string }[]>;
   onClose: () => void;
   onSubmit: (input: {
     playbookId: string;
     notes: string;
     owners: string[];
     inputs: WorkflowInput[];
+    outputs: PlaybookOutput[];
   }) => void;
 }
 
@@ -77,6 +115,8 @@ export function AddPlaybookDrawer({
   upstreamTaskOptions = [],
   outputGroups = [],
   onRefetchOutputs,
+  loadPlaybookOutputs,
+  loadPlaybookInputs,
   onClose,
   onSubmit,
 }: AddPlaybookDrawerProps) {
@@ -88,10 +128,20 @@ export function AddPlaybookDrawer({
   const [inputs, setInputs] = useState<WorkflowInput[]>(() =>
     initial?.inputs ? initial.inputs.map((i) => ({ ...i })) : [],
   );
+  const [outputs, setOutputs] = useState<PlaybookOutput[]>(() =>
+    initial?.outputs ? initial.outputs.map((o) => ({ ...o })) : [],
+  );
+  const [outputsLoading, setOutputsLoading] = useState(false);
+  const [inputsLoading, setInputsLoading] = useState(false);
   const [query, setQuery] = useState("");
   /** User override for the Inputs collapse header. Defaults to `null`
    *  (expanded). Switching to "collapsed" lets the user hide the editor. */
   const [inputsOverride, setInputsOverride] = useState<
+    "expanded" | "collapsed" | null
+  >(null);
+  /** User override for the Outputs collapse header. Mirrors Inputs:
+   *  defaults to expanded so the remove/reorder controls are reachable. */
+  const [outputsOverride, setOutputsOverride] = useState<
     "expanded" | "collapsed" | null
   >(null);
   /** User override for the Notes collapse header. Auto-seeds expanded
@@ -117,6 +167,136 @@ export function AddPlaybookDrawer({
     void onRefetchOutputs?.();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // Snapshot the selected playbook's outputs when the user picks a new
+  // playbook in create mode. Always re-fetches on selection change so the
+  // list reflects the *current* playbook (a previous pick may have left
+  // stale rows in state, especially after the user removed some). Edit
+  // mode never re-fetches: the snapshot is already in `initial.outputs`
+  // and the user's removals/reorders would otherwise be wiped on render.
+  useEffect(() => {
+    if (mode !== "create") return;
+    if (!selectedId) {
+      setOutputs([]);
+      setOutputsLoading(false);
+      return;
+    }
+    if (!loadPlaybookOutputs) {
+      setOutputs([]);
+      return;
+    }
+    let cancelled = false;
+    // Clear immediately so the user sees the list reset while the new
+    // playbook's outputs are in flight — otherwise the previous pick's
+    // rows linger and the swap reads as broken.
+    setOutputs([]);
+    setOutputsLoading(true);
+    loadPlaybookOutputs(selectedId)
+      .then((definition) => {
+        if (cancelled) return;
+        setOutputs(definition.map((o) => ({ ...o })));
+      })
+      .catch(() => {
+        // Soft-fail: leave the snapshot empty. The user can still attach
+        // the playbook; the outputs list just stays empty until they edit
+        // it later.
+        if (cancelled) return;
+        setOutputs([]);
+      })
+      .finally(() => {
+        if (cancelled) return;
+        setOutputsLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+    // mode + loadPlaybookOutputs are stable for the lifetime of the drawer.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedId]);
+
+  // Snapshot the selected playbook's declared inputs in create mode.
+  // Each declared input is already wired to an upstream output, so we
+  // just copy the `upstreamOutputId` into a fresh `WorkflowInput` and
+  // pick up the matching template-level task ref (if the upstream
+  // playbook is also on this template) for the matrix wiring overlay.
+  useEffect(() => {
+    if (mode !== "create") return;
+    if (!selectedId || !loadPlaybookInputs) {
+      setInputs([]);
+      setInputsLoading(false);
+      return;
+    }
+    let cancelled = false;
+    // Clear immediately and flag loading so the section can show a "Loading
+    // inputs…" placeholder. Without this the section flips from N old rows
+    // straight to M new rows once the fetch resolves and the picker below
+    // jumps with the row count change.
+    setInputs([]);
+    setInputsLoading(true);
+    loadPlaybookInputs(selectedId)
+      .then((defs) => {
+        if (cancelled) return;
+        const seeded: WorkflowInput[] = defs.map((def) => {
+          const derivedRef = upstreamTaskOptions.find((opt) => {
+            return (
+              opt.playbookId &&
+              outputGroups
+                .find((g) => g.playbookId === opt.playbookId)
+                ?.outputs.some((o) => o.id === def.upstreamOutputId)
+            );
+          })?.id;
+          return {
+            id: createInputId(),
+            upstreamOutputId: def.upstreamOutputId,
+            upstreamTaskRef: derivedRef,
+          };
+        });
+        setInputs(seeded);
+      })
+      .catch(() => {
+        if (cancelled) return;
+        setInputs([]);
+      })
+      .finally(() => {
+        if (cancelled) return;
+        setInputsLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+    // Snapshot once per playbook selection. Re-running on catalog changes
+    // would clobber the user's in-flight edits.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedId]);
+
+  const outputSensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 4 } }),
+    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }),
+  );
+
+  const sortableOutputIds = useMemo(() => outputs.map((o) => o.id), [outputs]);
+
+  const handleOutputDragEnd = (event: DragEndEvent) => {
+    const { active, over } = event;
+    if (!over || active.id === over.id) return;
+    setOutputs((current) => {
+      const oldIndex = current.findIndex((o) => o.id === active.id);
+      const newIndex = current.findIndex((o) => o.id === over.id);
+      if (oldIndex < 0 || newIndex < 0) return current;
+      return arrayMove(current, oldIndex, newIndex).map((o, position) => ({
+        ...o,
+        position,
+      }));
+    });
+  };
+
+  const handleRemoveOutput = (outputId: string) => {
+    setOutputs((current) =>
+      current
+        .filter((o) => o.id !== outputId)
+        .map((o, position) => ({ ...o, position })),
+    );
+  };
 
   // Animated close: drop the open class so the slide-out plays, wait for
   // the 260ms transition, then call the parent's unmount (`onClose`). Idem-
@@ -184,6 +364,10 @@ export function AddPlaybookDrawer({
   // (The playbook drawer auto-collapses when empty because it's a read-only
   // surface — auto-folding the editor would hide the only way to wire inputs.)
   const inputsCollapsed = inputsOverride === "collapsed";
+  // Outputs default expanded so the remove/reorder controls are reachable;
+  // user override sticks. Auto-collapses to nothing when there's no playbook
+  // selected yet (the section isn't rendered at all in that case).
+  const outputsCollapsed = outputsOverride === "collapsed";
   // Notes auto-collapse when empty (mirrors the previous `<details open>`
   // behavior that opened only when seeded with text). User override sticks.
   const notesCollapsed =
@@ -226,10 +410,24 @@ export function AddPlaybookDrawer({
           onSubmit={(event) => {
             event.preventDefault();
             if (!canSubmit) return;
-            // Drop incomplete (unwired) input rows on submit — they would
-            // otherwise persist as a name-less linked input pointing nowhere.
+            // Every input must be wired to an upstream output by this
+            // point. The draft picker only produces rows once an upstream
+            // is picked; this filter is a defensive belt against stale
+            // legacy data that might have leaked through.
             const wiredInputs = inputs.filter((i) => Boolean(i.upstreamOutputId));
-            onSubmit({ playbookId: selectedId, notes, owners, inputs: wiredInputs });
+            // Re-stamp positions from array order so the persisted snapshot
+            // reflects any reorder edits the user made.
+            const positionedOutputs = outputs.map((o, position) => ({
+              ...o,
+              position,
+            }));
+            onSubmit({
+              playbookId: selectedId,
+              notes,
+              owners,
+              inputs: wiredInputs,
+              outputs: positionedOutputs,
+            });
           }}
           className="flex h-full min-h-0 flex-col"
         >
@@ -424,11 +622,9 @@ export function AddPlaybookDrawer({
                   {!inputsCollapsed ? (
                   <ul className="space-y-2">
                       {inputs.map((input, index) => {
-                        const wiredGroup = input.upstreamOutputId
-                          ? outputGroups.find((g) =>
-                              g.outputs.some((o) => o.id === input.upstreamOutputId),
-                            )
-                          : null;
+                        const wiredGroup = outputGroups.find((g) =>
+                          g.outputs.some((o) => o.id === input.upstreamOutputId),
+                        );
                         const wiredOutput = wiredGroup?.outputs.find(
                           (o) => o.id === input.upstreamOutputId,
                         );
@@ -438,7 +634,7 @@ export function AddPlaybookDrawer({
                         return (
                           <li
                             key={input.id}
-                            className="flex items-center gap-2.5 rounded-lg border border-border bg-bg-3 px-2.5 py-2"
+                            className="flex min-h-[56px] items-center gap-2.5 rounded-lg border border-border bg-bg-3 px-2.5 py-2"
                             data-testid={`input-row-${index}`}
                           >
                             {wiredPlaybook ? (
@@ -474,6 +670,14 @@ export function AddPlaybookDrawer({
                         );
                       })}
                       <li>
+                        {inputsLoading ? (
+                          <div
+                            className="flex min-h-[56px] w-full items-center justify-center rounded-md border border-dashed border-border bg-transparent px-4 py-3 text-[12px] font-medium text-t3"
+                            data-testid="add-playbook-drawer-inputs-loading"
+                          >
+                            Loading inputs…
+                          </div>
+                        ) : (
                         <PlaybookOutputPicker
                           value={null}
                           available={availableForDraft}
@@ -490,15 +694,6 @@ export function AddPlaybookDrawer({
                           testId="add-input-row"
                           onChange={(next: PlaybookOutputPickerValue | null) => {
                             if (next === null) return;
-                            const group = outputGroups.find(
-                              (g) => g.playbookId === next.playbookId,
-                            );
-                            const output = group?.outputs.find(
-                              (o) => o.id === next.outputId,
-                            );
-                            const derivedName = group && output
-                              ? `${group.playbookName} / ${output.name}`
-                              : "";
                             const derivedRef = upstreamTaskOptions.find(
                               (opt) => opt.playbookId === next.playbookId,
                             )?.id;
@@ -506,18 +701,33 @@ export function AddPlaybookDrawer({
                               ...current,
                               {
                                 id: createInputId(),
-                                name: derivedName,
-                                linkMode: "linked",
                                 upstreamTaskRef: derivedRef,
                                 upstreamOutputId: next.outputId,
                               },
                             ]);
                           }}
                         />
+                        )}
                       </li>
                     </ul>
                   ) : null}
                 </section>
+
+                <OutputsEditorSection
+                  outputs={outputs}
+                  sortableIds={sortableOutputIds}
+                  sensors={outputSensors}
+                  collapsed={outputsCollapsed}
+                  loading={outputsLoading}
+                  hasSelection={Boolean(selectedId)}
+                  onToggleCollapsed={() =>
+                    setOutputsOverride(
+                      outputsCollapsed ? "expanded" : "collapsed",
+                    )
+                  }
+                  onDragEnd={handleOutputDragEnd}
+                  onRemove={handleRemoveOutput}
+                />
 
                 <section
                   className="pb-drawer-sec"
@@ -583,5 +793,176 @@ export function AddPlaybookDrawer({
         </form>
       </aside>
     </>
+  );
+}
+
+interface OutputsEditorSectionProps {
+  outputs: PlaybookOutput[];
+  sortableIds: string[];
+  sensors: ReturnType<typeof useSensors>;
+  collapsed: boolean;
+  loading: boolean;
+  /** True once the user has picked a playbook. Drives the empty-state copy:
+   *  before selection, the section shows a "pick a playbook to see outputs"
+   *  hint instead of "no outputs declared", which would falsely imply the
+   *  selected playbook had none. */
+  hasSelection: boolean;
+  onToggleCollapsed: () => void;
+  onDragEnd: (event: DragEndEvent) => void;
+  onRemove: (outputId: string) => void;
+}
+
+function OutputsEditorSection({
+  outputs,
+  sortableIds,
+  sensors,
+  collapsed,
+  loading,
+  hasSelection,
+  onToggleCollapsed,
+  onDragEnd,
+  onRemove,
+}: OutputsEditorSectionProps) {
+  const emptyMessage = !hasSelection
+    ? "Pick a playbook to load its outputs."
+    : loading
+      ? "Loading outputs…"
+      : "This playbook has no declared outputs.";
+  return (
+    <section
+      className={cn("pb-drawer-sec", "pb-drawer-outputs", "mb-5")}
+      data-testid="add-playbook-drawer-outputs-section"
+      data-collapsed={collapsed}
+    >
+      <div className="pb-drawer-sec__head">
+        <button
+          type="button"
+          className="pb-drawer-sec__toggle"
+          onClick={onToggleCollapsed}
+          aria-expanded={!collapsed}
+          data-testid="add-playbook-drawer-outputs-toggle"
+        >
+          <ChevronRight
+            size={12}
+            className={cn(
+              "pb-drawer-sec__chev",
+              !collapsed && "pb-drawer-sec__chev--open",
+            )}
+            aria-hidden
+          />
+          <span className="pb-drawer-sec__lbl">
+            Outputs{" "}
+            <span className="pb-drawer-sec__count">{outputs.length}</span>
+          </span>
+        </button>
+      </div>
+      {!collapsed ? (
+        <DndContext
+          sensors={sensors}
+          collisionDetection={closestCenter}
+          onDragEnd={onDragEnd}
+        >
+          <SortableContext
+            items={sortableIds}
+            strategy={verticalListSortingStrategy}
+          >
+            <ul className="space-y-2">
+              {outputs.length === 0 ? (
+                <li
+                  className="flex min-h-[56px] items-center justify-center rounded-lg border border-dashed border-border bg-bg-3 px-3 py-2 text-center text-[12px] text-t3"
+                  data-testid="add-playbook-drawer-outputs-empty"
+                >
+                  {emptyMessage}
+                </li>
+              ) : (
+                outputs.map((output, index) => (
+                  <SortableOutputRow
+                    key={output.id}
+                    output={output}
+                    index={index}
+                    onRemove={onRemove}
+                  />
+                ))
+              )}
+            </ul>
+          </SortableContext>
+        </DndContext>
+      ) : null}
+    </section>
+  );
+}
+
+interface SortableOutputRowProps {
+  output: PlaybookOutput;
+  index: number;
+  onRemove: (outputId: string) => void;
+}
+
+function SortableOutputRow({ output, index, onRemove }: SortableOutputRowProps) {
+  const {
+    attributes,
+    listeners,
+    setNodeRef,
+    setActivatorNodeRef,
+    transform,
+    transition,
+    isDragging,
+  } = useSortable({ id: output.id });
+
+  const { emoji, color } = outputKindAvatar(output.kind);
+
+  const style: React.CSSProperties = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+    zIndex: isDragging ? 30 : undefined,
+  };
+
+  return (
+    <li
+      ref={setNodeRef}
+      data-testid={`output-row-${index}`}
+      style={style}
+      className={cn(
+        "flex min-h-[56px] items-center gap-2 rounded-lg border border-border bg-bg-3 px-2 py-2",
+        isDragging && "shadow-lg",
+      )}
+    >
+      <button
+        type="button"
+        ref={setActivatorNodeRef as unknown as React.Ref<HTMLButtonElement>}
+        aria-label="Drag to reorder"
+        data-testid={`output-row-${index}-drag`}
+        {...(attributes as unknown as Record<string, unknown>)}
+        {...(listeners as unknown as Record<string, unknown>)}
+        className="flex h-7 w-5 cursor-grab items-center justify-center rounded text-t3 hover:bg-bg-4 hover:text-t2 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
+      >
+        <GripVertical className="h-4 w-4" />
+      </button>
+      <ItemAvatar
+        emoji={emoji}
+        color={color}
+        label={outputKindLabel(output)}
+        size="sm"
+      />
+      <span className="min-w-0 flex-1">
+        <span className="block truncate text-[12.5px] font-semibold text-t1">
+          {output.name || "Untitled output"}
+        </span>
+        {output.description ? (
+          <span className="mt-0.5 block truncate text-[11px] text-t3">
+            {output.description}
+          </span>
+        ) : null}
+      </span>
+      <button
+        type="button"
+        onClick={() => onRemove(output.id)}
+        aria-label="Remove output"
+        data-testid={`output-row-${index}-delete`}
+        className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-md text-t3 transition hover:bg-bg-4 hover:text-t1 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
+      >
+        <Trash2 className="h-3.5 w-3.5" />
+      </button>
+    </li>
   );
 }

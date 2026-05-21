@@ -11,12 +11,16 @@ import {
 } from "@/lib/workflows/aggregate";
 import type {
   DrawerData,
+  InstanceTemplateDiff,
   OutputArtifact,
+  PlaybookOutput,
   TaskInputState,
   TaskOutput,
   TemplateOutputGroup,
+  TemplateSyncSelection,
   WorkflowInput,
   WorkflowInstance,
+  WorkflowInstanceDetail,
   WorkflowTask,
   WorkflowTaskCreateInput,
   WorkflowTaskStatus,
@@ -384,6 +388,7 @@ export interface UpdateTaskDetailsInput {
   notes?: string;
   owners?: string[];
   inputs?: WorkflowInput[];
+  outputs?: PlaybookOutput[];
 }
 
 const MAX_OWNER_LABEL_LENGTH = 80;
@@ -479,6 +484,7 @@ export async function updateTaskDetailsAction(
     notes,
     ...(owners !== undefined ? { owners } : {}),
     ...(Array.isArray(input.inputs) ? { inputs: input.inputs } : {}),
+    ...(Array.isArray(input.outputs) ? { outputs: input.outputs } : {}),
   });
 
   try {
@@ -617,9 +623,7 @@ export async function startTaskAction(
   if (drawer.task.status === "complete" || drawer.task.status === "failed") {
     throw new Error("startTaskAction: task already terminal");
   }
-  const linkedDefIds = new Set(
-    drawer.task.inputs.filter((i) => i.linkMode === "linked").map((i) => i.id),
-  );
+  const linkedDefIds = new Set(drawer.task.inputs.map((i) => i.id));
   if (linkedDefIds.size > 0) {
     const receivedById = new Map(
       drawer.inputs.map((i) => [i.inputId, i.received]),
@@ -831,45 +835,86 @@ function normalizeTemplateSkills(
     .filter((skill) => skill.id && skill.label);
 }
 
-const MAX_INPUT_NAME_LENGTH = 80;
-const MAX_INPUT_DESCRIPTION_LENGTH = 240;
 const MAX_INPUT_REF_LENGTH = 120;
 
 function normalizeTemplateInputs(inputs: unknown): WorkflowInput[] {
   if (!Array.isArray(inputs)) return [];
   const seenIds = new Set<string>();
   const normalized: WorkflowInput[] = [];
-  for (const raw of inputs as WorkflowInput[]) {
+  for (const raw of inputs as Partial<WorkflowInput>[]) {
     if (!raw || typeof raw !== "object") continue;
     const id = normalizeTaskField(raw.id ?? "", "input.id", MAX_INPUT_REF_LENGTH);
     if (!id || seenIds.has(id)) continue;
-    seenIds.add(id);
-    const linkMode =
-      raw.linkMode === "manual" || raw.linkMode === "bypass" ? raw.linkMode : "linked";
-    const name =
-      normalizeTaskField(raw.name ?? "", "input.name", MAX_INPUT_NAME_LENGTH) || id;
-    const description =
-      typeof raw.description === "string" && raw.description.trim()
-        ? raw.description.trim().slice(0, MAX_INPUT_DESCRIPTION_LENGTH)
-        : undefined;
-    const upstreamTaskRef =
-      typeof raw.upstreamTaskRef === "string" && raw.upstreamTaskRef.trim()
-        ? raw.upstreamTaskRef.trim().slice(0, MAX_INPUT_REF_LENGTH)
-        : undefined;
     const upstreamOutputId =
       typeof raw.upstreamOutputId === "string" && raw.upstreamOutputId.trim()
         ? raw.upstreamOutputId.trim().slice(0, MAX_INPUT_REF_LENGTH)
         : null;
+    // Inputs must reference an upstream output. Rows without one are
+    // dropped here (defensive belt against legacy clients that still
+    // submit free-form rows).
+    if (!upstreamOutputId) continue;
+    seenIds.add(id);
+    const upstreamTaskRef =
+      typeof raw.upstreamTaskRef === "string" && raw.upstreamTaskRef.trim()
+        ? raw.upstreamTaskRef.trim().slice(0, MAX_INPUT_REF_LENGTH)
+        : undefined;
     normalized.push({
       id,
-      name,
-      description,
-      linkMode,
-      upstreamTaskRef,
       upstreamOutputId,
+      upstreamTaskRef,
     });
   }
   return normalized;
+}
+
+const VALID_OUTPUT_KINDS = new Set<PlaybookOutput["kind"]>([
+  "file",
+  "media",
+  "link",
+  "manual",
+  "api",
+]);
+
+const MAX_OUTPUT_NAME_LENGTH = 80;
+const MAX_OUTPUT_DESCRIPTION_LENGTH = 240;
+const MAX_OUTPUT_ID_LENGTH = 120;
+
+function normalizeTemplateOutputs(outputs: unknown): PlaybookOutput[] {
+  if (!Array.isArray(outputs)) return [];
+  const result: PlaybookOutput[] = [];
+  for (const raw of outputs as PlaybookOutput[]) {
+    if (!raw || typeof raw !== "object") continue;
+    const id =
+      typeof raw.id === "string" && raw.id.trim()
+        ? raw.id.trim().slice(0, MAX_OUTPUT_ID_LENGTH)
+        : "";
+    if (!id) continue;
+    const playbookId =
+      typeof raw.playbookId === "string" && raw.playbookId.trim()
+        ? raw.playbookId.trim().slice(0, MAX_PLAYBOOK_LENGTH)
+        : "";
+    const name =
+      typeof raw.name === "string" && raw.name.trim()
+        ? raw.name.trim().slice(0, MAX_OUTPUT_NAME_LENGTH)
+        : "";
+    const description =
+      typeof raw.description === "string"
+        ? raw.description.slice(0, MAX_OUTPUT_DESCRIPTION_LENGTH)
+        : null;
+    const kind =
+      typeof raw.kind === "string" && VALID_OUTPUT_KINDS.has(raw.kind as PlaybookOutput["kind"])
+        ? (raw.kind as PlaybookOutput["kind"])
+        : null;
+    const apiCheck =
+      raw.apiCheck && typeof raw.apiCheck === "object" && !Array.isArray(raw.apiCheck)
+        ? (raw.apiCheck as Record<string, unknown>)
+        : null;
+    const position =
+      typeof raw.position === "number" && Number.isFinite(raw.position) ? raw.position : 0;
+    const createdAt = typeof raw.createdAt === "string" ? raw.createdAt : "";
+    result.push({ id, playbookId, name, description, kind, apiCheck, position, createdAt });
+  }
+  return result;
 }
 
 function normalizeTemplateTaskTemplates(
@@ -885,6 +930,11 @@ function normalizeTemplateTaskTemplates(
         : null,
       notes: normalizeTaskField(task.notes ?? "", "taskTemplate.notes", MAX_NOTES_LENGTH),
       inputs: normalizeTemplateInputs(task.inputs),
+      // Persist the per-task outputs snapshot (PR AEL-XXX, see
+      // 20260515120000_workflow_task_outputs_snapshot.sql). Previously this
+      // field was dropped on every save, silently emptying every task's
+      // outputs in JSONB whenever the editor or the playbook drawer saved.
+      outputs: normalizeTemplateOutputs(task.outputs),
       checkpoint: Boolean(task.checkpoint),
       owners: normalizeOwnerList(task.owners) ?? [],
     }))
@@ -1232,4 +1282,61 @@ export async function refinePlaybookAction(
 
   revalidatePath("/", "layout");
   return { task };
+}
+
+/**
+ * Read the diff between an instance and its template. Called by the sync
+ * drawer when it opens. Pure read — no revalidate.
+ */
+export async function getInstanceTemplateDiffAction(
+  instanceId: string,
+): Promise<{ diff: InstanceTemplateDiff }> {
+  const trimmedId = normalizeTaskField(instanceId, "instanceId", 80);
+  if (!trimmedId) {
+    throw new Error("getInstanceTemplateDiffAction: instanceId is required");
+  }
+  const repo = await getServerWorkflowRepository();
+  const diff = await repo.getInstanceTemplateDiff(trimmedId);
+  return { diff };
+}
+
+/**
+ * Apply the user-selected subset of a template→instance diff. Server
+ * re-derives the diff and re-checks pristine on every task update; non-
+ * applicable selection entries are silently dropped.
+ */
+export async function applyTemplateSyncAction(
+  instanceId: string,
+  selection: TemplateSyncSelection,
+): Promise<{ instance: WorkflowInstanceDetail }> {
+  const trimmedId = normalizeTaskField(instanceId, "instanceId", 80);
+  if (!trimmedId) {
+    throw new Error("applyTemplateSyncAction: instanceId is required");
+  }
+  if (!selection || typeof selection !== "object") {
+    throw new Error("applyTemplateSyncAction: selection is required");
+  }
+  // Defensive — coerce missing arrays to empty so partial selections don't
+  // crash applyTemplateSync downstream.
+  const safeSelection: TemplateSyncSelection = {
+    stageIdsToAdd: Array.isArray(selection.stageIdsToAdd) ? selection.stageIdsToAdd : [],
+    skillIdsToAdd: Array.isArray(selection.skillIdsToAdd) ? selection.skillIdsToAdd : [],
+    stageIdsToRename: Array.isArray(selection.stageIdsToRename) ? selection.stageIdsToRename : [],
+    skillIdsToRename: Array.isArray(selection.skillIdsToRename) ? selection.skillIdsToRename : [],
+    taskTemplateIdsToAdd: Array.isArray(selection.taskTemplateIdsToAdd)
+      ? selection.taskTemplateIdsToAdd
+      : [],
+    instanceTaskIdsToUpdate: Array.isArray(selection.instanceTaskIdsToUpdate)
+      ? selection.instanceTaskIdsToUpdate
+      : [],
+  };
+
+  const repo = await getServerWorkflowRepository();
+  const instance = await repo.applyTemplateSync(trimmedId, safeSelection);
+  revalidatePath("/", "layout");
+  revalidatePath(`/workflows/${trimmedId}`);
+  if (instance.templateId) {
+    revalidatePath(`/workflows/templates/${instance.templateId}`);
+  }
+  return { instance };
 }

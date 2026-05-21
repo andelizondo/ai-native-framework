@@ -36,7 +36,7 @@ export function canStart(
 ): boolean {
   if (task.status !== "not_started") return true;
 
-  const linked = (task.inputs ?? []).filter((input) => input.linkMode === "linked");
+  const linked = task.inputs ?? [];
   if (linked.length === 0) return true;
 
   return linked.every((input) => {

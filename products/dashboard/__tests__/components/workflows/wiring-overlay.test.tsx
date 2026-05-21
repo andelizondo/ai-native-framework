@@ -19,6 +19,7 @@ function makeTask(
     substatus: "",
     checkpoint: false,
     inputs,
+    outputs: [],
     playbookId: null,
     owners: [],
     createdAt: "2026-04-19T12:00:00Z",
@@ -74,10 +75,8 @@ describe("WiringOverlay", () => {
     makeTask("task-b", [
       {
         id: "in-1",
-        name: "After A",
-        linkMode: "linked",
         upstreamTaskRef: "task-a",
-        upstreamOutputId: null,
+        upstreamOutputId: "out-a",
       },
     ]),
   ];
@@ -125,15 +124,49 @@ describe("WiringOverlay", () => {
     expect(path?.getAttribute("d")).toMatch(/^M /);
   });
 
+  it("dedupes pairs when a downstream has multiple linked inputs from the same upstream", () => {
+    // Two inputs on task-b both pointing at task-a (e.g. a playbook with two
+    // outputs feeding one consumer). Previously each input emitted its own
+    // pair, producing duplicate React keys and a stale path that never went
+    // hidden again — the "stuck line" bug.
+    const dupTasks = [
+      makeTask("task-a"),
+      makeTask("task-b", [
+        {
+          id: "in-1",
+          upstreamTaskRef: "task-a",
+          upstreamOutputId: "out-fo",
+        },
+        {
+          id: "in-2",
+          upstreamTaskRef: "task-a",
+          upstreamOutputId: "out-to",
+        },
+      ]),
+    ];
+    const { container } = render(
+      <Harness tasks={dupTasks} hoveredTaskId="task-b" />,
+    );
+    // We don't depend on jsdom layout here — just assert that no React key
+    // warning fires and that at most one <g> per (from,to) is produced.
+    const groups = container.querySelectorAll("[data-flow]");
+    // jsdom layout may still skip rendering if rects collapse to 0, which is
+    // fine — the assertion that matters is "no more than one group per pair".
+    const seen = new Set<string>();
+    for (const g of Array.from(groups)) {
+      const key = g.querySelector("path")?.getAttribute("d") ?? "";
+      expect(seen.has(key)).toBe(false);
+      seen.add(key);
+    }
+  });
+
   it("ignores inputs whose upstreamTaskRef points to a missing task", () => {
     const orphanTasks = [
       makeTask("task-b", [
         {
           id: "in-1",
-          name: "Dangling",
-          linkMode: "linked",
           upstreamTaskRef: "task-zzz",
-          upstreamOutputId: null,
+          upstreamOutputId: "out-zzz",
         },
       ]),
     ];

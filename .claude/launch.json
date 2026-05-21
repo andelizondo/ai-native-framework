@@ -6,7 +6,7 @@
       "runtimeExecutable": "npm",
       "runtimeArgs": ["run", "dev"],
       "cwd": "products/dashboard",
-      "port": 3000
+      "autoPort": true
     }
   ]
 }

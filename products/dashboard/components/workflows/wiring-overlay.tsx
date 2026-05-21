@@ -132,10 +132,16 @@ export function WiringOverlay({
       }
     }
 
-    const result: WiringPair[] = [];
+    // Dedupe by (from, to). A downstream task with multiple linked inputs
+    // pointing at the same upstream (e.g. two outputs of the same playbook
+    // feeding into one consumer) would otherwise emit several pairs sharing
+    // the same React key downstream, which makes React leave a stale path
+    // in the DOM that never re-renders to hidden — the "stuck line" bug.
+    // One visual wire per (from, to) is also the right rendering: parallel
+    // wires between the same two cards would overlap.
+    const seen = new Map<string, WiringPair>();
     for (const task of tasks) {
       for (const input of task.inputs ?? []) {
-        if (input.linkMode !== "linked") continue;
         let upstream = input.upstreamTaskRef;
         if (!upstream && input.upstreamOutputId) {
           const pb = outputToPlaybookId.get(input.upstreamOutputId);
@@ -144,11 +150,13 @@ export function WiringOverlay({
         if (!upstream || !taskIds.has(upstream)) continue;
         const fromTask = taskById.get(upstream);
         if (!fromTask) continue;
+        const key = `${upstream}->${task.id}`;
+        if (seen.has(key)) continue;
         const flow = classifyEdge(fromTask, task, ioByTaskId.get(task.id));
-        result.push({ from: upstream, to: task.id, flow });
+        seen.set(key, { from: upstream, to: task.id, flow });
       }
     }
-    return result;
+    return Array.from(seen.values());
   }, [tasks, outputGroups, taskIO]);
 
   const [size, setSize] = useState<{ width: number; height: number }>({
@@ -271,17 +279,16 @@ export function WiringOverlay({
         cy1 = upstreamAboveDownstream ? y1 + sag : y1 - sag;
         cy2 = upstreamAboveDownstream ? y2 - sag : y2 + sag;
       } else {
-        // Cards overlap on both axes (rare — same cell). Fall back to
-        // center-to-center with a horizontal bow so the curve at least
-        // renders as a visible arc rather than collapsing to a dot.
-        x1 = fromCenterX;
-        x2 = toCenterX;
-        y1 = fromCenterY;
-        y2 = toCenterY;
-        cx1 = x1 + 24;
-        cx2 = x2 + 24;
-        cy1 = y1;
-        cy2 = y2;
+        // Endpoints overlap on both axes — predictable when two tasks
+        // share a mini cell. The mini stack collapses to a single
+        // visible primary avatar, and the non-primary tasks render as
+        // `inset: 0` ghost anchors so they keep a `data-task-id` for
+        // wiring; that geometry makes the primary's rect sit fully
+        // inside each ghost's rect. Drawing a wire here produced a
+        // small horizontal bow that read as a stray squiggle beside
+        // the +N badge. Same-cell dependencies are implicit by
+        // sharing the cell, so skip the wire entirely.
+        continue;
       }
       const d = `M ${x1} ${y1} C ${cx1} ${cy1}, ${cx2} ${cy2}, ${x2} ${y2}`;
       const hovered =

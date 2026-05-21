@@ -6,8 +6,10 @@ import { getServerWorkflowRepository } from "@/lib/workflows/repository.server";
 import type {
   FrameworkItem,
   FrameworkItemType,
+  PlaybookInput,
   PlaybookOutput,
   PlaybookOutputKind,
+  TemplateOutputGroup,
 } from "@/lib/workflows/types";
 
 const MAX_NAME_LENGTH = 120;
@@ -229,4 +231,68 @@ export async function countTaskOutputsForPlaybookOutputAction(
   const repo = await getServerWorkflowRepository();
   const id = normalizeRequiredField(outputId, "Output id", 160);
   return repo.countTaskOutputsForPlaybookOutput(id);
+}
+
+// ---------------------------------------------------------------------------
+// Playbook inputs — each input is a reference to an upstream output of
+// another playbook. The metadata dock on the playbook edit page renders
+// the Inputs section using `listOutputGroupsForOtherPlaybooks` as the
+// catalog for the "+ Add input" picker. The Add Playbook drawer snapshots
+// these declarations into each new task as `WorkflowInput { upstreamOutputId }`.
+// ---------------------------------------------------------------------------
+
+export async function listPlaybookInputsAction(
+  playbookId: string,
+): Promise<PlaybookInput[]> {
+  const repo = await getServerWorkflowRepository();
+  const id = normalizeRequiredField(playbookId, "Playbook id", 160);
+  return repo.listPlaybookInputs(id);
+}
+
+export async function createPlaybookInputAction(input: {
+  playbookId: string;
+  upstreamOutputId: string;
+}): Promise<PlaybookInput> {
+  const repo = await getServerWorkflowRepository();
+  const created = await repo.createPlaybookInput({
+    playbookId: normalizeRequiredField(input.playbookId, "Playbook id", 160),
+    upstreamOutputId: normalizeRequiredField(
+      input.upstreamOutputId,
+      "Upstream output id",
+      160,
+    ),
+  });
+  revalidateFrameworkPaths();
+  return created;
+}
+
+export async function deletePlaybookInputAction(id: string): Promise<void> {
+  const repo = await getServerWorkflowRepository();
+  const normalizedId = normalizeRequiredField(id, "Input id", 160);
+  await repo.deletePlaybookInput(normalizedId);
+  revalidateFrameworkPaths();
+}
+
+export async function reorderPlaybookInputsAction(
+  playbookId: string,
+  orderedIds: string[],
+): Promise<void> {
+  const repo = await getServerWorkflowRepository();
+  const id = normalizeRequiredField(playbookId, "Playbook id", 160);
+  if (!Array.isArray(orderedIds)) {
+    throw new Error("orderedIds must be an array");
+  }
+  const ids = orderedIds
+    .filter((value): value is string => typeof value === "string" && value.trim().length > 0)
+    .map((value) => value.trim());
+  await repo.reorderPlaybookInputs(id, ids);
+  revalidateFrameworkPaths();
+}
+
+export async function listOutputGroupsForOtherPlaybooksAction(
+  currentPlaybookId: string,
+): Promise<TemplateOutputGroup[]> {
+  const repo = await getServerWorkflowRepository();
+  const id = normalizeRequiredField(currentPlaybookId, "Playbook id", 160);
+  return repo.listOutputGroupsForOtherPlaybooks(id);
 }

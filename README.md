@@ -1,10 +1,61 @@
 # AI-Native Framework
 
-![AI-Native Framework banner](assets/brand/governed-orchestration-banner.svg)
+![AI-Native Framework](assets/brand/ai-native-framework-banner.png)
 
-This repository is an AI-native operating system for building and running product-led companies. It is spec-driven, event-observable, human-governed, and provider-agnostic at the core.
+**An AI-native operating system for building and running product-led companies.**
+*spec-driven · human-governed · provider-agnostic*
 
-The framework is designed for agents to execute structured work under explicit constraints, while humans retain authority for strategy, ambiguity, and high-stakes decisions.
+## What it is
+
+An exploration project asking a single question: **what happens when a company runs every function — not just engineering — as governed agentic work?**
+
+Most "AI for X" today is bolt-on automation: a chatbot here, a copilot there, a draft generator somewhere else. This repository takes a different bet. It treats AI as the substrate the company runs on, and codifies the operating loop end-to-end: `intent → discovery → product → build & ship → go-to-market → operations → feedback & learning`.
+
+The framework is designed so agents can execute structured work under explicit constraints, while humans retain authority for strategy, ambiguity, and high-stakes decisions. The target is high leverage, not fake autonomy — a 90/10 automation-to-human ratio that only holds when judgment checkpoints, confidence thresholds, and escalation rules are explicit.
+
+## Why it exists
+
+I'm building this as an open exploration of how product-led companies can use governed agentic work to turn AI into a *repeatable source of product value and growth* — not a series of one-off experiments. The repository is both the artifact and the experiment: spec-driven artifacts, event-observable runtime, provider-agnostic interfaces, and human governance baked into the authority ladder rather than left to chat.
+
+## Who this is for
+
+- **Developers and AI builders** — start at [AGENTS.md](AGENTS.md), then [Quick Start](#quick-start). The interesting source of truth lives in [spec/](spec/), [interfaces/](interfaces/), and [ai/playbooks/](ai/playbooks/). Each playbook is a reusable, agent-executable procedure.
+- **Recruiters and hiring partners** — this project demonstrates spec-first product thinking, governed agentic systems design, and end-to-end ownership across product, engineering, and operations. The full narrative behind it lives in [docs/AI_NATIVE_FRAMEWORK.md](docs/AI_NATIVE_FRAMEWORK.md); a working application built on it lives in [products/](products/).
+- **Executives and product leaders** — read the [Operating Model](#operating-model) and [End-To-End Scope](#end-to-end-scope) sections below for the short version, and [docs/AI_NATIVE_FRAMEWORK.md](docs/AI_NATIVE_FRAMEWORK.md) for the full framework prose. The question this answers: *what changes structurally when AI moves from feature to substrate?*
+
+## How it works
+
+The framework is built as four layers an agent or a person can read top-to-bottom. Each layer constrains the one above it, so the system stays consistent even as agents do the work.
+
+**1. Specs are the source of truth.** A product is described in a YAML spec under [spec/examples/](spec/examples/) (e.g. [dashboard-product.yaml](spec/examples/dashboard-product.yaml)), validated by [spec/schema/product-spec.schema.json](spec/schema/product-spec.schema.json). The spec declares the product's slices, events, and policies. No feature exists until it exists in the spec. `npm run validate` enforces this on every change.
+
+**2. Interfaces describe capabilities, not vendors.** [interfaces/interfaces.yaml](interfaces/interfaces.yaml) defines the logical operations any implementation has to provide — `read_spec`, `validate_spec`, `emit_event`, and so on. Anything that needs to talk to the framework (a model, an IDE, an MCP adapter, a CI job) goes through these contracts, which is how the system stays provider-agnostic. The current MCP adapter projection lives in [docs/AGENT_INTEGRATION.md](docs/AGENT_INTEGRATION.md).
+
+**3. The agent surface tells agents what to do.** [AGENTS.md](AGENTS.md) is the first file any agent reads. From there it routes through three indexes under [ai/](ai/):
+- [ai/SKILLS.md](ai/SKILLS.md) — *roles* an agent can take on (Developer, PM, Designer, Quality Engineer, Framework Keeper). Each skill body lives in [ai/skills/](ai/skills/).
+- [ai/PLAYBOOKS.md](ai/PLAYBOOKS.md) — *procedures* for recurring operational work. Each body lives in [ai/playbooks/](ai/playbooks/).
+- [ai/MEMORY.md](ai/MEMORY.md) — durable repo facts, decisions, and open loops, so agents don't relearn the same things every run.
+
+**4. Playbooks turn repeated work into reusable procedures.** The interesting ones to look at: [feature-implementation.md](ai/playbooks/feature-implementation.md) (spec → events → code → PR), [pull-request-execution-loop.md](ai/playbooks/pull-request-execution-loop.md) (residual risk, freshness, merge), [publish-to-production.md](ai/playbooks/publish-to-production.md), and [resolve-sentry-issues.md](ai/playbooks/resolve-sentry-issues.md) (incident → evidence → closure). A playbook is short, self-contained, and executable by an agent without further context.
+
+### A working example: the dashboard
+
+[products/dashboard/](products/dashboard/) is a real Next.js + Supabase + Sentry + PostHog application built *on* the framework, not alongside it. It's how every layer above gets exercised end-to-end:
+
+1. A feature starts as a change to [spec/examples/dashboard-product.yaml](spec/examples/dashboard-product.yaml) — new slice, new events, new acceptance criteria.
+2. `npm run validate` confirms the spec is structurally and semantically legal.
+3. An agent picks up the [feature-implementation playbook](ai/playbooks/feature-implementation.md), implements the slice, and emits the declared events from the runtime.
+4. Sentry + PostHog capture errors and analytics per [docs/ANALYTICS_STANDARD.md](docs/ANALYTICS_STANDARD.md); tests run per [docs/QUALITY_STANDARD.md](docs/QUALITY_STANDARD.md).
+5. The PR moves through [pull-request-execution-loop.md](ai/playbooks/pull-request-execution-loop.md): risk classified, checks verified, low-risk merges executed by the agent, high-risk decisions escalated to a human.
+6. [publish-to-production.md](ai/playbooks/publish-to-production.md) promotes `staging` → `main`, [release-management.md](ai/playbooks/release-management.md) cuts the tag.
+
+Everything an agent does is traceable back to a spec entry, an interface contract, or a playbook step. That's what "governed agentic work" means in practice: not unconstrained autonomy, but constrained execution against artifacts a human can read, change, and audit.
+
+## Status
+
+Active exploration. Live site: [ai-native-framework.app](https://ai-native-framework.app). Author: [Andres Elizondo](https://andelizondo.com) ([@andelizondo](https://github.com/andelizondo)).
+
+---
 
 ## Core framework artifacts
 
@@ -14,6 +65,7 @@ The framework is designed for agents to execute structured work under explicit c
 - Playbooks for repository governance, pull-request automation, and agent runtime context
 - A repository-local agent surface: root [AGENTS.md](AGENTS.md) (first read for most agent tools), plus [ai/PLAYBOOKS.md](ai/PLAYBOOKS.md), [ai/playbooks/](ai/playbooks/), [ai/SKILLS.md](ai/SKILLS.md), [ai/skills/](ai/skills/), and [ai/MEMORY.md](ai/MEMORY.md)
 - Governed documentation standards: [Analytics Standard](docs/ANALYTICS_STANDARD.md), [Quality Standard](docs/QUALITY_STANDARD.md)
+- End-user agent integration surface: [Agent Integration](docs/AGENT_INTEGRATION.md) — how MCP (and future adapters) project a curated subset of [interfaces.yaml](interfaces/interfaces.yaml) operations to third-party agents
 
 ## Authority Ladder
 

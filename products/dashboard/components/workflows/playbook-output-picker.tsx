@@ -303,7 +303,7 @@ export function PlaybookOutputPicker({
         className={cn(
           "items-center rounded-md border border-dashed border-border bg-transparent text-t3 transition hover:border-border-hi hover:bg-bg-2 hover:text-t1 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent",
           fullWidthTrigger
-            ? "flex w-full justify-center gap-1.5 px-4 py-3 text-[12px] font-medium"
+            ? "flex min-h-[56px] w-full items-center justify-center gap-1.5 px-4 py-3 text-[12px] font-medium"
             : "flex min-w-0 gap-1.5 px-2.5 py-1 text-[12px]",
           open && "border-accent text-t1",
         )}
@@ -331,7 +331,11 @@ type FilteredRow = {
   kind: string | null;
 };
 
-const PORTAL_DROPDOWN_WIDTH = 320;
+/** Floor for the portalled dropdown's width. The dropdown matches the
+ *  trigger's measured width so it sits flush under the "+ Add input"
+ *  button; this minimum kicks in only when the trigger is narrower than
+ *  the picker UI itself can reasonably render. */
+const PORTAL_DROPDOWN_MIN_WIDTH = 280;
 
 interface PortalDropdownProps {
   ref: React.RefObject<HTMLDivElement | null>;
@@ -407,19 +411,26 @@ function PortalDropdown({
   const positionStyle: React.CSSProperties = openUp
     ? { bottom: Math.max(8, viewportHeight - anchorRect.triggerTop + 8) }
     : { top: anchorRect.triggerBottom + 8 };
+  // Match the trigger's width so the dropdown reads as an extension of the
+  // "+ Add input" button. Floor protects very narrow triggers; cap stays
+  // inside the viewport so the dropdown can't ever overflow horizontally.
+  const dropdownWidth = Math.min(
+    Math.max(anchorRect.width, PORTAL_DROPDOWN_MIN_WIDTH),
+    viewportWidth - 16,
+  );
   let left =
     align === "end"
-      ? anchorRect.right - PORTAL_DROPDOWN_WIDTH
+      ? anchorRect.right - dropdownWidth
       : anchorRect.left;
   // Clamp horizontally so the dropdown stays inside the viewport.
-  left = Math.max(8, Math.min(left, viewportWidth - PORTAL_DROPDOWN_WIDTH - 8));
+  left = Math.max(8, Math.min(left, viewportWidth - dropdownWidth - 8));
 
   return (
     <div
       ref={ref}
       role="dialog"
       aria-label="Playbook outputs"
-      style={{ ...positionStyle, left, width: PORTAL_DROPDOWN_WIDTH }}
+      style={{ ...positionStyle, left, width: dropdownWidth }}
       data-open-direction={openUp ? "up" : "down"}
       className="fixed z-[80] overflow-hidden rounded-[12px] border border-border-hi bg-bg-2 shadow-[var(--shadow-canvas)]"
       data-testid={`${testId}-dropdown`}
@@ -447,7 +458,7 @@ function PortalDropdown({
               data-testid={`${testId}-search`}
             />
           </div>
-          <div className="max-h-[280px] overflow-y-auto p-1.5">
+          <div className="max-h-[280px] overflow-y-auto px-1.5 pb-1.5">
             {grouped.length === 0 ? (
               <div className="px-2.5 py-3 text-[11.5px] text-t3">No matches.</div>
             ) : (
