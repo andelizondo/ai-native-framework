@@ -1,5 +1,24 @@
 # Changelog
 
+## [0.25.0](https://github.com/andelizondo/ai-native-framework/compare/v0.24.0...v0.25.0) (2026-05-21)
+
+
+### Features
+
+* **dashboard:** group playbooks by skill/workflow + drawer/dock polish ([c80d82f](https://github.com/andelizondo/ai-native-framework/commit/c80d82f55cb0509c61b2fa1e3ec16943ead26462))
+* **dashboard:** multi-card matrix cells + collapsed-row UX ([c80d82f](https://github.com/andelizondo/ai-native-framework/commit/c80d82f55cb0509c61b2fa1e3ec16943ead26462))
+* **dashboard:** per-task outputs snapshot + lifecycle-driven chat options panel ([c80d82f](https://github.com/andelizondo/ai-native-framework/commit/c80d82f55cb0509c61b2fa1e3ec16943ead26462))
+* **dashboard:** playbook inputs as cross-playbook output references ([c80d82f](https://github.com/andelizondo/ai-native-framework/commit/c80d82f55cb0509c61b2fa1e3ec16943ead26462))
+* **dashboard:** playbook outputs as right-side metadata dock ([c80d82f](https://github.com/andelizondo/ai-native-framework/commit/c80d82f55cb0509c61b2fa1e3ec16943ead26462))
+* **dashboard:** template ↔ instance sync + template-level matrix overview ([c80d82f](https://github.com/andelizondo/ai-native-framework/commit/c80d82f55cb0509c61b2fa1e3ec16943ead26462))
+* **interfaces:** agent-exposure metadata + MCP adapter design ([c80d82f](https://github.com/andelizondo/ai-native-framework/commit/c80d82f55cb0509c61b2fa1e3ec16943ead26462))
+* **mcp-server:** MCP adapter package + bundled deploy ([c80d82f](https://github.com/andelizondo/ai-native-framework/commit/c80d82f55cb0509c61b2fa1e3ec16943ead26462))
+
+
+### Bug Fixes
+
+* **dashboard:** wiring overlay hover in edit mode + preserve outputs snapshot on save ([c80d82f](https://github.com/andelizondo/ai-native-framework/commit/c80d82f55cb0509c61b2fa1e3ec16943ead26462))
+
 ## [0.24.0](https://github.com/andelizondo/ai-native-framework/compare/v0.23.0...v0.24.0) (2026-05-15)
 
 
