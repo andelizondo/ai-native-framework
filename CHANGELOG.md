@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.26.0](https://github.com/andelizondo/ai-native-framework/compare/v0.25.0...v0.26.0) (2026-05-26)
+
+
+### Features
+
+* **dashboard:** reseed demo DB with full ProductLed Co company ([dd38465](https://github.com/andelizondo/ai-native-framework/commit/dd3846511430e4dc3565db379ec70002f8750e39))
+
 ## [0.25.0](https://github.com/andelizondo/ai-native-framework/compare/v0.24.0...v0.25.0) (2026-05-21)
 
 
