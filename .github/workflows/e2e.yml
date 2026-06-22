@@ -45,7 +45,7 @@ jobs:
       statuses: write
 
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
         with:
           # Checkout the SHA that triggered the deployment, not the latest main
           ref: ${{ github.event.deployment.sha || github.sha }}
