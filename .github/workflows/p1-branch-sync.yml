@@ -93,7 +93,7 @@ jobs:
       # ── Same-repo branch: attempt automated rebase ───────────────────────────
       - name: Checkout repository
         if: steps.pr-info.outputs.is_fork == 'false'
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
         with:
           ref: ${{ steps.pr-info.outputs.head_ref }}
           fetch-depth: 0
